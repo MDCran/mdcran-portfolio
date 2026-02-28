@@ -1,0 +1,79 @@
+{  
+   "key":"chicken_eggs_1",
+   "name":"&6Find the Eggs",
+   "author":"Matty",
+   "Delay":[  
+      1
+   ],
+   "CumulativePickupItem":[  
+      556.5,
+      71.5,
+      724.5,
+      "",
+      "dragon egg"
+   ],
+   "PlaySound":[  
+      "entity_player_levelup",
+      1
+   ],
+   "CumulativePickupItem":[  
+      555.5,
+      71.5,
+      724.5,
+      "",
+      "dragon egg"
+   ],
+   "PlaySound":[  
+      "entity_player_levelup",
+      1
+   ],
+   "CumulativePickupItem":[  
+      554.5,
+      71.5,
+      724.5,
+      "",
+      "dragon egg"
+   ],
+   "PlaySound":[  
+      "entity_player_levelup",
+      1
+   ],
+   "CumulativePickupItem":[  
+      553.5,
+      71.5,
+      724.5,
+      "",
+      "dragon egg"
+   ],
+   "PlaySound":[  
+      "entity_player_levelup",
+      1
+   ],
+   "CumulativePickupItem":[  
+      552.5,
+      71.5,
+      724.5,
+      "",
+      "dragon egg"
+   ],
+   "PlaySound":[  
+      "entity_player_levelup",
+      1
+   ],
+   "Delay":[  
+      0.2
+   ],
+   "SendMessage":[  
+      "&8[&6&lCOLLECTED&8] &7You have collected all the Eggs!"
+   ],
+   "Delay":[  
+      0.2
+   ],
+   "Objective":[  
+      "Go back to Ducity to start Training",
+      1
+   ],
+   "CompleteQuest":[  
+
+   ]
+}

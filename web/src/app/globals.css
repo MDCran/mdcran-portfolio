@@ -1,0 +1,320 @@
+@import "tailwindcss";
+
+/* ─── Tailwind v4 Theme ──────────────────────────────────────────────────── */
+@theme {
+  /* Fonts */
+  --font-nord: "Nord", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-sans: "JetBrains Mono", monospace;
+
+  /* Cranberry brand colors */
+  --color-cranberry-50:  #fff1f1;
+  --color-cranberry-100: #ffe1e1;
+  --color-cranberry-200: #ffc8c8;
+  --color-cranberry-300: #ffa0a0;
+  --color-cranberry-400: #ff6b6b;
+  --color-cranberry-500: #ef4242;
+  --color-cranberry-600: #dd2626;
+  --color-cranberry-700: #ba1c1c;
+  --color-cranberry-800: #9a1b1b;
+  --color-cranberry-900: #7f1d1d;
+
+  /* Radius */
+  --radius: 0.25rem;
+
+  /* Animation definitions */
+  --animate-fade-in:    fadeIn    0.5s ease-out;
+  --animate-slide-up:   slideUp   0.5s ease-out;
+  --animate-glow-pulse: glowPulse 3s   ease-in-out infinite;
+  --animate-float:      float     4s   ease-in-out infinite;
+  --animate-marquee:    marquee   30s  linear      infinite;
+  --animate-border-flow:borderFlow 4s  linear      infinite;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0);    }
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(239,66,66,0.3); }
+    50%      { box-shadow: 0 0 30px rgba(239,66,66,0.7), 0 0 60px rgba(239,66,66,0.3); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0);    }
+    50%      { transform: translateY(-8px); }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0);    }
+    to   { transform: translateX(-50%); }
+  }
+  @keyframes borderFlow {
+    0%   { background-position: 0%   50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0%   50%; }
+  }
+  @keyframes scanLine {
+    from { transform: translateY(-100%);  }
+    to   { transform: translateY(200vh); }
+  }
+  @keyframes timelineGlow {
+    0%   { background-position: 0% 0%;   }
+    100% { background-position: 0% 100%; }
+  }
+}
+
+@utility animate-timeline-glow {
+  animation: timelineGlow 4.2s ease-in-out infinite alternate;
+  background-size: 100% 160px;
+  height: 100%;
+}
+
+/* ─── Local Fonts ────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: "Nord";
+  src: url("/fonts/Nord/Nord-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-Thin.woff2") format("woff2");
+  font-weight: 100; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-Light.woff2") format("woff2");
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-Bold.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono/JetBrainsMono-ExtraBold.woff2") format("woff2");
+  font-weight: 800; font-style: normal; font-display: swap;
+}
+
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
+:root {
+  /* shadcn/radix color tokens (HSL) */
+  --background:         0 0% 4%;
+  --foreground:         0 0% 95%;
+  --card:               0 0% 6%;
+  --card-foreground:    0 0% 95%;
+  --primary:            0 83% 59%;
+  --primary-foreground: 0 0% 100%;
+  --secondary:          0 0% 10%;
+  --secondary-foreground: 0 0% 95%;
+  --muted:              0 0% 8%;
+  --muted-foreground:   0 0% 55%;
+  --accent:             0 83% 59%;
+  --accent-foreground:  0 0% 100%;
+  --border:             0 0% 13%;
+  --input:              0 0% 10%;
+  --ring:               0 83% 59%;
+
+  /* Direct brand values */
+  --cranberry:       #ef4242;
+  --cranberry-dim:   rgba(239, 66, 66, 0.15);
+  --cranberry-glow:  rgba(239, 66, 66, 0.40);
+
+  /* Layout */
+  --navbar-height:       4.5rem;
+  --content-max-width:   72rem;   /* 1152px */
+}
+
+/* ─── Base Reset ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #0a0a0a;
+  color: #f2f2f2;
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+main {
+  position: relative;
+  z-index: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Nord", system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+/* ─── Global Background ──────────────────────────────────────────────────── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(239,66,66,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(239,66,66,0.04) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80vw;
+  height: 60vh;
+  background: radial-gradient(ellipse at center, rgba(239,66,66,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Centered Content Container ─────────────────────────────────────────── */
+/*
+   Use .content-container on every section or page wrapper that needs to be
+   horizontally centered and padded. Never use max-w-* mx-auto px-* directly
+   on top-level wrappers — use this class instead.
+*/
+@utility content-container {
+  width: 100%;
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+
+  @media (min-width: 640px) {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: #0a0a0a; }
+::-webkit-scrollbar-thumb  { background: #ef4242; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #ff5555; }
+
+/* ─── Selection ──────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(239, 66, 66, 0.3);
+  color: #fff;
+}
+
+/* ─── Font Utilities ─────────────────────────────────────────────────────── */
+@utility font-nord {
+  font-family: "Nord", system-ui, sans-serif !important;
+}
+
+@utility font-jb {
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+/* ─── Surface / Glass ────────────────────────────────────────────────────── */
+@utility glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ─── Text / Border Glow ─────────────────────────────────────────────────── */
+@utility text-glow {
+  text-shadow: 0 0 20px rgba(239,66,66,0.4), 0 0 40px rgba(239,66,66,0.2);
+}
+
+@utility border-glow {
+  box-shadow: 0 0 15px rgba(239,66,66,0.15), inset 0 0 15px rgba(239,66,66,0.02);
+}
+
+/* ─── Hover Lift ─────────────────────────────────────────────────────────── */
+@utility hover-lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(239,66,66,0.15);
+  }
+}
+
+/* ─── Tag Red ────────────────────────────────────────────────────────────── */
+@utility tag-red {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ef4242;
+  border: 1px solid rgba(239,66,66,0.3);
+  border-radius: 2px;
+  background: rgba(239,66,66,0.08);
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ─── Stat Value ─────────────────────────────────────────────────────────── */
+@utility stat-value {
+  font-family: "Nord", system-ui, sans-serif;
+  font-size: clamp(1rem, 3vw, 2rem);
+  color: #fff;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* ─── Marquee / Float / Glow Animations ──────────────────────────────────── */
+@utility animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+@utility animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@utility animate-glow-pulse {
+  animation: glowPulse 3s ease-in-out infinite;
+}

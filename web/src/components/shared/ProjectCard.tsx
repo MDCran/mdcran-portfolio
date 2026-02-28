@@ -1,0 +1,176 @@
+"use client";
+
+import React from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Download, ShoppingCart, Tag } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn, projectUrl } from "@/lib/utils";
+import type { Project } from "@/lib/types";
+
+interface ProjectCardProps {
+  project: Project;
+  index?: number;
+  className?: string;
+}
+
+function PricingBadge({ project }: { project: Project }) {
+  const { pricing } = project;
+  if (pricing.status === "free") {
+    return (
+      <Badge
+        variant="green"
+        className="gap-1 bg-green-500/30 text-emerald-50 border-green-400/80 shadow-[0_0_0_1px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+      >
+        <Download size={8} />
+        Free
+      </Badge>
+    );
+  }
+  if (pricing.status === "for_sale" && pricing.price) {
+    const dollars = (pricing.price / 100).toFixed(2);
+    return (
+      <Badge
+        variant="default"
+        className="gap-1 bg-[#ef4242]/80 text-white border-[#ef4242] shadow-[0_0_0_1px_rgba(0,0,0,0.5)] backdrop-blur-sm"
+      >
+        <Tag size={8} />
+        ${dollars}
+      </Badge>
+    );
+  }
+  return null;
+}
+
+function PricingAction({ project }: { project: Project }) {
+  const { pricing } = project;
+
+  const trackDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent card-level link from firing
+    await fetch("/api/downloads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: project.id }),
+    }).catch(() => {});
+  };
+
+  if (pricing.status === "free") {
+    return (
+      <Button
+        variant="glass"
+        size="sm"
+        className="gap-1.5 relative z-[2]"
+        asChild={!!pricing.downloadUrl}
+        onClick={!pricing.downloadUrl ? trackDownload : undefined}
+      >
+        {pricing.downloadUrl ? (
+          <a href={pricing.downloadUrl} download onClick={trackDownload}>
+            <Download size={12} />
+            Download
+          </a>
+        ) : (
+          <>
+            <Download size={12} />
+            Download
+          </>
+        )}
+      </Button>
+    );
+  }
+
+  if (pricing.status === "for_sale" && pricing.price) {
+    const dollars = (pricing.price / 100).toFixed(2);
+    return (
+      <Button
+        variant="default"
+        size="sm"
+        className="gap-1.5 relative z-[2]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ShoppingCart size={12} />
+        Buy ${dollars}
+      </Button>
+    );
+  }
+
+  return null;
+}
+
+export default function ProjectCard({ project, index = 0, className }: ProjectCardProps) {
+  const href = projectUrl(project.category, project.slug, project.subcategory);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.3), ease: [0.22, 1, 0.36, 1] }}
+      className={cn("group h-full", className)}
+    >
+      <div className="relative flex flex-col h-full rounded-sm border border-white/7 bg-white/2 overflow-hidden transition-all duration-300 hover:border-[rgba(239,66,66,0.25)] hover:bg-white/4 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(239,66,66,0.1)] cursor-pointer">
+
+        {/* Full-card link overlay — sits above content, below action buttons */}
+        <Link href={href} className="absolute inset-0 z-[1]" aria-label={project.title} />
+
+        {/* Cover image */}
+        <div className="relative aspect-video overflow-hidden bg-white/5 shrink-0">
+          {(project.coverImage ?? project.images?.[0]) ? (
+            <Image
+              src={(project.coverImage ?? project.images![0])!}
+              alt={project.title}
+              fill
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-sm bg-[rgba(239,66,66,0.08)] border border-[rgba(239,66,66,0.15)] flex items-center justify-center">
+                <div className="w-6 h-6 bg-[#ef4242] rounded-sm rotate-45 opacity-60" />
+              </div>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+          <div className="absolute top-3 right-3 z-[2]">
+            <PricingBadge project={project} />
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-4 pt-4 min-w-0 flex flex-col flex-1 relative z-0">
+          <h3 className="font-nord text-sm tracking-wide text-white group-hover:text-[#ef4242] transition-colors duration-200 leading-snug mb-2">
+            {project.title}
+          </h3>
+
+          {project.description && (
+            <p className="text-xs text-white/40 leading-relaxed mb-3">
+              {project.description}
+            </p>
+          )}
+
+          {/* Tags */}
+          {project.tags && project.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {project.tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="text-[10px] px-2 py-0.5 rounded-sm bg-white/4 border border-white/[0.06] text-white/30 tracking-wider"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Action row */}
+          <div className="flex items-center justify-between py-2 border-t border-white/6 mt-auto">
+            <span className="text-[10px] text-white/25 tracking-wider uppercase">
+              {project.subcategory?.replace(/-/g, " ") ?? project.category.replace(/-/g, " ")}
+            </span>
+            <PricingAction project={project} />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

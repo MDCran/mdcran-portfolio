@@ -1,0 +1,135 @@
+{
+  "key": "CLOUD_CHALLENGE",
+  "name": "&bDaily Challenge 4 - Cloud Rescue",
+  "author": "Mattyy",
+  "description": "Cloud is in the sky and Pat and Jen have no way in getting to him! They need your help to return him safely!",
+  "location": "Lucky Land - Rainbow Road",
+  "minimumLevel": 1,
+  "hideInQuestLog": true,
+  "allowRejoining": true,
+  "icon": {
+    "material": "diamond_hoe",
+    "durability": 152
+  },
+  "rewards": [
+    "&67500 Coins",
+    "&55 Tokens",
+    "&27500 Trainer Experience",
+    "&rChance for a &cAir Balloon"
+  ],
+  "RegionEntry": [
+    737,
+    252,
+    2168,
+    743,
+    249,
+    2179
+  ],
+  "NotCompletedQuestProgressStage": [
+    24,
+    0
+  ],
+  "GlobalHologram": [
+    740.5,
+    254.5,
+    2170.5,
+    "&7&m-------------------------",
+    "&b&lDAILY CHALLENGE #4",
+    "&bCloud Rescue",
+    "&7&m-------------------------"
+  ],
+  "NoFlyRegion": [
+    790,
+    700,
+    2193,
+    692,
+    0,
+    2107
+  ],
+  "PokemonStatue": [
+    "cloud",
+    740.5,
+    250,
+    2172.5,
+    180
+  ],
+  "Dialog": [
+    {
+      "Cloud": "Well, I have to go back home now. Bye!"
+    }
+  ],
+  "Objective": [
+    "Talk to Cloud",
+    1
+  ],
+  "PickupItem": [
+    753.5,
+    31.5,
+    1989.8,
+    "",
+    "cooked_fish",
+    0
+  ],
+  "PlaySound": [
+    "entity_generic_eat",
+    1
+  ],
+  "SendMessage": [
+    "&6Found 10/10 Pieces of Food"
+  ],
+  "TimedStage": [
+    1
+  ],
+  "ClickPokemonStatue": [
+    742.5,
+    30,
+    2139.5,
+    0
+  ],
+  "MovePokemonStatue": [
+    742.5,
+    30,
+    2145.5,
+    742.5,
+    30,
+    2139.5,
+    0.2
+  ],
+  "HidePokemonStatueStage": [
+    740.5,
+    250,
+    2172,
+    180
+  ],
+  "ShowPokemonStatue": [
+    "cloud",
+    742.5,
+    30,
+    2139.5,
+    0
+  ],
+  "HidePokemonStatue": [
+    742.5,
+    30,
+    2139.5,
+    180
+  ],
+  "GiveCoinsStage": [
+    7500
+  ],
+  "GiveTokensStage": [
+    5
+  ],
+  "GiveTrainerExperienceStage": [
+    7500
+  ],
+  "GiveItemStage": [
+    "Air Balloon",
+    1,
+    0.1
+  ],
+  "SendMessageStage": [
+    "&aQuest Completed!"
+  ],
+  "CompleteQuestStage": []
+}

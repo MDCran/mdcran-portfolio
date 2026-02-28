@@ -1,0 +1,1977 @@
+{
+    "key": "MYSTERY_MAN_RESCUE",
+    "name": "&aMystery Man Rescue",
+	"author": "Matty",
+    "description": "The Mystery Man has been captured by the police, you have to save him!",
+    "location": "Speak to Pat and Jen in Noobville!",
+    "minimumLevel": 30,
+    "hideInQuestLog": false,
+    "allowRejoining": true,
+    "icon": {
+        "material": "THUNDER STONE"
+    },
+    "rewards": [
+        "&650000 Coins",
+        "&510 Tokens",
+        "&275000 Trainer Experience",
+		"&f1 Random &7Evolution Stone"
+    ],
+    "npcs": {
+        "Jen_One": {
+            "name": [
+                "&d&lJen",
+                "&B&OQuest Giver"
+			],
+            "location": {
+                "world": "world",
+                "x": 624.5,
+                "y": 53,
+                "z": 617.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": "jen"
+        },
+        "Jen_Two": {
+            "name": [
+				"&d&lJen"
+			],
+            "location": {
+                "world": "world",
+                "x": 2178.5,
+                "y": 44,
+                "z": 807.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": "jen"
+        },
+        "Pat_One": {
+            "name": [
+                "&1&lPat",
+                "&B&OQuest Giver"
+			],
+            "location": {
+                "world": "world",
+                "x": 622.5,
+                "y": 53,
+                "z": 617.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": "pat"
+        },
+        "Pat_Two": {
+            "name": [
+				"&1&lPat"
+			],
+            "location": {
+                "world": "world",
+                "x": 2178.5,
+                "y": 44,
+                "z": 809.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": "pat"
+        },
+        "Pat_Three": {
+            "name": [
+				"&1&lPat"
+			],
+            "location": {
+                "world": "world",
+                "x": 2167.5,
+                "y": 44,
+                "z": 809.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": "pat"
+        },
+        "Mystery_Man_One": {
+            "name": "&6&lMystery Man",
+            "location": {
+                "world": "world",
+                "x": 2173.5,
+                "y": 44,
+                "z": 825.5,
+                "yaw": -90,
+                "pitch": 0
+            },
+            "skin": "mystery_man"
+        },
+        "Mystery_Man_Two": {
+            "name": "&6&lMystery Man",
+            "location": {
+                "world": "world",
+                "x": 2173.5,
+                "y": 44,
+                "z": 818.5,
+                "yaw": -90,
+                "pitch": 0
+            },
+            "skin": "mystery_man"
+    },
+        "Mystery_Man_Three": {
+            "name": "&6&lMystery Man",
+            "location": {
+                "world": "world",
+                "x": 625.5,
+                "y": 53,
+                "z": 618.5,
+                "yaw": 45,
+                "pitch": 0
+            },
+            "skin": "mystery_man"
+    },
+        "Hudson_One": {
+            "name": [
+				"&c&lHudson",
+				"&7Interrogator"
+			],
+            "location": {
+                "world": "world",
+                "x": 2175.5,
+                "y": 44,
+                "z": 822.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTkzODM1NjYsInByb2ZpbGVJZCI6IjIzZjFhNTlmNDY5YjQzZGRiZGI1MzdiZmVjMTA0NzFmIiwicHJvZmlsZU5hbWUiOiIyODA3Iiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS83NTBiZDVmY2M3ZGVlYmRkYjk4ZWE0MzA5ODc2NDRjNTBmNTU4YmU5MDYzNmZiMGIxNzE2OTE1YjFlMzNhMzczIn19fQ==",
+                "signature": "Vz8FTzysTdQNm6Qr8/wjsLWxM7m0naRr2J1jW2R2kjBhvtDFF5lLNf5KWv17D6BcNqUgaI8dr+1aGANkeALViB9JwDoLtKwbFrkd6QpnZuHA49kKnXpBXYD6o9zhgMwRxtH7sTghagR9/YDLYWCQNJiaIhPxyuVCZXnqmF8eBuqQZ8iLpF2F3QxEh2APs9PvkjPtFBK7GUeltm4nnzkk//FaEbg2tkrugqOOeqGSUZ8V7T69x++QzewoiTJqG91Mxb/s5Dlw3CSlAxsas1RY90HEvRxNQ3o9DV1QZOWkl6GLFkv8Whuz7Ch9KlLHRwPim/Qu6vUqjeIy2Hw9jMeTqlhmIS0WPyr2V0GoKE531iBPogTvR+n3axmdPaNQQ+dQmaRgVAUM0SfaLMTLSautXtkNeD+F4X7xaiyZTqVGVmdyo2UUV5HVywyPcWAkCaYKpsTnOP0NbLzfLkqsnlb/9m3Dx2RhoDAMQ+sudV5G/8tKttTD76burMf5ru9O22uGgxFFeSMgI2GumyUv1fScDiO2pp4gb0ZuU3NCI/qbk+7DEh0GeY116WiaXeSX5h8Hl2mB5JfEl6Xa2PIWk3M6ohYPvAlf9NMLo6ak4vtxnHVS0nbI7CcjFxrhzpNCslgoYPPJ29fbfrwXmKFjM8TzkUFosVrFOIBKFJrAuTuFh/4="
+            }
+		},
+        "Hudson_Two": {
+            "name": [
+				"&c&lHudson",
+				"&7Interrogator"
+			],
+            "location": {
+                "world": "world",
+                "x": 2176.5,
+                "y": 44,
+                "z": 817.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTkzODM1NjYsInByb2ZpbGVJZCI6IjIzZjFhNTlmNDY5YjQzZGRiZGI1MzdiZmVjMTA0NzFmIiwicHJvZmlsZU5hbWUiOiIyODA3Iiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS83NTBiZDVmY2M3ZGVlYmRkYjk4ZWE0MzA5ODc2NDRjNTBmNTU4YmU5MDYzNmZiMGIxNzE2OTE1YjFlMzNhMzczIn19fQ==",
+                "signature": "Vz8FTzysTdQNm6Qr8/wjsLWxM7m0naRr2J1jW2R2kjBhvtDFF5lLNf5KWv17D6BcNqUgaI8dr+1aGANkeALViB9JwDoLtKwbFrkd6QpnZuHA49kKnXpBXYD6o9zhgMwRxtH7sTghagR9/YDLYWCQNJiaIhPxyuVCZXnqmF8eBuqQZ8iLpF2F3QxEh2APs9PvkjPtFBK7GUeltm4nnzkk//FaEbg2tkrugqOOeqGSUZ8V7T69x++QzewoiTJqG91Mxb/s5Dlw3CSlAxsas1RY90HEvRxNQ3o9DV1QZOWkl6GLFkv8Whuz7Ch9KlLHRwPim/Qu6vUqjeIy2Hw9jMeTqlhmIS0WPyr2V0GoKE531iBPogTvR+n3axmdPaNQQ+dQmaRgVAUM0SfaLMTLSautXtkNeD+F4X7xaiyZTqVGVmdyo2UUV5HVywyPcWAkCaYKpsTnOP0NbLzfLkqsnlb/9m3Dx2RhoDAMQ+sudV5G/8tKttTD76burMf5ru9O22uGgxFFeSMgI2GumyUv1fScDiO2pp4gb0ZuU3NCI/qbk+7DEh0GeY116WiaXeSX5h8Hl2mB5JfEl6Xa2PIWk3M6ohYPvAlf9NMLo6ak4vtxnHVS0nbI7CcjFxrhzpNCslgoYPPJ29fbfrwXmKFjM8TzkUFosVrFOIBKFJrAuTuFh/4="
+            }
+		},
+        "Hudson_Three": {
+            "name": [
+				"&c&lHudson",
+				"&7Interrogator"
+			],
+            "location": {
+                "world": "world",
+                "x": 2182.5,
+                "y": 44.0,
+                "z": 817.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTkzODM1NjYsInByb2ZpbGVJZCI6IjIzZjFhNTlmNDY5YjQzZGRiZGI1MzdiZmVjMTA0NzFmIiwicHJvZmlsZU5hbWUiOiIyODA3Iiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS83NTBiZDVmY2M3ZGVlYmRkYjk4ZWE0MzA5ODc2NDRjNTBmNTU4YmU5MDYzNmZiMGIxNzE2OTE1YjFlMzNhMzczIn19fQ==",
+                "signature": "Vz8FTzysTdQNm6Qr8/wjsLWxM7m0naRr2J1jW2R2kjBhvtDFF5lLNf5KWv17D6BcNqUgaI8dr+1aGANkeALViB9JwDoLtKwbFrkd6QpnZuHA49kKnXpBXYD6o9zhgMwRxtH7sTghagR9/YDLYWCQNJiaIhPxyuVCZXnqmF8eBuqQZ8iLpF2F3QxEh2APs9PvkjPtFBK7GUeltm4nnzkk//FaEbg2tkrugqOOeqGSUZ8V7T69x++QzewoiTJqG91Mxb/s5Dlw3CSlAxsas1RY90HEvRxNQ3o9DV1QZOWkl6GLFkv8Whuz7Ch9KlLHRwPim/Qu6vUqjeIy2Hw9jMeTqlhmIS0WPyr2V0GoKE531iBPogTvR+n3axmdPaNQQ+dQmaRgVAUM0SfaLMTLSautXtkNeD+F4X7xaiyZTqVGVmdyo2UUV5HVywyPcWAkCaYKpsTnOP0NbLzfLkqsnlb/9m3Dx2RhoDAMQ+sudV5G/8tKttTD76burMf5ru9O22uGgxFFeSMgI2GumyUv1fScDiO2pp4gb0ZuU3NCI/qbk+7DEh0GeY116WiaXeSX5h8Hl2mB5JfEl6Xa2PIWk3M6ohYPvAlf9NMLo6ak4vtxnHVS0nbI7CcjFxrhzpNCslgoYPPJ29fbfrwXmKFjM8TzkUFosVrFOIBKFJrAuTuFh/4="
+            }
+		},
+        "Sabrina_One": {
+            "name": [
+				"&9&lSabrina",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2172.5,
+                "y": 44,
+                "z": 827.5,
+                "yaw": -90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NTE1NDY2OTI0MTIsInByb2ZpbGVJZCI6IjkxOGEwMjk1NTlkZDRjZTZiMTZmN2E1ZDUzZWZiNDEyIiwicHJvZmlsZU5hbWUiOiJCZWV2ZWxvcGVyIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS84NWJhOTQ1MGUzNzJhZDc3MTdkN2Y1NTU2ZDE3OGE2OWQ4MTc5NjY3NDJkOTE2OGZhNTIxOTQyNjQ1MTQzZGJlIn19fQ==",
+                "signature": "asKV3YySqx6GB5dmziAeHKSMBDUT9k1EYrvW5nV2AFDUH/TlDmohfBtyH2nOfarIECpgK/GvJiJKosIv2PVXxOOTg5aJa5lInUpiy0Wdw1G9t0Awr0O3tyxDrIiXhNvyW5HPaZ2y3xJ7ZVkfhsxBtVv+IUBK2LZy6lkckhES2G5P2E0n/fTwNrcXp6aEJRBmJly8Yagv9yMTpbzFI2J+ComL7c3jvf1TpYrxqDOb7E/FSW0d0nIPWi73aKp+31G1iPLBUGFdAZXg9xK9b2YfYUC3hkOvCYpQzuYJNSC3viB+ruDFJebCuKz9csSs7OXsCbbLyt/CJpAjY/A+JA1CAx/zQ/d2CziVMTqAy3soXCkGrzYAAHdtX4K1y6HIfaCV2Owf5WPFA3zfzPDz3LUsFre5ceYcv9mCXpUYKfV50OgILiUN4UqGNp8aHrvtc6X/moMwDUA0y1KdbXj24tlU+VHzxG0EizIn98leB9LAUggCW7DOt4IRkAppQHFJJqeDDFnWBX0ibd6NFWRjxYtZ0lhttYumc2MEVpC8T8qXv2Qb/nVIkuXYQ8mU1PLiv+8dsMlyCfVlxcbpFaj3gIzocWaD/2dsaj5JskRLnOYWMen7VtxVcRQMgH12r0CeDEmu4SDbJceEHwUbev6CpCv+f52zvwmceL3fRBnPLh+SuQE="
+            }
+		},
+        "Sabrina_Two": {
+            "name": [
+				"&9&lSabrina",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2175.5,
+                "y": 44,
+                "z": 814.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NTE1NDY2OTI0MTIsInByb2ZpbGVJZCI6IjkxOGEwMjk1NTlkZDRjZTZiMTZmN2E1ZDUzZWZiNDEyIiwicHJvZmlsZU5hbWUiOiJCZWV2ZWxvcGVyIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS84NWJhOTQ1MGUzNzJhZDc3MTdkN2Y1NTU2ZDE3OGE2OWQ4MTc5NjY3NDJkOTE2OGZhNTIxOTQyNjQ1MTQzZGJlIn19fQ==",
+                "signature": "asKV3YySqx6GB5dmziAeHKSMBDUT9k1EYrvW5nV2AFDUH/TlDmohfBtyH2nOfarIECpgK/GvJiJKosIv2PVXxOOTg5aJa5lInUpiy0Wdw1G9t0Awr0O3tyxDrIiXhNvyW5HPaZ2y3xJ7ZVkfhsxBtVv+IUBK2LZy6lkckhES2G5P2E0n/fTwNrcXp6aEJRBmJly8Yagv9yMTpbzFI2J+ComL7c3jvf1TpYrxqDOb7E/FSW0d0nIPWi73aKp+31G1iPLBUGFdAZXg9xK9b2YfYUC3hkOvCYpQzuYJNSC3viB+ruDFJebCuKz9csSs7OXsCbbLyt/CJpAjY/A+JA1CAx/zQ/d2CziVMTqAy3soXCkGrzYAAHdtX4K1y6HIfaCV2Owf5WPFA3zfzPDz3LUsFre5ceYcv9mCXpUYKfV50OgILiUN4UqGNp8aHrvtc6X/moMwDUA0y1KdbXj24tlU+VHzxG0EizIn98leB9LAUggCW7DOt4IRkAppQHFJJqeDDFnWBX0ibd6NFWRjxYtZ0lhttYumc2MEVpC8T8qXv2Qb/nVIkuXYQ8mU1PLiv+8dsMlyCfVlxcbpFaj3gIzocWaD/2dsaj5JskRLnOYWMen7VtxVcRQMgH12r0CeDEmu4SDbJceEHwUbev6CpCv+f52zvwmceL3fRBnPLh+SuQE="
+            }
+		},
+        "Lauren_One": {
+            "name": [
+				"&9&lLauren",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2178.5,
+                "y": 44,
+                "z": 827.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NTE1NDY4ODU3MzcsInByb2ZpbGVJZCI6ImIwZDRiMjhiYzFkNzQ4ODlhZjBlODY2MWNlZTk2YWFiIiwicHJvZmlsZU5hbWUiOiJ4RmFpaUxlUiIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNjc1NTc2NDUzMGZjMzQ3YmRmNzRhZDlmNDBlMTUzNWMwNDA1OGI3ZTFhZjQ2M2QzMjAyMGNlYWM1MWIzNjIzYSJ9fX0=",
+                "signature": "xEHkHt5jVfUgAp/J3LaLsltVnD/WoLRdEx9tji7sPPvpPg7QOUkMaHWR9X+F3KytN2Gn6ilP9/4ZWq5buTp3JhG+pQga3jsrbGkQlEGkOOe9b+d9woBNq0iYhfQf0HGolFdJNg9i/CYgNzPg7CHdvoW2XX4lj4WaKqxQ1kSA8JibtiH3qf1kEHaTPtc7Ozm4zTbnSUWBHQ4j0owSWQNxchO3rdEVpdBxwkCdMp6w1D/kInQN98yxSyzPUhMk0ISJDwM7KNaggGtVaQwBirVFNuyOrv38QY9a2qf4uyoTVjXGSrO+uQDSHPrx9zfOmtNCqrC99WTwXRecx5RP2Ln7o14ggnR9XorRMLnzU6kijqGDpLJoI2S5UnV9hGJ+9QZoq0y/PW93aBTaihgvSeUPuZ7/cFopQ0sPKvb+j08KYcCSXtPsYPtZ6btN/xjsU+KUtqtga1Fw5Ei3ZgwiEno+6iF1aC7BWMuKGoHSUxJ3v0HLHoSTubyBjYHhZhRNsuSu5ikFx6cUNrVFcrQA+uOrJ7cr/5d/D5Gzq4wXkLFqZqeL3Etrk8ZPxPpPJU+jxqLfoYu/KT3EuolMKE0wCKiUnMPH5Fja7JDSWSMbNTVSqUCTkbahJHAGKgr+UQkRQOEBREc72ZUpZma9NGL044DY1H02ulyhIAjPVaUSMdRJ89U="
+            }
+		},
+        "Lauren_Two": {
+            "name": [
+				"&9&lLauren",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2175.5,
+                "y": 44,
+                "z": 814.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NTE1NDY4ODU3MzcsInByb2ZpbGVJZCI6ImIwZDRiMjhiYzFkNzQ4ODlhZjBlODY2MWNlZTk2YWFiIiwicHJvZmlsZU5hbWUiOiJ4RmFpaUxlUiIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNjc1NTc2NDUzMGZjMzQ3YmRmNzRhZDlmNDBlMTUzNWMwNDA1OGI3ZTFhZjQ2M2QzMjAyMGNlYWM1MWIzNjIzYSJ9fX0=",
+                "signature": "xEHkHt5jVfUgAp/J3LaLsltVnD/WoLRdEx9tji7sPPvpPg7QOUkMaHWR9X+F3KytN2Gn6ilP9/4ZWq5buTp3JhG+pQga3jsrbGkQlEGkOOe9b+d9woBNq0iYhfQf0HGolFdJNg9i/CYgNzPg7CHdvoW2XX4lj4WaKqxQ1kSA8JibtiH3qf1kEHaTPtc7Ozm4zTbnSUWBHQ4j0owSWQNxchO3rdEVpdBxwkCdMp6w1D/kInQN98yxSyzPUhMk0ISJDwM7KNaggGtVaQwBirVFNuyOrv38QY9a2qf4uyoTVjXGSrO+uQDSHPrx9zfOmtNCqrC99WTwXRecx5RP2Ln7o14ggnR9XorRMLnzU6kijqGDpLJoI2S5UnV9hGJ+9QZoq0y/PW93aBTaihgvSeUPuZ7/cFopQ0sPKvb+j08KYcCSXtPsYPtZ6btN/xjsU+KUtqtga1Fw5Ei3ZgwiEno+6iF1aC7BWMuKGoHSUxJ3v0HLHoSTubyBjYHhZhRNsuSu5ikFx6cUNrVFcrQA+uOrJ7cr/5d/D5Gzq4wXkLFqZqeL3Etrk8ZPxPpPJU+jxqLfoYu/KT3EuolMKE0wCKiUnMPH5Fja7JDSWSMbNTVSqUCTkbahJHAGKgr+UQkRQOEBREc72ZUpZma9NGL044DY1H02ulyhIAjPVaUSMdRJ89U="
+            }
+		},
+        "Arfelio_One": {
+            "name": [
+				"&9&lArfelio",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2178.5,
+                "y": 44,
+                "z": 832.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTg4MDM1NDYsInByb2ZpbGVJZCI6ImE5MGI4MmIwNzE4NTQ0ZjU5YmE1MTZkMGY2Nzk2NDkwIiwicHJvZmlsZU5hbWUiOiJJbUZhdFRCSCIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvODMxMzVkNGU4ZTU4NTNhYTA2MzVhZmFlN2Y3YjhmNjBkNjNiYjEzODE1ZGMxYmM1MDk4NzJlZDJkMGMyNzBiIn19fQ==",
+                "signature": "YMZQY0eZChE/+bYb5diIGpvnJy8fNnDcbubfRrH6oqOFjvJUD4FZnnuHPmBJVOJwxTO3Jp18Y4Aa9l3asJoMg4QqdemA0tkOhBvFCvbVTH40urmio2+ZX9gYgFxQwOHbByGqTnGrg+a38zhnRA6uubZm9keAfH7p4iL8EQC1o9DGoDb1bKlocxM+N27KV6JWH64Fnvd3pdosgNnStMw8cLHJA/CudlzuEGaAf11jiNSyaLTP3d2nEVE/xeG4gxYGLAGyuMmOsQVnd6o/q62TAXUHLKyMy9ky9+fi4eM60TEyen1Brw82p/E0UX32QOZ8WvqCwyjcV+QSaz0LcTx+D0al4KoxN2tO5vWMgf8tCuQyQWP7ytCy21GRoIRCPTPhGOlTvDynEypJQilq6dsLoKttTJxZC2QzTf5l+xs1hgHPPBkkbvAXZrdXWoNTJ6BJNBEB5MhVDU3C24qeCiWXueZqID9NpccGvVerYGeG+BrwQ4poEhUcJjs/jxE6HMrGDUg75KztCQgUP2t1uYgeutv1cOtrbEfvqozObxFoi7iY6mLO6dIOWMrFJNFpjdf0mNRF/2yLXUQPBdl7efHdHJWQs2A0KHQLw0L5w0AusXtEirK4zM1ykkIy/V4KxNGCQvdIffqk7SwxeE+MfpHUlJ3UeHOuA/utzUSRuLLwYSE="
+            }
+		},
+        "Arfelio_Two": {
+            "name": [
+				"&9&lArfelio",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2175.5,
+                "y": 44,
+                "z": 814.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTg4MDM1NDYsInByb2ZpbGVJZCI6ImE5MGI4MmIwNzE4NTQ0ZjU5YmE1MTZkMGY2Nzk2NDkwIiwicHJvZmlsZU5hbWUiOiJJbUZhdFRCSCIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvODMxMzVkNGU4ZTU4NTNhYTA2MzVhZmFlN2Y3YjhmNjBkNjNiYjEzODE1ZGMxYmM1MDk4NzJlZDJkMGMyNzBiIn19fQ==",
+                "signature": "YMZQY0eZChE/+bYb5diIGpvnJy8fNnDcbubfRrH6oqOFjvJUD4FZnnuHPmBJVOJwxTO3Jp18Y4Aa9l3asJoMg4QqdemA0tkOhBvFCvbVTH40urmio2+ZX9gYgFxQwOHbByGqTnGrg+a38zhnRA6uubZm9keAfH7p4iL8EQC1o9DGoDb1bKlocxM+N27KV6JWH64Fnvd3pdosgNnStMw8cLHJA/CudlzuEGaAf11jiNSyaLTP3d2nEVE/xeG4gxYGLAGyuMmOsQVnd6o/q62TAXUHLKyMy9ky9+fi4eM60TEyen1Brw82p/E0UX32QOZ8WvqCwyjcV+QSaz0LcTx+D0al4KoxN2tO5vWMgf8tCuQyQWP7ytCy21GRoIRCPTPhGOlTvDynEypJQilq6dsLoKttTJxZC2QzTf5l+xs1hgHPPBkkbvAXZrdXWoNTJ6BJNBEB5MhVDU3C24qeCiWXueZqID9NpccGvVerYGeG+BrwQ4poEhUcJjs/jxE6HMrGDUg75KztCQgUP2t1uYgeutv1cOtrbEfvqozObxFoi7iY6mLO6dIOWMrFJNFpjdf0mNRF/2yLXUQPBdl7efHdHJWQs2A0KHQLw0L5w0AusXtEirK4zM1ykkIy/V4KxNGCQvdIffqk7SwxeE+MfpHUlJ3UeHOuA/utzUSRuLLwYSE="
+            }
+		},
+        "Tyler_One": {
+            "name": [
+				"&9&lTyler",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2172.5,
+                "y": 44,
+                "z": 832.5,
+                "yaw": -90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTg4Njg2NTQsInByb2ZpbGVJZCI6ImRhNzQ2NWVkMjljYjRkZTA5MzRkOTIwMTc0NDkxMzU1IiwicHJvZmlsZU5hbWUiOiJLaWRTbGljZXIiLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2NlYWRhNGJiM2VkZWI5YzkwNzA4NzIyMWZlMGUzZjNjMmVhMDA0NWE3Mzg2YjMzMDk4Y2E3OWQ5NjI2N2FhMTAifX19",
+                "signature": "m0bEDDh5CMwnn00Mn4GbayOiW+GYjSh922MdQkcpQv9uPf7AwvweRxG7Pfo2AvqcVWzDIsH8WR7ozyoxZvefH4slvpuJSy6QYqtFfnGkq/CUm7LpVLHq1F4D6NLeJAjBbzJa6wFWBzn0CpBH9Jun9rpLXawhHw0z6YBPQfyNFZx6OWa7vaCKTgNbodFJfxukbJ1PIeiUA5DI2klUsxtptSZQBovH/Zxw7Qkskp2zdeaTbho9H9XB/YuXs0sWt2DlWA/4zMCKt5E0AXNLOnzDX8CiNfu0mJNAWdB1XYkbhtdhi2Ztgw63F+Hgs/IMshjnJJe7/ZAdqR/gIWwaOLuVaEiL2lgDL7BqW3JuexXnQDXnkQjSpvpxEpHeXdECEulb/aZJR4HMLlquigISpzXu6WFb72jxwXCDv1CMh1cMqvOHhr1p01xxm6aNS+WVmxhpYsjS/uiGMsnaana6uniJzPrNOUFo+8LCEHzTA/w8tLceaIKRwqZ2Guzeb4HdA9qIFb2jrFNUeptmB1AnGatJLl2h6ezkLXCWyrB+/bdErDEl+TgfTQ+rWpB//TmEn05JHkUbv7Me7kWawDeSqJcVWD6SQ/YijfhpCxdUWih7VyIg0MeleBL1d5jym1XBBitMwtUUhtNsNvjs2OgrlBvR2nLJkEsw8ZJtd1H084zIH/I= "
+            }
+		},
+        "Tyler_Two": {
+            "name": [
+				"&9&lTyler",
+				"&7Police Officer"
+			],
+            "location": {
+                "world": "world",
+                "x": 2175.5,
+                "y": 44,
+                "z": 814.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTg4Njg2NTQsInByb2ZpbGVJZCI6ImRhNzQ2NWVkMjljYjRkZTA5MzRkOTIwMTc0NDkxMzU1IiwicHJvZmlsZU5hbWUiOiJLaWRTbGljZXIiLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2NlYWRhNGJiM2VkZWI5YzkwNzA4NzIyMWZlMGUzZjNjMmVhMDA0NWE3Mzg2YjMzMDk4Y2E3OWQ5NjI2N2FhMTAifX19",
+                "signature": "m0bEDDh5CMwnn00Mn4GbayOiW+GYjSh922MdQkcpQv9uPf7AwvweRxG7Pfo2AvqcVWzDIsH8WR7ozyoxZvefH4slvpuJSy6QYqtFfnGkq/CUm7LpVLHq1F4D6NLeJAjBbzJa6wFWBzn0CpBH9Jun9rpLXawhHw0z6YBPQfyNFZx6OWa7vaCKTgNbodFJfxukbJ1PIeiUA5DI2klUsxtptSZQBovH/Zxw7Qkskp2zdeaTbho9H9XB/YuXs0sWt2DlWA/4zMCKt5E0AXNLOnzDX8CiNfu0mJNAWdB1XYkbhtdhi2Ztgw63F+Hgs/IMshjnJJe7/ZAdqR/gIWwaOLuVaEiL2lgDL7BqW3JuexXnQDXnkQjSpvpxEpHeXdECEulb/aZJR4HMLlquigISpzXu6WFb72jxwXCDv1CMh1cMqvOHhr1p01xxm6aNS+WVmxhpYsjS/uiGMsnaana6uniJzPrNOUFo+8LCEHzTA/w8tLceaIKRwqZ2Guzeb4HdA9qIFb2jrFNUeptmB1AnGatJLl2h6ezkLXCWyrB+/bdErDEl+TgfTQ+rWpB//TmEn05JHkUbv7Me7kWawDeSqJcVWD6SQ/YijfhpCxdUWih7VyIg0MeleBL1d5jym1XBBitMwtUUhtNsNvjs2OgrlBvR2nLJkEsw8ZJtd1H084zIH/I= "
+            }
+		},
+        "Christopher_One": {
+            "name": [
+				"&9&lChristopher",
+				"&7Security Guard"
+			],
+            "location": {
+                "world": "world",
+                "x": 2169.5,
+                "y": 44,
+                "z": 815.5,
+                "yaw": 90,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTkwODIxNzksInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2UzY2Q5NjJkNmY1ZWU1MDY2MjMwNDM2NmMyY2M2ODY5MDQ1YjMwYTZjYzNjZjljZDU5Njk1YWVhMDc4YzQ3ZTMifX19",
+                "signature": "KeYDZknPMBjHyn71JTFXfArJUg8hFgsA/7/BLyJDRynNgcdAu4RhbjsdOybzdB4XLbulJm+y5DOBKHvVB4AsQs2QUkYnTAixer3honITWNLMJGe9Qalmwek/zE/dSIh1e6p22U5ShqhNN2Jqn/0tbhJr8KRSyJWMPWvSdC7xp6VYbFBnVaPsdrjZkmjogbzHyo/ZFSLeViQEsoo9MZmSbiWvgck7JdAvaxRMcWbzIBuwguGm0yx5JQFU1RsB0ZIuEolldECV+kSbti/x4Xa2X2tBGs8ad8AymmLEd2GoV3CPZZ16RdrOI/6SjfPikY/pre0tW5tROTDSZhzTl4I1rJzL5FzhcQDQiO8CJW+yUZ5yy4Dvp4jPELTgoKX4P8Gnmubd9g1aoCJonHCO2SHxgFibMgCxwmAmS6wHzANUcAl9Cl1HG4ZU+V9+3ljkG8mtrrytSNMGBv8Hq9lt4VWUQeFvoJFkAIabP6ss6ChEp6IWNdozofWE8AmXQKjdyTNu1gN04qvijCybK6Dal8heikVu+A/iC72lsDU83/2Aqpay/ogC6ekGGT7yCupH3jdnmfVxf4nFcM+4FR/uFhQevGBFp79Rx5FBVkP8xU3wb+Cczvj4WQLI+Kbx1bArjfTOrfOayRModLxIr02r2D+x/IMPdyR83+yEWWRbxu4VEC4="
+            }
+		},
+        "Christopher_Two": {
+            "name": [
+				"&9&lChristopher",
+				"&7Security Guard"
+			],
+            "location": {
+                "world": "world",
+                "x": 2311.5,
+                "y": 51,
+                "z": 812.5,
+                "yaw": 155,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTkwODIxNzksInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2UzY2Q5NjJkNmY1ZWU1MDY2MjMwNDM2NmMyY2M2ODY5MDQ1YjMwYTZjYzNjZjljZDU5Njk1YWVhMDc4YzQ3ZTMifX19",
+                "signature": "KeYDZknPMBjHyn71JTFXfArJUg8hFgsA/7/BLyJDRynNgcdAu4RhbjsdOybzdB4XLbulJm+y5DOBKHvVB4AsQs2QUkYnTAixer3honITWNLMJGe9Qalmwek/zE/dSIh1e6p22U5ShqhNN2Jqn/0tbhJr8KRSyJWMPWvSdC7xp6VYbFBnVaPsdrjZkmjogbzHyo/ZFSLeViQEsoo9MZmSbiWvgck7JdAvaxRMcWbzIBuwguGm0yx5JQFU1RsB0ZIuEolldECV+kSbti/x4Xa2X2tBGs8ad8AymmLEd2GoV3CPZZ16RdrOI/6SjfPikY/pre0tW5tROTDSZhzTl4I1rJzL5FzhcQDQiO8CJW+yUZ5yy4Dvp4jPELTgoKX4P8Gnmubd9g1aoCJonHCO2SHxgFibMgCxwmAmS6wHzANUcAl9Cl1HG4ZU+V9+3ljkG8mtrrytSNMGBv8Hq9lt4VWUQeFvoJFkAIabP6ss6ChEp6IWNdozofWE8AmXQKjdyTNu1gN04qvijCybK6Dal8heikVu+A/iC72lsDU83/2Aqpay/ogC6ekGGT7yCupH3jdnmfVxf4nFcM+4FR/uFhQevGBFp79Rx5FBVkP8xU3wb+Cczvj4WQLI+Kbx1bArjfTOrfOayRModLxIr02r2D+x/IMPdyR83+yEWWRbxu4VEC4="
+            }
+		},
+        "Sydney_One": {
+            "name": [
+				"&9&lSydney",
+				"&7Security Guard"
+			],
+            "location": {
+                "world": "world",
+                "x": 2169.5,
+                "y": 44,
+                "z": 819.5,
+                "yaw": 135,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NTE1NDc3ODcyNDIsInByb2ZpbGVJZCI6IjU2ZTQyNDMwODg2ZjQxMTk5YjRjNWNkZWI2YTc0YjdmIiwicHJvZmlsZU5hbWUiOiJzcGVjdHJlcGhvZW5peCIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzFmZjcxZDY1NDI2MjI5YjU5ZmNmMDczMWNmNmY3NWY2NWUwYzhjMTE1ZTM1ZTZkNjU3M2JiYzNhZmJiOGM4NyJ9fX0=",
+                "signature": "X1gWKxo/mQ351XybHXJriVz2Lp0FB7HuU4bNp/SHjRVrDrTpeeHzJ941dvuS9TOiTJkIDXIbd7VE5VVuS4oo5OkM9n2jMk+3vBQibbE73fH9kq4LRre4v12pzrUkPHnLZOSPk241yx8/r2MTwxWzh5RuOXZM6d16xjNaaejrUpFybHLLAYFzsWeX+eGfq1e9IFZEPfJ0uKUWes7li1kwot0ZVKHeWgSBw6MOPxq8fd/mQIZa+klnE9tnCQqjD59wvItV3DfvE+LXt0g5Qio2AQosyjaDIli7U3SaUkkxDvJMAGIF28gyd7snhHaQ86+bSldKbCTwL2zE9w+z2+l2Cuvx1M9R29w7FKpL+NgxDfTuh4lV1/OFxM5vxNWb/WGyWdkkPurCgELnY4NfuImoppQAlsAwJ4MFY0aDjAeUT+h8gytpYhFl95gmLUe30z0JF+/Eg4ffm0uHRW8cBF40YA0WSD5FKcpCveel5jKcdgqCKOfE36L8kusosj5BTq57AK3w7L2UZ+Ye7DsfFdj45BruUBlkcaZwiaAZrS1WdlIR2L7hYQNUHV0JISKJ5/miMBld063OTwZdLyb6uJkuEK/vDafVDkPpRwOJeg44TEiK2Zgj6c7a09L69B06Wh/vDIqPtWqJ3RV7fzUlrCdzGzluC5gxvwnfJpZV0v68sIY="
+            }
+		},
+        "Sydney_Two": {
+            "name": [
+				"&9&lSydney",
+				"&7Security Guard"
+			],
+            "location": {
+                "world": "world",
+                "x": 641,
+                "y": 38,
+                "z": 660,
+                "yaw": -45,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NDYwMTkwODIxNzksInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2UzY2Q5NjJkNmY1ZWU1MDY2MjMwNDM2NmMyY2M2ODY5MDQ1YjMwYTZjYzNjZjljZDU5Njk1YWVhMDc4YzQ3ZTMifX19",
+                "signature": "KeYDZknPMBjHyn71JTFXfArJUg8hFgsA/7/BLyJDRynNgcdAu4RhbjsdOybzdB4XLbulJm+y5DOBKHvVB4AsQs2QUkYnTAixer3honITWNLMJGe9Qalmwek/zE/dSIh1e6p22U5ShqhNN2Jqn/0tbhJr8KRSyJWMPWvSdC7xp6VYbFBnVaPsdrjZkmjogbzHyo/ZFSLeViQEsoo9MZmSbiWvgck7JdAvaxRMcWbzIBuwguGm0yx5JQFU1RsB0ZIuEolldECV+kSbti/x4Xa2X2tBGs8ad8AymmLEd2GoV3CPZZ16RdrOI/6SjfPikY/pre0tW5tROTDSZhzTl4I1rJzL5FzhcQDQiO8CJW+yUZ5yy4Dvp4jPELTgoKX4P8Gnmubd9g1aoCJonHCO2SHxgFibMgCxwmAmS6wHzANUcAl9Cl1HG4ZU+V9+3ljkG8mtrrytSNMGBv8Hq9lt4VWUQeFvoJFkAIabP6ss6ChEp6IWNdozofWE8AmXQKjdyTNu1gN04qvijCybK6Dal8heikVu+A/iC72lsDU83/2Aqpay/ogC6ekGGT7yCupH3jdnmfVxf4nFcM+4FR/uFhQevGBFp79Rx5FBVkP8xU3wb+Cczvj4WQLI+Kbx1bArjfTOrfOayRModLxIr02r2D+x/IMPdyR83+yEWWRbxu4VEC4="
+            }
+		}
+     },
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+		"Pat_Three": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+		"Hudson_Three": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+	"HighlightClickEntityStage": [
+        "Pat_One",
+        "Jen_One"
+    ],
+	"NotCompletedQuestProgressStage": [
+    ],	
+	"DialogStage": [
+        {
+			"Pat": "Oh no!",
+			"Pat": "The Mystery Man has been caught by the police!",
+			"Pat": "We need your help to save him!",
+			"Pat": "The cops took him yesterday and we spotted them in Army Base.",
+			"Pat": "Will you help?",
+			"[PLAYER]": "Of course I will help!",
+			"Pat": "Thank you!",
+            "Pat": "Jen are you coming too?",
+			"Jen": "Yes, yes of course!",
+			"Pat": "Okay, great. I'll meet you at Army Base tomorrow at 9am."
+        }
+    ],
+	"TimedStage": [
+        1.0
+	],
+	"visibility": {
+        "Pat_One": false,
+        "Pat_Two": true,
+        "Jen_One": false,
+        "Jen_Two": true,
+        "Mystery_Man_One": true,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": true,
+        "Hudson_Two": false,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+	"TimedStage": [
+        2.0
+	],
+    "Potion": [
+      "blindness",
+      120, 
+      5
+    ],
+	"TimedStage": [
+        1
+	],
+    "TeleportStage": [
+         2182.5,
+         50.0,
+         757.5,
+         0,
+         0
+    ],
+    "PlaySound": [
+     "entity_wither_spawn",
+     1
+    ],
+	"FreezeStage": [
+	    3.0
+	],
+	"TimedStage": [
+        1
+	],
+	"HighlightClickEntityStage": [
+	    "Pat_Two",
+		"Jen_Two"
+    ],
+    "ObjectiveStage": [
+        "Find Pat and Jen in Army Base"
+    ],
+    "DialogStage": [
+        {
+			"Pat": "Hey.",
+			"[PLAYER]": "Hi. What are we going to do?",
+			"Jen": "The Mystery Man is being interrogated. I think...",
+            "Pat": "Yes, it looks like we need to go that way.",
+			"Pat": "We need to get in there and get him back without them noticing.",
+			"[PLAYER]": "How would we do that?",
+			"Pat": "Here, I'll explain.",
+			"Pat": "Jen, you can go back to Noobville",
+			"Pat": "and make sure no police are watching the area.",
+			"Jen": "Okay, I will be on the lookout."
+        }
+    ],
+	"TimedStage": [
+        2.0
+	],
+	"visibility": {
+        "Pat_One": false,
+        "Pat_Two": true,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": true,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": true,
+        "Hudson_Two": false,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+    "DialogStage": [
+        {
+			"Pat": "Okay, [PLAYER]. Follow me!",
+			"[PLAYER]": "Sure thing."
+        }
+    ],
+    "TimedStage": [
+        1
+    ],
+	"NpcMoveStage": [
+	    "Pat_Two",
+		2167.5,
+		44.0,
+		809.5
+	],
+	"EntityLookStage": [
+		"Pat_Two",
+		0,
+		0	
+    ],
+    "TimedStage": [
+        1
+    ],
+	"EntityLookStage": [
+		"Pat_Three",
+		-12,
+		0	
+    ],
+    "TimedStage": [
+        3.0
+    ],
+    "DialogStage": [
+        {
+			"Pat": "You see those 2 security guards by the door?",
+			"[PLAYER]": "Yes, I do.",
+			"Pat": "You can't get in without a police badge.",
+			"Pat": "There is probably some badges lying around Army Base.",
+			"Pat": "You should go try to find one, and then enter and help the Mystery Man.",
+			"Pat": "I will be back in Noobville waiting for you along with Jen.",
+			"Pat": "We believe in you!",
+			"[PLAYER]": "But, wait! What is the rest of the plan..."
+        }
+    ],
+    "TimedStage": [
+        1.5
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+		"Pat_Three": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": true,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": true,
+        "Hudson_Two": false,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1
+    ],
+	"PickupItemStage": [
+		2209.5,
+		44.5,
+		801.5,
+		"&9Police Badge",
+		"banner",
+		4
+	],
+    "ObjectiveStage": [
+        "Find a Police Badge in Army Base"
+    ],
+    "PlaySound": [
+      "entity_player_levelup",
+      1
+    ],
+    "TimedStage": [
+        1
+    ],
+	"SendMessageStage": [
+		"&9+1 Police Badge"
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": true,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": true,
+        "Hudson_Two": false,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+	"ClickEntityStage": [
+	    "Christopher_One",
+	    "Sydney_One"
+    ],
+	"ObjectiveStage": [
+		"Show your Police Badge to the Security Guards"
+	],
+    "DialogStage": [
+        {
+			"Christopher": "Hey! Where is your badge?",
+			"Sydney": "No badge, no entry.",
+			"Christopher": "Okay, thank you. You may go in."
+        }
+    ],
+	"TimedStage": [
+        2.0
+	],
+	"ClickEntityStage": [
+	    "Hudson_One"
+    ],
+	"ObjectiveStage": [
+		"Talk to the Interrogator"
+	],
+    "DialogStage": [
+        {
+			"[PLAYER]": "Hello, can I have a word with you for one second?",
+			"Hudson": "Sure thing, Sabrina keep watch over the Mystery Man!",
+			"Sabrina": "Will do."
+        }
+    ],
+    "TimedStage": [
+        1
+    ],
+	"EntityLookStage": [
+		"Sabrina_One",
+		-157,
+		0	
+	],
+	"NpcMoveStage": [
+	    "Hudson_One",
+		2175.5,
+		44.0,
+		817.5
+	],
+	"NpcMoveStage": [
+	    "Hudson_One",
+		2182.5,
+		44.0,
+		817.5
+	],
+	"EntityLookStage": [
+		"Hudson_One",
+		90,
+		0	
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": true,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Hudson_Three": true,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+	"ClickEntityStage": [
+		"Hudson_Three"
+    ],
+    "DialogStage": [
+        {
+			"[PLAYER]": "This interrogation has gone no where.",
+			"[PLAYER]": "We do not know for sure that he has been selling stones.",
+			"[PLAYER]": "and there is no way to prove he is.",
+			"[PLAYER]": "May I have a word with the Mystery Man now?",
+			"Hudson": "I mean, you can try. You may have a word with him."
+        }
+    ],
+    "TimedStage": [
+        1.0
+    ],
+	"NpcMoveStage": [
+	    "Hudson_Three",
+		2177.5,
+		44.0,
+		817.5
+	],
+	"EntityLookStage": [
+		"Hudson_Three",
+		35,
+		0	
+	],
+    "DialogStage": [
+        {
+			"Hudson": "Sabrina you may stop watching the Mystery Man.",
+			"Hudson": "[PLAYER] is going to have a word with him."
+        }
+    ],
+    "TimedStage": [
+        1
+    ],
+
+	"NpcMoveStage": [
+	    "Hudson_Three",
+		2175.5,
+		44.0,
+		822.5
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": true,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": true,
+        "Hudson_Two": false,
+        "Hudson_Three": false,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1
+    ],
+	"EntityLookStage": [
+		"Hudson_One",
+		-35,
+		0	
+	],
+	"EntityLookStage": [
+		"Sabrina_One",
+		-90,
+		0	
+	],
+	"ClickEntityStage": [
+	    "Mystery_Man_One"
+    ],
+	"ObjectiveStage": [
+		"Talk to the Mystery Man"
+	],
+    "DialogStage": [
+        {
+			"[PLAYER]": "Hey. Pat and Jen sent me to save you.",
+			"[PLAYER]": "They didn't really tell me a plan to get you out of here though.",
+			"[PLAYER]": "So, on the count of 3 we run.",
+			"Mystery Man": "Okay, I got it.",
+			"[PLAYER]": "3",
+			"[PLAYER]": "2",
+			"[PLAYER]": "1",
+			"[PLAYER]": "RUN!!!"
+        }
+    ],
+    "TimedStage": [
+        1.0
+    ],
+	"NpcMoveStage": [
+	    "Mystery_Man_One",
+		2173.5,
+		44.0,
+		817.5
+	],
+    "TimedStage": [
+        1
+    ],
+	"NpcMoveStage": [
+	    "Mystery_Man_One",
+		2170.5,
+		44.0,
+		817.5
+	],
+    "TimedStage": [
+        1
+    ],
+    "RegionExit": [
+      2168, 
+      49, 
+      838, 
+      2180, 
+      44, 
+      812 
+    ],
+	"ObjectiveStage": [
+		"Run away!"
+	],
+    "TimedStage": [
+        1
+    ],
+    "DialogStage": [
+        {
+			"Hudson": "Get them!"
+        }
+    ],
+    "TimedStage": [
+        1.0
+    ],
+	"PotionStage": [
+	    "blindness",
+		120
+	],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": true,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": true,
+        "Sabrina_One": true,
+        "Sabrina_Two": false,
+        "Lauren_One": true,
+        "Lauren_Two": false,
+        "Arfelio_One": true,
+        "Arfelio_Two": false,
+        "Tyler_One": true,
+        "Tyler_Two": false,
+        "Christopher_One": true,
+        "Christopher_Two": false,
+        "Sydney_One": true,
+		"Sydney_Two": false
+    },
+    "TeleportStage": [
+         2173.5,
+         44.0,
+         816.5,
+         -90,
+         0
+    ],
+    "PlaySound": [
+     "entity_wither_spawn",
+     1
+    ],
+	"FreezeStage": [
+	    3.0
+	],
+	"TimedStage": [
+        1.0
+	],
+    "DialogStage": [
+        {
+			"[PLAYER]": "What!?!",
+			"[PLAYER]": "Where am I?",
+			"Hudson": "You can't just run off like that.",
+			"Hudson": "You think you can fool us like that?",
+			"Hudson": "Give me that badge!",
+			"Hudson": "You are not a police officer!"
+        }
+    ],
+	"TimedStage": [
+        1
+	],
+	"SendMessageStage": [
+		"&9-1 Police Badge"
+	],
+	"TimedStage": [
+        1.0
+	],
+    "DialogStage": [
+        {
+			"Hudson": "Did you really think they wouldn't catch you?",
+			"Hudson": "You are not going anywhere with that Mystery Man.",
+			"[PLAYER]": "What do I have to do in order for you guys to let him free?"
+        }
+    ],
+    "TimedStage": [
+        2.0
+    ],
+    "DialogStage": [
+        {
+			"Hudson": "Well, we don't really have evidence.",
+			"Hudson": "I guess we could let you all free.",
+			"Hudson": "But, I wont!",
+			"[PLAYER]": "Please! ",
+			"Hudson": "Well, I guess I could let you all free if you beat all the police officers.",
+			"Hudson": "But, if we catch the Mystery Man selling stones...",
+			"Hudson": "He will go to jail.",
+			"[PLAYER]": "Deal!",
+			"Mystery Man": "Don't I get a say in this?",
+			"[PLAYER]": "Do you WANT to go back to interrogation or something?"
+        }
+    ],
+    "TimedStage": [
+        1.0
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": true,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "NpcBattleStage": [
+        "Sabrina_Two",
+        {
+            "Sabrina": "Uh. Time to beat this little peasant.",
+            "Sabrina": "You really think you have a chance?",
+			"Sabrina": "The Mystery Man is gonna stay with us.",
+            "Sabrina": "Try me!"
+        },
+        {
+			"Sabrina": "Well you may have beat me but you have to beat all of us!"
+        },
+		{
+			"Sabrina": "Looks like you're not getting the Mystery Man anytime soon..."
+		},
+        [
+            {
+                "species": "Charizard",
+                "level": 29,
+                "moves": [
+                    "Flare Blitz",
+                    "Dragon Claw",
+                    "Earthquake",
+                    "Roost"
+                ],
+                "gender": "Female",
+                "ability": "Blaze",
+                "nature": "Jolly",
+                "evs": {
+                    "attack": 252,
+                    "special_defense": 4,
+                    "speed": 252
+                }
+            },
+            {
+                "species": "Ninetales",
+                "level": 32,
+                "moves": [
+                    "Nasty Plot",
+                    "Fire Blast",
+                    "Solar Beam",
+                    "Hidden Power"
+                ],
+                "gender": "Female",
+                "ability": "Drought",
+                "nature": "Timid",
+                "evs": {
+                    "special_defense": 4,
+                    "speed": 252,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Lapras",
+                "level": 31,
+                "moves": [
+                    "Freeze Dry",
+                    "Hydro Pump",
+                    "Ice Beam",
+                    "Hidden Power"
+                ],
+                "gender": "Male",
+                "ability": "Water Absorb",
+                "nature": "Modest",
+                "evs": {
+                    "hp": 120,
+                    "defense": 136,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Jolteon",
+                "level": 34,
+                "moves": [
+                    "Thunderbolt",
+                    "Volt Switch",
+                    "Hidden Power",
+                    "Shadow Ball"
+                ],
+                "gender": "Female",
+                "ability": "Volt Absorb",
+                "nature": "Timid",
+                "evs": {
+                    "speed": 252,
+                    "special_defense": 4,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Onix",
+                "level": 37,
+                "moves": [
+                    "Stealth Rock",
+                    "Rock Blast",
+                    "Earthquake",
+                    "Taunt"
+                ],
+                "gender": "Female",
+                "ability": "Sturdy",
+                "nature": "Jolly",
+                "evs": {
+                    "speed": 196,
+                    "hp": 76,
+                    "attack": 236
+                }
+            },
+            {
+                "species": "Electrode",
+                "level": 41,
+                "moves": [
+                    "Thunderbolt",
+                    "Volt Switch",
+                    "Signal Beam",
+                    "Hidden Power"
+                ],
+                "gender": "Female",
+                "ability": "Soundproof",
+                "nature": "Timid",
+                "evs": {
+                    "speed": 252,
+                    "defense": 4,
+                    "special_attack": 252
+               }
+            }
+        ]
+    ],
+	"ObjectiveStage": [
+		"Battle Sabrina"
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": true,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1.0
+    ],
+    "NpcBattleStage": [
+        "Lauren_Two",
+        {
+            "Lauren": "Uh. Time to beat this little peasant.",
+            "Lauren": "You really think you have a chance?",
+			"Lauren": "The Mystery Man is gonna stay with us.",
+            "Lauren": "Try Me!"
+        },
+        {
+			"Lauren": "Well you may have beat me but you have to beat all of us!"
+        },
+		{
+			"Lauren": "Looks like you're not getting the Mystery Man anytime soon..."
+		},
+        [
+            {
+                "species": "Hitmonchan",
+                "level": 52,
+                "moves": [
+                    "Drain Punch",
+                    "Thunder Punch",
+                    "Rapid Spin",
+                    "Mach Punch"
+                ],
+                "gender": "Female",
+                "ability": "Iron Fist",
+                "nature": "Adamant",
+                "evs": {
+                    "speed": 128,
+                    "hp": 244,
+                    "attack": 136
+                }
+            },
+            {
+                "species": "Rhydon",
+                "level": 57,
+                "moves": [
+                    "Stealth Rock",
+                    "Earthquake",
+                    "Rock Blast",
+                    "Toxic"
+                ],
+                "gender": "Male",
+                "ability": "Reckless",
+                "nature": "Adamant",
+                "evs": {
+                    "hp": 252,
+                    "special_defense": 240,
+                    "attack": 16
+                }
+            },
+            {
+                "species": "Gyarados",
+                "level": 55,
+                "moves": [
+                    "Dragon Dance",
+                    "Bounce",
+                    "Waterfall",
+                    "Taunt"
+                ],
+                "gender": "Male",
+                "ability": "Moxie",
+                "nature": "Jolly",
+                "evs": {
+                    "speed": 252,
+                    "special_defense": 4,
+                    "attack": 252
+                }
+            },
+            {
+                "species": "Snorlax",
+                "level": 63,
+                "moves": [
+                    "Curse",
+                    "Body Slam",
+                    "Rest",
+                    "Sleep Talk"
+                ],
+                "gender": "Male",
+                "ability": "Thick Fat",
+                "nature": "Careful",
+                "evs": {
+                    "hp": 188,
+                    "special_defense": 192,
+                    "defense": 128
+                }
+            },
+            {
+                "species": "Aerodactyl",
+                "level": 61,
+                "moves": [
+                    "Stone Edge",
+                    "Earthquake",
+                    "Wing Attack",
+                    "Roost"
+                ],
+                "gender": "Male",
+                "ability": "Unnerve",
+                "nature": "Jolly",
+                "evs": {
+                    "attack": 252,
+                    "speed": 252,
+                    "defense": 4
+                }
+            },
+            {
+                "species": "Electabuzz",
+                "level": 54,
+                "moves": [
+                    "Thunderbolt",
+                    "Volt Switch",
+                    "Focus Blast",
+                    "Hidden Power"
+                ],
+                "gender": "Female",
+                "ability": "Vital Spirit",
+                "nature": "Timid",
+                "evs": {
+                    "hp": 4,
+                    "speed": 252,
+                    "special_attack": 252
+               }
+            }
+        ]
+    ],
+	"ObjectiveStage": [
+		"Battle Lauren"
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": true,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1.0
+    ],
+    "NpcBattleStage": [
+        "Arfelio_Two",
+        {
+            "Arfelio": "So. You beat 2 of our officers.",
+            "Arfelio": "Good job!",
+			"Arfelio": "Well, you won't beat me though.",
+            "Arfelio": "Lets fight!"
+        },
+        {
+			"Arfelio": "Wow. I did not expect that. Well you have more to go!"
+        },
+		{
+			"Arfelio": "Come back when you have a chance..."
+		},
+        [
+            {
+                "species": "Dragonite",
+                "level": 75,
+                "moves": [
+                    "Dragon Dance",
+                    "Fly",
+                    "Earthquake",
+                    "Extreme Speed"
+                ],
+                "gender": "Female",
+                "ability": "Multiscale",
+                "nature": "Adamant",
+                "evs": {
+                    "speed": 252,
+                    "defense": 4,
+                    "attack": 252
+                }
+            },
+            {
+                "species": "Jolteon",
+                "level": 79,
+                "moves": [
+                    "Thunderbolt",
+                    "Volt Switch",
+                    "Hidden Power",
+                    "Shadow Ball"
+                ],
+                "gender": "Female",
+                "ability": "Volt Absorb",
+                "nature": "Timid",
+                "evs": {
+                    "speed": 252,
+                    "special_defense": 4,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Lapras",
+                "level": 82,
+                "moves": [
+                    "Freeze Dry",
+                    "Hydro Pump",
+                    "Ice Beam",
+                    "Hidden Power"
+                ],
+                "gender": "Male",
+                "ability": "Water Absorb",
+                "nature": "Modest",
+                "evs": {
+                    "hp": 120,
+                    "defense": 136,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Gyarados",
+                "level": 81,
+                "moves": [
+                    "Dragon Dance",
+                    "Bounce",
+                    "Waterfall",
+                    "Taunt"
+                ],
+                "gender": "Male",
+                "ability": "Moxie",
+                "nature": "Jolly",
+                "evs": {
+                    "speed": 252,
+                    "special_defense": 4,
+                    "attack": 252
+                }
+            },
+            {
+                "species": "Electabuzz",
+                "level": 78,
+                "moves": [
+                    "Thunderbolt",
+                    "Volt Switch",
+                    "Focus Blast",
+                    "Hidden Power"
+                ],
+                "gender": "Female",
+                "ability": "Vital Spirit",
+                "nature": "Timid",
+                "evs": {
+                    "hp": 4,
+                    "speed": 252,
+                    "special_attack": 252
+               }
+            },
+            {
+                "species": "Rhydon",
+                "level": 84,
+                "moves": [
+                    "Stealth Rock",
+                    "Earthquake",
+                    "Rock Blast",
+                    "Toxic"
+                ],
+                "gender": "Male",
+                "ability": "Reckless",
+                "nature": "Adamant",
+                "evs": {
+                    "hp": 252,
+                    "special_defense": 240,
+                    "attack": 16
+                }
+            }
+        ]
+    ],
+	"ObjectiveStage": [
+		"Battle Arfelio"
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": true,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1.0
+    ],
+    "NpcBattleStage": [
+        "Tyler_Two",
+        {
+            "Tyler": "I just got a new team.",
+            "Tyler": "Are you sure you want to fight me?",
+			"[PLAYER]": "The Mystery Man is gonna stay with us.",
+            "Tyler": "Welp... Your loss not mine."
+        },
+        {
+			"Tyler": "Wow! You beat my new team! I guess I have to get used to the team before I fight."
+        },
+		{
+			"Tyler": "I knew you wouldn't be able to beat me."
+		},
+        [
+            {
+                "species": "Aerodactyl",
+                "level": 91,
+                "moves": [
+                    "Stone Edge",
+                    "Earthquake",
+                    "Wing Attack",
+                    "Roost"
+                ],
+                "gender": "Male",
+                "ability": "Unnerve",
+                "nature": "Jolly",
+                "evs": {
+                    "attack": 252,
+                    "speed": 252,
+                    "defense": 4
+                }
+            },
+            {
+                "species": "Vaporeon",
+                "level": 84,
+                "moves": [
+                    "Scald",
+                    "Toxic",
+                    "Wish",
+                    "Protect"
+                ],
+                "gender": "Male",
+                "ability": "Water Absorb",
+                "nature": "Bold",
+                "evs": {
+                    "hp": 252,
+                    "defense": 252,
+                    "special_defense": 4
+                }
+            },
+            {
+                "species": "Scyther",
+                "level": 96,
+                "moves": [
+                    "Swords Dance",
+                    "Roost",
+                    "U-Turn",
+                    "Aerial Ace"
+                ],
+                "gender": "Female",
+                "ability": "Technician",
+                "nature": "Jolly",
+                "evs": {
+                    "hp": 248,
+                    "speed": 252,
+                    "attack": 8
+               }
+            },
+            {
+                "species": "Alakazam",
+                "level": 94,
+                "moves": [
+                    "Psychic",
+                    "Focus Blast",
+                    "Shadow Ball",
+                    "Recover"
+                ],
+                "gender": "Male",
+                "ability": "Magic Guard",
+                "nature": "Timid",
+                "evs": {
+                    "defense": 4,
+                    "speed": 252,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Gengar",
+                "level": 89,
+                "moves": [
+                    "Hex",
+                    "Will-O-Wisp",
+                    "Sludge Wave",
+                    "Taunt"
+                ],
+                "gender": "Male",
+                "ability": "Cursed Body",
+                "nature": "Timid",
+                "evs": {
+                    "special_defense": 4,
+                    "speed": 252,
+                    "special_attack": 252
+                }
+            },
+            {
+                "species": "Machamp",
+                "level": 100,
+                "moves": [
+                    "Close Combat",
+                    "Knock Off",
+                    "Facade",
+                    "Ice Punch"
+                ],
+                "gender": "Female",
+                "ability": "Guts",
+                "nature": "Adamant",
+                "evs": {
+                    "speed": 252,
+                    "defense": 4,
+                    "attack": 252
+               }
+            }
+        ]
+    ],
+	"ObjectiveStage": [
+		"Battle Tyler"
+	],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": true,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": true,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+	"ClickEntityStage": [
+	    "Hudson_Two"
+    ],
+    "ObjectiveStage": [
+        "Talk to the Interrogator"
+    ],
+    "DialogStage": [
+        {
+			"Hudson": "What!?!?",
+			"Hudson": "You beat all the officers?",
+			"[PLAYER]": "Yes sir! Now let me and the Mystery Man go!",
+			"Hudson": "Fine!",
+			"Hudson": "But if we find out the Mystery Man has been selling stones...",
+			"Hudson": "You both will be back here in a heartbeat!"
+        }
+    ],
+    "TimedStage": [
+        2.0
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+	"HighlightClickEntityStage": [
+	    "Pat_One",
+	    "Jen_One"
+    ],
+    "ObjectiveStage": [
+        "Head to Noobville and talk to Pat and Jen"
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": true,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": true,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "DialogStage": [
+        {
+			"Jen": "Yey! You found him!",
+			"Jen": "Thank you so much!",
+			"Pat": "Now the Mystery Man can go back to selling stones!",
+			"Pat": "But, Mystery Man be careful and don't get caught.",
+			"Mystery Man": "I won't. But, They took the stones I had when they brought me to Army Base.",
+			"Mystery Man": "They said, it's just a precaution in case you are selling them.",
+			"Mystery Man": "I can't sell stones if I don't have any...",
+			"Mystery Man": "[PLAYER]! Will you go back to Army Base and search for a basket of stones?",
+			"[PLAYER]": "Sure thing!"
+		}
+    ],
+    "TimedStage": [
+        2.0
+    ],
+	"TimedStage": [
+        1
+	],
+    "Potion": [
+      "blindness",
+      120, 
+      5
+    ],
+	"TimedStage": [
+        1
+	],
+    "TeleportStage": [
+         2182.5,
+         50.0,
+         757.5,
+         0,
+         0
+    ],
+    "PlaySound": [
+     "entity_wither_spawn",
+     1
+    ],
+	"FreezeStage": [
+	    2.0
+	],
+	"TimedStage": [
+        1.0
+	],
+    "PickupHead": [
+		2310.5,
+		51.0,
+		812.5,
+		135,
+		"&b&lStones",
+		"eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMWUyNTk2MmJlN2M5ZWYzNGE5YmI0NDQ3MmZhZjI2NTkzMTIyYjM3N2IyNzU2ODFhOTQ5MWE4Y2IxOGE1NTY3In19fQ=="
+    ],
+    "ObjectiveStage": [
+        "Head to Army Base and look for a Basket of Stones"
+    ],
+    "PlaySound": [
+      "entity_player_levelup",
+      1
+    ],
+    "SendMessage": [
+      "&6+1 Basket of Stones"
+    ],
+    "TimedStage": [
+        2.0
+    ],
+    "DialogStage": [
+        {
+			"Christopher": "Hey! Get back here."
+		}
+    ],
+    "TimedStage": [
+        4.0
+    ],
+    "DialogStage": [
+        {
+			"Christopher": "We will get you for this..."
+		}
+    ],
+    "TimedStage": [
+        3.0
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": true,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1
+    ],
+	"HighlightClickEntityStage": [
+	    "Mystery_Man_Three"
+    ],
+    "ObjectiveStage": [
+        "Give the Basket of Stones to the Mystery Man"
+    ],
+    "DialogStage": [
+        {
+			"Mystery Man": "Thank you so much!",
+			"Pat": "Yes, thank you. ",
+			"Pat": "Without you the whole server would be without stones for awhile!",
+			"Pat": "So... Did you learn anything today?",
+			"[PLAYER]": "Yes, never run from the police!",
+			"Pat": "Good!",
+			"Jen": "I knew you could do it!",
+			"Jen": "Not a teeny-weeny little thought that you couldn't.",
+			"Jen": "Now, I must repay you for helping us out!",
+			"Jen": "Here, take these goodies."
+		}
+    ],
+    "TimedStage": [
+        3.0
+    ],
+	"visibility": {
+        "Pat_One": true,
+        "Pat_Two": false,
+        "Jen_One": true,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": true,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "GiveCoinsStage": [
+        50000
+    ],
+    "GiveTokensStage": [
+        10
+    ],
+    "GiveTrainerExperienceStage": [
+        75000
+    ],
+    "TimedStage": [
+        1
+    ],
+    "PlaySound": [
+      "entity_player_levelup",
+      1
+    ],
+	"visibility": {
+        "Pat_One": false,
+        "Pat_Two": false,
+        "Jen_One": false,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": true,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        1.0
+    ],
+    "DialogStage": [
+        {
+			"Mystery Man": "Now, how ever could I repay you?",
+			"Mystery Man": "Would you like a stone?",
+			"[PLAYER]": "Yes please!",
+			"Mystery Man": "Sure thing. That is the least I could do for you.",
+			"Mystery Man": "Here, take a random stone out of the basket."
+		}
+    ],
+    "RewardsStage": [
+	],
+    "GiveItemStage": [ 
+	    "Thunder Stone",
+        0.10 
+	],
+    "GiveItemStage": [ 
+	    "Fire Stone",
+        0.15 
+	],
+    "GiveItemStage": [ 
+	    "Water Stone",
+        0.25 
+	],
+    "GiveItemStage": [ 
+	    "Moon Stone",
+        0.25 
+	],
+    "GiveItemStage": [ 
+	    "Leaf Stone",
+        0.15 
+	],
+    "GiveItemStage": [ 
+	    "Ice Stone",
+        0.10 
+	],
+    "TimedStage": [
+        1
+    ],
+    "PlaySound": [
+      "entity_player_levelup",
+      1
+    ],
+    "DialogStage": [
+        {
+			"[PLAYER]": "Thank you.",
+			"Mystery Man": "No, Thank you!"
+		}
+    ],
+    "TimedStage": [
+        1
+    ],
+	"visibility": {
+        "Pat_One": false,
+        "Pat_Two": false,
+        "Jen_One": false,
+        "Jen_Two": false,
+        "Mystery_Man_One": false,
+        "Mystery_Man_Two": false,
+        "Mystery_Man_Three": false,
+        "Hudson_One": false,
+        "Hudson_Two": false,
+        "Sabrina_One": false,
+        "Sabrina_Two": false,
+        "Lauren_One": false,
+        "Lauren_Two": false,
+        "Arfelio_One": false,
+        "Arfelio_Two": false,
+        "Tyler_One": false,
+        "Tyler_Two": false,
+        "Christopher_One": false,
+        "Christopher_Two": false,
+        "Sydney_One": false,
+		"Sydney_Two": false
+    },
+    "TimedStage": [
+        2.0
+    ],
+	"SendMessageStage": [
+		"&aQuest Completed!"
+	],
+	"CompleteQuestStage": [
+	]
+}

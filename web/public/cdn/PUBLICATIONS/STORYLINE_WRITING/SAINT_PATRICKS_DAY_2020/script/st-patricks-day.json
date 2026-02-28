@@ -1,0 +1,678 @@
+{
+  "key": "st_patricks_day",
+  "name": "&2&l♣ ♣ ♣ &a&lSt. &a&lPatrick's Day &2&l♣ ♣ ♣",
+  "author": "iCodeDreams",
+  "description": "While the leprechauns were out celebrating St. Patricks Day, their gold was stolen by a so called BEAST!",
+  "location": "Speak to the leprechaun at a cave entrance!",
+  "minimumLevel": 30,
+  "hideInQuestLog": false,
+  "allowRejoining": true,
+  "icon": {
+      "material": "Player Head",
+      "data": 3,
+      "skin": {
+          "texture": "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2UyODVjNWM4NTU5OTQzN2FjNDJlMjdmNDkyMWM4MDVhZWQxZGM1Nzc0Zjk1MmEyN2VhN2U4YzlhYmU2ZSJ9fX0=",
+          "signature": ""
+      }
+  },
+  "rewards": [
+      "&55 Tokens",
+      "&210000 Trainer Experience",
+      "&a16 Friend Balls",
+      "&6Suprise in a Pot",
+      "&aUnlocks Friend Balls in shop"
+  ],
+  "npcs": {
+      "Lucky_One": {
+          "name": [
+              "&2&lLucky",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1856.5,
+              "y": 55.0,
+              "z": 2075.5,
+              "yaw": -90,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzgzNTUzNDUsInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzNmNjYxNDhmMWZmMjIwNWI5MGY2YTFkMTk4NTgzMzU0NmRhYjUwNGNkYjExMTE5OGJjNzlmMjk1NDEyMGQxYSJ9fX0=",
+              "signature": "jdP0Jc1DJK44zbKbhOdkDOJ+glkNe5Hiu6r9eJ4NLXk0HdLf1/Ls67269TNJO2NKrLRC9AWhdHcMUuqxk7QCoevjpj2lZpfKW5tzLU+EWYxIbO5iiAuMWlJ+Db6ta69bNQFKxlytaiJ3iRTz2C67C6CGR0b2mOCfdM6AurJm6e08qbovPyfv5BPnBFE3bFHhYeeArpV56rGtWSDKUF02+pnGxD3GA6I6gXr+B5uhkViuExRoz1+pI+r5psAqRR1/oCp4Ylik2aUlOpVe+DB+kNsLrrg3VK1t/rBuV05vh9n/p98G1pqVuUyMP5yQIhIFNqZ2PTSQb4IwNsJhpoxNmjqIs3wqc2ytg92ovOtnqYtflFZZNzzfndXSMUpafY360KrZowZMzNMWZX7zFxf7+EWAZoipMG45KcoGpxjpDTcd6u7e8npeeXXo7/R7IHnciDfWl/xGcqhdmRRoyfOb13JvU2c/w/Lv6+bYWEk/adCbXjXDUtv0VBg/tSuHemZL07LnQymWq1fH/1aoQarRJxS6AK5WRdIiaGvq1nxG8rpHE9XUoBA5EZvXvUbQGUtuQoQp8WeVVrvvHG+POV1UPldJxNxhwKmo+bZXsqXeiTSssrljpKPNEskii1nk/1d8u2RLqrhtsuD1S3TCZYcH4udKX477Ak6UzWs48EZ/B1w="
+          }
+      },
+      "Lucky_Two": {
+          "name": [
+              "&2&lLucky",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1819.5,
+              "y": 26.0,
+              "z": 2114.5,
+              "yaw": -117,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzgzNTUzNDUsInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzNmNjYxNDhmMWZmMjIwNWI5MGY2YTFkMTk4NTgzMzU0NmRhYjUwNGNkYjExMTE5OGJjNzlmMjk1NDEyMGQxYSJ9fX0=",
+              "signature": "jdP0Jc1DJK44zbKbhOdkDOJ+glkNe5Hiu6r9eJ4NLXk0HdLf1/Ls67269TNJO2NKrLRC9AWhdHcMUuqxk7QCoevjpj2lZpfKW5tzLU+EWYxIbO5iiAuMWlJ+Db6ta69bNQFKxlytaiJ3iRTz2C67C6CGR0b2mOCfdM6AurJm6e08qbovPyfv5BPnBFE3bFHhYeeArpV56rGtWSDKUF02+pnGxD3GA6I6gXr+B5uhkViuExRoz1+pI+r5psAqRR1/oCp4Ylik2aUlOpVe+DB+kNsLrrg3VK1t/rBuV05vh9n/p98G1pqVuUyMP5yQIhIFNqZ2PTSQb4IwNsJhpoxNmjqIs3wqc2ytg92ovOtnqYtflFZZNzzfndXSMUpafY360KrZowZMzNMWZX7zFxf7+EWAZoipMG45KcoGpxjpDTcd6u7e8npeeXXo7/R7IHnciDfWl/xGcqhdmRRoyfOb13JvU2c/w/Lv6+bYWEk/adCbXjXDUtv0VBg/tSuHemZL07LnQymWq1fH/1aoQarRJxS6AK5WRdIiaGvq1nxG8rpHE9XUoBA5EZvXvUbQGUtuQoQp8WeVVrvvHG+POV1UPldJxNxhwKmo+bZXsqXeiTSssrljpKPNEskii1nk/1d8u2RLqrhtsuD1S3TCZYcH4udKX477Ak6UzWs48EZ/B1w="
+          }
+      },
+      "Lucky_Three": {
+          "name": [
+              "&2&lLucky",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1734.5,
+              "y": 20.0,
+              "z": 2161.5,
+              "yaw": 180,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzgzNTUzNDUsInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzNmNjYxNDhmMWZmMjIwNWI5MGY2YTFkMTk4NTgzMzU0NmRhYjUwNGNkYjExMTE5OGJjNzlmMjk1NDEyMGQxYSJ9fX0=",
+              "signature": "jdP0Jc1DJK44zbKbhOdkDOJ+glkNe5Hiu6r9eJ4NLXk0HdLf1/Ls67269TNJO2NKrLRC9AWhdHcMUuqxk7QCoevjpj2lZpfKW5tzLU+EWYxIbO5iiAuMWlJ+Db6ta69bNQFKxlytaiJ3iRTz2C67C6CGR0b2mOCfdM6AurJm6e08qbovPyfv5BPnBFE3bFHhYeeArpV56rGtWSDKUF02+pnGxD3GA6I6gXr+B5uhkViuExRoz1+pI+r5psAqRR1/oCp4Ylik2aUlOpVe+DB+kNsLrrg3VK1t/rBuV05vh9n/p98G1pqVuUyMP5yQIhIFNqZ2PTSQb4IwNsJhpoxNmjqIs3wqc2ytg92ovOtnqYtflFZZNzzfndXSMUpafY360KrZowZMzNMWZX7zFxf7+EWAZoipMG45KcoGpxjpDTcd6u7e8npeeXXo7/R7IHnciDfWl/xGcqhdmRRoyfOb13JvU2c/w/Lv6+bYWEk/adCbXjXDUtv0VBg/tSuHemZL07LnQymWq1fH/1aoQarRJxS6AK5WRdIiaGvq1nxG8rpHE9XUoBA5EZvXvUbQGUtuQoQp8WeVVrvvHG+POV1UPldJxNxhwKmo+bZXsqXeiTSssrljpKPNEskii1nk/1d8u2RLqrhtsuD1S3TCZYcH4udKX477Ak6UzWs48EZ/B1w="
+          }
+      },
+      "Lucky_Four": {
+          "name": [
+              "&2&lLucky",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1727.5,
+              "y": 24.0,
+              "z": 2173.5,
+              "yaw": 100,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzgzNTUzNDUsInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzNmNjYxNDhmMWZmMjIwNWI5MGY2YTFkMTk4NTgzMzU0NmRhYjUwNGNkYjExMTE5OGJjNzlmMjk1NDEyMGQxYSJ9fX0=",
+              "signature": "jdP0Jc1DJK44zbKbhOdkDOJ+glkNe5Hiu6r9eJ4NLXk0HdLf1/Ls67269TNJO2NKrLRC9AWhdHcMUuqxk7QCoevjpj2lZpfKW5tzLU+EWYxIbO5iiAuMWlJ+Db6ta69bNQFKxlytaiJ3iRTz2C67C6CGR0b2mOCfdM6AurJm6e08qbovPyfv5BPnBFE3bFHhYeeArpV56rGtWSDKUF02+pnGxD3GA6I6gXr+B5uhkViuExRoz1+pI+r5psAqRR1/oCp4Ylik2aUlOpVe+DB+kNsLrrg3VK1t/rBuV05vh9n/p98G1pqVuUyMP5yQIhIFNqZ2PTSQb4IwNsJhpoxNmjqIs3wqc2ytg92ovOtnqYtflFZZNzzfndXSMUpafY360KrZowZMzNMWZX7zFxf7+EWAZoipMG45KcoGpxjpDTcd6u7e8npeeXXo7/R7IHnciDfWl/xGcqhdmRRoyfOb13JvU2c/w/Lv6+bYWEk/adCbXjXDUtv0VBg/tSuHemZL07LnQymWq1fH/1aoQarRJxS6AK5WRdIiaGvq1nxG8rpHE9XUoBA5EZvXvUbQGUtuQoQp8WeVVrvvHG+POV1UPldJxNxhwKmo+bZXsqXeiTSssrljpKPNEskii1nk/1d8u2RLqrhtsuD1S3TCZYcH4udKX477Ak6UzWs48EZ/B1w="
+          }
+      },
+      "Lucky_Five": {
+          "name": [
+              "&2&lLucky",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1802.5,
+              "y": 25.0,
+              "z": 2124.5,
+              "yaw": 65,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzg0NTIxMDAsInByb2ZpbGVJZCI6IjQ2N2NmOTRkY2UyYjQ1ZTY4YmRhNTJlNTUwMmU3M2U4IiwicHJvZmlsZU5hbWUiOiJMaWxpeWFfIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9lMjNiN2JmNThiYmU3YzIwOGQ4YTJlZDA5ZmVmMDZkMzhhZGUxN2M3NzhlYzVlODEwZWM2Y2ZhYzcxYTk0MThiIn19fQ==",
+              "signature": "kq42bt8VNpkhnLGhYhkDqSJpFnM4e3RKP+tHAvrZClNdYstaEKXzSoB6kwv5ctioqZYsULipltgqe5xG7ZRMq1WzoanRgn/sW+ETuZk8P/Ic5s73AOQaDeSeHwTlSBOLtuwoVqNho89PwSv7is/qMbYOOlziGgP7i+ZovlbcqlabsOEL7qEfX4tM9o3vNW5HNK20YhfCF5dExIRQBoZZ4NOd8EfHypdYGOI0VmgZ7W6v9SAZr7EGqBiYxtIfh5pfKm2o0/exqpfL5P1sAkO3yGWPApFJC/gfMAe516UL56ruUv9ds4X8K3ic5nuYkyyW13tioTnftQmiHR6fI7jSqJSaHUal/EpC/Xdzs9w2orIZkhtXwmht5t9SBBUUCtjUPTcfe2b+OZN/6L0olwFvLItEBAgvJudFxp5E+ulL01waSRZ6zW46AyXZEnG7zFNmsKu6ugW+diQOzXfLr9isweYk3C/dAXOtPf9XZlWR+GnCWC/+VEwC6EXLHav17/UOGrHAjx3Rum/q3gRT44sk0Ie2nej37tie6PuS4YUvYYYfwDpCWacKibm3JFBgjY4TEMvRvyjxP0RhIYBGtHx1qGsSLXhtnoKFH8kkfptUsrZusfrzDVcLwBsy1uCCt0f59i+sM3xIV9CMPTj3vBWC4DX0nk0xm9S9bRzFzyXkf+M="
+          }
+      },
+      "Lucky_Six": {
+          "name": [
+              "&2&lLucky",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1727.5,
+              "y": 24.0,
+              "z": 2173.5,
+              "yaw": 100,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzg0NTIxMDAsInByb2ZpbGVJZCI6IjQ2N2NmOTRkY2UyYjQ1ZTY4YmRhNTJlNTUwMmU3M2U4IiwicHJvZmlsZU5hbWUiOiJMaWxpeWFfIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9lMjNiN2JmNThiYmU3YzIwOGQ4YTJlZDA5ZmVmMDZkMzhhZGUxN2M3NzhlYzVlODEwZWM2Y2ZhYzcxYTk0MThiIn19fQ==",
+              "signature": "kq42bt8VNpkhnLGhYhkDqSJpFnM4e3RKP+tHAvrZClNdYstaEKXzSoB6kwv5ctioqZYsULipltgqe5xG7ZRMq1WzoanRgn/sW+ETuZk8P/Ic5s73AOQaDeSeHwTlSBOLtuwoVqNho89PwSv7is/qMbYOOlziGgP7i+ZovlbcqlabsOEL7qEfX4tM9o3vNW5HNK20YhfCF5dExIRQBoZZ4NOd8EfHypdYGOI0VmgZ7W6v9SAZr7EGqBiYxtIfh5pfKm2o0/exqpfL5P1sAkO3yGWPApFJC/gfMAe516UL56ruUv9ds4X8K3ic5nuYkyyW13tioTnftQmiHR6fI7jSqJSaHUal/EpC/Xdzs9w2orIZkhtXwmht5t9SBBUUCtjUPTcfe2b+OZN/6L0olwFvLItEBAgvJudFxp5E+ulL01waSRZ6zW46AyXZEnG7zFNmsKu6ugW+diQOzXfLr9isweYk3C/dAXOtPf9XZlWR+GnCWC/+VEwC6EXLHav17/UOGrHAjx3Rum/q3gRT44sk0Ie2nej37tie6PuS4YUvYYYfwDpCWacKibm3JFBgjY4TEMvRvyjxP0RhIYBGtHx1qGsSLXhtnoKFH8kkfptUsrZusfrzDVcLwBsy1uCCt0f59i+sM3xIV9CMPTj3vBWC4DX0nk0xm9S9bRzFzyXkf+M="
+          }
+      },
+      "Ginger_One": {
+          "name": [
+              "&2&lGinger",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1828.5,
+              "y": 26.0,
+              "z": 2110.5,
+              "yaw": 55,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzg2MTUwODEsInByb2ZpbGVJZCI6ImIwZDczMmZlMDBmNzQwN2U5ZTdmNzQ2MzAxY2Q5OGNhIiwicHJvZmlsZU5hbWUiOiJPUHBscyIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzkyODcxNzExOGU4NDhjMjRkNTg1OGVmM2U1ZjQxZjRhNGE1ZDJjNGZlNzk0YTI4YTgwYTA5ZDhiYWU5OGQwNSJ9fX0=",
+              "signature": "d0jtN2KQVplJDfJATygtm8nPkdl1aaemzijquXvIs4CniJP/9gouEytgTSVItaWzvvTweuziBQEsuo44algnGlozwLtQp2gOuCx5/WLwOD8jQ1kcQzqUT1V/ixG88kAcVq+nM5LANPvIyKTxOKwiCp7yEgAwaFK02cbix21+ztMWl16v9DNDL+jbZDAzYdThRCxHChbq+K/BD3EQzTZaBiWL3ixJL6Z23W4724y2Hb3jvWvkNjZZDYT7Q8SwC0S9qoBAYcUWJDzGg02a8p2oKSpoHNuvgltU97Ev0iiMifd0A0/KTzRnQfG0VZF4YMA0tIG5mfJK5kv57afKZf4ybS9/ss6icuWprBHZT7x9f57zuwKhfvkHVF5g+4FWY0dDUSyBgOZoOd+mrCVRHJ2sLJLDnu8EisWmegSs8c9xe42hevCeBJNa6ziyPb0oQlP04d8RaxOSooc3i78tw/SHVBGAJxy5kvCS8RuQtI+SfT5mubVwt3knt9TlagyXlESZIaesqao4Wps4GUgRVp8aYbtx61UkjmCqnTdRyc5IdJ/e/JOATTDmkXj0fpm3fiWDGCeaueuST0ZCdy28BrB/O+Po0T3LASkSd3VUtF7JAGEFfs/J9qFWWvBfqjv/NkmkQ8SsfIxZLfUzRQm3CpSHbSVSbXmXa9/VHAq+QBvXXSM="
+          }
+      },
+      "Ginger_Two": {
+          "name": [
+              "&2&lGinger",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1732.5,
+              "y": 20.0,
+              "z": 2161.5,
+              "yaw": 180,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzg2MTUwODEsInByb2ZpbGVJZCI6ImIwZDczMmZlMDBmNzQwN2U5ZTdmNzQ2MzAxY2Q5OGNhIiwicHJvZmlsZU5hbWUiOiJPUHBscyIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzkyODcxNzExOGU4NDhjMjRkNTg1OGVmM2U1ZjQxZjRhNGE1ZDJjNGZlNzk0YTI4YTgwYTA5ZDhiYWU5OGQwNSJ9fX0=",
+              "signature": "d0jtN2KQVplJDfJATygtm8nPkdl1aaemzijquXvIs4CniJP/9gouEytgTSVItaWzvvTweuziBQEsuo44algnGlozwLtQp2gOuCx5/WLwOD8jQ1kcQzqUT1V/ixG88kAcVq+nM5LANPvIyKTxOKwiCp7yEgAwaFK02cbix21+ztMWl16v9DNDL+jbZDAzYdThRCxHChbq+K/BD3EQzTZaBiWL3ixJL6Z23W4724y2Hb3jvWvkNjZZDYT7Q8SwC0S9qoBAYcUWJDzGg02a8p2oKSpoHNuvgltU97Ev0iiMifd0A0/KTzRnQfG0VZF4YMA0tIG5mfJK5kv57afKZf4ybS9/ss6icuWprBHZT7x9f57zuwKhfvkHVF5g+4FWY0dDUSyBgOZoOd+mrCVRHJ2sLJLDnu8EisWmegSs8c9xe42hevCeBJNa6ziyPb0oQlP04d8RaxOSooc3i78tw/SHVBGAJxy5kvCS8RuQtI+SfT5mubVwt3knt9TlagyXlESZIaesqao4Wps4GUgRVp8aYbtx61UkjmCqnTdRyc5IdJ/e/JOATTDmkXj0fpm3fiWDGCeaueuST0ZCdy28BrB/O+Po0T3LASkSd3VUtF7JAGEFfs/J9qFWWvBfqjv/NkmkQ8SsfIxZLfUzRQm3CpSHbSVSbXmXa9/VHAq+QBvXXSM="
+          }
+      },
+      "Ginger_Three": {
+          "name": [
+              "&2&lGinger",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1727.5,
+              "y": 24.0,
+              "z": 2175.5,
+              "yaw": 100,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzg2MTUwODEsInByb2ZpbGVJZCI6ImIwZDczMmZlMDBmNzQwN2U5ZTdmNzQ2MzAxY2Q5OGNhIiwicHJvZmlsZU5hbWUiOiJPUHBscyIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzkyODcxNzExOGU4NDhjMjRkNTg1OGVmM2U1ZjQxZjRhNGE1ZDJjNGZlNzk0YTI4YTgwYTA5ZDhiYWU5OGQwNSJ9fX0=",
+              "signature": "d0jtN2KQVplJDfJATygtm8nPkdl1aaemzijquXvIs4CniJP/9gouEytgTSVItaWzvvTweuziBQEsuo44algnGlozwLtQp2gOuCx5/WLwOD8jQ1kcQzqUT1V/ixG88kAcVq+nM5LANPvIyKTxOKwiCp7yEgAwaFK02cbix21+ztMWl16v9DNDL+jbZDAzYdThRCxHChbq+K/BD3EQzTZaBiWL3ixJL6Z23W4724y2Hb3jvWvkNjZZDYT7Q8SwC0S9qoBAYcUWJDzGg02a8p2oKSpoHNuvgltU97Ev0iiMifd0A0/KTzRnQfG0VZF4YMA0tIG5mfJK5kv57afKZf4ybS9/ss6icuWprBHZT7x9f57zuwKhfvkHVF5g+4FWY0dDUSyBgOZoOd+mrCVRHJ2sLJLDnu8EisWmegSs8c9xe42hevCeBJNa6ziyPb0oQlP04d8RaxOSooc3i78tw/SHVBGAJxy5kvCS8RuQtI+SfT5mubVwt3knt9TlagyXlESZIaesqao4Wps4GUgRVp8aYbtx61UkjmCqnTdRyc5IdJ/e/JOATTDmkXj0fpm3fiWDGCeaueuST0ZCdy28BrB/O+Po0T3LASkSd3VUtF7JAGEFfs/J9qFWWvBfqjv/NkmkQ8SsfIxZLfUzRQm3CpSHbSVSbXmXa9/VHAq+QBvXXSM="
+          }
+      },
+      "Ginger_Four": {
+          "name": [
+              "&2&lGinger",
+              "&aLeprechaun"
+          ],
+          "location": {
+              "world": "world",
+              "x": 1803.5,
+              "y": 25.0,
+              "z": 2126.5,
+              "yaw": 90,
+              "pitch": 0
+          },
+          "skin": {
+              "texture": "eyJ0aW1lc3RhbXAiOjE1NTIzMzg2MTUwODEsInByb2ZpbGVJZCI6ImIwZDczMmZlMDBmNzQwN2U5ZTdmNzQ2MzAxY2Q5OGNhIiwicHJvZmlsZU5hbWUiOiJPUHBscyIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzkyODcxNzExOGU4NDhjMjRkNTg1OGVmM2U1ZjQxZjRhNGE1ZDJjNGZlNzk0YTI4YTgwYTA5ZDhiYWU5OGQwNSJ9fX0=",
+              "signature": "d0jtN2KQVplJDfJATygtm8nPkdl1aaemzijquXvIs4CniJP/9gouEytgTSVItaWzvvTweuziBQEsuo44algnGlozwLtQp2gOuCx5/WLwOD8jQ1kcQzqUT1V/ixG88kAcVq+nM5LANPvIyKTxOKwiCp7yEgAwaFK02cbix21+ztMWl16v9DNDL+jbZDAzYdThRCxHChbq+K/BD3EQzTZaBiWL3ixJL6Z23W4724y2Hb3jvWvkNjZZDYT7Q8SwC0S9qoBAYcUWJDzGg02a8p2oKSpoHNuvgltU97Ev0iiMifd0A0/KTzRnQfG0VZF4YMA0tIG5mfJK5kv57afKZf4ybS9/ss6icuWprBHZT7x9f57zuwKhfvkHVF5g+4FWY0dDUSyBgOZoOd+mrCVRHJ2sLJLDnu8EisWmegSs8c9xe42hevCeBJNa6ziyPb0oQlP04d8RaxOSooc3i78tw/SHVBGAJxy5kvCS8RuQtI+SfT5mubVwt3knt9TlagyXlESZIaesqao4Wps4GUgRVp8aYbtx61UkjmCqnTdRyc5IdJ/e/JOATTDmkXj0fpm3fiWDGCeaueuST0ZCdy28BrB/O+Po0T3LASkSd3VUtF7JAGEFfs/J9qFWWvBfqjv/NkmkQ8SsfIxZLfUzRQm3CpSHbSVSbXmXa9/VHAq+QBvXXSM="
+          }
+      },
+      "Beast_One": {
+          "name": [
+              "&f&lBeast"
+          ],
+          "baby": true,
+          "location": {
+              "world": "world",
+              "x": 1712.5,
+              "y": 24.0,
+              "z": 2172.5,
+              "yaw": -90,
+              "pitch": 0
+          },
+          "entity": "blaze"
+      }
+  },
+  "visibility": {
+      "Lucky_One": true,
+      "Lucky_Two": false,
+      "Lucky_Three": false,
+      "Lucky_Five": false,
+      "Lucky_Six": false,
+      "Ginger_Four": false,
+      "Ginger_One": false,
+      "Ginger_Two": false,
+      "Beast_One": false,
+      "Lucky_Four": false,
+      "Ginger_Three": false,
+      "Lucky_Five": false,
+      "Ginger_Four": false
+  },
+  "HighlightClickEntityStage": [
+      "Lucky_One"
+  ],
+  "NotCompletedQuestProgressStage": [
+
+  ],
+  "DialogStage": [{
+      "&2&lLucky": "Hey, [PLAYER]!",
+      "&2&lLucky": "I need your help! I beg you.",
+      "[PLAYER]": "Why? What's wrong?",
+      "&2&lLucky": "My friend and I were out for the day celebrating St. Patty's Day!",
+      "&2&lLucky": "When suddenly... This BEAST came out of nowhere!",
+      "&2&lLucky": "The beast stole all me &6gold&r, and I couldn't pay for our meal.",
+      "&2&lLucky": "Will you help us retrieve the gold from him?",
+      "[PLAYER]": "Sure thing! Do you know where he went?",
+      "&2&lLucky": "Yes, I have been chasing him for hours and he's somewhere in this cave.",
+      "&2&lLucky": "Quick!!! Follow me."
+  }],
+
+  "SetBlocks": [
+  1710,27,2175,1717,24,2169, "Air" ],
+  "SetBlocks": [
+    1717,
+    28,
+    2176,
+    1710,
+    24,
+    2176,
+    "Spruce Planks"
+],
+  "SetBlocks": [
+      1717,
+      28,
+      2176,
+      1710,
+      24,
+      2176,
+      "Spruce Planks"
+  ],
+  "SetBlocks": [
+      1717,
+      29,
+      2168,
+      1710,
+      24,
+      2168,
+      "Spruce Planks"
+  ],
+  "SetBlocks": [
+      1709,
+      24,
+      2175,
+      1709,
+      28,
+      2169,
+      "Spruce Planks"
+  ],
+  "SetBlocks": [
+      1717,
+      28,
+      2175,
+      1710,
+      28,
+      2169,
+      "Black Stained Glass"
+  ],
+  "SetBlocks": [
+      1717,
+      29,
+      2175,
+      1710,
+      29,
+      2169,
+      "Sea Lantern"
+  ],
+  "SetBlocks": [
+      1717,
+      23,
+      2175,
+      1710,
+      23,
+      2169,
+      "Dark Oak Planks"
+  ],
+  "Delay": [
+      2.0
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": true,
+      "Lucky_Three": false,
+      "Ginger_One": false,
+      "Ginger_Two": false,
+      "Beast_One": false
+  },
+  "Objective": [
+      "Talk to Lucky down in the cave!",
+      1
+  ],
+  "HighlightClickEntityStage": [
+      "Lucky_Two"
+  ],
+  "DialogStage": [{
+      "&2&lLucky": "Be quiet. I think the beast is right around the corner!",
+      "&2&lLucky": "I called my friend and she's on her way right now.",
+      "&2&lLucky": "Oh, look! There she is."
+  }],
+  "Delay": [
+      1.0
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": true,
+      "Lucky_Three": false,
+      "Ginger_One": true,
+      "Ginger_Two": false,
+      "Beast_One": false
+  },
+  "Delay": [
+      1
+  ],
+  "MoveEntity": [
+      "Ginger_One",
+      1825.5,
+      26.0,
+      2112.5
+  ],
+  "Delay": [
+      0.5
+  ],
+  "MoveEntity": [
+      "Ginger_One",
+      1818.5,
+      26.0,
+      2112.5
+  ],
+  "EntityLook": [
+      "Ginger_One", -90,
+      0
+  ],
+  "Delay": [
+      1.0
+  ],
+  "DialogStage": [{
+      "&2&lGinger": "Hello, [PLAYER]. Nice to meet you.",
+      "&2&lGinger": "So... I'm guessing you are helping out my old pal, &2Lucky&f?",
+      "[PLAYER]": "Yes, he told me all about what happened today with you all.",
+      "&2&lLucky": "We better hurry. The beast has moved a bit since the last time we saw him.",
+      "&2&lGinger": "We better get in there!",
+      "&2&lLucky": "Let's go!"
+  }],
+  "Delay": [
+      1.5
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": false,
+      "Lucky_Three": true,
+      "Ginger_One": false,
+      "Ginger_Two": true,
+      "Beast_One": false
+  },
+  "Objective": [
+      "Meet up with Ginger and Lucky farther in the cave!",
+      1
+  ],
+  "HighlightClickEntityStage": [
+      "Lucky_Three",
+      "Ginger_Two"
+  ],
+  "DialogStage": [{
+      "&2&lLucky": "We must be super quiet now.",
+      "&2&lLucky": "The beast is right inside that room."
+  }],
+  "Delay": [
+      1
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": false,
+      "Lucky_Three": true,
+      "Ginger_One": false,
+      "Ginger_Two": true,
+      "Beast_One": true
+  },
+  "Delay": [
+      1.0
+  ],
+  "Teleport": [
+      1716.5,
+      27.0,
+      2175.5,
+      135,
+      33
+  ],
+  "Delay": [
+      1
+  ],
+  "SendMessage": [
+      "&2&l》&aShowing Bird's-Eye View&2&l《"
+  ],
+  "Freeze": [
+      80
+  ],
+  "Delay": [
+      4.0
+  ],
+  "Teleport": [
+      1733.5,
+      20.0,
+      2158.5,
+      0,
+      0
+  ],
+  "Delay": [
+      1.0
+  ],
+  "DialogStage": [{
+      "[PLAYER]": "Okay, so what is our plan?",
+      "&2&lGinger": "Well, I say we just make a run for it.",
+      "&2&lLucky": "[PLAYER], you will go in.",
+      "&2&lLucky": "We will be waiting for you to come out.",
+      "&2&lGinger": "We're too frightened by the beast, so you'll have to go alone.",
+      "[PLAYER]": "Ugh... Fine."
+  }],
+  "Delay": [
+      1.0
+  ],
+  "Objective": [
+      "Try and steal the gold from the beast!",
+      1
+  ],
+  "RegionEntry": [
+      1717,
+      29,
+      2165,
+      1707,
+      23,
+      2176
+  ],
+  "Objective": [
+      "Defeat the beast!",
+      1
+  ],
+  "AutoNpcBattle": [
+      "Beast_One", {
+          "&f&lBeast": "Hey!",
+          "&f&lBeast": "No one is allowed in here!",
+          "&f&lBeast": "Now leave!",
+          "[PLAYER]": "What are you going to do about it?"
+      }, {
+          "&f&lBeast": "No! I must go train my Pokémon!"
+      }, {
+          "&f&lBeast": "That's what I'm going to do about it... Now leave!"
+      },
+      [{
+          "species": "Jolteon",
+          "level": 73
+      }, {
+          "species": "Dragonite",
+          "level": 77
+      }, {
+          "species": "Chansey",
+          "level": 89
+      }, {
+          "species": "Machamp",
+          "level": 92
+      }, {
+          "species": "Charizard",
+          "level": 87
+      }, {
+          "species": "Pikachu",
+          "level": 97
+      }]
+  ],
+  "Delay": [
+      1
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": false,
+      "Lucky_Three": false,
+      "Ginger_One": false,
+      "Ginger_Two": false,
+      "Beast_One": false,
+      "Lucky_Four": false,
+      "Ginger_Three": false
+  },
+  "Delay": [
+      1.0
+  ],
+  "StrikeLightning": [
+      1715.5,
+      26.0,
+      2168.5
+  ],
+  "Delay": [
+      1
+  ],
+  "PickupHead": [
+      1710.5,
+      24.0,
+      2172.5,
+      45,
+      "&6&lPOT OF GOLD",
+      "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvN2UyODVjNWM4NTU5OTQzN2FjNDJlMjdmNDkyMWM4MDVhZWQxZGM1Nzc0Zjk1MmEyN2VhN2U4YzlhYmU2ZSJ9fX0=",
+      ""
+  ],
+  "PlaySound": [
+      "entity_player_levelup",
+      1
+  ],
+  "SendMessage": [
+      "&a➤ &6Found the pot of gold!"
+  ],
+  "Delay": [
+      1
+  ],
+  "GiveCoinsStage": [
+      100000
+  ],
+  "Delay": [
+      1
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": false,
+      "Lucky_Three": false,
+      "Ginger_One": false,
+      "Ginger_Two": false,
+      "Beast_One": false,
+      "Lucky_Four": true,
+      "Ginger_Three": true
+  },
+  "Delay": [
+      1.0
+  ],
+  "Objective": [
+      "Return the pot of gold to the leprechauns!",
+      1
+  ],
+  "HighlightClickEntityStage": [
+      "Lucky_Four",
+      "Ginger_Three"
+  ],
+  "Delay": [
+      10
+  ],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": false,
+      "Lucky_Three": false,
+      "Ginger_One": false,
+      "Ginger_Two": false,
+      "Beast_One": false,
+      "Lucky_Four": false,
+      "Lucky_Six": true,
+      "Ginger_Three": true
+  },
+  "Delay": [
+      1
+  ],
+  "DialogStage": [{
+      "&2&lLucky": "Wow! Thank you so much!",
+      "&2&lGinger": "We knew you would save the day!",
+      "&2&lLucky": "Meet us back at the entrance of the cave so we can give you some goodies!"
+  }],
+  "Delay": [
+      1.5
+  ],
+  "visibility": {
+    "Lucky_One": false,
+    "Lucky_Two": false,
+    "Lucky_Three": false,
+    "Ginger_One": false,
+    "Ginger_Two": false,
+    "Beast_One": false,
+    "Lucky_Four": false,
+    "Lucky_Six": false,
+    "Ginger_Three": false,
+    "Lucky_Five": true,
+    "Ginger_Four": true
+},
+  "Objective": [
+      "Talk to the leprechauns at the cave entrance!",
+      1
+  ],
+  "HighlightClickEntityStage": [
+      "Lucky_Five",
+      "Ginger_Four"
+  ],
+  "DialogStage": [{
+      "&2&lLucky": "Listen here, [PLAYER].",
+      "&2&lLucky": "I feel like I've gotten to know you on this journey.",
+      "&2&lLucky": "I really consider us friends!",
+      "&2&lLucky": "I am going to give you these rewards if...",
+      "&2&lLucky": "You promise to never break our friendship.",
+      "[PLAYER]": "I promise!",
+      "&2&lGinger": "Well, guess what?!",
+      "[PLAYER]": "What?",
+      "&2&lGinger": "Free goodies for you!!!",
+      "&2&lLucky": "Anyways, we are going to head back now!"
+  }],
+  "visibility": {
+      "Lucky_One": false,
+      "Lucky_Two": false,
+      "Lucky_Three": false,
+      "Ginger_One": false,
+      "Ginger_Two": false,
+      "Beast_One": false,
+      "Lucky_Four": false,
+      "Lucky_Five": false,
+      "Lucky_Six": false,
+      "Ginger_Three": false,
+      "Ginger_Four": false
+  },
+  "Delay": [
+      1.0
+  ],
+  "GiveTokensStage": [
+      5
+  ],
+  "GiveTrainerExperienceStage": [
+      10000
+  ],
+  "GiveItemStage": [
+      "Friend Ball",
+      16
+  ],
+  "UnlockItem": [
+      "Friend Ball"
+  ],
+  "Delay": [
+      1.0
+  ],
+  "SendMessageStage": [
+      "&aQuest Completed!"
+  ],
+  "CompleteQuestStage": [
+
+  ]
+}

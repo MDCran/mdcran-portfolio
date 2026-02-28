@@ -1,0 +1,25 @@
+{
+   "SOFTWARE":{
+      "JAVA_CREATIONS":[
+         "AMONG_US",
+         "CONNECT_FOUR",
+         "PONG",
+         "SNAKE",
+         "STUDENT_MANAGEMENT",
+         "TIC_TAC_TOE"
+      ],
+      "MINECRAFT_SERVER_MANAGEMENT":[
+         "CREATIVE_PLOTS",
+         "EPICSTUN_EVENTS",
+         "GO_KART_RACING",
+         "LUBLY_SURVIVAL",
+         "LUCKY_BLOCK_BED-WARS"
+      ],
+      "SKRIPT_CREATIONS":[
+         "CLAIM_SCRIPT",
+         "LOBBY_SCRIPT",
+         "LUCKY_BLOCK_SCRIPT",
+         "NPC_SCRIPT"
+      ]
+   }
+}
