@@ -5,12 +5,6 @@ import { projectUrl } from "@/lib/utils";
 const BASE_URL = "https://mdcran.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [clients, projects, articles] = await Promise.all([
-    getClients(),
-    getProjects(),
-    getArticles(),
-  ]);
-
   const staticRoutes = [
     { url: BASE_URL, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 1 },
     { url: `${BASE_URL}/work`, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 0.9 },
@@ -24,6 +18,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/code`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.8 },
     { url: `${BASE_URL}/articles`, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 0.8 },
   ];
+
+  let clients = [] as Awaited<ReturnType<typeof getClients>>;
+  let projects = [] as Awaited<ReturnType<typeof getProjects>>;
+  let articles = [] as Awaited<ReturnType<typeof getArticles>>;
+
+  try {
+    [clients, projects, articles] = await Promise.all([
+      getClients(),
+      getProjects(),
+      getArticles(),
+    ]);
+  } catch (error) {
+    console.error("Sitemap data fetch failed. Falling back to static routes only.", error);
+    return staticRoutes;
+  }
 
   const clientRoutes = clients.map((client) => ({
     url: `${BASE_URL}/clients/${client.id}`,
