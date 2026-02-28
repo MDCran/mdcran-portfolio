@@ -1914,7 +1914,7 @@ export default function AdminDashboard() {
         </nav>
 
         {/* Back link + Logout */}
-        <div className="px-4 py-4 border-t border-white/6 space-y-2">
+        <div className="hidden px-4 py-4 border-t border-white/6 space-y-2">
           <Link href="/" className="flex items-center gap-2 text-[11px] text-white/30 hover:text-white/60 transition-colors">
             <span>←</span>
             <span>MDCran.com</span>
@@ -1936,7 +1936,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <h1 className="font-nord text-lg text-white">{sectionTitles[activeSection]}</h1>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             {activeSection === "projects" && (
               <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
             )}
@@ -1949,6 +1949,20 @@ export default function AdminDashboard() {
             {activeSection === "campaigns" && (
               <button className={btnRed} onClick={() => setCampaignModalOpen(true)}>+ Send Message</button>
             )}
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-3 h-9 border border-white/10 text-[11px] text-white/35 hover:text-white/70 hover:border-white/20 rounded-sm transition-colors"
+            >
+              <span>&larr;</span>
+              <span>MDCran.com</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 px-3 h-9 border border-[#ef4242]/20 text-[11px] text-[#ef4242]/70 hover:text-[#ef4242] hover:border-[#ef4242]/35 rounded-sm transition-colors"
+            >
+              <span>&#x23FB;</span>
+              <span>Log Out</span>
+            </button>
           </div>
         </header>
 

@@ -77,7 +77,8 @@ type TooltipEntry = {
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
+  {
+    className?: string;
     active?: boolean;
     payload?: TooltipEntry[];
     label?: string | number;
@@ -85,7 +86,7 @@ const ChartTooltipContent = React.forwardRef<
     nameKey?: string;
     labelKey?: string;
   }
->(({ active, payload, label, className, hideLabel = false, nameKey, labelKey, ...props }, ref) => {
+>(({ active, payload, label, className, hideLabel = false, nameKey, labelKey }, ref) => {
   const { config } = useChart();
 
   if (!active || !payload?.length) {
@@ -101,7 +102,6 @@ const ChartTooltipContent = React.forwardRef<
         "min-w-[180px] rounded-sm border border-white/10 bg-[#0d0d0d]/95 px-3 py-2 shadow-2xl backdrop-blur",
         className
       )}
-      {...props}
     >
       {!hideLabel && (
         <div className="mb-2 text-[10px] tracking-widest uppercase text-white/35">
