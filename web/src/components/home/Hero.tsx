@@ -139,9 +139,9 @@ export default function Hero() {
             transition={{ duration: 0.7, delay: 0.4 }}
             className="text-white/45 text-sm md:text-base max-w-xl mx-auto mb-6 leading-relaxed"
           >
-            Crafting immersive Minecraft worlds, premium motion graphics, and digital
-            experiences for the world&apos;s top creators.
-            <span className="text-white/25"> Computer Science @ UCF.</span>
+            Designing and building digital projects for creators, companies, and secure
+            enterprise platforms.
+            <span className="block text-white/25">Computer Science @ UCF.</span>
           </motion.p>
 
           {/* Location */}

@@ -117,7 +117,6 @@ export default async function ResumePage() {
       <PageHeader
         eyebrow="Career"
         title="Resume"
-        description="Full professional background - work experience, skills, certifications, and achievements."
         breadcrumbs={[{ label: "Resume" }]}
         actions={
           <div className="flex items-center gap-3">

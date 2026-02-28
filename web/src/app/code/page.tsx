@@ -52,7 +52,7 @@ export default function CodePage() {
       <PageHeader
         eyebrow="Development"
         title="Code"
-        description="Software projects, Minecraft plugins, full-stack platforms, and internal tools built from scratch."
+        description="Design and development of secure software, backend systems, web applications, and custom plugins."
         breadcrumbs={[{ label: "Code" }]}
       />
       <main className="content-container py-14 sm:py-16">

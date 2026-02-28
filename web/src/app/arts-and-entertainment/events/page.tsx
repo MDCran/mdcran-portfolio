@@ -50,7 +50,7 @@ export default function EventsPage() {
       <PageHeader
         eyebrow="Arts & Entertainment"
         title="Events"
-        description="Large-scale community events - from annual Snow Brawls to custom competitive games."
+        description="Large-scale competitive and community Minecraft events."
         breadcrumbs={[
           { label: "Arts & Entertainment", href: "/arts-and-entertainment" },
           { label: "Events" },

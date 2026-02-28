@@ -9,6 +9,7 @@ import FeaturedProjects from "@/components/home/FeaturedProjects";
 import Clients from "@/components/home/Clients";
 import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
+import MercuryPrompt from "@/components/home/MercuryPrompt";
 import { getFeaturedProjects, getClients, getProjects } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -125,6 +126,7 @@ export default async function HomePage() {
         <FeaturedProjects projects={featuredProjects} />
         <Clients clients={featuredClients} projects={allProjects} />
         <CTA />
+        <MercuryPrompt />
       </main>
       <Footer />
     </>

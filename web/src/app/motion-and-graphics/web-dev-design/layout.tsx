@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Web Dev & Design",
-  description: "Custom websites designed and developed for gaming content creators, community organizations, and creative brands.",
+  description: "Modern, premium web experiences for creators, companies and brands.",
   openGraph: {
     title: "Web Dev & Design | MDCran",
-    description: "Custom websites designed and developed for gaming content creators, community organizations, and creative brands.",
+    description: "Modern, premium web experiences for creators, companies and brands.",
   },
 };
 
