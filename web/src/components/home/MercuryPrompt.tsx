@@ -12,6 +12,7 @@ const VIDEO_REVEAL_DELAY_MS = 520;
 const COLLAPSE_DELAY_MS = 220;
 const REDACTION_TRIGGER_SECONDS = 1;
 const REDACTION_DURATION_MS = 900;
+const STORAGE_KEY = "mdcran_mercury_prompt_seen_v1";
 
 export default function MercuryPrompt() {
   const [isVisible, setIsVisible] = useState(false);
@@ -89,8 +90,18 @@ export default function MercuryPrompt() {
   useEffect(() => {
     if (isVisible || isCollapsed) return;
 
+    const hasSeenPrompt = window.localStorage.getItem(STORAGE_KEY) === "true";
+    if (hasSeenPrompt) {
+      const seenTimer = window.setTimeout(() => {
+        setIsCollapsed(true);
+        setShowCollapsedTrigger(true);
+      }, 0);
+      return () => window.clearTimeout(seenTimer);
+    }
+
     const timer = window.setTimeout(() => {
       startExpand();
+      window.localStorage.setItem(STORAGE_KEY, "true");
     }, REVEAL_DELAY_MS);
 
     return () => window.clearTimeout(timer);
