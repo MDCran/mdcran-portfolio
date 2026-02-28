@@ -236,30 +236,24 @@ export default function HomeAmbient() {
   // Track how many times each badge has been clicked — changing the key
   // forces framer-motion to remount the click-burst particles fresh each time.
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
-  const [dismissedBadges, setDismissedBadges] = useState<Record<string, boolean>>({});
-  const dismissTimersRef = useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
+  const dismissTimersRef = useRef<Record<string, ReturnType<typeof globalThis.setTimeout>>>({});
 
   useEffect(() => {
+    const timers = dismissTimersRef.current;
     return () => {
-      Object.values(dismissTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+      Object.values(timers).forEach((timerId) => globalThis.clearTimeout(timerId));
     };
   }, []);
 
   const handleBadgeClick = useCallback((key: string) => {
     const existingTimer = dismissTimersRef.current[key];
     if (existingTimer) {
-      window.clearTimeout(existingTimer);
+      globalThis.clearTimeout(existingTimer);
     }
 
     setClickCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
-    setDismissedBadges((prev) => ({ ...prev, [key]: true }));
 
-    dismissTimersRef.current[key] = window.setTimeout(() => {
-      setDismissedBadges((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
+    dismissTimersRef.current[key] = globalThis.setTimeout(() => {
       delete dismissTimersRef.current[key];
     }, 850);
   }, []);
