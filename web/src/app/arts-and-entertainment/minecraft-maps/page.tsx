@@ -52,7 +52,7 @@ export default function MinecraftMapsPage() {
       <PageHeader
         eyebrow="Arts & Entertainment"
         title="Minecraft Maps"
-        description="Custom-built Minecraft experiences - from board games to simulators - created for the world's biggest gaming YouTubers."
+        description="Custom-built Minecraft experiences for the world's biggest YouTubers."
         breadcrumbs={[
           { label: "Arts & Entertainment", href: "/arts-and-entertainment" },
           { label: "Minecraft Maps" },

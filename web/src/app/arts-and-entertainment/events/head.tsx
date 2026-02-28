@@ -4,7 +4,7 @@ export default function Head() {
   return (
     <SeoHead
       title="Events"
-      description="Large-scale community events, competitive builds, and interactive Minecraft experiences."
+      description="Large-scale competitive and community Minecraft events."
       path="/arts-and-entertainment/events"
     />
   );

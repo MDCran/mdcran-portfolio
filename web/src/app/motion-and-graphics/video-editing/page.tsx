@@ -52,7 +52,7 @@ export default function VideoEditingPage() {
       <PageHeader
         eyebrow="Motion & Graphics"
         title="Video Editing"
-        description="Professional video editing for gaming content creators - fast-paced montages, cinematic intros, and YouTube-optimized cuts."
+        description="Fast, on-demand video editing for YouTube and social media."
         breadcrumbs={[
           { label: "Motion & Graphics", href: "/motion-and-graphics" },
           { label: "Video Editing" },

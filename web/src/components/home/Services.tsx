@@ -19,7 +19,7 @@ const services = [
     icon: Palette,
     title: "Motion & Graphics",
     description:
-      "High-impact thumbnail design, cinematic video editing, and full web design services.",
+      "Thumbnail design, video editing, and graphics I've made for creators and online projects.",
     href: "/motion-and-graphics",
     items: ["Thumbnails", "Video Editing", "Web Design"],
     accent: "#ef4242",
@@ -28,7 +28,7 @@ const services = [
     icon: Code2,
     title: "Code",
     description:
-      "Software and plugin development — from Minecraft server plugins to full-stack web applications and internal tools.",
+      "Development of secure software, backend systems, web applications, plugins and more...",
     href: "/code",
     items: ["Minecraft Plugins", "Web Apps", "Internal Tools"],
     accent: "#ef4242",
@@ -68,8 +68,8 @@ export default function Services() {
             transition={{ delay: 0.2 }}
             className="max-w-md text-sm text-white/40 leading-relaxed"
           >
-            Full-spectrum content creation, from interactive Minecraft experiences to polished
-            motion graphics — all under one roof.
+            Experience creating Minecraft projects and graphics, and now developing software,
+            web platforms, and custom systems.
           </motion.p>
         </div>
 

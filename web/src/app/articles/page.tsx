@@ -122,7 +122,7 @@ export default function ArticlesPage() {
               transition={{ delay: 0.25 }}
               className="text-sm text-white/40 max-w-xl"
             >
-              Recipes, tech deep-dives, personal stories, and press. {allArticles.length} article{allArticles.length !== 1 ? "s" : ""} and counting.
+              A collection of recipes, technical articles, personal stories, and press features. {allArticles.length} and counting.
             </motion.p>
           </div>
         </section>

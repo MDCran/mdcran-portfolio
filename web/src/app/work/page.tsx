@@ -14,7 +14,6 @@ export const metadata = buildSeoMetadata({
 const sections = [
   {
     title: "Arts & Entertainment",
-    description: "Minecraft experiences and live event builds.",
     href: "/arts-and-entertainment",
     links: [
       { label: "Minecraft Maps", href: "/arts-and-entertainment/minecraft-maps" },
@@ -23,7 +22,6 @@ const sections = [
   },
   {
     title: "Motion & Graphics",
-    description: "Thumbnail design, video editing, and web design work.",
     href: "/motion-and-graphics",
     links: [
       { label: "Thumbnail Design", href: "/motion-and-graphics/thumbnail-design" },
@@ -33,13 +31,11 @@ const sections = [
   },
   {
     title: "Code",
-    description: "Software, tools, plugins, and full-stack builds.",
     href: "/code",
     links: [],
   },
   {
     title: "Articles",
-    description: "Writing, tutorials, recipes, and personal posts.",
     href: "/articles",
     links: [],
   },
@@ -73,9 +69,6 @@ export default function WorkPage() {
                   <h2 className="font-nord text-2xl text-white tracking-wider">
                     {section.title}
                   </h2>
-                  <p className="text-sm text-white/40 mt-2 max-w-lg">
-                    {section.description}
-                  </p>
                 </div>
                 <Link
                   href={section.href}

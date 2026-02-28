@@ -50,7 +50,7 @@ export default function ThumbnailDesignPage() {
       <PageHeader
         eyebrow="Motion & Graphics"
         title="Thumbnail Design"
-        description="Eye-catching, high-conversion thumbnails designed for gaming and entertainment creators."
+        description="Eye-catching thumbnails for gaming and entertainment content."
         breadcrumbs={[
           { label: "Motion & Graphics", href: "/motion-and-graphics" },
           { label: "Thumbnail Design" },

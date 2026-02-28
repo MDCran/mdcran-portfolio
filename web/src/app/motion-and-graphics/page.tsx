@@ -21,13 +21,13 @@ const subcategories = [
   {
     icon: Video,
     title: "Video Editing",
-    description: "Cinematic video editing for YouTube and social media.",
+    description: "Fast, on-demand video editing for YouTube and social media.",
     href: "/motion-and-graphics/video-editing",
   },
   {
     icon: Monitor,
     title: "Web Dev & Design",
-    description: "Modern, premium web experiences for creators and brands.",
+    description: "Modern, premium web experiences for creators, companies and brands.",
     href: "/motion-and-graphics/web-dev-design",
   },
 ];

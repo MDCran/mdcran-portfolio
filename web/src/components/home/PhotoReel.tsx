@@ -67,10 +67,13 @@ export default function PhotoReel() {
                 Michael Cran
               </h2>
               <p className="text-sm text-white/50 leading-relaxed mb-5">
-                UCF Computer Science student, independent contractor, and lifelong creator.
-                I&apos;ve spent the past {new Date().getFullYear() - 2018} years building immersive
-                Minecraft experiences, designing graphics for the internet&apos;s biggest creators,
-                and pushing the boundaries of what&apos;s possible online.
+                UCF Computer Science student, developer, building one-of-a-kind digital
+                experiences that put a smile on people&apos;s faces! Over the past 8+ years,
+                I&apos;ve worked as a content manager, developer, map designer, and builder for
+                some of the internet&apos;s most inspiring creators and teams. What started as a
+                casual gaming session at a soccer field turned into a career building
+                production-level software, platforms, and custom systems that support real
+                users and large online communities.
               </p>
               <p className="text-sm text-white/35 leading-relaxed mb-8">
                 Based in Orlando, FL — working with clients worldwide.

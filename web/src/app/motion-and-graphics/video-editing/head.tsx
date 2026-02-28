@@ -4,7 +4,7 @@ export default function Head() {
   return (
     <SeoHead
       title="Video Editing"
-      description="Professional video editing for gaming creators, YouTube content, and social-first media."
+      description="Fast, on-demand video editing for YouTube and social media."
       path="/motion-and-graphics/video-editing"
     />
   );

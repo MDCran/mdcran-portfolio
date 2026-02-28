@@ -67,7 +67,7 @@ export default function CTA() {
           <div className="absolute bottom-0 right-0 w-10 h-10 border-r border-b border-[rgba(239,66,66,0.5)]" />
 
           <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left — CTA copy */}
+            {/* Left - CTA copy */}
             <div>
               <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#ef4242] animate-pulse" />
@@ -75,15 +75,15 @@ export default function CTA() {
               </div>
 
               <h2 className="font-nord text-3xl md:text-4xl text-white tracking-wider mb-3">
-                Let&apos;s Build Something
+                Let&apos;s Build
               </h2>
               <h2 className="font-nord text-3xl md:text-4xl text-[#ef4242] tracking-wider mb-6">
-                Extraordinary
+                It Right
               </h2>
 
               <p className="text-sm text-white/40 leading-relaxed mb-8 max-w-sm">
-                Have a project in mind? Whether it&apos;s a massive Minecraft event, a series of
-                thumbnails, or a complete web redesign — let&apos;s make it happen.
+                Have a project in mind? Whether it&apos;s a Minecraft event, a batch of
+                thumbnails, or a new website, I&apos;m ready to help bring it together.
               </p>
 
               <div className="flex items-center flex-wrap gap-4">
@@ -95,7 +95,7 @@ export default function CTA() {
               </div>
             </div>
 
-            {/* Right — Subscribe form */}
+            {/* Right - Subscribe form */}
             <div>
               <div className="mb-5">
                 <p className="text-xs text-white/40 tracking-wider uppercase mb-1">Stay in the loop</p>

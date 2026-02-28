@@ -52,7 +52,7 @@ export default function WebDevDesignPage() {
       <PageHeader
         eyebrow="Motion & Graphics"
         title="Web Dev & Design"
-        description="Custom websites designed and developed for gaming content creators, community organizations, and creative brands."
+        description="Modern, premium web experiences for creators, companies and brands."
         breadcrumbs={[
           { label: "Motion & Graphics", href: "/motion-and-graphics" },
           { label: "Web Dev & Design" },
