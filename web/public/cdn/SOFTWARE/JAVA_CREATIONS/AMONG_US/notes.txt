@@ -1,0 +1,57 @@
+Sabotages.java
+Tasks.java
+
+GameFunction.java
+ඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞඞ
+Turns
+●
+
+- Display Player in Location ROom
+- Tab Calculation for Color based on Name + Color + Location String Length
+- Make a Master Task List with all tasks
+- Randomly Assign Tasks
+
+CHEAT_CODES
+    INH=Admin           (ImposterNameHack) *
+    PC=10               (PlayerCount) *
+    SPM= true/false     (SkipPlayerMaking) *
+    IC=2                (ImposterCount) *
+
+    PTC=4               (PlayerTaskCount)
+    CE=true/false       (ConfirmEjects)
+    KTC=1               (KillTurnCooldown)
+
+
+
+depending on player name length / tabs at the end to line up[ the color
+start making tasks
+abilioty to add tasks get tasks etc for a player
+
+ - Do a Task
+ - Move Location
+ - Call a Meeting (In Cafeteria)
+ - Kill a Person (If In same Room & is imposter)
+ - Report a Body (If in same room as dead body)
+
+
+
+ ■ΞΞΞ
+ ██▓▒░░.⊙★◯◍●
+
+        Task unlockManifold = new UnlockManifold();
+         unlockManifold.run();
+
+ IC=1, PC=10
+
+ △◯☆X
+
+ [INH=Admin,SPM=true]
+         △ (Red)
+         ◯ (Yellow)
+         ☆ (Pink)
+         X (Blue)
+
+         ◯ (Yellow) = 2
+         ☆ (Pink) = 3
+         △ (Red) = 1
+         X (Blue) = 4

@@ -1,0 +1,99 @@
+{
+    "key": "BOUNCE_HOUSE",
+    "name": "&aBounce House",
+	"author": "Matty",
+    "description": "Want to bounce around? Try Mr Slime's Bounce House!",
+    "location": "Lucky Land",
+    "minimumLevel": 0,
+    "hideInQuestLog": true,
+    "allowRejoining": true,
+    "icon": {
+        "material": "slime_ball"
+    },
+    "rewards": [
+        "&cFun Time!"
+    ],
+    "npcs": {
+        "Mr_Slime": {
+            "name": [
+                "&c&lMr. Slime",
+                "&7Click to Toggle"
+			],
+            "location": {
+                "world": "world",
+                "x": 745.5,
+                "y": 29.0,
+                "z": 2138.5,
+                "yaw": 145,
+                "pitch": 0
+            },
+            "skin": {
+                "texture": "eyJ0aW1lc3RhbXAiOjE1NTE1NTYzNDIzNTYsInByb2ZpbGVJZCI6IjVjN2ZiNzhhMmQxMzQ5NTZhNWE1M2EyNGQ5NWY1YjRmIiwicHJvZmlsZU5hbWUiOiJQZWFyc29uSW5tYW4iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzU2NmIzN2E3ZmVjZGMzYTY0MmM2ZDZjZTA0NDAxZGNiZDAwYjE1ZjU5MjA0ODVkYjUxZGM0Yjc1NGFmZTM3YzgifX19",
+                "signature": "cLhipUSdsSbYu5yDAa38+/naVVjryryhEUGkJYQweopdUf4X5YVIvHAofxQ+/vs+bBZqgXKgLfiGS/QU+JwY2xsSYJK2j776Z8hCqAY31v7cvZaPkK0QENyiZPgH0o/86MwWEpaxPAZ0mi3GONceZ+nAWsMeUz4+RHoW1ZzfhCY3gzZOXAzZmaQOdDZXZRkSkINbc4uK5DKZnSgk7neNJ7J0hxGtvoIV1dK95bEi/Kwyrq9xzOFOrysdI0Rr63MUGxAy3HD4TSAcApYXXNDQW0MdOSgUYcW3XIyReIY/PVwOCn0aKHW2Ysh9o/eJUXSJtwp4ETweSXvlkAy4UPZ6Rr7DGkh4J8uJwRWcC3vkdTSBo71TJkVw/Tgb3tcX3dgxkkhmHPZIwAzfjryWb5r0PNCXye135ZZxA72GEqFlWPfcxHYT0KGh6ga2fDz05yh/uvsuiM/G1QbMo751VtTve30CFcfiHu7AtOkHBs88Eb3UNFpCM9bbHbPJe/oSxJ+tn9iLjqUqV6w8gvPeJukpmADQjDsaz86lBPm1RlRWuSUm+asnINITA3NQd6ZDvKjCbV4XCzwoLlklWpNck7GOK5uxB1YO/gA1174vD+QEFyzGMW90l5APmID9mlD6F235yPDhhEk1Qo95zEAbhyNvGeBfPMC0TRdy2iEqnvePksE="
+            }
+        }
+     },
+	"visibility": {
+        "Mr_Slime": true
+    },
+	"ClickEntityStage": [
+        "Mr_Slime"
+    ],
+	"DialogStage": [
+        {
+			"Mr. Slime": "You want to bounce right?",
+			"Mr. Slime": "Well, you came to the right place!",
+			"Mr. Slime": "Hop inside the Bouncy House and start Bouncing!"
+        }
+    ],
+	"TimedStage": [
+        1
+	],
+    "SendMessage": [
+      "&7&m-------------------------",
+	  "&6Mr. Slime's Bounce House",
+	  "",
+	  "&fBouncing: &a&lENABLED",
+	  "&7&m-------------------------"
+    ],
+    "RegionPotion": [
+      746, 
+      37, 
+      2149, 
+      738, 
+      30, 
+      2141, 
+      "jump",
+      88 
+    ],
+	"ClickEntityStage": [
+        "Mr_Slime"
+    ],
+	"DialogStage": [
+        {
+			"Mr. Slime": "Oh, was that too much?",
+			"Mr. Slime": "There is no such thing as too much bouncing!"
+        }
+    ],
+	"TimedStage": [
+        1
+	],
+    "SendMessage": [
+      "&7&m-------------------------",
+	  "&6Mr. Slime's Bounce House",
+	  "",
+	  "&fBouncing: &c&lDISABLED",
+	  "&7&m-------------------------"
+    ],
+    "QuestRegion": [
+      765, 
+      300, 
+      2126, 
+      716, 
+      27, 
+      2174, 
+      "\u00A77\u00A7m-------------------------\n\u00A76Mr. Slime's Bounce House\n \n\u00A7fBouncing: \u00A7c\u00A7lDISABLED\n\u00A77\u00A7m-------------------------"
+    ],
+	"CompleteQuestStage": [
+	]
+}

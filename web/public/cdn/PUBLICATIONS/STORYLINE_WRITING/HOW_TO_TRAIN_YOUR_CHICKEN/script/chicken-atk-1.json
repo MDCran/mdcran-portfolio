@@ -1,0 +1,146 @@
+{
+    "key": "chicken_atk_1",
+	"name": "&6Chicken Attack",
+    "author": "Matty",
+    "npcs": {
+        "RESIDENT_ONE": {
+            "name": [
+                "&1&lPat"
+            ],
+            "location": {
+                "x": 632.5,
+                "y": 45.0,
+                "z": 644.5,
+                "yaw": -180,
+                "pitch": 0
+            },
+			"skin": "pat"
+        },
+        "RESIDENT_CHICKEN_ONE": {
+            "location": {
+                "x": 632.5,
+                "y": 45.0,
+                "z": 641.5,
+                "yaw": 0,
+                "pitch": 0
+            },
+            "entity": "chicken",
+            "baby": false
+        }
+	},
+	"visibility": {
+		"RESIDENT_ONE": false,
+		"RESIDENT_CHICKEN_ONE": false		
+	},
+    "Delay": [
+      1.0
+    ],
+	"visibility": {
+		"RESIDENT_ONE": true,
+		"RESIDENT_CHICKEN_ONE": true		
+	},
+    "HidePlayer": [
+    ],
+    "Delay": [
+      1
+    ],
+    "Teleport": [
+      636.5, 
+      50.0, 
+      639.5, 
+      50, 
+      45 
+    ],
+    "Freeze": [
+    ],
+    "Delay": [
+      2.5
+    ],
+    "PlaySound": [
+      "entity_chicken_hurt",
+      1.0, 
+      1.0
+    ],
+    "MoveEntity": [
+      "RESIDENT_CHICKEN_ONE",
+      632.5,
+      45.5, 
+      643.5 
+    ],
+    "Delay": [
+      0.5
+    ],
+    "PlaySound": [
+      "entity_chicken_hurt",
+      1.0, 
+      1.0
+    ],
+    "Delay": [
+      0.5
+    ],
+    "MoveEntity": [
+      "RESIDENT_CHICKEN_ONE",
+      632.5,
+      45.0, 
+      644.5 
+    ],
+    "Delay": [
+      0.5
+    ],
+    "PlaySound": [
+      "entity_chicken_hurt",
+      1.0, 
+      1.0
+    ],
+    "MoveEntity": [
+      "RESIDENT_CHICKEN_ONE",
+      633.5,
+      45.5, 
+      643.5 
+    ],
+    "Delay": [
+      0.5
+    ],
+    "PlaySound": [
+      "entity_chicken_hurt",
+      1.0, 
+      1.0
+    ],
+    "EntityLook": [
+      "RESIDENT_CHICKEN_ONE",
+      45, 
+      0
+    ],
+    "Delay": [
+      0.5
+    ],
+    "Particle": [
+      "explosion_huge",
+      632.5, 
+      45.5, 
+      643.5, 
+      10
+    ],
+    "PlaySound": [
+      "entity_generic_explode",
+      1
+    ],
+	"visibility": {
+		"RESIDENT_ONE": false,
+		"RESIDENT_CHICKEN_ONE": false		
+	},
+    "Unfreeze": [
+    ],
+    "CompleteQuest": [
+    ],
+    "Delay": [
+      2.0
+    ],
+    "Teleport": [
+      492.5, 
+      57.0, 
+      684.5, 
+      -135, 
+      45 
+    ]
+}
