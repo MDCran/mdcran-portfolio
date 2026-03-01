@@ -29,12 +29,17 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const normalizedEmail = email ? String(email).trim().toLowerCase() : "";
     const normalizedPhone = phone ? String(phone).trim() : "";
-    const existing = (await db.collection("contacts").findOne({
-      $or: [
-        normalizedEmail ? { email: normalizedEmail } : null,
-        normalizedPhone ? { phone: normalizedPhone } : null,
-      ].filter(Boolean),
-    })) as { id?: string; createdAt?: string } | null;
+    const matchClauses: Array<{ email: string } | { phone: string }> = [];
+    if (normalizedEmail) {
+      matchClauses.push({ email: normalizedEmail });
+    }
+    if (normalizedPhone) {
+      matchClauses.push({ phone: normalizedPhone });
+    }
+
+    const existing = (await db.collection("contacts").findOne(
+      matchClauses.length === 1 ? matchClauses[0] : { $or: matchClauses }
+    )) as { id?: string; createdAt?: string } | null;
 
     await db.collection("contacts").updateOne(
       { id: existing?.id ?? randomUUID() },
