@@ -15,6 +15,7 @@ const REDACTION_DURATION_MS = 900;
 const STORAGE_KEY = "mdcran_mercury_prompt_seen_v1";
 
 export default function MercuryPrompt() {
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showCollapsedTrigger, setShowCollapsedTrigger] = useState(false);
@@ -88,14 +89,33 @@ export default function MercuryPrompt() {
   }, [isClosing, isRedacting, startCollapse]);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const syncScreenSize = () => {
+      setIsSmallScreen(mediaQuery.matches);
+    };
+
+    syncScreenSize();
+    mediaQuery.addEventListener("change", syncScreenSize);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncScreenSize);
+    };
+  }, []);
+
+  useEffect(() => {
     if (isVisible || isCollapsed) return;
 
     const hasSeenPrompt = window.localStorage.getItem(STORAGE_KEY) === "true";
-    if (hasSeenPrompt) {
+    if (hasSeenPrompt || isSmallScreen) {
       const seenTimer = window.setTimeout(() => {
         setIsCollapsed(true);
         setShowCollapsedTrigger(true);
       }, 0);
+
+      if (!hasSeenPrompt && isSmallScreen) {
+        window.localStorage.setItem(STORAGE_KEY, "true");
+      }
+
       return () => window.clearTimeout(seenTimer);
     }
 
@@ -105,7 +125,7 @@ export default function MercuryPrompt() {
     }, REVEAL_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [isVisible, isCollapsed, startExpand]);
+  }, [isVisible, isCollapsed, isSmallScreen, startExpand]);
 
   useEffect(() => {
     if (!isVisible || isClosing || isRedacting) return;

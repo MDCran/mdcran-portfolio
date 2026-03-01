@@ -223,6 +223,18 @@ export interface MetricsSummary {
 }
 
 // ─── Spotify ──────────────────────────────────────────────
+export interface SpotifyHistoryTrack {
+  isPlaying: boolean;
+  title?: string;
+  artist?: string;
+  albumArt?: string;
+  albumName?: string;
+  songUrl?: string;
+  progressMs?: number;
+  durationMs?: number;
+  playedAt: string;
+}
+
 export interface SpotifyTrack {
   isPlaying: boolean;
   title?: string;
@@ -233,6 +245,7 @@ export interface SpotifyTrack {
   progressMs?: number;
   durationMs?: number;
   playedAt?: string;
+  history?: SpotifyHistoryTrack[];
 }
 
 // ─── Bible Verse ─────────────────────────────────────────

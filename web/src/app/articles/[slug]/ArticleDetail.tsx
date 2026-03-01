@@ -471,7 +471,7 @@ function ShareButtons() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-[1fr_40px] gap-3 sm:grid-cols-[140px_40px] sm:items-center">
+      <div className="grid grid-cols-[1fr_40px] gap-3 sm:grid-cols-1 sm:items-center">
         <motion.button
           onClick={handleCopy}
           whileTap={{ scale: 0.95 }}
@@ -486,7 +486,7 @@ function ShareButtons() {
         <motion.button
           onClick={() => void handleShare()}
           whileTap={{ scale: 0.95 }}
-          className="flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all hover:border-white/20 hover:text-white"
+          className="flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all hover:border-white/20 hover:text-white sm:hidden"
           aria-label="Share link"
           title="Share"
         >
