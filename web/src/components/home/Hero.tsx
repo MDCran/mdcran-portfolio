@@ -152,7 +152,7 @@ export default function Hero() {
             className="flex items-center justify-center gap-2 text-[11px] text-white/25 mb-8"
           >
             <MapPin size={11} className="text-[#ef4242]" />
-            <span>Orlando, FL — Available worldwide</span>
+            <span>Orlando, FL — Available for remote & local work</span>
           </motion.div>
 
           {/* Service tags */}

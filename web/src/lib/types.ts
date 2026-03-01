@@ -232,6 +232,7 @@ export interface SpotifyTrack {
   songUrl?: string;
   progressMs?: number;
   durationMs?: number;
+  playedAt?: string;
 }
 
 // ─── Bible Verse ─────────────────────────────────────────
