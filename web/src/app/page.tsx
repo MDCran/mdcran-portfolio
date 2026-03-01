@@ -108,12 +108,24 @@ export default async function HomePage() {
       <main className="relative overflow-hidden">
         <HomeAmbient />
         <Hero />
-        <Stats />
-        <PhotoReel />
-        <Services />
-        <FeaturedProjects projects={featuredProjects} />
-        <Clients clients={featuredClients} projects={allProjects} />
-        <CTA />
+        <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
+          <Stats />
+        </div>
+        <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
+          <PhotoReel />
+        </div>
+        <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
+          <Services />
+        </div>
+        <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
+          <FeaturedProjects projects={featuredProjects} />
+        </div>
+        <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
+          <Clients clients={featuredClients} projects={allProjects} />
+        </div>
+        <div style={{ contentVisibility: "auto", containIntrinsicSize: "700px" }}>
+          <CTA />
+        </div>
         <MercuryPrompt />
       </main>
       <Footer />

@@ -60,6 +60,8 @@ export default function KeyboardShortcuts() {
   const router = useRouter();
   const [showOnCtrl, setShowOnCtrl] = React.useState(false);
   const [showReminder, setShowReminder] = React.useState(false);
+  const [reminderEndsAt, setReminderEndsAt] = React.useState<number | null>(null);
+  const [reminderVisualRemainingMs, setReminderVisualRemainingMs] = React.useState(REMINDER_DURATION_MS);
   const pendingSequenceRef = React.useRef<"g" | null>(null);
   const sequenceTimerRef = React.useRef<number | null>(null);
 
@@ -70,11 +72,15 @@ export default function KeyboardShortcuts() {
     if (hasSeenHint) return;
 
     const openTimer = window.setTimeout(() => {
+      setReminderEndsAt(Date.now() + REMINDER_DURATION_MS);
+      setReminderVisualRemainingMs(REMINDER_DURATION_MS);
       setShowReminder(true);
     }, 900);
 
     const closeTimer = window.setTimeout(() => {
       setShowReminder(false);
+      setReminderEndsAt(null);
+      setReminderVisualRemainingMs(REMINDER_DURATION_MS);
       window.localStorage.setItem(HINT_STORAGE_KEY, "1");
     }, 900 + REMINDER_DURATION_MS);
 
@@ -83,6 +89,11 @@ export default function KeyboardShortcuts() {
       window.clearTimeout(closeTimer);
     };
   }, [pathname]);
+
+  React.useEffect(() => {
+    if (!showReminder || showOnCtrl || reminderEndsAt === null) return;
+    setReminderVisualRemainingMs(Math.max(0, reminderEndsAt - Date.now()));
+  }, [showReminder, showOnCtrl, reminderEndsAt]);
 
   React.useEffect(() => {
     if (pathname.startsWith("/admin")) return;
@@ -171,6 +182,10 @@ export default function KeyboardShortcuts() {
   if (pathname.startsWith("/admin")) return null;
 
   const shouldShowPanel = showOnCtrl;
+  const reminderProgressWidth = `${Math.max(
+    0,
+    Math.min(100, (reminderVisualRemainingMs / REMINDER_DURATION_MS) * 100)
+  )}%`;
 
   return (
     <>
@@ -221,7 +236,7 @@ export default function KeyboardShortcuts() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-6 top-6 z-[9999] max-w-[calc(100vw-3rem)] overflow-hidden rounded-sm border border-white/10 bg-[#0d0d0d]/88 px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            className="fixed left-6 top-6 z-[9999] hidden max-w-[calc(100vw-3rem)] overflow-hidden rounded-sm border border-white/10 bg-[#0d0d0d]/88 px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl md:block"
           >
             <div className="flex items-center gap-2">
               <Info size={13} className="shrink-0 text-white/45" />
@@ -235,9 +250,9 @@ export default function KeyboardShortcuts() {
             </div>
             <motion.div
               className="absolute bottom-0 left-0 h-px bg-[#ef4242]"
-              initial={{ width: "100%" }}
+              initial={{ width: reminderProgressWidth }}
               animate={{ width: "0%" }}
-              transition={{ duration: REMINDER_DURATION_MS / 1000, ease: "linear" }}
+              transition={{ duration: reminderVisualRemainingMs / 1000, ease: "linear" }}
             />
           </motion.div>
         ) : null}

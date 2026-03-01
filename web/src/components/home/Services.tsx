@@ -68,8 +68,7 @@ export default function Services() {
             transition={{ delay: 0.2 }}
             className="max-w-md text-sm text-white/40 leading-relaxed"
           >
-            Experience creating Minecraft projects and graphics, and now developing software,
-            web platforms, and custom systems.
+            Browse Minecraft projects and graphics, as well as the software, web applications, and custom secure systems I develop today.
           </motion.p>
         </div>
 

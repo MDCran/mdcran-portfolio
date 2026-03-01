@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { cn, imageAssetAlt, imageAssetSrc } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -190,28 +190,33 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
       return (
         <div className="my-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {(section.images ?? []).map((src, i) => (
-              <div
-                key={i}
-                className="relative aspect-square rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
-                onClick={() => onImageClick(imageOffset + i)}
-              >
-                <Image
-                  src={src}
-                  alt={`Gallery image ${i + 1}`}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  sizes="(max-width: 640px) 50vw, 33vw"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
-                  <div className="w-8 h-8 rounded-full bg-black/70 border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                    </svg>
+            {(section.images ?? []).map((image, i) => {
+              const src = imageAssetSrc(image);
+              if (!src) return null;
+
+              return (
+                <div
+                  key={i}
+                  className="relative aspect-square rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
+                  onClick={() => onImageClick(imageOffset + i)}
+                >
+                  <Image
+                    src={src}
+                    alt={imageAssetAlt(image, `Gallery image ${i + 1}`)}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(max-width: 640px) 50vw, 33vw"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-black/70 border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {section.caption && (
             <p className="text-[10px] text-white/30 text-center mt-3">{section.caption}</p>
@@ -512,9 +517,11 @@ export default function ArticleDetail({ article }: { article: Article }) {
       allImages.push(section.src);
       allImageCaptions.push(section.alt?.trim() || section.caption?.trim() || article.title);
     } else if (section.type === "gallery") {
-      for (const src of section.images ?? []) {
+      for (const image of section.images ?? []) {
+        const src = imageAssetSrc(image);
+        if (!src) continue;
         allImages.push(src);
-        allImageCaptions.push(section.caption?.trim() || article.title);
+        allImageCaptions.push(imageAssetAlt(image, section.caption?.trim() || article.title));
       }
     }
   }
@@ -526,11 +533,11 @@ export default function ArticleDetail({ article }: { article: Article }) {
 
       {/* ── Hero ── */}
       <section className="pt-24 pb-0 relative overflow-hidden">
-        {article.coverImage ? (
+        {imageAssetSrc(article.coverImage) ? (
           <div className="relative h-[50vh] md:h-[60vh] overflow-hidden">
             <Image
-              src={article.coverImage}
-              alt={article.title}
+              src={imageAssetSrc(article.coverImage)!}
+              alt={imageAssetAlt(article.coverImage, article.title)}
               fill
               className="object-cover"
               priority
@@ -541,7 +548,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
           <div className="h-32 bg-gradient-to-b from-[#ef4242]/4 to-transparent" />
         )}
 
-        <div className={cn("max-w-3xl mx-auto px-4 sm:px-8 relative z-10", article.coverImage ? "-mt-24" : "mt-8")}>
+        <div className={cn("max-w-3xl mx-auto px-4 sm:px-8 relative z-10", imageAssetSrc(article.coverImage) ? "-mt-24" : "mt-8")}>
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}

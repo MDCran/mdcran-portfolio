@@ -68,9 +68,6 @@ export default function WebDevDesignPage() {
         />
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-12 h-12 rounded-sm bg-white/5 border border-white/8 flex items-center justify-center mb-4">
-              <div className="w-4 h-4 bg-[rgba(239,66,66,0.4)] rounded-sm rotate-45" />
-            </div>
             <p className="text-white/40 text-sm">No projects found.</p>
           </div>
         ) : (

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { Download, ShoppingCart, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, projectUrl } from "@/lib/utils";
+import { cn, imageAssetAlt, imageAssetSrc, projectUrl } from "@/lib/utils";
 import type { Project } from "@/lib/types";
 
 interface ProjectCardProps {
@@ -100,6 +100,8 @@ function PricingAction({ project }: { project: Project }) {
 
 export default function ProjectCard({ project, index = 0, className }: ProjectCardProps) {
   const href = projectUrl(project.category, project.slug, project.subcategory);
+  const coverImage = project.coverImage ?? project.images?.[0];
+  const coverSrc = imageAssetSrc(coverImage);
 
   return (
     <motion.div
@@ -115,10 +117,10 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
 
         {/* Cover image */}
         <div className="relative aspect-video overflow-hidden bg-white/5 shrink-0">
-          {(project.coverImage ?? project.images?.[0]) ? (
+          {coverSrc ? (
             <Image
-              src={(project.coverImage ?? project.images![0])!}
-              alt={project.title}
+              src={coverSrc}
+              alt={imageAssetAlt(coverImage, project.title)}
               fill
               className="object-cover transition-transform duration-500 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

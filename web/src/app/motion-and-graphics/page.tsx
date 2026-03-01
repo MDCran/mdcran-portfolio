@@ -39,7 +39,7 @@ export default function MotionAndGraphicsPage() {
       <PageHeader
         eyebrow="Category"
         title="Motion & Graphics"
-        description="High-impact visual content — thumbnails, video edits, graphic design, and full web experiences."
+        description="Thumbnail design, video editing, and graphics I've made for creators and online projects."
         breadcrumbs={[{ label: "Motion & Graphics" }]}
       />
       <main className="content-container py-16 sm:py-20">

@@ -134,7 +134,7 @@ export default function RizzPageClient() {
   const [pitchMessage, setPitchMessage] = useState("This is a very serious proposal assembled with elite levels of cringe.");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [redirectCountdown, setRedirectCountdown] = useState(5);
+  const [redirectCountdown, setRedirectCountdown] = useState(10);
   const [form, setForm] = useState({
     name: "",
     nickname: "",
@@ -313,7 +313,7 @@ export default function RizzPageClient() {
 
   useEffect(() => {
     if (stage !== "success") {
-      setRedirectCountdown(5);
+      setRedirectCountdown(10);
       return;
     }
 
@@ -567,7 +567,7 @@ export default function RizzPageClient() {
                         setFormStep((current) => Math.max(current - 1, 0));
                       }}
                       disabled={formStep === 0}
-                      className="inline-flex h-11 items-center justify-center rounded-sm border border-white/10 px-5 text-[11px] uppercase tracking-[0.2em] text-white/55 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                      className="inline-flex h-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 px-5 text-[11px] uppercase tracking-[0.2em] text-white/55 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       Previous
                     </button>
@@ -581,7 +581,7 @@ export default function RizzPageClient() {
                               setError("");
                               setFormStep((current) => Math.min(current + 1, QUESTION_STEPS.length - 1));
                             }}
-                            className="inline-flex h-11 items-center justify-center rounded-sm border border-white/10 px-5 text-[11px] uppercase tracking-[0.2em] text-white/55 transition-colors hover:border-white/20 hover:text-white"
+                            className="inline-flex h-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 px-5 text-[11px] uppercase tracking-[0.2em] text-white/55 transition-colors hover:border-white/20 hover:text-white"
                           >
                             Skip
                           </button>
@@ -589,7 +589,7 @@ export default function RizzPageClient() {
                         <button
                           type="button"
                           onClick={handleNextStep}
-                          className="inline-flex h-11 items-center justify-center rounded-sm bg-[#ef4242] px-6 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#db3535]"
+                          className="inline-flex h-11 cursor-pointer items-center justify-center rounded-sm bg-[#ef4242] px-6 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#db3535]"
                         >
                           Next
                         </button>
@@ -630,7 +630,7 @@ export default function RizzPageClient() {
                   I officially have no excuse to mess this up now.
                 </p>
                 <p className="mt-4 text-[10px] text-center tracking-[0.14em] text-white/30">
-                  Redirecting in {redirectCountdown} seconds... We redirect you to the homepage after five seconds.
+                  Redirecting in {redirectCountdown} seconds... We redirect you to the homepage after ten seconds.
                 </p>
               </motion.div>
             )}

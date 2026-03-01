@@ -35,7 +35,7 @@ export default function ArtsAndEntertainmentPage() {
       <PageHeader
         eyebrow="Category"
         title="Arts & Entertainment"
-        description="Immersive Minecraft maps, massive community events, and custom resource packs — built for creators, played by millions."
+        description="Custom Minecraft maps and immersive events for the world's biggest gaming creators."
         breadcrumbs={[{ label: "Arts & Entertainment" }]}
       />
       <main className="content-container py-16 sm:py-20">

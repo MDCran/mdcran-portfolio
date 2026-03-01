@@ -16,6 +16,15 @@ const services = [
   { label: "Web Dev & Design", href: "/motion-and-graphics/web-dev-design" },
 ];
 
+const ambientParticles = Array.from({ length: 6 }, (_, i) => ({
+  key: `hero-particle-${i}`,
+  background: i % 2 === 0 ? "#ef4242" : "rgba(255,255,255,0.6)",
+  top: `${20 + i * 12}%`,
+  left: `${10 + i * 15}%`,
+  duration: 3 + i * 0.7,
+  delay: i * 0.8,
+}));
+
 export default function Hero() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
@@ -45,14 +54,20 @@ export default function Hero() {
 
       {/* Floating orbs */}
       <motion.div
-        className="absolute top-1/4 -left-32 w-64 h-64 rounded-full pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(239,66,66,0.06) 0%, transparent 70%)" }}
+        className="absolute top-1/4 -left-32 w-64 h-64 rounded-full pointer-events-none transform-gpu"
+        style={{
+          background: "radial-gradient(circle, rgba(239,66,66,0.06) 0%, transparent 70%)",
+          willChange: "transform",
+        }}
         animate={{ x: [0, 20, 0], y: [0, -30, 0] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute bottom-1/4 -right-32 w-80 h-80 rounded-full pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(239,66,66,0.04) 0%, transparent 70%)" }}
+        className="absolute bottom-1/4 -right-32 w-80 h-80 rounded-full pointer-events-none transform-gpu"
+        style={{
+          background: "radial-gradient(circle, rgba(239,66,66,0.04) 0%, transparent 70%)",
+          willChange: "transform",
+        }}
         animate={{ x: [0, -20, 0], y: [0, 20, 0] }}
         transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
       />
@@ -64,24 +79,25 @@ export default function Hero() {
       <div className="absolute bottom-16 right-6 w-16 h-16 border-r-2 border-b-2 border-[rgba(239,66,66,0.12)] pointer-events-none" />
 
       {/* Animated particles */}
-      {[...Array(6)].map((_, i) => (
+      {ambientParticles.map((particle) => (
         <motion.div
-          key={i}
-          className="absolute w-px h-px rounded-full pointer-events-none"
+          key={particle.key}
+          className="absolute w-px h-px rounded-full pointer-events-none transform-gpu"
           style={{
-            background: i % 2 === 0 ? "#ef4242" : "rgba(255,255,255,0.6)",
-            top: `${20 + i * 12}%`,
-            left: `${10 + i * 15}%`,
+            background: particle.background,
+            top: particle.top,
+            left: particle.left,
+            willChange: "transform, opacity",
           }}
           animate={{ opacity: [0, 1, 0], scale: [1, 2, 1], y: [0, -20, 0] }}
-          transition={{ duration: 3 + i * 0.7, repeat: Infinity, delay: i * 0.8 }}
+          transition={{ duration: particle.duration, repeat: Infinity, delay: particle.delay }}
         />
       ))}
 
       {/* ─── Main content — fully centered ──────────────── */}
       <motion.div
-        style={{ y: springY, opacity, scale }}
-        className="relative z-10 w-full content-container pt-32 sm:pt-36 pb-20"
+        style={{ y: springY, opacity, scale, willChange: "transform, opacity" }}
+        className="relative z-10 w-full content-container pt-32 sm:pt-36 pb-20 transform-gpu"
       >
         {/* ── Hero text block ── */}
         <div className="text-center mb-14">
@@ -141,7 +157,7 @@ export default function Hero() {
           >
             Designing and building digital projects for creators, companies, and secure
             enterprise platforms.
-            <span className="block text-white/25">Computer Science @ UCF.</span>
+            <span className="block text-white/25">B.S. in Computer Science @UCF</span>
           </motion.p>
 
           {/* Location */}
@@ -225,7 +241,8 @@ export default function Hero() {
 
       {/* Scroll indicator */}
       <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20 z-10"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20 z-10 transform-gpu"
+        style={{ willChange: "transform" }}
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
       >

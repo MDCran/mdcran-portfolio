@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Phone, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { Mail, Phone, CheckCircle2, AlertCircle } from "lucide-react";
 
 type Mode = "email" | "phone" | "both";
 
@@ -32,6 +33,7 @@ export default function Subscribe() {
           phone: mode !== "email" ? phone : undefined,
           name: name || undefined,
           consent,
+          source: "home-page",
         }),
       });
       const data = await res.json();
@@ -201,7 +203,21 @@ export default function Subscribe() {
                       )}
                     </div>
                     <span className="text-xs text-white/40 leading-relaxed">
-                      I consent to receiving updates from MDCran. I can unsubscribe at any time.
+                      I consent to receiving updates from MDCran. By subscribing, I agree to the{" "}
+                      <Link
+                        href="/terms"
+                        className="text-white/70 underline underline-offset-2 hover:text-[#ef4242] transition-colors"
+                      >
+                        Terms of Service
+                      </Link>
+                      {" "}and{" "}
+                      <Link
+                        href="/privacy"
+                        className="text-white/70 underline underline-offset-2 hover:text-[#ef4242] transition-colors"
+                      >
+                        Privacy Policy
+                      </Link>
+                      . I can unsubscribe at any time.
                     </span>
                   </label>
 
@@ -218,7 +234,6 @@ export default function Subscribe() {
                     className="group flex items-center gap-2 h-11 px-6 bg-[#ef4242] text-white text-xs tracking-widest uppercase rounded-sm hover:bg-[#dd3030] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(239,66,66,0.3)] hover:shadow-[0_0_30px_rgba(239,66,66,0.5)]"
                   >
                     {status === "loading" ? "Subscribing..." : "Subscribe"}
-                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform duration-200" />
                   </button>
                 </motion.form>
               )}

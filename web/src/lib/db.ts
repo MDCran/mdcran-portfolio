@@ -274,6 +274,7 @@ function extractSocialCount(html: string, platform: Platform): number {
     discord: [
       /([0-9.,]+(?:\s?[KMB])?)\s+(?:members|followers)/i,
     ],
+    other: [],
   };
 
   for (const pattern of platformPatterns[platform]) {
@@ -705,11 +706,83 @@ type VideoStats = {
   title?: string;
 };
 
+async function fetchYouTubeOEmbedStats(videoId: string): Promise<VideoStats | undefined> {
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return undefined;
+
+    const data = (await res.json()) as {
+      title?: string;
+      author_name?: string;
+      thumbnail_url?: string;
+    };
+
+    return {
+      title: data.title,
+      channelName: data.author_name,
+      thumbnailUrl: data.thumbnail_url,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function extractMetaContent(html: string, pattern: RegExp): string | undefined {
+  const match = html.match(pattern);
+  return match?.[1]?.trim() || undefined;
+}
+
+async function fetchYouTubeWatchPageStats(videoId: string): Promise<VideoStats | undefined> {
+  try {
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!res.ok) {
+      return undefined;
+    }
+
+    const html = await res.text();
+
+    const title =
+      extractMetaContent(html, /property="og:title"\s+content="([^"]+)"/i) ??
+      extractMetaContent(html, /name="title"\s+content="([^"]+)"/i) ??
+      extractMetaContent(html, /<title>([^<]+)<\/title>/i)?.replace(/\s*-\s*YouTube\s*$/i, "");
+    const channelName =
+      extractMetaContent(html, /property="og:video:tag"\s+content="([^"]+)"/i) ??
+      extractMetaContent(html, /itemprop="author"\s+content="([^"]+)"/i) ??
+      extractMetaContent(html, /"ownerChannelName":"([^"]+)"/i);
+    const thumbnailUrl =
+      extractMetaContent(html, /property="og:image"\s+content="([^"]+)"/i) ??
+      extractMetaContent(html, /"thumbnailUrl":"([^"]+)"/i);
+
+    if (!title && !channelName && !thumbnailUrl) {
+      return undefined;
+    }
+
+    return {
+      title,
+      channelName,
+      thumbnailUrl,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function hydrateProjectVideos(project: Project): Promise<Project> {
   const videos = project.videos;
   const apiKey = process.env.YOUTUBE_API_KEY;
 
-  if (!videos?.length || !apiKey) {
+  if (!videos?.length) {
     return project;
   }
 
@@ -717,44 +790,61 @@ export async function hydrateProjectVideos(project: Project): Promise<Project> {
   if (!ids.length) return project;
 
   try {
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${ids.join(",")}&key=${apiKey}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return project;
-
-    const data = (await res.json()) as {
-      items?: Array<{
-        id: string;
-        snippet?: {
-          title?: string;
-          channelTitle?: string;
-          publishedAt?: string;
-          thumbnails?: { high?: { url?: string }; medium?: { url?: string }; default?: { url?: string } };
-        };
-        statistics?: { viewCount?: string };
-      }>;
-    };
-
     const statsMap = new Map<string, VideoStats>();
-    for (const item of data.items ?? []) {
-      statsMap.set(item.id, {
-        title: item.snippet?.title,
-        channelName: item.snippet?.channelTitle,
-        publishDate: item.snippet?.publishedAt?.slice(0, 10),
-        viewCount: item.statistics?.viewCount ? Number(item.statistics.viewCount) : undefined,
-        thumbnailUrl:
-          item.snippet?.thumbnails?.high?.url ??
-          item.snippet?.thumbnails?.medium?.url ??
-          item.snippet?.thumbnails?.default?.url,
-      });
+
+    if (apiKey) {
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${ids.join(",")}&key=${apiKey}`,
+        { cache: "no-store" }
+      );
+      if (res.ok) {
+        const data = (await res.json()) as {
+          items?: Array<{
+            id: string;
+            snippet?: {
+              title?: string;
+              channelTitle?: string;
+              publishedAt?: string;
+              thumbnails?: { high?: { url?: string }; medium?: { url?: string }; default?: { url?: string } };
+            };
+            statistics?: { viewCount?: string };
+          }>;
+        };
+
+        for (const item of data.items ?? []) {
+          statsMap.set(item.id, {
+            title: item.snippet?.title,
+            channelName: item.snippet?.channelTitle,
+            publishDate: item.snippet?.publishedAt?.slice(0, 10),
+            viewCount: item.statistics?.viewCount ? Number(item.statistics.viewCount) : undefined,
+            thumbnailUrl:
+              item.snippet?.thumbnails?.high?.url ??
+              item.snippet?.thumbnails?.medium?.url ??
+              item.snippet?.thumbnails?.default?.url,
+          });
+        }
+      }
+    }
+
+    await Promise.all(
+      ids.map(async (id) => {
+        if (statsMap.has(id)) return;
+        const fallbackStats = (await fetchYouTubeOEmbedStats(id)) ?? (await fetchYouTubeWatchPageStats(id));
+        if (fallbackStats) {
+          statsMap.set(id, fallbackStats);
+        }
+      })
+    );
+
+    if (statsMap.size === 0) {
+      return project;
     }
 
     return {
       ...project,
       videos: videos.map((video) => {
         const stats = statsMap.get(video.youtubeId);
-        return stats ? { ...video, ...stats, title: video.title || stats.title || "" } : video;
+        return stats ? { ...video, ...stats, title: stats.title ?? video.title ?? "" } : video;
       }),
     };
   } catch {

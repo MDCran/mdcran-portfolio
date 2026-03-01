@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { email, phone, name, consent } = body;
+  const { email, phone, name, consent, source } = body;
 
   if (!consent) {
     return NextResponse.json({ error: "Consent required" }, { status: 400 });
@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const normalizedEmail = email ? String(email).trim().toLowerCase() : "";
     const normalizedPhone = phone ? String(phone).trim() : "";
+    const normalizedSource =
+      source === "home-page" || source === "subscribe-page"
+        ? source
+        : "subscribe-form";
     const matchClauses: Array<{ email: string } | { phone: string }> = [];
     if (normalizedEmail) {
       matchClauses.push({ email: normalizedEmail });
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
           phone: normalizedPhone || undefined,
           subject: "Subscription",
           message: "Subscribed to updates.",
-          source: "subscribe-form",
+          source: normalizedSource,
           subscribed: true,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,

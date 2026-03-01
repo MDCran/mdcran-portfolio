@@ -4,8 +4,8 @@ import Image from "next/image";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ClientProjectsSection from "@/components/clients/ClientProjectsSection";
-import { getClientById, getProjectsByClientId } from "@/lib/db";
-import { Youtube, Twitch, Instagram, Twitter, Github, Globe, Facebook, Music2, EyeOff } from "lucide-react";
+import { getClientById, getProjectsByClientId, hydrateProjectVideos } from "@/lib/db";
+import { Youtube, Twitch, Instagram, Twitter, Github, Globe, Facebook, Music2, EyeOff, Link2 } from "lucide-react";
 import type { Platform } from "@/lib/types";
 import { buildSeoMetadata } from "@/lib/seo";
 
@@ -20,6 +20,7 @@ const platformConfig: Record<Platform, { icon: typeof Globe; color: string; labe
   website: { icon: Globe, color: "#ffffff", label: "Website" },
   spotify: { icon: Music2, color: "#1db954", label: "Spotify" },
   discord: { icon: Globe, color: "#5865f2", label: "Discord" },
+  other: { icon: Link2, color: "#ffffff", label: "Link" },
 };
 
 interface Props {
@@ -51,12 +52,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ClientPage({ params }: Props) {
   const { id } = await params;
-  const [client, clientProjects] = await Promise.all([
+  const [client, rawClientProjects] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
   ]);
   if (!client) notFound();
-
+  const clientProjects = await Promise.all(rawClientProjects.map((project) => hydrateProjectVideos(project)));
+  const totalVideoViews = clientProjects.reduce(
+    (sum, project) =>
+      sum + (project.videos?.reduce((videoSum, video) => videoSum + (video.viewCount ?? 0), 0) ?? 0),
+    0
+  );
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Person",
@@ -126,20 +132,32 @@ export default async function ClientPage({ params }: Props) {
             )}
           </div>
 
-          <div className="shrink-0 w-[148px]">
+          <div className="shrink-0 w-full md:w-[172px]">
             {clientProjects.length > 0 ? (
-              <div className="px-4 py-2 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
-                <div className="font-nord text-2xl text-white">{clientProjects.length}</div>
-                <div className="text-[10px] text-[#ef4242] tracking-widest uppercase">Projects</div>
+              <div className="grid gap-3">
+                <div className="px-4 py-2 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
+                  <div className="font-nord text-2xl text-white">{clientProjects.length}</div>
+                  <div className="text-[10px] text-[#ef4242] tracking-widest uppercase">Projects</div>
+                </div>
+                <div className="px-4 py-2 rounded-sm border border-white/10 bg-white/4">
+                  <div className="font-nord text-2xl text-white">{totalVideoViews.toLocaleString()}</div>
+                  <div className="text-[10px] text-white/35 tracking-widest uppercase">Views</div>
+                </div>
               </div>
             ) : (
-              <div className="group relative w-full px-4 py-2 rounded-sm border border-white/10 bg-white/4">
-                <div className="flex h-8 items-center">
-                  <EyeOff size={22} className="text-white/65" />
+              <div className="grid gap-3">
+                <div className="group relative w-full px-4 py-2 rounded-sm border border-white/10 bg-white/4">
+                  <div className="flex h-8 items-center">
+                    <EyeOff size={22} className="text-white/65" />
+                  </div>
+                  <div className="text-[10px] text-white/70 tracking-widest uppercase">Private</div>
+                  <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-56 -translate-x-1/2 rounded-sm border border-white/10 bg-[#090909]/95 px-3 py-2 text-[10px] leading-relaxed text-white/70 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition-opacity duration-150 group-hover:opacity-100">
+                    This client may have private projects that are not able to be shown to the public due to NDA, project type, or by request. Or they have not been added yet.
+                  </div>
                 </div>
-                <div className="text-[10px] text-white/70 tracking-widest uppercase">Private</div>
-                <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-56 -translate-x-1/2 rounded-sm border border-white/10 bg-[#090909]/95 px-3 py-2 text-[10px] leading-relaxed text-white/70 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition-opacity duration-150 group-hover:opacity-100">
-                  This client may have private projects that are not able to be shown to the public due to NDA, project type, or by request. Or they have not been added yet.
+                <div className="px-4 py-2 rounded-sm border border-white/10 bg-white/4">
+                  <div className="font-nord text-2xl text-white">{totalVideoViews.toLocaleString()}</div>
+                  <div className="text-[10px] text-white/35 tracking-widest uppercase">Views</div>
                 </div>
               </div>
             )}
@@ -161,9 +179,9 @@ export default async function ClientPage({ params }: Props) {
                 <Icon size={14} style={{ color: cfg.color }} />
                 <div>
                   <div className="text-xs text-white/70 group-hover:text-white transition-colors">
-                    {cfg.label}
+                    {link.platform === "other" ? link.title ?? cfg.label : cfg.label}
                   </div>
-                  {link.handle && (
+                  {link.handle && link.platform !== "other" && (
                     <div className="text-[10px] text-white/35">{link.handle}</div>
                   )}
                 </div>

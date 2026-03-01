@@ -67,13 +67,13 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center h-7 px-3 rounded-sm border border-[rgba(239,66,66,0.5)] bg-[rgba(239,66,66,0.08)] text-[#ef4242] text-[9px] tracking-widest uppercase whitespace-nowrap">Open for work</span>
-              <a
-                href="mailto:contact@mdcran.com"
+              <Link
+                href="/contact"
                 aria-label="Email"
                 className="w-7 h-7 rounded-sm border border-white/10 bg-white/4 flex items-center justify-center text-white/40 hover:text-[#ef4242] hover:border-[rgba(239,66,66,0.3)] hover:bg-[rgba(239,66,66,0.06)] transition-all duration-200"
               >
                 <Mail size={13} />
-              </a>
+              </Link>
               <a
                 href="https://github.com/mdcran"
                 target="_blank"

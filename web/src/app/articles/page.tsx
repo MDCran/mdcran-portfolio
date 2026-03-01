@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import type { Article, ArticleCategory } from "@/lib/types";
+import { imageAssetAlt, imageAssetSrc } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -122,7 +123,7 @@ export default function ArticlesPage() {
               transition={{ delay: 0.25 }}
               className="text-sm text-white/40 max-w-xl"
             >
-              A collection of recipes, technical articles, personal stories, and press features. {allArticles.length} and counting.
+              A collection of recipes, technical articles, and personal stories. {allArticles.length} and counting. :D
             </motion.p>
           </div>
         </section>
@@ -139,18 +140,18 @@ export default function ArticlesPage() {
                   className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl overflow-hidden hover:border-[#ef4242]/30 transition-all duration-300"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-5">
-                    {featured.coverImage && (
+                    {imageAssetSrc(featured.coverImage) && (
                       <div className="lg:col-span-2 relative h-56 lg:h-auto overflow-hidden">
                         <Image
-                          src={featured.coverImage}
-                          alt={featured.title}
+                          src={imageAssetSrc(featured.coverImage)!}
+                          alt={imageAssetAlt(featured.coverImage, featured.title)}
                           fill
                           className="object-cover group-hover:scale-105 transition-transform duration-700"
                         />
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#0a0a0a]/80 lg:bg-gradient-to-r" />
                       </div>
                     )}
-                    <div className={`p-6 sm:p-8 flex flex-col justify-center ${featured.coverImage ? "lg:col-span-3" : "lg:col-span-5"}`}>
+                    <div className={`p-6 sm:p-8 flex flex-col justify-center ${imageAssetSrc(featured.coverImage) ? "lg:col-span-3" : "lg:col-span-5"}`}>
                       <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase mb-4 self-start ${CATEGORY_COLORS[featured.category]}`}>
                         {featured.category}
                       </div>
@@ -234,11 +235,11 @@ export default function ArticlesPage() {
                     >
                       <Link href={`/articles/${article.slug}`} className="group block h-full">
                         <div className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl overflow-hidden hover:border-[#ef4242]/30 hover:bg-white/5 transition-all duration-300 h-full flex flex-col">
-                          {article.coverImage ? (
+                          {imageAssetSrc(article.coverImage) ? (
                             <div className="relative h-44 overflow-hidden">
                               <Image
-                                src={article.coverImage}
-                                alt={article.title}
+                                src={imageAssetSrc(article.coverImage)!}
+                                alt={imageAssetAlt(article.coverImage, article.title)}
                                 fill
                                 className="object-cover group-hover:scale-105 transition-transform duration-700"
                               />
@@ -253,7 +254,7 @@ export default function ArticlesPage() {
                           )}
 
                           <div className="p-6 flex flex-col flex-1">
-                            {article.coverImage && (
+                            {imageAssetSrc(article.coverImage) && (
                               <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase mb-3 self-start ${CATEGORY_COLORS[article.category]}`}>
                                 {article.category}
                               </div>

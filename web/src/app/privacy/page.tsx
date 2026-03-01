@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Privacy policy for MDCran — how we collect, use, and protect your information.",
 };
 
-const lastUpdated = "February 27, 2026";
+const lastUpdated = "March 1, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -31,9 +31,9 @@ export default function PrivacyPage() {
             </p>
             <ul className="space-y-2 pl-4">
               {[
-                "Contact information (name, email address, phone number) when you submit the contact form or subscribe to updates.",
+                "Contact information (name, email address, phone number) when you submit the contact form, subscribe form, or newsletter signup.",
                 "Usage data such as pages visited, time spent on pages, browser type, and device type via analytics tools.",
-                "Communication data including messages you send via the contact form.",
+                "Communication data including messages you send via the contact form and your communication preferences or consent selections.",
                 "Technical data including IP address, browser type, and operating system.",
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-2">
@@ -49,7 +49,7 @@ export default function PrivacyPage() {
             <ul className="space-y-2 pl-4">
               {[
                 "To respond to your inquiries and fulfill project requests.",
-                "To send service-related communications, updates, and notifications you've opted into.",
+                "To send service-related communications, updates, newsletters, and notifications you have consented to receive through the contact page, subscribe page, or homepage signup form.",
                 "To improve the website experience and understand how visitors interact with our content.",
                 "To comply with legal obligations.",
               ].map((item, i) => (
@@ -95,8 +95,10 @@ export default function PrivacyPage() {
             <h2 className="font-nord text-lg text-white tracking-wider mb-4">5. Data Retention</h2>
             <p>
               We retain personal information only as long as necessary to fulfill the purposes for which
-              it was collected, or as required by law. Contact form submissions are retained for up to
-              12 months. You may request deletion of your data at any time.
+              it was collected, or as required by law. Contact and subscription records may be retained
+              while needed to provide requested communications, maintain opt-in and opt-out preferences,
+              or satisfy legal and operational requirements. You may request deletion of your data at any
+              time.
             </p>
           </section>
 

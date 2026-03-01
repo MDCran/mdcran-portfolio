@@ -55,7 +55,7 @@ export default function ContactPage() {
       <PageHeader
         eyebrow="Get in touch"
         title="Contact"
-        description="Have a project in mind? Let's build something extraordinary together."
+        description="Let's build something extraordinary together."
         breadcrumbs={[{ label: "Contact" }]}
       />
       <main className="content-container py-14 sm:py-16">
@@ -71,7 +71,7 @@ export default function ContactPage() {
               <div>
                 <p className="text-sm text-green-300 font-medium">Message sent!</p>
                 <p className="text-xs text-green-400/70 mt-1">
-                  I&apos;ll get back to you as soon as possible. Check your email for a confirmation.
+                  I&apos;ll get back to you as soon as possible.
                 </p>
               </div>
             </motion.div>
@@ -199,7 +199,7 @@ export default function ContactPage() {
                 I agree that MDCran may contact me via the email and/or phone provided. I understand
                 I can opt out at any time. By submitting you agree to the{" "}
                 <Link href="/terms" className="text-white/70 underline underline-offset-2 hover:text-[#ef4242] transition-colors">
-                  Terms
+                  Terms of Service
                 </Link>
                 {" "}and{" "}
                 <Link href="/privacy" className="text-white/70 underline underline-offset-2 hover:text-[#ef4242] transition-colors">
