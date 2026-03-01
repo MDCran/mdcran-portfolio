@@ -47,6 +47,24 @@ function humanizeCategory(category: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function formatMonthYear(date?: string) {
+  if (!date) return "";
+
+  const directMatch = date.match(/^(\d{2})-(\d{4})$/);
+  if (directMatch) {
+    return `${directMatch[1]}-${directMatch[2]}`;
+  }
+
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const year = String(parsed.getFullYear());
+  return `${month}-${year}`;
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function ResumePage() {
@@ -293,7 +311,7 @@ export default async function ResumePage() {
                           </div>
                           <div className="text-[11px] text-[#ef4242]">{certification.issuer}</div>
                           <div className="text-[10px] text-white/25 mt-0.5">
-                            {certification.date.replace("-", "/")}
+                            {formatMonthYear(certification.date)}
                           </div>
                         </div>
                         {certification.credentialUrl && (
@@ -332,7 +350,7 @@ export default async function ResumePage() {
                         </div>
                       )}
                       <div className="text-[10px] text-white/25 mt-0.5">
-                        {award.date.replace("-", "/")}
+                        {formatMonthYear(award.date)}
                       </div>
                     </div>
                   ))}

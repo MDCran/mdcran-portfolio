@@ -315,11 +315,39 @@ export interface ContactSubmission {
   source?: string;
   subscribed: boolean;
   createdAt: string; // ISO string
+  updatedAt?: string;
+  submissionKey?: string;
+  messageRead?: boolean;
+  messageReadAt?: string;
+}
+
+export interface RateLimitRecord {
+  id: string;
+  scope: "contact-form" | "subscribe-form";
+  ip?: string;
+  browser?: string;
+  userAgent?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  count: number;
+  blockedCount: number;
+  limit: number;
+  browserLocked?: boolean;
+  firstSeenAt: string;
+  lastAttemptAt: string;
+  lastBlockedAt?: string;
+  notes?: string;
 }
 
 export type CampaignType = "email" | "sms";
 
 export type CampaignStatus = "draft" | "sent" | "scheduled";
+
+export interface CampaignDeliveryLogEntry {
+  contactId: string;
+  deliveredAt: string;
+}
 
 export interface Campaign {
   id: string;
@@ -331,6 +359,14 @@ export interface Campaign {
   recipientMode: "all" | "specific";
   contactIds?: string[];
   attachments?: string[];
+  bodySource?: "text" | "html";
+  htmlBody?: string;
+  htmlFileName?: string;
+  scheduledFor?: string;
+  sentAt?: string;
+  deliveredContactIds?: string[];
+  deliveryLog?: CampaignDeliveryLogEntry[];
+  lastError?: string;
   createdAt: string;
   updatedAt?: string;
 }

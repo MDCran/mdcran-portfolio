@@ -12,6 +12,57 @@ import {
   MapPin,
 } from "lucide-react";
 
+function formatTimelineDate(date?: string): string {
+  if (!date) return "";
+
+  const directMatch = date.match(/^(\d{2})-(\d{4})$/);
+  if (directMatch) {
+    const monthIndex = Number(directMatch[1]) - 1;
+    const monthLabels = [
+      "Jan.",
+      "Feb.",
+      "Mar.",
+      "Apr.",
+      "May",
+      "Jun.",
+      "Jul.",
+      "Aug.",
+      "Sep.",
+      "Oct.",
+      "Nov.",
+      "Dec.",
+    ];
+    const monthLabel = monthLabels[monthIndex];
+    if (monthLabel) {
+      return `${monthLabel} ${directMatch[2]}`;
+    }
+    return date;
+  }
+
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
+  const monthLabels = [
+    "Jan.",
+    "Feb.",
+    "Mar.",
+    "Apr.",
+    "May",
+    "Jun.",
+    "Jul.",
+    "Aug.",
+    "Sep.",
+    "Oct.",
+    "Nov.",
+    "Dec.",
+  ];
+  const month = monthLabels[parsed.getMonth()];
+  const year = String(parsed.getFullYear());
+  return month ? `${month} ${year}` : date;
+}
+
 function ClientAvatar({ client }: { client: Client }) {
   if (client.avatarUrl) {
     return (
@@ -64,8 +115,8 @@ export default function ExperienceCard({
     .map((clientId) => clientsById.get(clientId))
     .filter((client): client is Client => Boolean(client));
   const hasHighlights = !!exp.highlights?.length;
-  const startYear = exp.startDate.split("-")[0];
-  const endLabel = exp.current ? "Present" : exp.endDate ? exp.endDate.split("-")[0] : "";
+  const startLabel = formatTimelineDate(exp.startDate);
+  const endLabel = exp.current ? "Present" : formatTimelineDate(exp.endDate);
 
   return (
     <div className="relative pl-6 pb-12 last:pb-0">
@@ -120,7 +171,7 @@ export default function ExperienceCard({
             <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
               <div className="flex items-center gap-1.5 text-xs text-white/35">
                 <Calendar size={11} />
-                <span>{startYear}{endLabel ? ` - ${endLabel}` : ""}</span>
+                <span>{startLabel}{endLabel ? ` - ${endLabel}` : ""}</span>
               </div>
               {exp.location && (
                 <div className="flex items-center gap-1.5 text-xs text-white/25">

@@ -17,6 +17,8 @@ const gradients = [
   "from-transparent to-black/80",
 ];
 
+const YEARS_CREATING = new Date().getFullYear() - 2018;
+
 export default function PhotoReel() {
   const ref = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -68,7 +70,7 @@ export default function PhotoReel() {
               </h2>
               <p className="text-sm text-white/50 leading-relaxed mb-5">
                 UCF Computer Science student, developer, building one-of-a-kind digital
-                experiences that put a smile on people&apos;s faces! Over the past 8+ years,
+                experiences that put a smile on people&apos;s faces! Over the past {YEARS_CREATING}+ years,
                 I&apos;ve worked as a content manager, developer, map designer, and builder for
                 some of the internet&apos;s most inspiring creators and teams. What started as a
                 casual gaming session at a soccer field turned into a career building
