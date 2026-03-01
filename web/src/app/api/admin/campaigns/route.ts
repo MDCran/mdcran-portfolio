@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
           error instanceof Error ? error.message : "Failed to send campaign.";
         await db.collection("campaigns").updateOne(
           { id: normalizedCampaign.id },
-          { $set: stripUndefined(normalizedCampaign as Record<string, unknown>) },
+          { $set: stripUndefined(normalizedCampaign as unknown as Record<string, unknown>) },
           { upsert: true }
         );
         return NextResponse.json(
