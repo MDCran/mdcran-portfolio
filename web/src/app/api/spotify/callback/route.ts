@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
 
   const clientId = process.env.SPOTIFY_CLIENT_ID!;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!;
-  const redirectUri = "http://localhost:3000/api/spotify/callback";
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mdcran.com").replace(/\/$/, "");
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? `${siteUrl}/api/spotify/callback`;
 
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
