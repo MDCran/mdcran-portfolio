@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ArticleDetail from "./ArticleDetail";
 import { buildSeoMetadata } from "@/lib/seo";
+import { imageAssetSrc } from "@/lib/utils";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: article.title,
     description: article.excerpt,
     path: `/articles/${article.slug}`,
-    image: article.coverImage,
+    image: imageAssetSrc(article.coverImage),
     type: "article",
     publishedTime: article.publishDate,
     modifiedTime: article.updatedDate,

@@ -39,6 +39,7 @@ import type {
   ContactSubmission,
   RateLimitRecord,
   RizzSubmission,
+  ImageAsset,
 } from "@/lib/types";
 
 /* ─── Local-only types ───────────────────────────────────── */
@@ -78,6 +79,59 @@ function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+function toEditableImageAsset(image?: string | ImageAsset | null): ImageAsset {
+  if (!image) {
+    return { src: "", alt: "" };
+  }
+
+  if (typeof image === "string") {
+    return { src: image, alt: "" };
+  }
+
+  return {
+    src: image.src ?? "",
+    alt: image.alt ?? "",
+  };
+}
+
+function cleanImageAsset(image: ImageAsset): ImageAsset | null {
+  const src = image.src.trim();
+  if (!src) return null;
+
+  const alt = image.alt?.trim();
+
+  return {
+    src,
+    ...(alt ? { alt } : {}),
+  };
+}
+
+function normalizeSectionForEditor(section: ArticleSection): ArticleSection {
+  if (section.type !== "gallery") {
+    return section;
+  }
+
+  return {
+    ...section,
+    images: (section.images?.length ? section.images : [""]).map((image) => toEditableImageAsset(image)),
+  };
+}
+
+function normalizeSectionForSave(section: ArticleSection): ArticleSection {
+  if (section.type !== "gallery") {
+    return section;
+  }
+
+  const images = (section.images ?? [])
+    .map((image) => cleanImageAsset(toEditableImageAsset(image)))
+    .filter((image): image is ImageAsset => !!image);
+
+  return {
+    ...section,
+    images,
+  };
+}
+
 function fmtDate(d?: string): string {
   if (!d) return "—";
   try { return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }); }
@@ -101,6 +155,21 @@ function fmtDateTime(d?: string): string {
 
 function fmtDayLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatContactSource(source?: string): string {
+  if (!source) return "—";
+  if (source === "contact-form") return "Contact page";
+  if (source === "home-page" || source === "subscribe-form") return "Home page";
+  if (source === "subscribe-page") return "Subscribe page";
+  return humanizeChoice(source);
+}
+
+function formatRateLimitScope(scope?: string): string {
+  if (!scope) return "—";
+  if (scope === "contact-form") return "Contact page";
+  if (scope === "subscribe-form") return "Home / Subscribe pages";
+  return humanizeChoice(scope);
 }
 
 /* ─── Shared UI primitives ───────────────────────────────── */
@@ -257,8 +326,10 @@ function ProjectModal({
   const [category, setCategory] = useState<string>(initial?.category ?? "arts-and-entertainment");
   const [subcategory, setSubcategory] = useState<string>(initial?.subcategory ?? "");
   const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
-  const [coverImage, setCoverImage] = useState(initial?.coverImage ?? "");
-  const [galleryImages, setGalleryImages] = useState<string[]>(initial?.images?.length ? initial.images : [""]);
+  const [coverImage, setCoverImage] = useState<ImageAsset>(() => toEditableImageAsset(initial?.coverImage));
+  const [galleryImages, setGalleryImages] = useState<ImageAsset[]>(
+    () => (initial?.images?.length ? initial.images.map((image) => toEditableImageAsset(image)) : [{ src: "", alt: "" }])
+  );
   const [pricingStatus, setPricingStatus] = useState<ProjectStatus>(initial?.pricing.status ?? "free");
   const [price, setPrice] = useState(initial?.pricing.price ? (initial.pricing.price / 100).toFixed(2) : "");
   const [downloadUrl, setDownloadUrl] = useState(initial?.pricing.downloadUrl ?? "");
@@ -273,7 +344,9 @@ function ProjectModal({
   const [credits, setCredits] = useState<{ name: string; role: string }[]>(
     (initial?.credits ?? []).map((c) => ({ name: c.name, role: c.role }))
   );
-  const [sections, setSections] = useState<ArticleSection[]>(initial?.sections ?? []);
+  const [sections, setSections] = useState<ArticleSection[]>(
+    () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
+  );
   const [errors, setErrors] = useState<string[]>([]);
 
   function validate() {
@@ -286,13 +359,18 @@ function ProjectModal({
   function handleSave() {
     if (!validate()) return;
     const finalSlug = slug.trim() || slugify(title);
-    const images = galleryImages.map((s) => s.trim()).filter(Boolean);
+    const images = galleryImages
+      .map((image) => cleanImageAsset(image))
+      .filter((image): image is ImageAsset => !!image);
     const cleanedVideos = videos
       .map((v) => ({ youtubeId: v.youtubeId.trim(), title: v.title.trim() }))
       .filter((v) => v.youtubeId);
     const cleanedCredits = credits
       .map((c) => ({ name: c.name.trim(), role: c.role.trim() }))
       .filter((c) => c.name && c.role);
+    const cleanedSections = sections
+      .map((section) => normalizeSectionForSave(section))
+      .filter((section) => section.type !== "gallery" || (section.images?.length ?? 0) > 0);
     const project: Project = {
       id: initial?.id ?? uid(),
       slug: finalSlug,
@@ -304,7 +382,7 @@ function ProjectModal({
           ? ((subcategory || undefined) as Subcategory | undefined)
           : undefined,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      coverImage: coverImage.trim() || undefined,
+      coverImage: cleanImageAsset(coverImage) ?? undefined,
       images: images.length ? images : undefined,
       pricing: {
         status: pricingStatus,
@@ -315,7 +393,7 @@ function ProjectModal({
       externalUrl: externalUrl.trim() || undefined,
       videos: cleanedVideos.length ? cleanedVideos : undefined,
       credits: cleanedCredits.length ? cleanedCredits : undefined,
-      sections: sections.length ? sections : undefined,
+      sections: cleanedSections.length ? cleanedSections : undefined,
       featured,
       publishDate: publishDate || undefined,
       clientIds: clientIds.length ? clientIds : undefined,
@@ -327,7 +405,7 @@ function ProjectModal({
     const defaults: Record<ArticleSection["type"], ArticleSection> = {
       text: { type: "text", content: "" },
       image: { type: "image", src: "", alt: "", caption: "" },
-      gallery: { type: "gallery", images: [""] },
+      gallery: { type: "gallery", images: [{ src: "", alt: "" }] },
       video: { type: "video", youtubeId: "" },
       quote: { type: "quote", content: "" },
       code: { type: "code", content: "", language: "javascript" },
@@ -359,39 +437,41 @@ function ProjectModal({
     setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...partial } : s)));
   }
 
-  function updateGalleryImage(idx: number, value: string) {
-    setGalleryImages((prev) => prev.map((image, i) => (i === idx ? value : image)));
+  function updateGalleryImage(idx: number, partial: Partial<ImageAsset>) {
+    setGalleryImages((prev) => prev.map((image, i) => (i === idx ? { ...image, ...partial } : image)));
   }
 
   function addGalleryImage() {
-    setGalleryImages((prev) => [...prev, ""]);
+    setGalleryImages((prev) => [...prev, { src: "", alt: "" }]);
   }
 
   function removeGalleryImage(idx: number) {
     setGalleryImages((prev) => {
       const next = prev.filter((_, i) => i !== idx);
-      return next.length ? next : [""];
+      return next.length ? next : [{ src: "", alt: "" }];
     });
   }
 
-  function updateSectionGalleryImage(sectionIdx: number, imageIdx: number, value: string) {
+  function updateSectionGalleryImage(sectionIdx: number, imageIdx: number, partial: Partial<ImageAsset>) {
     const section = sections[sectionIdx];
     if (!section || section.type !== "gallery") return;
-    const nextImages = (section.images ?? [""]).map((image, i) => (i === imageIdx ? value : image));
+    const nextImages = (section.images ?? [{ src: "", alt: "" }]).map((image, i) =>
+      i === imageIdx ? { ...toEditableImageAsset(image), ...partial } : toEditableImageAsset(image)
+    );
     updateSection(sectionIdx, { images: nextImages });
   }
 
   function addSectionGalleryImage(sectionIdx: number) {
     const section = sections[sectionIdx];
     if (!section || section.type !== "gallery") return;
-    updateSection(sectionIdx, { images: [...(section.images ?? []), ""] });
+    updateSection(sectionIdx, { images: [...(section.images ?? []), { src: "", alt: "" }] });
   }
 
   function removeSectionGalleryImage(sectionIdx: number, imageIdx: number) {
     const section = sections[sectionIdx];
     if (!section || section.type !== "gallery") return;
     const nextImages = (section.images ?? []).filter((_, i) => i !== imageIdx);
-    updateSection(sectionIdx, { images: nextImages.length ? nextImages : [""] });
+    updateSection(sectionIdx, { images: nextImages.length ? nextImages : [{ src: "", alt: "" }] });
   }
 
   const isErr = (f: string) => errors.includes(f);
@@ -489,19 +569,38 @@ function ProjectModal({
 
         <Field>
           <Label>Cover Image URL</Label>
-          <input className={inputCls} value={coverImage} onChange={(e) => setCoverImage(e.target.value)} placeholder="/cdn/…/cover.png" />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className={inputCls}
+              value={coverImage.src}
+              onChange={(e) => setCoverImage((prev) => ({ ...prev, src: e.target.value }))}
+              placeholder="/cdn/…/cover.png"
+            />
+            <input
+              className={inputCls}
+              value={coverImage.alt ?? ""}
+              onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
+              placeholder="Cover alt text"
+            />
+          </div>
         </Field>
 
         <Field>
           <Label>Gallery Images</Label>
           <div className="space-y-2">
             {galleryImages.map((image, idx) => (
-              <div key={idx} className="flex gap-2">
+              <div key={idx} className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
                 <input
                   className={inputCls}
-                  value={image}
-                  onChange={(e) => updateGalleryImage(idx, e.target.value)}
+                  value={image.src}
+                  onChange={(e) => updateGalleryImage(idx, { src: e.target.value })}
                   placeholder="/cdn/.../image-1.png"
+                />
+                <input
+                  className={inputCls}
+                  value={image.alt ?? ""}
+                  onChange={(e) => updateGalleryImage(idx, { alt: e.target.value })}
+                  placeholder="Alt text"
                 />
                 <button
                   type="button"
@@ -724,12 +823,18 @@ function ProjectModal({
                 {sec.type === "gallery" && (
                   <div className="space-y-2">
                     {(sec.images ?? [""]).map((image, imageIdx) => (
-                      <div key={imageIdx} className="flex gap-2">
+                      <div key={imageIdx} className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
                         <input
                           className={inputCls}
-                          value={image}
-                          onChange={(e) => updateSectionGalleryImage(idx, imageIdx, e.target.value)}
+                          value={toEditableImageAsset(image).src}
+                          onChange={(e) => updateSectionGalleryImage(idx, imageIdx, { src: e.target.value })}
                           placeholder="Gallery image URL"
+                        />
+                        <input
+                          className={inputCls}
+                          value={toEditableImageAsset(image).alt ?? ""}
+                          onChange={(e) => updateSectionGalleryImage(idx, imageIdx, { alt: e.target.value })}
+                          placeholder="Alt text"
                         />
                         <button
                           type="button"
@@ -799,8 +904,10 @@ function ArticleModal({
   const [category, setCategory] = useState<ArticleCategory>(initial?.category ?? "tech");
   const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
   const [featured, setFeatured] = useState(initial?.featured ?? false);
-  const [coverImage, setCoverImage] = useState(initial?.coverImage ?? "");
-  const [sections, setSections] = useState<ArticleSection[]>(initial?.sections ?? []);
+  const [coverImage, setCoverImage] = useState<ImageAsset>(() => toEditableImageAsset(initial?.coverImage));
+  const [sections, setSections] = useState<ArticleSection[]>(
+    () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
+  );
   const [errors, setErrors] = useState<string[]>([]);
 
   function validate() {
@@ -814,18 +921,21 @@ function ArticleModal({
   function handleSave() {
     if (!validate()) return;
     const finalSlug = slug.trim() || slugify(title);
+    const cleanedSections = sections
+      .map((section) => normalizeSectionForSave(section))
+      .filter((section) => section.type !== "gallery" || (section.images?.length ?? 0) > 0);
     const article: Article = {
       id: initial?.id ?? uid(),
       slug: finalSlug,
       title: title.trim(),
       excerpt: excerpt.trim(),
-      coverImage: coverImage.trim() || undefined,
+      coverImage: cleanImageAsset(coverImage) ?? undefined,
       author: author.trim() || "MDCran",
       publishDate: publishDate || new Date().toISOString().slice(0, 10),
       updatedDate: initial?.updatedDate,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
       category,
-      sections,
+      sections: cleanedSections,
       featured,
     };
     onSave(article);
@@ -835,7 +945,7 @@ function ArticleModal({
     const defaults: Record<ArticleSection["type"], ArticleSection> = {
       text: { type: "text", content: "" },
       image: { type: "image", src: "", alt: "", caption: "" },
-      gallery: { type: "gallery", images: [] },
+      gallery: { type: "gallery", images: [{ src: "", alt: "" }] },
       video: { type: "video", youtubeId: "" },
       quote: { type: "quote", content: "" },
       code: { type: "code", content: "", language: "javascript" },
@@ -865,6 +975,28 @@ function ArticleModal({
 
   function updateSection(idx: number, partial: Partial<ArticleSection>) {
     setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...partial } : s)));
+  }
+
+  function updateSectionGalleryImage(sectionIdx: number, imageIdx: number, partial: Partial<ImageAsset>) {
+    const section = sections[sectionIdx];
+    if (!section || section.type !== "gallery") return;
+    const nextImages = (section.images ?? [{ src: "", alt: "" }]).map((image, i) =>
+      i === imageIdx ? { ...toEditableImageAsset(image), ...partial } : toEditableImageAsset(image)
+    );
+    updateSection(sectionIdx, { images: nextImages });
+  }
+
+  function addSectionGalleryImage(sectionIdx: number) {
+    const section = sections[sectionIdx];
+    if (!section || section.type !== "gallery") return;
+    updateSection(sectionIdx, { images: [...(section.images ?? []), { src: "", alt: "" }] });
+  }
+
+  function removeSectionGalleryImage(sectionIdx: number, imageIdx: number) {
+    const section = sections[sectionIdx];
+    if (!section || section.type !== "gallery") return;
+    const nextImages = (section.images ?? []).filter((_, i) => i !== imageIdx);
+    updateSection(sectionIdx, { images: nextImages.length ? nextImages : [{ src: "", alt: "" }] });
   }
 
   const isErr = (f: string) => errors.includes(f);
@@ -925,7 +1057,20 @@ function ArticleModal({
 
         <Field>
           <Label>Cover Image URL</Label>
-          <input className={inputCls} value={coverImage} onChange={(e) => setCoverImage(e.target.value)} placeholder="/cdn/…/cover.jpg" />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className={inputCls}
+              value={coverImage.src}
+              onChange={(e) => setCoverImage((prev) => ({ ...prev, src: e.target.value }))}
+              placeholder="/cdn/…/cover.jpg"
+            />
+            <input
+              className={inputCls}
+              value={coverImage.alt ?? ""}
+              onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
+              placeholder="Cover alt text"
+            />
+          </div>
         </Field>
 
         <div className="flex items-center gap-2">
@@ -973,13 +1118,32 @@ function ArticleModal({
                   </div>
                 )}
                 {sec.type === "gallery" && (
-                  <textarea
-                    className={textareaCls}
-                    rows={2}
-                    value={(sec.images ?? []).join("\n")}
-                    onChange={(e) => updateSection(idx, { images: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
-                    placeholder="One image URL per line"
-                  />
+                  <div className="space-y-2">
+                    {(sec.images ?? [{ src: "", alt: "" }]).map((image, imageIdx) => (
+                      <div key={imageIdx} className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
+                        <input
+                          className={inputCls}
+                          value={toEditableImageAsset(image).src}
+                          onChange={(e) => updateSectionGalleryImage(idx, imageIdx, { src: e.target.value })}
+                          placeholder="Gallery image URL"
+                        />
+                        <input
+                          className={inputCls}
+                          value={toEditableImageAsset(image).alt ?? ""}
+                          onChange={(e) => updateSectionGalleryImage(idx, imageIdx, { alt: e.target.value })}
+                          placeholder="Alt text"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSectionGalleryImage(idx, imageIdx)}
+                          className="text-[#ef4242]/60 hover:text-[#ef4242] text-sm px-1"
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addSectionGalleryImage(idx)} className={btnOutline}>+ Add Image</button>
+                  </div>
                 )}
                 {(sec.type === "checklist" ||
                   sec.type === "ingredient-list" ||
@@ -1083,12 +1247,6 @@ function ClientModal({
   const [avatarUrl, setAvatarUrl] = useState(initial?.avatarUrl ?? "");
   const [roles, setRoles] = useState((initial?.roles ?? []).join(", "));
   const [featured, setFeatured] = useState(initial?.featured ?? false);
-  const [followerCount, setFollowerCount] = useState(
-    initial?.followerCount ? String(initial.followerCount) : ""
-  );
-  const [viewCount, setViewCount] = useState(
-    initial?.viewCount ? String(initial.viewCount) : ""
-  );
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(initial?.socialLinks ?? []);
   const [quoteText, setQuoteText] = useState(initial?.quote?.text ?? "");
   const [quoteContext, setQuoteContext] = useState(initial?.quote?.context ?? "");
@@ -1118,8 +1276,8 @@ function ClientModal({
       avatarUrl: avatarUrl.trim() || undefined,
       roles: roles.split(",").map((r) => r.trim()).filter(Boolean),
       featured,
-      followerCount: followerCount.trim() ? Number(followerCount.replace(/[^\d]/g, "")) : undefined,
-      viewCount: viewCount.trim() ? Number(viewCount.replace(/[^\d]/g, "")) : undefined,
+      followerCount: initial?.followerCount,
+      viewCount: initial?.viewCount,
       socialLinks: socialLinks.filter((s) => s.url.trim()),
       quote: quoteText.trim() ? { text: quoteText.trim(), context: quoteContext.trim() || undefined } : undefined,
       bannerUrl: initial?.bannerUrl,
@@ -1141,7 +1299,7 @@ function ClientModal({
 
   const isErr = (f: string) => errors.includes(f);
 
-  const platforms: Platform[] = ["youtube", "twitch", "tiktok", "instagram", "facebook", "x", "github", "website", "spotify", "discord"];
+  const platforms: Platform[] = ["youtube", "twitch", "tiktok", "instagram", "facebook", "x", "github", "website", "spotify", "discord", "other"];
 
   return (
     <Modal title={initial ? "Edit Client" : "New Client"} onClose={onClose} wide>
@@ -1183,31 +1341,13 @@ function ClientModal({
           <input className={inputCls} value={roles} onChange={(e) => setRoles(e.target.value)} placeholder="YouTuber, Content Creator (comma-separated)" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label>Manual Followers / Subs</Label>
-            <input
-              className={inputCls}
-              value={followerCount}
-              onChange={(e) => setFollowerCount(e.target.value)}
-              placeholder="450000000"
-            />
-          </Field>
-          <Field>
-            <Label>Manual Views</Label>
-            <input
-              className={inputCls}
-              value={viewCount}
-              onChange={(e) => setViewCount(e.target.value)}
-              placeholder="Optional total views"
-            />
-          </Field>
-        </div>
-
         <div className="flex items-center gap-2">
           <input id="cli-featured" type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="accent-[#ef4242]" />
           <label htmlFor="cli-featured" className="text-xs text-white/60 select-none">Featured client</label>
         </div>
+        <p className="text-[11px] text-white/25">
+          Followers update from linked social platforms. Video views are derived from videos attached to the client&apos;s linked projects.
+        </p>
 
         {/* Social Links */}
         <div className="border-t border-white/8 pt-4">
@@ -1232,9 +1372,16 @@ function ClientModal({
                 />
                 <input
                   className={`${inputCls} w-32 flex-shrink-0`}
-                  value={link.handle ?? ""}
-                  onChange={(e) => updateSocialLink(idx, { handle: e.target.value })}
-                  placeholder="@handle"
+                  value={link.platform === "other" ? link.title ?? "" : link.handle ?? ""}
+                  onChange={(e) =>
+                    updateSocialLink(
+                      idx,
+                      link.platform === "other"
+                        ? { title: e.target.value }
+                        : { handle: e.target.value }
+                    )
+                  }
+                  placeholder={link.platform === "other" ? "Link title" : "@handle"}
                 />
                 <button onClick={() => removeSocialLink(idx)} className="text-[#ef4242]/60 hover:text-[#ef4242] text-sm px-1 flex-shrink-0">✕</button>
               </div>
@@ -2193,6 +2340,24 @@ export default function AdminDashboard() {
     setDraggedResumeItem(null);
   }
 
+  function toggleExperienceClientLink(experienceIndex: number, clientId: string) {
+    setExperiences((prev) =>
+      prev.map((experience, index) => {
+        if (index !== experienceIndex) return experience;
+
+        const currentClientIds = experience.clientIds ?? [];
+        const nextClientIds = currentClientIds.includes(clientId)
+          ? currentClientIds.filter((id) => id !== clientId)
+          : [...currentClientIds, clientId];
+
+        return {
+          ...experience,
+          clientIds: nextClientIds.length ? nextClientIds : undefined,
+        };
+      })
+    );
+  }
+
   /* ── CRUD handlers ── */
   function saveProject(p: Project) {
     setProjects((prev) => {
@@ -2296,6 +2461,16 @@ export default function AdminDashboard() {
       }).catch(console.error);
       return updated;
     });
+    setExperiences((prev) =>
+      prev.map((experience) => {
+        if (!experience.clientIds?.includes(id)) return experience;
+        const nextClientIds = experience.clientIds.filter((clientId) => clientId !== id);
+        return {
+          ...experience,
+          clientIds: nextClientIds.length ? nextClientIds : undefined,
+        };
+      })
+    );
   }
 
   async function handleLogout() {
@@ -3266,7 +3441,11 @@ export default function AdminDashboard() {
                       <tr key={p.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2">
                           {p.coverImage ? (
-                            <img src={p.coverImage} alt="" className="w-10 h-[30px] object-cover rounded-sm opacity-80" />
+                            <img
+                              src={toEditableImageAsset(p.coverImage).src}
+                              alt={toEditableImageAsset(p.coverImage).alt ?? ""}
+                              className="w-10 h-[30px] object-cover rounded-sm opacity-80"
+                            />
                           ) : (
                             <div className="w-10 h-[30px] bg-white/5 rounded-sm" />
                           )}
@@ -3545,7 +3724,7 @@ export default function AdminDashboard() {
                         <td className="px-3 py-2.5 text-white/75">{c.name}</td>
                         <td className="px-3 py-2.5 text-white/45 hidden md:table-cell">{c.email || "-"}</td>
                         <td className="px-3 py-2.5 text-white/35 hidden lg:table-cell">{c.phone || "—"}</td>
-                        <td className="px-3 py-2.5 text-white/35 hidden md:table-cell">{c.source || "-"}</td>
+                        <td className="px-3 py-2.5 text-white/35 hidden md:table-cell">{formatContactSource(c.source)}</td>
                         <td className="px-3 py-2.5">
                           <button
                             onClick={() => toggleContactSubscription(c.id)}
@@ -3610,7 +3789,7 @@ export default function AdminDashboard() {
                     {filteredRateLimits.map((entry) => (
                       <tr key={entry.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2.5 text-white/75">
-                          <div>{entry.scope === "contact-form" ? "Contact Form" : "Subscribe Form"}</div>
+                          <div>{formatRateLimitScope(entry.scope)}</div>
                           {entry.notes && <div className="text-[10px] text-white/25">{entry.notes}</div>}
                         </td>
                         <td className="px-3 py-2.5 text-white/45 hidden md:table-cell">{entry.ip || "Removed"}</td>
@@ -3715,17 +3894,17 @@ export default function AdminDashboard() {
                             }`}>
                               {entry.messageRead ? "Read" : "Unread"}
                             </span>
-                            {entry.subject && (
-                              <span className="rounded-sm border border-white/10 bg-white/4 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/40">
-                                {entry.subject}
-                              </span>
-                            )}
                           </div>
                           <div className="flex flex-wrap gap-3 text-[11px] text-white/35">
                             <span>{entry.email || "No email"}</span>
                             <span>{entry.phone || "No phone"}</span>
                             <span>{fmtDate(entry.createdAt)}</span>
                           </div>
+                          {entry.subject && (
+                            <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                              {entry.subject}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -3977,6 +4156,32 @@ export default function AdminDashboard() {
                             <input type="checkbox" className="accent-[#ef4242]" checked={!!exp.current} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, current: e.target.checked, endDate: e.target.checked ? undefined : item.endDate } : item)))} />
                             Current role
                           </label>
+                          {clients.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] tracking-widest uppercase text-white/35">
+                                Linked Clients
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {clients.map((client) => {
+                                  const isLinked = exp.clientIds?.includes(client.id) ?? false;
+                                  return (
+                                    <button
+                                      key={`${exp.id}-${client.id}`}
+                                      type="button"
+                                      onClick={() => toggleExperienceClientLink(idx, client.id)}
+                                      className={`rounded-sm border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] transition-colors ${
+                                        isLinked
+                                          ? "border-[#ef4242]/30 bg-[#ef4242]/10 text-[#ef4242]"
+                                          : "border-white/10 bg-white/[0.02] text-white/35 hover:border-white/20 hover:text-white/60"
+                                      }`}
+                                    >
+                                      {client.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           <textarea className={textareaCls} rows={3} value={exp.description} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value } : item)))} placeholder="Description" />
                         </div>
                       ))}

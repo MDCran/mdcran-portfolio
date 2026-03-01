@@ -160,7 +160,7 @@ export default function AdminLoginPage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl p-8"
+          className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl px-8 pt-8 pb-1"
         >
           <CornerBrackets />
 
@@ -237,7 +237,7 @@ export default function AdminLoginPage() {
           </form>
 
           {/* Hint */}
-          <div className="mt-5 pt-4 pb-4 border-t border-white/5 text-center">
+          <div className="mt-5 pt-4 pb-3 border-t border-white/5 text-center">
             <p className="text-[10px] text-white/20 tracking-[0.16em] uppercase whitespace-nowrap">
               Unauthorized access attempts are logged.
             </p>

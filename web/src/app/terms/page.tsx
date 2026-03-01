@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Terms of service for MDCran — guidelines for using this website and engaging our services.",
 };
 
-const lastUpdated = "February 27, 2026";
+const lastUpdated = "March 1, 2026";
 
 export default function TermsPage() {
   return (
@@ -77,8 +77,11 @@ export default function TermsPage() {
             <p>
               Inquiries submitted via the contact form constitute expressions of interest only and do
               not create a binding contract. All service engagements are governed by a separate written
-              agreement between MDCran and the client. Scope, pricing, timelines, and deliverables are
-              defined in individual contracts.
+              agreement between MDCran and the client. By submitting the contact form or subscribe form,
+              you consent to MDCran using the contact details you provide to respond to your inquiry and,
+              where you have expressly opted in, to send future updates, newsletters, announcements, or
+              related communications. Scope, pricing, timelines, and deliverables are defined in
+              individual contracts.
             </p>
           </section>
 

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -25,7 +25,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Lightbox from "@/components/shared/Lightbox";
 import type { ArticleSection, Client, Project } from "@/lib/types";
-import { projectUrl } from "@/lib/utils";
+import { imageAssetAlt, imageAssetSrc, projectUrl } from "@/lib/utils";
 
 interface ProjectDetailProps {
   project: Project;
@@ -47,6 +47,10 @@ const pricingColor = {
   unavailable: "border-white/60 text-white/85 bg-black/70 shadow-[0_0_0_1px_rgba(0,0,0,0.65)]",
 } as const;
 
+function getSidebarTitleMarqueeDuration(title: string): string {
+  return `${Math.max(6, Math.min(14, Math.ceil(title.length / 4)))}s`;
+}
+
 export default function ProjectDetail({
   project,
   clients,
@@ -55,7 +59,8 @@ export default function ProjectDetail({
   backLabel,
 }: ProjectDetailProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const coverSrc = project.coverImage ?? project.images?.[0];
+  const coverImage = project.coverImage ?? project.images?.[0];
+  const coverSrc = imageAssetSrc(coverImage);
   const hasCover = !!coverSrc;
   const hasGallery = !!project.images?.length;
   const hasVideos = !!project.videos?.length;
@@ -80,20 +85,25 @@ export default function ProjectDetail({
       sectionImages.push(section.src);
       sectionImageCaptions.push(section.alt?.trim() || section.caption?.trim() || project.title);
     } else if (section.type === "gallery") {
-      for (const src of section.images ?? []) {
+      for (const image of section.images ?? []) {
+        const src = imageAssetSrc(image);
+        if (!src) continue;
         sectionImages.push(src);
-        sectionImageCaptions.push(section.caption?.trim() || project.title);
+        sectionImageCaptions.push(imageAssetAlt(image, section.caption?.trim() || project.title));
       }
     }
   }
 
   const galleryImages = project.images ?? [];
   const galleryImageCaptions = galleryImages.map(
-    (_, index) => `${project.title} screenshot ${index + 1}`
+    (image, index) => imageAssetAlt(image, `${project.title} screenshot ${index + 1}`)
   );
-  const allImages = [...galleryImages, ...sectionImages];
+  const galleryImageSources = galleryImages
+    .map((image) => imageAssetSrc(image))
+    .filter((src): src is string => !!src);
+  const allImages = [...galleryImageSources, ...sectionImages];
   const allImageCaptions = [...galleryImageCaptions, ...sectionImageCaptions];
-  const sectionImageBase = galleryImages.length;
+  const sectionImageBase = galleryImageSources.length;
 
   return (
     <>
@@ -104,7 +114,7 @@ export default function ProjectDetail({
           <div className="relative w-full h-[420px] sm:h-[520px] overflow-hidden">
             <Image
               src={coverSrc}
-              alt={project.title}
+              alt={imageAssetAlt(coverImage, project.title)}
               fill
               className="object-cover"
               priority
@@ -142,21 +152,26 @@ export default function ProjectDetail({
               <section>
                 <h2 className="font-nord text-lg text-white tracking-wider mb-5">Gallery</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {galleryImages.map((src, i) => (
-                    <div
-                      key={i}
-                      onClick={() => setLightboxIndex(i)}
-                      className="relative aspect-video rounded-sm overflow-hidden border border-white/6 hover:border-[rgba(239,66,66,0.3)] transition-colors group cursor-pointer"
-                    >
-                      <Image
-                        src={src}
-                        alt={`${project.title} screenshot ${i + 1}`}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        sizes="(max-width: 640px) 50vw, 33vw"
-                      />
-                    </div>
-                  ))}
+                  {galleryImages.map((image, i) => {
+                    const src = imageAssetSrc(image);
+                    if (!src) return null;
+
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => setLightboxIndex(i)}
+                        className="relative aspect-video rounded-sm overflow-hidden border border-white/6 hover:border-[rgba(239,66,66,0.3)] transition-colors group cursor-pointer"
+                      >
+                        <Image
+                          src={src}
+                          alt={imageAssetAlt(image, `${project.title} screenshot ${i + 1}`)}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          sizes="(max-width: 640px) 50vw, 33vw"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             )}
@@ -176,8 +191,17 @@ export default function ProjectDetail({
                           className="absolute inset-0 w-full h-full"
                         />
                       </div>
-                      <div className="px-4 py-3 bg-white/2">
-                        <p className="text-xs text-white/50">{video.title}</p>
+                      <div className="bg-white/2 px-4 py-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex flex-1 items-center gap-2 text-xs text-white/55">
+                            <Play size={11} className="text-[#ef4242] shrink-0" />
+                            <p className="truncate">{video.title}</p>
+                          </div>
+                          <span className="shrink-0 inline-flex items-center gap-1.5 text-white/35 text-xs">
+                            <Eye size={11} className="shrink-0" />
+                            {(video.viewCount ?? 0).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -230,9 +254,15 @@ export default function ProjectDetail({
                       href={projectUrl(rel.category, rel.slug, rel.subcategory)}
                       className="group flex gap-3 p-4 rounded-sm border border-white/6 bg-white/2 hover:border-[rgba(239,66,66,0.25)] hover:bg-white/4 transition-all duration-200"
                     >
-                      {rel.coverImage && (
+                      {imageAssetSrc(rel.coverImage) && (
                         <div className="relative w-16 h-16 shrink-0 rounded-sm overflow-hidden">
-                          <Image src={rel.coverImage} alt={rel.title} fill className="object-cover" sizes="64px" />
+                          <Image
+                            src={imageAssetSrc(rel.coverImage)!}
+                            alt={imageAssetAlt(rel.coverImage, rel.title)}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
                         </div>
                       )}
                       <div className="min-w-0">
@@ -312,10 +342,24 @@ export default function ProjectDetail({
                         href={`https://www.youtube.com/watch?v=${video.youtubeId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 min-w-0 hover:text-white/80 transition-colors"
+                        className="flex min-w-0 flex-1 items-center gap-2 hover:text-white/80 transition-colors"
                       >
                         <Play size={11} className="text-[#ef4242] shrink-0" />
-                        <span className="truncate">{video.title || video.youtubeId}</span>
+                        <span className="min-w-0 flex-1 overflow-hidden">
+                          <span
+                            className="block min-w-max whitespace-nowrap will-change-transform animate-[sidebar-title-marquee_var(--sidebar-title-duration)_ease-in-out_infinite_alternate]"
+                            style={
+                              {
+                                "--sidebar-title-width": "11rem",
+                                "--sidebar-title-duration": getSidebarTitleMarqueeDuration(
+                                  video.title || video.youtubeId
+                                ),
+                              } as CSSProperties
+                            }
+                          >
+                            {video.title || video.youtubeId}
+                          </span>
+                        </span>
                       </a>
                       <span className="shrink-0 inline-flex items-center gap-1.5 text-white/35">
                         <Eye size={11} />
@@ -410,6 +454,21 @@ export default function ProjectDetail({
         onNavigate={setLightboxIndex}
         captions={allImageCaptions}
       />
+      <style jsx global>{`
+        @keyframes sidebar-title-marquee {
+          0%,
+          16% {
+            transform: translateX(0);
+          }
+
+          84%,
+          100% {
+            transform: translateX(
+              min(0px, calc(var(--sidebar-title-width, 11rem) - 100%))
+            );
+          }
+        }
+      `}</style>
     </>
   );
 }
@@ -742,21 +801,26 @@ function ProjectSection({
       return (
         <div className="my-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {(section.images ?? []).map((src, i) => (
-              <div
-                key={i}
-                className="relative aspect-square rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
-                onClick={() => onImageClick(imageOffset + i)}
-              >
-                <Image
-                  src={src}
-                  alt={`Gallery image ${i + 1}`}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  sizes="(max-width: 640px) 50vw, 33vw"
-                />
-              </div>
-            ))}
+            {(section.images ?? []).map((image, i) => {
+              const src = imageAssetSrc(image);
+              if (!src) return null;
+
+              return (
+                <div
+                  key={i}
+                  className="relative aspect-square rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
+                  onClick={() => onImageClick(imageOffset + i)}
+                >
+                  <Image
+                    src={src}
+                    alt={imageAssetAlt(image, `Gallery image ${i + 1}`)}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(max-width: 640px) 50vw, 33vw"
+                  />
+                </div>
+              );
+            })}
           </div>
           {section.caption && (
             <p className="text-[10px] text-white/30 text-center mt-3">{section.caption}</p>

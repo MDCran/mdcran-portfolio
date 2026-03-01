@@ -46,8 +46,7 @@ export default function Clients({ clients, projects = [] }: ClientsProps) {
               transition={{ delay: 0.2 }}
               className="max-w-md text-sm text-white/40 leading-relaxed"
             >
-              Collaborating with top content creators and production teams to deliver
-              premium-quality digital experiences.
+              Collaborating with top content creators, companies, and production teams to deliver premium-quality digital experiences.
             </motion.p>
           </div>
         </div>

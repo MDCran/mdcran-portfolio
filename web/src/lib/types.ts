@@ -11,12 +11,13 @@ export interface ProjectPricing {
 // ─── Social Platforms ─────────────────────────────────────
 export type Platform =
   | "youtube" | "twitch" | "tiktok" | "instagram" | "facebook"
-  | "x" | "github" | "website" | "spotify" | "discord";
+  | "x" | "github" | "website" | "spotify" | "discord" | "other";
 
 export interface SocialLink {
   platform: Platform;
   url: string;
   handle?: string;
+  title?: string;
   channelId?: string; // for YouTube API queries
   userId?: string;    // for other platform API queries
 }
@@ -68,6 +69,11 @@ export interface Video {
   thumbnailUrl?: string;
 }
 
+export interface ImageAsset {
+  src: string;
+  alt?: string;
+}
+
 // ─── Project Credits ──────────────────────────────────────
 export interface ProjectCredit {
   name: string;
@@ -110,8 +116,8 @@ export interface Project {
   // Multi-category support (e.g. CoreTV = coding + web-design)
   extraCategories?: Category[];
   extraSubcategories?: Subcategory[];
-  coverImage?: string;
-  images?: string[];
+  coverImage?: string | ImageAsset;
+  images?: ImageAsset[];
   clientIds?: string[];
   publisherId?: string;   // company that published/contracted the work
   credits?: ProjectCredit[];
@@ -290,7 +296,7 @@ export interface ArticleSection {
   content?: string;    // markdown text / code / quote text
   caption?: string;
   src?: string;        // single image src
-  images?: string[];   // gallery images
+  images?: ImageAsset[];   // gallery images
   youtubeId?: string;  // embedded video
   language?: string;   // code block language
   alt?: string;
@@ -306,7 +312,7 @@ export interface Article {
   slug: string;
   title: string;
   excerpt: string;
-  coverImage?: string;
+  coverImage?: string | ImageAsset;
   author: string;
   authorProfilePic?: string;   // settable per article, defaults to AI_MDCRAN_BLUE
   publishDate: string;         // "YYYY-MM-DD"

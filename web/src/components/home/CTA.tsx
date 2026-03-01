@@ -116,8 +116,8 @@ export default function CTA() {
             {/* Left - CTA copy */}
             <div>
               <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#ef4242] animate-pulse" />
-                <span className="text-[#ef4242] text-[10px] tracking-widest uppercase">Available for work</span>
+             
+                <span className="text-[#ef4242] text-[10px] tracking-widest uppercase">Open for work</span>
               </div>
 
               <h2 className="font-nord text-3xl md:text-4xl text-white tracking-wider mb-3">
@@ -128,8 +128,7 @@ export default function CTA() {
               </h2>
 
               <p className="text-sm text-white/40 leading-relaxed mb-8 max-w-sm">
-                Have a project in mind? Whether it&apos;s a Minecraft event, a batch of
-                thumbnails, or a new website, I&apos;m ready to help bring it together.
+                Have a project in mind? Whether it’s game development, a web application, custom software, or digital content, I’m ready to help bring it to life.
               </p>
 
               <div className="flex items-center flex-wrap gap-4">
@@ -144,8 +143,8 @@ export default function CTA() {
             {/* Right - Subscribe form */}
             <div>
               <div className="mb-5">
-                <p className="text-xs text-white/40 tracking-wider uppercase mb-1">Stay in the loop</p>
-                <h3 className="font-nord text-lg text-white tracking-wide">Get updates &amp; releases</h3>
+                <p className="text-xs text-white/40 tracking-wider uppercase mb-1">Newsletter</p>
+                <h3 className="font-nord text-lg text-white tracking-wide">Get Updates</h3>
               </div>
 
               {status === "success" ? (

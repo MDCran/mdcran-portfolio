@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Youtube, Twitch, Instagram, Twitter, Github, Globe, Facebook, Music2, ExternalLink, ArrowRight } from "lucide-react";
+import { Youtube, Twitch, Instagram, Twitter, Github, Globe, Facebook, Music2, ExternalLink, ArrowRight, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Client, Platform } from "@/lib/types";
 
@@ -19,6 +19,7 @@ const platformConfig: Record<Platform, { icon: React.ElementType; color: string;
   website: { icon: Globe, color: "#ffffff", label: "Website" },
   spotify: { icon: Music2, color: "#1db954", label: "Spotify" },
   discord: { icon: Globe, color: "#5865f2", label: "Discord" },
+  other: { icon: Link2, color: "#ffffff", label: "Link" },
 };
 
 interface ClientCardProps {
@@ -99,11 +100,13 @@ export default function ClientCard({ client, index = 0, className, projectCount 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-2 py-1 rounded-sm bg-white/4 border border-white/8 hover:border-white/20 hover:bg-white/8 transition-all duration-200 group/link"
-                  title={`${config.label}: ${link.handle ?? link.url}`}
+                  title={`${link.platform === "other" ? link.title ?? config.label : config.label}: ${link.handle ?? link.url}`}
                 >
                   <Icon size={11} style={{ color: config.color }} className="shrink-0" />
                   <span className="text-[10px] text-white/40 group-hover/link:text-white/70 transition-colors">
-                    {link.handle ?? config.label}
+                    {link.platform === "other"
+                      ? link.title ?? config.label
+                      : link.handle ?? config.label}
                   </span>
                 </a>
               );

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
 
 interface LightboxProps {
   images: string[];
@@ -23,6 +23,9 @@ export default function Lightbox({
 }: LightboxProps) {
   const lightboxMaxHeight = "calc(100dvh - var(--navbar-height, 72px) - 3rem)";
   const [autoCycle, setAutoCycle] = useState(true);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isLandscapeMobile, setIsLandscapeMobile] = useState(false);
+  const [isThumbnailTrayExpanded, setIsThumbnailTrayExpanded] = useState(true);
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const activeThumbnailRef = useRef<HTMLButtonElement | null>(null);
   const dragStateRef = useRef<{
@@ -81,6 +84,39 @@ export default function Lightbox({
     });
   }, [currentIndex]);
 
+  useEffect(() => {
+    const syncViewportMode = () => {
+      const mobile = window.matchMedia("(max-width: 767px)").matches;
+      const landscapeMobile =
+        window.matchMedia("(orientation: landscape)").matches && window.innerHeight <= 520;
+
+      setIsMobileViewport(mobile);
+      setIsLandscapeMobile(landscapeMobile);
+      setIsThumbnailTrayExpanded(!landscapeMobile);
+    };
+
+    syncViewportMode();
+    window.addEventListener("resize", syncViewportMode);
+
+    return () => window.removeEventListener("resize", syncViewportMode);
+  }, []);
+
+  const viewportPaddingTop = isMobileViewport
+    ? "calc(var(--navbar-height, 72px) + 0.75rem)"
+    : "calc(var(--navbar-height, 72px) + 1rem)";
+  const viewportPaddingBottom = isLandscapeMobile
+    ? "2.5rem"
+    : isMobileViewport
+      ? "12rem"
+      : "1.5rem";
+  const resolvedImageMaxHeight = isLandscapeMobile
+    ? "calc(100dvh - var(--navbar-height, 72px) - 3.25rem)"
+    : isMobileViewport
+      ? "calc(100dvh - var(--navbar-height, 72px) - 13rem)"
+      : lightboxMaxHeight;
+  const resolvedImageMaxWidth = isMobileViewport || isLandscapeMobile ? "100vw" : "min(90vw, 1200px)";
+  const isTrayCollapsed = isLandscapeMobile && !isThumbnailTrayExpanded;
+
   return (
     <AnimatePresence>
       {currentIndex !== null && (
@@ -90,8 +126,10 @@ export default function Lightbox({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[9999] flex items-start justify-center px-4 pb-6"
-          style={{ paddingTop: "calc(var(--navbar-height, 72px) + 1rem)" }}
+          className={`fixed inset-0 z-[9999] flex justify-center pb-6 ${
+            isMobileViewport || isLandscapeMobile ? "items-center px-0" : "items-start px-4"
+          }`}
+          style={{ paddingTop: viewportPaddingTop, paddingBottom: viewportPaddingBottom }}
           onClick={onClose}
         >
           {/* Backdrop */}
@@ -104,7 +142,11 @@ export default function Lightbox({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 max-w-[90vw] max-h-[88vh] rounded-sm overflow-hidden border border-white/15 shadow-[0_40px_120px_rgba(0,0,0,0.9)]"
+            className={`relative z-10 flex w-full items-center justify-center overflow-hidden ${
+              isMobileViewport || isLandscapeMobile
+                ? "rounded-none border-0 shadow-none"
+                : "rounded-sm border border-white/15 shadow-[0_40px_120px_rgba(0,0,0,0.9)]"
+            }`}
             onClick={(e) => {
               e.stopPropagation();
 
@@ -136,14 +178,16 @@ export default function Lightbox({
                 next();
               }
             }}
-            style={{ maxWidth: "min(90vw, 1200px)", maxHeight: lightboxMaxHeight }}
+            style={{ maxWidth: resolvedImageMaxWidth, maxHeight: resolvedImageMaxHeight }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={images[currentIndex]}
               alt={captions?.[currentIndex] ?? `Image ${currentIndex + 1}`}
-              className="block max-w-full max-h-[88vh] w-auto h-auto object-contain"
-              style={{ maxWidth: "min(90vw, 1200px)", maxHeight: lightboxMaxHeight }}
+              className={`block h-auto w-auto max-w-full object-contain ${
+                isLandscapeMobile ? "min-w-full" : ""
+              }`}
+              style={{ maxWidth: resolvedImageMaxWidth, maxHeight: resolvedImageMaxHeight }}
             />
 
             {/* Top bar */}
@@ -182,23 +226,29 @@ export default function Lightbox({
           {/* Bottom controls + carousel */}
           {images.length > 1 && (
             <div
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-full px-4"
-              style={{ maxWidth: "min(90vw, 1200px)" }}
+              className={`absolute left-1/2 z-10 w-full ${
+                isLandscapeMobile ? "bottom-0 px-0" : "bottom-3 px-3 md:bottom-6 md:px-4"
+              }`}
+              style={{ maxWidth: resolvedImageMaxWidth, transform: "translateX(-50%)" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mx-auto flex max-w-[72rem] flex-col gap-4">
-                <div className="flex items-center justify-center gap-4">
+              <div className={`mx-auto flex max-w-[72rem] flex-col ${isLandscapeMobile ? "gap-2" : "gap-4"}`}>
+                <div className={`flex items-center justify-center ${isLandscapeMobile ? "gap-2" : "gap-4"}`}>
                   <button
                     onClick={prev}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-black/80 hover:text-white"
+                    className={`flex items-center justify-center rounded-full border border-white/15 bg-black/55 text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-black/80 hover:text-white ${
+                      isLandscapeMobile ? "h-9 w-9" : "h-11 w-11"
+                    }`}
                     aria-label="Previous image"
                   >
-                    <ChevronLeft size={20} />
+                    <ChevronLeft size={isLandscapeMobile ? 16 : 20} />
                   </button>
 
                   <button
                     onClick={() => setAutoCycle((value) => !value)}
-                    className={`group relative inline-flex h-11 min-w-[170px] items-center justify-center overflow-hidden rounded-sm border px-5 text-[10px] uppercase tracking-[0.24em] transition-all duration-300 ${
+                    className={`group relative inline-flex items-center justify-center overflow-hidden rounded-sm border text-[10px] uppercase tracking-[0.24em] transition-all duration-300 ${
+                      isLandscapeMobile ? "h-9 min-w-[150px] px-3" : "h-11 min-w-[170px] px-5"
+                    } ${
                       autoCycle
                         ? "border-[#ef4242]/30 bg-[#ef4242]/10 text-white shadow-[0_0_18px_rgba(239,66,66,0.08)]"
                         : "border-white/12 bg-black/45 text-white/55"
@@ -227,16 +277,25 @@ export default function Lightbox({
 
                   <button
                     onClick={next}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-black/80 hover:text-white"
+                    className={`flex items-center justify-center rounded-full border border-white/15 bg-black/55 text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-black/80 hover:text-white ${
+                      isLandscapeMobile ? "h-9 w-9" : "h-11 w-11"
+                    }`}
                     aria-label="Next image"
                   >
-                    <ChevronRight size={20} />
+                    <ChevronRight size={isLandscapeMobile ? 16 : 20} />
                   </button>
                 </div>
 
                 <div
                   ref={thumbnailStripRef}
-                  className="rounded-sm border border-white/8 bg-black/35 px-3 py-3 backdrop-blur-md overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 cursor-grab active:cursor-grabbing"
+                  className={`relative rounded-sm border border-white/8 bg-black/35 px-3 backdrop-blur-md overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 cursor-grab active:cursor-grabbing transition-all duration-300 ${
+                    isTrayCollapsed ? "max-h-8 py-1" : "max-h-24 py-3"
+                  }`}
+                  onClick={() => {
+                    if (isTrayCollapsed) {
+                      setIsThumbnailTrayExpanded(true);
+                    }
+                  }}
                   onPointerDown={(e) => {
                     if (!thumbnailStripRef.current) return;
                     const target = e.target as HTMLElement;
@@ -276,6 +335,21 @@ export default function Lightbox({
                     dragStateRef.current = null;
                   }}
                 >
+                  {isLandscapeMobile && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsThumbnailTrayExpanded((value) => !value);
+                      }}
+                      className="absolute right-2 top-1.5 z-10 inline-flex items-center gap-1 rounded-sm border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-white/60 transition-colors hover:border-white/20 hover:text-white/80"
+                      aria-expanded={isThumbnailTrayExpanded}
+                      aria-label={isThumbnailTrayExpanded ? "Collapse gallery strip" : "Expand gallery strip"}
+                    >
+                      <ChevronsUpDown size={10} />
+                      Gallery
+                    </button>
+                  )}
                   <div className="mx-auto flex w-fit min-w-max gap-2">
                     {images.map((image, i) => (
                       <button
@@ -293,7 +367,9 @@ export default function Lightbox({
                         <img
                           src={image}
                           alt={captions?.[i] ?? `Thumbnail ${i + 1}`}
-                          className="h-14 w-24 object-cover transition-transform duration-300 group-hover:scale-105"
+                          className={`object-cover transition-transform duration-300 group-hover:scale-105 ${
+                            isLandscapeMobile ? "h-14 w-20" : "h-14 w-24"
+                          }`}
                         />
                         <div
                           className={`absolute inset-0 transition-colors duration-200 ${

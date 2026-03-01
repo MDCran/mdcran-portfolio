@@ -69,16 +69,10 @@ export default function PhotoReel() {
                 Michael Cran
               </h2>
               <p className="text-sm text-white/50 leading-relaxed mb-5">
-                UCF Computer Science student, developer, building one-of-a-kind digital
-                experiences that put a smile on people&apos;s faces! Over the past {YEARS_CREATING}+ years,
-                I&apos;ve worked as a content manager, developer, map designer, and builder for
-                some of the internet&apos;s most inspiring creators and teams. What started as a
-                casual gaming session at a soccer field turned into a career building
-                production-level software, platforms, and custom systems that support real
-                users and large online communities.
+                I am a graduate of the University of Central Florida, where I earned a Bachelor of Science in Computer Science. I am a developer focused on building one-of-a-kind digital experiences that put a smile on people’s faces. Over the past {YEARS_CREATING}+ years, I’ve worked as a content manager, developer, map designer, and builder for some of the internet’s most inspiring creators and teams. What started as a casual gaming session at a soccer field evolved into a career building secure enterprise software, platforms, and custom systems that support real users and large online communities.
               </p>
               <p className="text-sm text-white/35 leading-relaxed mb-8">
-                Based in Orlando, FL — working with clients worldwide.
+                Based in Orlando, FL — <br></br> Available for remote & local work
               </p>
               <div className="flex flex-wrap gap-3">
                 {["Builder", "Designer", "Developer", "Creator"].map((tag) => (

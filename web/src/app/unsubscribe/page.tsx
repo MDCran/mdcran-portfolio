@@ -64,7 +64,7 @@ export default function UnsubscribePage() {
       <PageHeader
         eyebrow="Preferences"
         title="Unsubscribe"
-        description="Enter your email address or phone number to unsubscribe from MDCran updates."
+        description="Enter your email address or phone number to unsubscribe from updates."
         breadcrumbs={[{ label: "Unsubscribe" }]}
       />
       <main className="content-container max-w-lg py-14 sm:py-16">
