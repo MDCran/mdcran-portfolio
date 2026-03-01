@@ -1,14 +1,88 @@
 import { NextResponse } from "next/server";
+import { getDb } from "@/lib/mongodb";
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.SPOTIFY_REFRESH_TOKEN;
 
 const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
+const PLAYER_ENDPOINT = "https://api.spotify.com/v1/me/player";
 const CURRENT_PLAYING_ENDPOINT =
   "https://api.spotify.com/v1/me/player/currently-playing";
 const RECENTLY_PLAYED_ENDPOINT =
   "https://api.spotify.com/v1/me/player/recently-played?limit=1";
+
+function buildTrackPayload(
+  item: {
+    name: string;
+    artists: Array<{ name: string }>;
+    album: { name: string; images: Array<{ url: string }> };
+    external_urls: { spotify?: string };
+    duration_ms?: number;
+  },
+  options?: {
+    isPlaying?: boolean;
+    progressMs?: number;
+    playedAt?: string;
+  }
+) {
+  return {
+    isPlaying: Boolean(options?.isPlaying),
+    title: item.name,
+    artist: item.artists.map((a) => a.name).join(", "),
+    albumName: item.album.name,
+    albumArt: item.album.images[0]?.url,
+    songUrl: item.external_urls.spotify,
+    progressMs: options?.progressMs,
+    durationMs: item.duration_ms,
+    playedAt: options?.playedAt,
+  };
+}
+
+async function saveLastSpotifyTrack(
+  payload: ReturnType<typeof buildTrackPayload>
+) {
+  try {
+    const db = await getDb();
+    await db.collection("settings").updateOne(
+      { key: "spotify_last_track" },
+      {
+        $set: {
+          key: "spotify_last_track",
+          value: JSON.stringify({
+            ...payload,
+            isPlaying: false,
+            playedAt: payload.playedAt ?? new Date().toISOString(),
+          }),
+        },
+      },
+      { upsert: true }
+    );
+  } catch {
+    // Ignore persistence failures so the widget can still function.
+  }
+}
+
+async function getSavedLastSpotifyTrack() {
+  try {
+    const db = await getDb();
+    const doc = await db
+      .collection("settings")
+      .findOne<{ key: string; value?: string }>({ key: "spotify_last_track" });
+
+    if (!doc?.value) return null;
+
+    const parsed = JSON.parse(doc.value) as ReturnType<typeof buildTrackPayload>;
+    if (!parsed?.title) return null;
+
+    return {
+      ...parsed,
+      isPlaying: false,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function getAccessToken() {
   if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) return null;
@@ -41,7 +115,24 @@ export async function GET() {
     const token = await getAccessToken();
     if (!token) return NextResponse.json({ isPlaying: false });
 
-    // Try currently playing
+    // First try the full player state. This still returns the active track when paused.
+    const player = await fetch(PLAYER_ENDPOINT, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (player.status === 200) {
+      const data = await player.json();
+      if (data?.item) {
+        const payload = buildTrackPayload(data.item, {
+          isPlaying: data.is_playing,
+          progressMs: data.progress_ms,
+        });
+        await saveLastSpotifyTrack(payload);
+        return NextResponse.json(payload);
+      }
+    }
+
+    // Fallback to currently playing.
     const res = await fetch(CURRENT_PLAYING_ENDPOINT, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -49,17 +140,18 @@ export async function GET() {
     if (res.status === 200) {
       const data = await res.json();
       if (data?.item) {
-        return NextResponse.json({
+        const payload = buildTrackPayload(data.item, {
           isPlaying: data.is_playing,
-          title: data.item.name,
-          artist: data.item.artists.map((a: { name: string }) => a.name).join(", "),
-          albumName: data.item.album.name,
-          albumArt: data.item.album.images[0]?.url,
-          songUrl: data.item.external_urls.spotify,
           progressMs: data.progress_ms,
-          durationMs: data.item.duration_ms,
         });
+        await saveLastSpotifyTrack(payload);
+        return NextResponse.json(payload);
       }
+    }
+
+    const savedTrack = await getSavedLastSpotifyTrack();
+    if (savedTrack) {
+      return NextResponse.json(savedTrack);
     }
 
     // Fallback to recently played
@@ -68,16 +160,15 @@ export async function GET() {
     });
     if (recent.ok) {
       const data = await recent.json();
-      const track = data?.items?.[0]?.track;
+      const recentItem = data?.items?.[0];
+      const track = recentItem?.track;
       if (track) {
-        return NextResponse.json({
+        const payload = buildTrackPayload(track, {
           isPlaying: false,
-          title: track.name,
-          artist: track.artists.map((a: { name: string }) => a.name).join(", "),
-          albumName: track.album.name,
-          albumArt: track.album.images[0]?.url,
-          songUrl: track.external_urls.spotify,
+          playedAt: recentItem?.played_at,
         });
+        await saveLastSpotifyTrack(payload);
+        return NextResponse.json(payload);
       }
     }
 

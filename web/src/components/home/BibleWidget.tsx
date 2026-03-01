@@ -40,7 +40,7 @@ export default function BibleWidget() {
         </div>
         <button
           onClick={refreshVerse}
-          className="text-white/20 hover:text-[#d4a853] transition-colors p-1"
+          className="cursor-pointer p-1 text-white/20 transition-colors hover:text-[#d4a853]"
           aria-label="Refresh verse"
         >
           <RefreshCw size={11} />

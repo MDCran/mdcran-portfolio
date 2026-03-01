@@ -45,7 +45,7 @@ const METRICS: Metric[] = [
   },
   {
     key: "totalProjects",
-    label: "Completed Projects",
+    label: "Public Projects",
     description: "Maps, designs, events & more",
     fallback: 0,
     suffix: "+",

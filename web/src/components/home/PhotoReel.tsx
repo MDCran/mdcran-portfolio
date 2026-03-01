@@ -7,7 +7,7 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const photos = [
   { src: "/cdn/WEB_ASSETS/ME/age_3.jpg", alt: "Michael Cran" },
-  { src: "/cdn/WEB_ASSETS/ME/age_4.jpg", alt: "Michael Cran — Now" },
+  { src: "/cdn/WEB_ASSETS/ME/age_4.jpg", alt: "Michael Cran" },
 ];
 
 const gradients = [
