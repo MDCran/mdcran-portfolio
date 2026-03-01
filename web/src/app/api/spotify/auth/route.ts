@@ -10,7 +10,8 @@ export async function GET() {
     return NextResponse.json({ error: "SPOTIFY_CLIENT_ID not set" }, { status: 500 });
   }
 
-  const redirectUri = "https://mdcran.com/api/spotify/callback";
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mdcran.com").replace(/\/$/, "");
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? `${siteUrl}/api/spotify/callback`;
   const scopes = ["user-read-currently-playing", "user-read-recently-played"].join(" ");
 
   const params = new URLSearchParams({
