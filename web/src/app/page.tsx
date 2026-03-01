@@ -11,35 +11,23 @@ import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import MercuryPrompt from "@/components/home/MercuryPrompt";
 import { getFeaturedProjects, getClients, getProjects } from "@/lib/db";
+import { buildSeoMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "MDCran - Independent Contractor & Content Creator",
+export const metadata: Metadata = buildSeoMetadata({
+  title: "MDCran | Software, Design, and Digital Experiences",
   description:
-    "Michael Cran (MDCran) - Independent Contractor specializing in Minecraft maps, level design, thumbnail design, video editing, and web development. Computer Science student at UCF. Based in Orlando, FL.",
+    "Michael Cran (MDCran) builds software, secure web platforms, Minecraft experiences, and creative digital work for creators, companies, and online communities.",
+  path: "/",
   keywords: [
     "MDCran", "Michael Cran", "Michael David Cran", "MD Cran",
     "Minecraft Map Maker", "Minecraft Maps", "Level Designer",
     "Thumbnail Designer", "Video Editor", "Content Creator",
-    "PopularMMOs maps", "MrBeast Minecraft", "UCF Computer Science",
+    "Software Developer", "Web Developer", "UCF Computer Science",
     "Orlando Freelancer", "Independent Contractor",
   ],
-  openGraph: {
-    title: "MDCran - Independent Contractor",
-    description: "Minecraft maps, motion graphics, web development & more. Based in Orlando, FL.",
-    url: "https://mdcran.com",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "MDCran - Independent Contractor",
-    description: "Minecraft maps, motion graphics, web development & more.",
-  },
-  alternates: {
-    canonical: "https://mdcran.com",
-  },
-};
+});
 
 export default async function HomePage() {
   const [allProjects, allClients, featuredProjects] = await Promise.all([

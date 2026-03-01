@@ -18,6 +18,8 @@ export default function CTA() {
   const [status, setStatus] = useState<Status>("idle");
   const modeButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const modeDragPointerIdRef = useRef<number | null>(null);
+  const modeDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const modeDragActiveRef = useRef(false);
   const [modeHighlight, setModeHighlight] = useState({ left: 0, width: 0, ready: false });
 
   useEffect(() => {
@@ -71,6 +73,11 @@ export default function CTA() {
     } catch {
       setStatus("error");
     }
+  };
+
+  const findModeButtonFromPoint = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY);
+    return (element as HTMLElement | null)?.closest<HTMLButtonElement>("[data-mode]") ?? null;
   };
 
   const updateModeFromPointerTarget = (target: EventTarget | null) => {
@@ -159,26 +166,37 @@ export default function CTA() {
                     className="relative flex gap-1 p-1 rounded-sm bg-white/4 border border-white/8 w-fit"
                     onPointerDown={(e) => {
                       modeDragPointerIdRef.current = e.pointerId;
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                      updateModeFromPointerPosition(e.clientX, e.clientY);
+                      modeDragStartRef.current = { x: e.clientX, y: e.clientY };
+                      modeDragActiveRef.current = false;
                     }}
                     onPointerMove={(e) => {
                       if (modeDragPointerIdRef.current !== e.pointerId) return;
+                      const start = modeDragStartRef.current;
+                      if (!start) return;
+                      const deltaX = Math.abs(e.clientX - start.x);
+                      const deltaY = Math.abs(e.clientY - start.y);
+                      if (!modeDragActiveRef.current && deltaX < 6 && deltaY < 6) {
+                        return;
+                      }
+                      modeDragActiveRef.current = true;
                       updateModeFromPointerPosition(e.clientX, e.clientY);
                     }}
                     onPointerUp={(e) => {
                       if (modeDragPointerIdRef.current !== e.pointerId) return;
-                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      if (modeDragActiveRef.current) {
+                        const button = findModeButtonFromPoint(e.clientX, e.clientY);
+                        if (button) {
+                          updateModeFromPointerTarget(button);
+                        }
                       }
                       modeDragPointerIdRef.current = null;
+                      modeDragStartRef.current = null;
+                      modeDragActiveRef.current = false;
                     }}
-                    onPointerCancel={(e) => {
-                      if (modeDragPointerIdRef.current !== e.pointerId) return;
-                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                        e.currentTarget.releasePointerCapture(e.pointerId);
-                      }
+                    onPointerCancel={() => {
                       modeDragPointerIdRef.current = null;
+                      modeDragStartRef.current = null;
+                      modeDragActiveRef.current = false;
                     }}
                   >
                     <div
