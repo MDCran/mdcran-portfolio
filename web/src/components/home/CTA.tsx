@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Send, CheckCircle, Loader2, Phone } from "lucide-react";
@@ -16,6 +16,32 @@ export default function CTA() {
   const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
+  const modeButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const modeDragPointerIdRef = useRef<number | null>(null);
+  const [modeHighlight, setModeHighlight] = useState({ left: 0, width: 0, ready: false });
+
+  useEffect(() => {
+    const modes: Mode[] = ["email", "sms", "both"];
+
+    const syncHighlight = () => {
+      const activeButton = modeButtonRefs.current[modes.indexOf(mode)];
+      if (!activeButton) return;
+
+      setModeHighlight({
+        left: activeButton.offsetLeft,
+        width: activeButton.offsetWidth,
+        ready: true,
+      });
+    };
+
+    const frame = window.requestAnimationFrame(syncHighlight);
+    window.addEventListener("resize", syncHighlight);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", syncHighlight);
+    };
+  }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +71,19 @@ export default function CTA() {
     } catch {
       setStatus("error");
     }
+  };
+
+  const updateModeFromPointerTarget = (target: EventTarget | null) => {
+    const button = (target as HTMLElement | null)?.closest<HTMLButtonElement>("[data-mode]");
+    const nextMode = button?.dataset.mode as Mode | undefined;
+    if (nextMode) {
+      setMode(nextMode);
+    }
+  };
+
+  const updateModeFromPointerPosition = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY);
+    updateModeFromPointerTarget(element);
   };
 
   return (
@@ -111,21 +150,59 @@ export default function CTA() {
                   <CheckCircle size={18} className="text-green-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm text-green-300 font-medium">You&apos;re on the list!</p>
-                    <p className="text-xs text-green-400/60 mt-1">Check your inbox or messages for confirmation.</p>
                   </div>
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3">
                   {/* Mode toggle */}
-                  <div className="flex gap-1 p-1 rounded-sm bg-white/4 border border-white/8 w-fit">
+                  <div
+                    className="relative flex gap-1 p-1 rounded-sm bg-white/4 border border-white/8 w-fit"
+                    onPointerDown={(e) => {
+                      modeDragPointerIdRef.current = e.pointerId;
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      updateModeFromPointerPosition(e.clientX, e.clientY);
+                    }}
+                    onPointerMove={(e) => {
+                      if (modeDragPointerIdRef.current !== e.pointerId) return;
+                      updateModeFromPointerPosition(e.clientX, e.clientY);
+                    }}
+                    onPointerUp={(e) => {
+                      if (modeDragPointerIdRef.current !== e.pointerId) return;
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      }
+                      modeDragPointerIdRef.current = null;
+                    }}
+                    onPointerCancel={(e) => {
+                      if (modeDragPointerIdRef.current !== e.pointerId) return;
+                      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                      }
+                      modeDragPointerIdRef.current = null;
+                    }}
+                  >
+                    <div
+                      className={`pointer-events-none absolute inset-y-1 rounded-sm bg-[#ef4242] shadow-[0_0_12px_rgba(239,66,66,0.3)] transition-all duration-300 ease-out ${
+                        modeHighlight.ready ? "opacity-100" : "opacity-0"
+                      }`}
+                      style={{
+                        left: `${modeHighlight.left}px`,
+                        width: `${modeHighlight.width}px`,
+                      }}
+                    />
                     {(["email", "sms", "both"] as Mode[]).map((m) => (
                       <button
                         key={m}
+                        data-mode={m}
+                        ref={(node) => {
+                          const modes: Mode[] = ["email", "sms", "both"];
+                          modeButtonRefs.current[modes.indexOf(m)] = node;
+                        }}
                         type="button"
                         onClick={() => setMode(m)}
-                        className={`px-3 py-1.5 rounded-sm text-[11px] tracking-wider uppercase transition-all duration-150 ${
+                        className={`relative z-10 px-3 py-1.5 rounded-sm text-[11px] tracking-wider uppercase transition-colors duration-200 ${
                           mode === m
-                            ? "bg-[#ef4242] text-white shadow-[0_0_12px_rgba(239,66,66,0.3)]"
+                            ? "text-white"
                             : "text-white/40 hover:text-white/70"
                         }`}
                       >

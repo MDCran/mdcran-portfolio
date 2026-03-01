@@ -1,4 +1,5 @@
 import { getDb } from "./mongodb";
+import bcrypt from "bcryptjs";
 import type {
   Project,
   Article,
@@ -837,11 +838,20 @@ export async function getRizzSubmissions(): Promise<RizzSubmission[]> {
 export async function verifyAdminPassword(plain: string): Promise<boolean> {
   try {
     const db = await getDb();
-    const doc = await db.collection("settings").findOne<{ key: string; value: string }>({ key: "admin_password" });
-    if (doc) return doc.value === plain;
+    const [hashDoc, plainDoc] = await Promise.all([
+      db.collection("settings").findOne<{ key: string; value: string }>({ key: "admin_password_hash" }),
+      db.collection("settings").findOne<{ key: string; value: string }>({ key: "admin_password" }),
+    ]);
+    if (hashDoc?.value) return bcrypt.compare(plain, hashDoc.value);
+    if (plainDoc?.value) return plainDoc.value === plain;
   } catch {
     // DB unavailable — fall through to env var
   }
+  const envHash = process.env.ADMIN_PASSWORD_HASH;
+  if (envHash) {
+    return bcrypt.compare(plain, envHash);
+  }
+
   // Fallback: compare against env var directly
   const envPw = process.env.ADMIN_PASSWORD;
   if (envPw) return envPw === plain;

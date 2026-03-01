@@ -13,7 +13,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const token = signAdminToken();
+  let token: string;
+  try {
+    token = signAdminToken();
+  } catch {
+    return NextResponse.json({ error: "Admin auth is not configured correctly" }, { status: 503 });
+  }
   const res = NextResponse.json({ ok: true });
   res.cookies.set(COOKIE_NAME_EXPORT, token, {
     httpOnly: true,

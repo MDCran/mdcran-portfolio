@@ -5,11 +5,17 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "mdcran-dev-secret";
 const COOKIE_NAME = "mdcran_admin_token";
 
 export function signAdminToken(): string {
+  if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET must be set in production");
+  }
   return jwt.sign({ role: "admin" }, JWT_SECRET, { expiresIn: "24h" });
 }
 
 export function verifyAdminToken(token: string): boolean {
   try {
+    if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+      return false;
+    }
     jwt.verify(token, JWT_SECRET);
     return true;
   } catch {

@@ -37,7 +37,7 @@ export default function Subscribe() {
       const data = await res.json();
       if (data.success) {
         setStatus("success");
-        setMessage("You're on the list! Check your inbox / messages.");
+        setMessage("You're on the list!");
       } else {
         setStatus("error");
         setMessage(data.message ?? "Something went wrong.");

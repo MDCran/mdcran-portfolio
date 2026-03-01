@@ -52,7 +52,7 @@ const METRICS: Metric[] = [
   },
   {
     key: "yearsActive",
-    label: "Years Creating",
+    label: "Creating",
     description: "Continuously since 2018",
     fallback: new Date().getFullYear() - 2018,
     suffix: "",

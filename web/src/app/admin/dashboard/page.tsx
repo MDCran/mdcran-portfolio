@@ -1,8 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSWRConfig } from "swr";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+} from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
 import type {
   Project,
@@ -25,11 +37,13 @@ import type {
   CampaignType,
   CampaignStatus,
   ContactSubmission,
+  RateLimitRecord,
   RizzSubmission,
 } from "@/lib/types";
 
 /* ─── Local-only types ───────────────────────────────────── */
 type Contact = ContactSubmission;
+type RateLimit = RateLimitRecord;
 type RizzEntry = RizzSubmission;
 type Campaign = StoredCampaign;
 type MetricsAuditTarget = "project-views";
@@ -46,10 +60,14 @@ type NavSection =
   | "clients"
   | "resume"
   | "contacts"
+  | "rate-limits"
+  | "contact-form-entries"
   | "campaigns"
   | "rizz";
 
 const SKILL_CATEGORY_OPTIONS = ["technology", "creative", "languages", "other"] as const;
+const PROJECT_VIEWS_AUDIT_CACHE_KEY = "mdcran-admin-project-views-audit";
+const PROJECT_VIEWS_REFRESH_INTERVAL_MS = 20 * 60 * 1000;
 
 /* ─── Utility helpers ─────────────────────────────────────── */
 function slugify(str: string): string {
@@ -66,7 +84,48 @@ function fmtDate(d?: string): string {
   catch { return d; }
 }
 
+function fmtDateTime(d?: string): string {
+  if (!d) return "â€”";
+  try {
+    return new Date(d).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return d;
+  }
+}
+
+function fmtDayLabel(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 /* ─── Shared UI primitives ───────────────────────────────── */
+function campaignDeliveredCount(campaign: Campaign): number {
+  return campaign.deliveredContactIds?.length ?? 0;
+}
+
+function campaignRemainingCount(campaign: Campaign): number {
+  return Math.max((campaign.contactIds?.length ?? campaign.recipients ?? 0) - campaignDeliveredCount(campaign), 0);
+}
+
+function compareStrings(a?: string, b?: string, direction: "asc" | "desc" = "asc"): number {
+  const left = (a ?? "").toLowerCase();
+  const right = (b ?? "").toLowerCase();
+  if (left === right) return 0;
+  const result = left < right ? -1 : 1;
+  return direction === "asc" ? result : -result;
+}
+
+function compareDates(a?: string, b?: string, direction: "newest" | "oldest" = "newest"): number {
+  const left = new Date(a ?? 0).getTime();
+  const right = new Date(b ?? 0).getTime();
+  return direction === "newest" ? right - left : left - right;
+}
+
 function humanizeChoice(value?: string): string {
   if (!value) return "â€”";
   return value
@@ -1254,22 +1313,30 @@ function ClientModal({
    CAMPAIGN MODAL
 ═══════════════════════════════════════════════════════════ */
 function CampaignModal({
+  initial,
   contacts,
   onClose,
   onSave,
 }: {
+  initial?: Campaign;
   contacts: Contact[];
   onClose: () => void;
-  onSave: (c: Campaign) => void;
+  onSave: (campaign: Campaign, action: "draft" | "schedule" | "send") => Promise<void>;
 }) {
-  const [type, setType] = useState<CampaignType>("email");
-  const [status, setStatus] = useState<CampaignStatus>("draft");
-  const [recipientMode, setRecipientMode] = useState<"all" | "specific">("all");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [type, setType] = useState<CampaignType>(initial?.type ?? "email");
+  const [recipientMode, setRecipientMode] = useState<"all" | "specific">(initial?.recipientMode ?? "all");
+  const [subject, setSubject] = useState(initial?.subject ?? "");
+  const [message, setMessage] = useState(initial?.message ?? "");
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>(initial?.contactIds ?? []);
   const [contactSearch, setContactSearch] = useState("");
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [bodySource, setBodySource] = useState<"text" | "html">(initial?.bodySource ?? "text");
+  const [htmlBody, setHtmlBody] = useState(initial?.htmlBody ?? "");
+  const [htmlFileName, setHtmlFileName] = useState(initial?.htmlFileName ?? "");
+  const [scheduledFor, setScheduledFor] = useState(
+    initial?.scheduledFor ? toLocalDateTimeInputValue(initial.scheduledFor) : ""
+  );
+  const [savingAction, setSavingAction] = useState<"draft" | "schedule" | "send" | null>(null);
+  const [error, setError] = useState("");
 
   const eligibleContacts = contacts.filter((contact) =>
     type === "email" ? Boolean(contact.email) : Boolean(contact.phone)
@@ -1296,46 +1363,112 @@ function CampaignModal({
     );
   }
 
-  function handleSave() {
-    if (type === "email" && !subject.trim()) return;
-    if (!message.trim()) return;
-    if (recipientMode === "specific" && recipients === 0) return;
+  async function handleSave(action: "draft" | "schedule" | "send") {
+    const resolvedBodySource = type === "email" ? bodySource : "text";
 
-    const now = new Date().toISOString();
-    onSave({
-      id: uid(),
-      type,
-      subject: type === "email" ? subject.trim() : undefined,
-      message: message.trim(),
-      status,
-      recipients,
-      recipientMode,
-      contactIds: recipientMode === "specific" ? selectedContactIds : undefined,
-      attachments: attachments.length ? attachments : undefined,
-      createdAt: now,
-      updatedAt: now,
-    });
+    if (type === "email" && !subject.trim()) {
+      setError("Email campaigns need a subject.");
+      return;
+    }
+    if (resolvedBodySource === "text" && !message.trim()) {
+      setError("Message body is required.");
+      return;
+    }
+    if (type === "email" && resolvedBodySource === "html" && !htmlBody.trim()) {
+      setError("Upload an HTML file for the email body.");
+      return;
+    }
+    if (recipientMode === "specific" && recipients === 0) {
+      setError("Pick at least one recipient.");
+      return;
+    }
+    if (action === "schedule" && !scheduledFor) {
+      setError("Choose a date and time to schedule this.");
+      return;
+    }
+
+    const scheduledDate =
+      action === "schedule" ? new Date(scheduledFor) : null;
+    if (action === "schedule" && (!scheduledDate || Number.isNaN(scheduledDate.getTime()))) {
+      setError("Choose a valid date and time to schedule this.");
+      return;
+    }
+
+    setError("");
+    setSavingAction(action);
+
+    try {
+      const now = new Date().toISOString();
+      await onSave(
+        {
+          id: initial?.id ?? uid(),
+          type,
+          subject: type === "email" ? subject.trim() : undefined,
+          message: resolvedBodySource === "text" ? message.trim() : stripHtmlPreview(htmlBody),
+          status:
+            action === "send"
+              ? "sent"
+              : action === "schedule"
+                ? "scheduled"
+                : "draft",
+          recipients,
+          recipientMode,
+          contactIds:
+            recipientMode === "specific"
+              ? selectedContactIds
+              : eligibleContacts.map((contact) => contact.id),
+          bodySource: resolvedBodySource,
+          htmlBody: type === "email" && resolvedBodySource === "html" ? htmlBody : undefined,
+          htmlFileName: type === "email" && resolvedBodySource === "html" ? htmlFileName || undefined : undefined,
+          scheduledFor: action === "schedule" ? scheduledDate!.toISOString() : undefined,
+          createdAt: initial?.createdAt ?? now,
+          updatedAt: now,
+          sentAt: action === "send" ? now : initial?.sentAt,
+          lastError: undefined,
+        },
+        action
+      );
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save campaign.");
+    } finally {
+      setSavingAction(null);
+    }
   }
 
   return (
-    <Modal title="New Message" onClose={onClose} wide>
+    <Modal title={initial ? "Edit Compose" : "Compose"} onClose={onClose} wide>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Field>
             <Label>Type</Label>
-            <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as CampaignType)}>
+            <select
+              className={inputCls}
+              value={type}
+              onChange={(e) => {
+                const nextType = e.target.value as CampaignType;
+                setType(nextType);
+                if (nextType === "sms") {
+                  setBodySource("text");
+                }
+              }}
+            >
               <option value="email">Email</option>
               <option value="sms">SMS</option>
             </select>
           </Field>
-          <Field>
-            <Label>Status</Label>
-            <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value as CampaignStatus)}>
-              <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="sent">Sent</option>
-            </select>
-          </Field>
+          {type === "email" && (
+            <Field>
+              <Label>Body Source</Label>
+              <select
+                className={inputCls}
+                value={bodySource}
+                onChange={(e) => setBodySource(e.target.value as "text" | "html")}
+              >
+                <option value="text">Typed Body</option>
+                <option value="html">HTML File</option>
+              </select>
+            </Field>
+          )}
         </div>
 
         {type === "email" && (
@@ -1345,16 +1478,60 @@ function CampaignModal({
           </Field>
         )}
 
-        <Field>
-          <Label required>Message</Label>
-          <textarea
-            className={textareaCls}
-            rows={5}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={type === "email" ? "Email body" : "Text message body"}
-          />
-        </Field>
+        {type === "email" && (
+          <p className="text-[11px] text-white/35">
+            Email campaigns send through Resend. Use a typed body for simple emails or upload an HTML file for fully formatted layouts.
+          </p>
+        )}
+
+        {(type === "sms" || bodySource === "text") && (
+          <Field>
+            <Label required>Message</Label>
+            <textarea
+              className={textareaCls}
+              rows={5}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={type === "email" ? "Email body" : "Text message body"}
+            />
+          </Field>
+        )}
+
+        {type === "email" && bodySource === "html" && (
+          <Field>
+            <Label required>HTML Email Template</Label>
+            <input
+              type="file"
+              accept=".html,text/html"
+              className="block w-full text-xs text-white/55 file:mr-3 file:h-9 file:px-3 file:border-0 file:rounded-sm file:bg-white/8 file:text-white file:text-xs"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) {
+                  setHtmlBody("");
+                  setHtmlFileName("");
+                  return;
+                }
+                setHtmlBody(await file.text());
+                setHtmlFileName(file.name);
+              }}
+            />
+            {htmlFileName && (
+              <p className="mt-2 text-[11px] text-white/35">Loaded template: {htmlFileName}</p>
+            )}
+            {htmlBody && (
+              <div className="mt-3 overflow-hidden rounded-sm border border-white/8 bg-white/4">
+                <div className="border-b border-white/8 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/35">
+                  Template Preview
+                </div>
+                <iframe
+                  title="Email template preview"
+                  srcDoc={htmlBody}
+                  className="h-56 w-full bg-white"
+                />
+              </div>
+            )}
+          </Field>
+        )}
 
         <Field>
           <Label>Recipients</Label>
@@ -1397,36 +1574,286 @@ function CampaignModal({
         )}
 
         <Field>
-          <Label>Attachments</Label>
+          <Label>Schedule</Label>
           <input
-            type="file"
-            multiple
-            className="block w-full text-xs text-white/55 file:mr-3 file:h-9 file:px-3 file:border-0 file:rounded-sm file:bg-white/8 file:text-white file:text-xs"
-            onChange={(e) =>
-              setAttachments(Array.from(e.target.files ?? []).map((file) => file.name))
-            }
+            type="datetime-local"
+            className={inputCls}
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
           />
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {attachments.map((file) => (
-                <span key={file} className="px-2 py-1 rounded-sm bg-white/6 text-[10px] text-white/55">
-                  {file}
-                </span>
-              ))}
-            </div>
-          )}
+          <p className="mt-2 text-[11px] text-white/35">
+            Uses your local browser time. Draft and Send ignore this.
+          </p>
         </Field>
 
         <div className="text-xs text-white/40">
           Recipient count: {recipients}
         </div>
+        {initial?.lastError && (
+          <p className="text-[11px] text-[#ef4242]">Last error: {initial.lastError}</p>
+        )}
+        {error && (
+          <p className="text-[11px] text-[#ef4242]">{error}</p>
+        )}
       </div>
-      <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/8">
-        <button className={btnGhost} onClick={onClose}>Cancel</button>
-        <button className={`${btnRed} inline-flex items-center justify-center`} onClick={handleSave}>Create Message</button>
+      <div className="flex flex-wrap justify-end gap-3 px-6 py-4 border-t border-white/8">
+        <button
+          className="inline-flex h-10 w-[120px] items-center justify-center rounded-sm border border-white/15 text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+        <button
+          className="inline-flex h-10 w-[120px] items-center justify-center rounded-sm border border-white/15 text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white"
+          onClick={() => void handleSave("draft")}
+          disabled={savingAction !== null}
+        >
+          {savingAction === "draft" ? "Saving..." : "Draft"}
+        </button>
+        <button
+          className="inline-flex h-10 w-[120px] items-center justify-center rounded-sm border border-white/15 text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white"
+          onClick={() => void handleSave("schedule")}
+          disabled={savingAction !== null}
+        >
+          {savingAction === "schedule" ? "Scheduling..." : "Schedule"}
+        </button>
+        <button
+          className="inline-flex h-10 w-[120px] items-center justify-center rounded-sm bg-[#ef4242] text-xs text-white transition-colors hover:bg-[#d93838]"
+          onClick={() => void handleSave("send")}
+          disabled={savingAction !== null}
+        >
+          {savingAction === "send" ? "Sending..." : "Send"}
+        </button>
       </div>
     </Modal>
   );
+}
+
+function CampaignViewModal({
+  campaign,
+  contacts,
+  onSendBatch,
+  onClose,
+}: {
+  campaign: Campaign;
+  contacts: Contact[];
+  onSendBatch: (campaign: Campaign, count: number) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [batchCount, setBatchCount] = useState(() =>
+    String(Math.min(10, Math.max(campaignRemainingCount(campaign), 1), 100))
+  );
+  const [sendError, setSendError] = useState("");
+  const [sendingBatch, setSendingBatch] = useState(false);
+  const deliveredContacts = (campaign.deliveryLog ?? [])
+    .map((entry) => ({
+      entry,
+      contact: contacts.find((contact) => contact.id === entry.contactId),
+    }))
+    .filter((item) => item.contact);
+
+  async function handleSendBatch() {
+    const count = Math.max(1, Math.min(100, Math.floor(Number(batchCount) || 0)));
+    if (!count) {
+      setSendError("Choose a batch size between 1 and 100.");
+      return;
+    }
+
+    setSendError("");
+    setSendingBatch(true);
+    try {
+      await onSendBatch(campaign, count);
+      onClose();
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Failed to send batch.");
+    } finally {
+      setSendingBatch(false);
+    }
+  }
+
+  return (
+    <Modal title="Message Details" onClose={onClose} wide>
+      <div className="space-y-4 p-6 text-sm">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field>
+            <Label>Type</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {campaign.type.toUpperCase()}
+            </div>
+          </Field>
+          <Field>
+            <Label>Status</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {campaign.status}
+            </div>
+          </Field>
+        </div>
+
+        {campaign.subject && (
+          <Field>
+            <Label>Subject</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {campaign.subject}
+            </div>
+          </Field>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field>
+            <Label>Created</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {fmtDateTime(campaign.createdAt)}
+            </div>
+          </Field>
+          <Field>
+            <Label>Recipients</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {campaign.recipients}
+            </div>
+          </Field>
+        </div>
+
+        <Field>
+          <Label>Body Type</Label>
+          <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+            {campaign.type === "sms"
+              ? "SMS Text"
+              : campaign.bodySource === "html"
+                ? "HTML Template via Resend"
+                : "Typed Email Body via Resend"}
+          </div>
+        </Field>
+
+        {campaign.type === "email" && campaign.recipients > 0 && (
+          <Field>
+            <Label>Delivery Progress</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {campaignDeliveredCount(campaign)} sent, {campaignRemainingCount(campaign)} remaining
+            </div>
+          </Field>
+        )}
+
+        {campaign.type === "email" && campaignRemainingCount(campaign) > 0 && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[140px_1fr] md:items-end">
+            <Field>
+              <Label>Send Next</Label>
+              <input
+                type="number"
+                min={1}
+                max={Math.min(100, campaignRemainingCount(campaign))}
+                className={inputCls}
+                value={batchCount}
+                onChange={(e) => setBatchCount(e.target.value)}
+              />
+            </Field>
+            <button
+              className="inline-flex h-10 w-[140px] items-center justify-center rounded-sm border border-white/15 text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white disabled:opacity-50"
+              onClick={() => void handleSendBatch()}
+              disabled={sendingBatch}
+            >
+              {sendingBatch ? "Sending..." : "Send Batch"}
+            </button>
+          </div>
+        )}
+
+        {campaign.scheduledFor && (
+          <Field>
+            <Label>Scheduled For</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {fmtDateTime(campaign.scheduledFor)}
+            </div>
+          </Field>
+        )}
+
+        {campaign.sentAt && (
+          <Field>
+            <Label>Sent At</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {fmtDateTime(campaign.sentAt)}
+            </div>
+          </Field>
+        )}
+
+        {campaign.htmlFileName && (
+          <Field>
+            <Label>HTML Template</Label>
+            <div className="rounded-sm border border-white/8 bg-white/4 px-3 py-2 text-white/75">
+              {campaign.htmlFileName}
+            </div>
+          </Field>
+        )}
+
+        {campaign.type === "email" && campaign.bodySource === "html" && campaign.htmlBody && (
+          <Field>
+            <Label>HTML Preview</Label>
+            <div className="overflow-hidden rounded-sm border border-white/8 bg-white/4">
+              <iframe
+                title="Stored email HTML preview"
+                srcDoc={campaign.htmlBody}
+                className="h-64 w-full bg-white"
+              />
+            </div>
+          </Field>
+        )}
+
+        <Field>
+          <Label>{campaign.type === "email" && campaign.bodySource === "html" ? "Text Fallback / Summary" : "Message"}</Label>
+          <div className="whitespace-pre-wrap rounded-sm border border-white/8 bg-white/4 px-3 py-3 text-white/70">
+            {campaign.message}
+          </div>
+        </Field>
+
+        {deliveredContacts.length > 0 && (
+          <Field>
+            <Label>Delivery Log</Label>
+            <div className="max-h-56 space-y-2 overflow-y-auto rounded-sm border border-white/8 bg-white/4 p-3">
+              {deliveredContacts.map(({ entry, contact }) => (
+                <div
+                  key={`${entry.contactId}-${entry.deliveredAt}`}
+                  className="flex flex-col gap-1 border-b border-white/6 pb-2 text-[11px] text-white/65 last:border-0 last:pb-0"
+                >
+                  <span>{contact?.name || entry.contactId}</span>
+                  <span className="text-white/35">
+                    {contact?.email || contact?.phone || entry.contactId}
+                  </span>
+                  <span className="text-white/25">{fmtDateTime(entry.deliveredAt)}</span>
+                </div>
+              ))}
+            </div>
+          </Field>
+        )}
+
+        {campaign.lastError && (
+          <p className="text-[11px] text-[#ef4242]">Last error: {campaign.lastError}</p>
+        )}
+        {sendError && (
+          <p className="text-[11px] text-[#ef4242]">{sendError}</p>
+        )}
+      </div>
+      <div className="flex justify-end border-t border-white/8 px-6 py-4">
+        <button className={`${btnGhost} w-[120px]`} onClick={onClose}>Close</button>
+      </div>
+    </Modal>
+  );
+}
+
+function stripHtmlPreview(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toLocalDateTimeInputValue(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1434,6 +1861,7 @@ function CampaignModal({
 ═══════════════════════════════════════════════════════════ */
 export default function AdminDashboard() {
   const router = useRouter();
+  const { mutate } = useSWRConfig();
   const [activeSection, setActiveSection] = useState<NavSection>("dashboard");
 
   /* ── Data state ── */
@@ -1441,6 +1869,7 @@ export default function AdminDashboard() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rizzEntries, setRizzEntries] = useState<RizzEntry[]>([]);
   const [tapCounts, setTapCounts] = useState<Record<string, number>>({});
@@ -1453,6 +1882,11 @@ export default function AdminDashboard() {
     totalProjectViews: number;
     refreshedAt?: string;
   } | null>(null);
+  const projectViewsAutoRefreshRef = useRef<() => void>(() => {});
+  const [tapEditorType, setTapEditorType] = useState<"project" | "article">("project");
+  const [tapEditorTargetId, setTapEditorTargetId] = useState("");
+  const [tapEditorCount, setTapEditorCount] = useState("");
+  const [tapEditorSaving, setTapEditorSaving] = useState(false);
 
   /* ── Resume state ── */
   const [resumeLoaded, setResumeLoaded] = useState(false);
@@ -1471,13 +1905,28 @@ export default function AdminDashboard() {
   /* ── Filters ── */
   const [projectSearch, setProjectSearch] = useState("");
   const [projectCategoryFilter, setProjectCategoryFilter] = useState("");
+  const [projectSort, setProjectSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
   const [articleSearch, setArticleSearch] = useState("");
+  const [articleSort, setArticleSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientSort, setClientSort] = useState<"az" | "za" | "newest" | "oldest">("az");
+  const [resumeSearch, setResumeSearch] = useState("");
+  const [contactsSearch, setContactsSearch] = useState("");
+  const [contactsSort, setContactsSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
+  const [rateLimitSearch, setRateLimitSearch] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
+  const [messagesSort, setMessagesSort] = useState<"newest" | "oldest" | "az" | "za" | "read" | "unread">("newest");
+  const [rizzSearch, setRizzSearch] = useState("");
+  const [rizzSort, setRizzSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminSearchFocused, setAdminSearchFocused] = useState(false);
 
   /* ── Modal state ── */
   const [projectModal, setProjectModal] = useState<{ open: boolean; editing?: Project }>({ open: false });
   const [articleModal, setArticleModal] = useState<{ open: boolean; editing?: Article }>({ open: false });
   const [clientModal, setClientModal] = useState<{ open: boolean; editing?: Client }>({ open: false });
-  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [campaignModal, setCampaignModal] = useState<{ open: boolean; editing?: Campaign }>({ open: false });
+  const [campaignView, setCampaignView] = useState<Campaign | null>(null);
 
   /* ── Delete confirm ── */
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "project" | "article" | "client" | "contact" | "campaign" | "rizz"; id: string; label: string } | null>(null);
@@ -1486,11 +1935,25 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [pRes, aRes, cRes, contactsRes, campaignsRes, rizzRes, tapsRes] = await Promise.all([
+        const cachedAudit = window.localStorage.getItem(PROJECT_VIEWS_AUDIT_CACHE_KEY);
+        if (cachedAudit) {
+          const parsed = JSON.parse(cachedAudit) as { totalProjectViews?: number; refreshedAt?: string };
+          if (typeof parsed.totalProjectViews === "number") {
+            setProjectViewsAuditSummary({
+              totalProjectViews: parsed.totalProjectViews,
+              refreshedAt: parsed.refreshedAt,
+            });
+          }
+        }
+      } catch {}
+
+      try {
+        const [pRes, aRes, cRes, contactsRes, rateLimitsRes, campaignsRes, rizzRes, tapsRes] = await Promise.all([
           fetch("/api/admin/projects"),
           fetch("/api/admin/articles"),
           fetch("/api/admin/clients"),
           fetch("/api/admin/contacts"),
+          fetch("/api/admin/rate-limits"),
           fetch("/api/admin/campaigns"),
           fetch("/api/admin/rizz"),
           fetch("/api/admin/taps"),
@@ -1503,6 +1966,8 @@ export default function AdminDashboard() {
         else setClients([]);
         if (contactsRes.ok) setContacts(await contactsRes.json());
         else setContacts([]);
+        if (rateLimitsRes.ok) setRateLimits(await rateLimitsRes.json());
+        else setRateLimits([]);
         if (campaignsRes.ok) setCampaigns(await campaignsRes.json());
         else setCampaigns([]);
         if (rizzRes.ok) setRizzEntries(await rizzRes.json());
@@ -1520,6 +1985,7 @@ export default function AdminDashboard() {
         setArticles([]);
         setClients([]);
         setContacts([]);
+        setRateLimits([]);
         setCampaigns([]);
         setRizzEntries([]);
         setTapCounts({});
@@ -1528,6 +1994,49 @@ export default function AdminDashboard() {
     }
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      fetch("/api/admin/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "process-due" }),
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setCampaigns(data as Campaign[]);
+          }
+        })
+        .catch(() => {});
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [hydrated]);
+
+  const projectViewsLastRefresh = projectViewsAuditSummary?.refreshedAt;
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    const lastRefresh = projectViewsLastRefresh ? new Date(projectViewsLastRefresh).getTime() : 0;
+
+    if (!lastRefresh || Date.now() - lastRefresh >= PROJECT_VIEWS_REFRESH_INTERVAL_MS) {
+      projectViewsAutoRefreshRef.current();
+    }
+
+    const interval = window.setInterval(() => {
+      projectViewsAutoRefreshRef.current();
+    }, PROJECT_VIEWS_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [hydrated, projectViewsLastRefresh]);
 
   function getProjectHref(project: Project): string {
     if (project.category === "coding-projects") {
@@ -1552,6 +2061,66 @@ export default function AdminDashboard() {
     }
 
     return `/work`;
+  }
+
+  const tapTargets = [
+    ...projects.map((project) => ({
+      id: project.id,
+      label: project.title,
+      type: "project" as const,
+    })),
+    ...articles.map((article) => ({
+      id: article.id,
+      label: article.title,
+      type: "article" as const,
+    })),
+  ].sort((a, b) => compareStrings(a.label, b.label, "asc"));
+
+  const filteredTapTargets = tapTargets.filter((target) => target.type === tapEditorType);
+
+  useEffect(() => {
+    if (filteredTapTargets.length === 0) {
+      setTapEditorTargetId("");
+      setTapEditorCount("");
+      return;
+    }
+
+    if (!filteredTapTargets.some((target) => target.id === tapEditorTargetId)) {
+      const firstTarget = filteredTapTargets[0];
+      setTapEditorTargetId(firstTarget.id);
+      setTapEditorCount(String(tapCounts[firstTarget.id] ?? 0));
+    }
+  }, [filteredTapTargets, tapEditorTargetId, tapCounts]);
+
+  async function saveTapOverride() {
+    if (!tapEditorTargetId) return;
+
+    const nextCount = Math.max(0, Number(tapEditorCount.replace(/[^\d]/g, "") || 0));
+    setTapEditorSaving(true);
+
+    try {
+      const response = await fetch("/api/admin/taps", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: tapEditorTargetId,
+          type: tapEditorType,
+          count: nextCount,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`);
+      }
+
+      setTapCounts((prev) => ({ ...prev, [tapEditorTargetId]: nextCount }));
+      setTapEditorCount(String(nextCount));
+      void mutate("/api/admin/analytics");
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setTapEditorSaving(false);
+    }
   }
 
   /* ── Resume section lazy-load ── */
@@ -1748,18 +2317,22 @@ export default function AdminDashboard() {
     return (await response.json()) as MetricsAuditResponse;
   }
 
-  async function refreshProjectViewsAudit() {
+  async function refreshProjectViewsAudit(mode: "manual" | "auto" = "manual") {
     setProjectViewsRefreshing(true);
-    setProjectViewsAuditLog(["Running project video scan..."]);
+    setProjectViewsAuditLog([
+      mode === "auto" ? "Automatic project video scan running..." : "Running project video scan...",
+    ]);
 
     try {
       const report = await runMetricsAudit("project-views");
       const lines = report.lines?.length ? report.lines : ["No output returned."];
-      setProjectViewsAuditLog(lines);
-      setProjectViewsAuditSummary({
+      const nextSummary = {
         totalProjectViews: report.totalProjectViews ?? 0,
         refreshedAt: report.refreshedAt,
-      });
+      };
+      setProjectViewsAuditLog(lines);
+      setProjectViewsAuditSummary(nextSummary);
+      window.localStorage.setItem(PROJECT_VIEWS_AUDIT_CACHE_KEY, JSON.stringify(nextSummary));
 
       const projectsRes = await fetch("/api/admin/projects");
       if (projectsRes.ok) {
@@ -1772,14 +2345,76 @@ export default function AdminDashboard() {
     }
   }
 
+  projectViewsAutoRefreshRef.current = () => {
+    void refreshProjectViewsAudit("auto");
+  };
+
+  function persistContacts(next: Contact[]) {
+    fetch("/api/admin/contacts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    }).catch(console.error);
+  }
+
+  async function mutateRateLimitRecord(
+    action: "reset" | "clear-pii",
+    record: RateLimit
+  ) {
+    const response = await fetch("/api/admin/rate-limits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, record }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+
+    setRateLimits((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== record.id) return entry;
+        if (action === "reset") {
+          return {
+            ...entry,
+            count: 0,
+            blockedCount: 0,
+            lastBlockedAt: undefined,
+            notes: "Reset by admin",
+          };
+        }
+        return {
+          ...entry,
+          ip: undefined,
+          browser: undefined,
+          userAgent: undefined,
+          city: undefined,
+          region: undefined,
+          country: undefined,
+          notes: "PII cleared by admin",
+        };
+      })
+    );
+  }
+
+  async function deleteRateLimit(id: string) {
+    const response = await fetch("/api/admin/rate-limits", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+
+    setRateLimits((prev) => prev.filter((entry) => entry.id !== id));
+  }
+
   function deleteContact(id: string) {
     setContacts((prev) => {
       const next = prev.filter((c) => c.id !== id);
-      fetch("/api/admin/contacts", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(next),
-      }).catch(console.error);
+      persistContacts(next);
       return next;
     });
   }
@@ -1787,11 +2422,25 @@ export default function AdminDashboard() {
   function toggleContactSubscription(id: string) {
     setContacts((prev) => {
       const next = prev.map((c) => (c.id === id ? { ...c, subscribed: !c.subscribed } : c));
-      fetch("/api/admin/contacts", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(next),
-      }).catch(console.error);
+      persistContacts(next);
+      return next;
+    });
+  }
+
+  function setMessageReadState(ids: string[], read: boolean) {
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    setContacts((prev) => {
+      const next = prev.map((contact) =>
+        ids.includes(contact.id)
+          ? {
+              ...contact,
+              messageRead: read,
+              messageReadAt: read ? now : undefined,
+            }
+          : contact
+      );
+      persistContacts(next);
       return next;
     });
   }
@@ -1806,6 +2455,33 @@ export default function AdminDashboard() {
       }).catch(console.error);
       return next;
     });
+  }
+
+  async function saveCampaign(campaign: Campaign, action: "draft" | "schedule" | "send", batchSize?: number) {
+    const response = await fetch("/api/admin/campaigns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ campaign, action, batchSize }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        typeof payload?.error === "string" ? payload.error : `Request failed with ${response.status}`
+      );
+    }
+
+    const savedCampaign = payload.campaign as Campaign;
+    setCampaigns((prev) => {
+      const exists = prev.some((entry) => entry.id === savedCampaign.id);
+      const next = exists
+        ? prev.map((entry) => (entry.id === savedCampaign.id ? savedCampaign : entry))
+        : [savedCampaign, ...prev];
+      return next.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    });
+    setCampaignModal({ open: false });
   }
 
   function deleteRizzSubmission(id: string) {
@@ -1853,25 +2529,350 @@ export default function AdminDashboard() {
     const matchSearch = !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase());
     const matchCat = !projectCategoryFilter || p.category === projectCategoryFilter;
     return matchSearch && matchCat;
+  }).sort((a, b) => {
+    if (projectSort === "az") return compareStrings(a.title, b.title, "asc");
+    if (projectSort === "za") return compareStrings(a.title, b.title, "desc");
+    return compareDates(a.publishDate, b.publishDate, projectSort);
   });
 
   const filteredArticles = articles.filter((a) =>
     !articleSearch || a.title.toLowerCase().includes(articleSearch.toLowerCase())
-  );
+  ).sort((a, b) => {
+    if (articleSort === "az") return compareStrings(a.title, b.title, "asc");
+    if (articleSort === "za") return compareStrings(a.title, b.title, "desc");
+    return compareDates(a.publishDate, b.publishDate, articleSort);
+  });
+  const filteredClients = clients.filter((client) => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      client.name.toLowerCase().includes(q) ||
+      (client.location ?? "").toLowerCase().includes(q) ||
+      client.roles.some((role) => role.toLowerCase().includes(q))
+    );
+  }).sort((a, b) => (
+    clientSort === "newest" || clientSort === "oldest"
+      ? compareDates(a.createdAt, b.createdAt, clientSort)
+      : compareStrings(a.name, b.name, clientSort === "az" ? "asc" : "desc")
+  ));
+  const filteredContacts = contacts.filter((contact) => {
+    const q = contactsSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      contact.name.toLowerCase().includes(q) ||
+      (contact.email ?? "").toLowerCase().includes(q) ||
+      (contact.phone ?? "").toLowerCase().includes(q) ||
+      (contact.source ?? "").toLowerCase().includes(q)
+    );
+  }).sort((a, b) => {
+    if (contactsSort === "az") return compareStrings(a.name, b.name, "asc");
+    if (contactsSort === "za") return compareStrings(a.name, b.name, "desc");
+    return compareDates(a.createdAt, b.createdAt, contactsSort);
+  });
+  const filteredRateLimits = rateLimits.filter((entry) => {
+    const q = rateLimitSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [
+      entry.scope,
+      entry.ip,
+      entry.browser,
+      entry.userAgent,
+      entry.city,
+      entry.region,
+      entry.country,
+      entry.notes,
+    ]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(q));
+  });
+  const contactFormEntries = contacts.filter((contact) => contact.source === "contact-form");
+  const filteredMessageEntries = contactFormEntries.filter((entry) => {
+    const q = messageSearch.trim().toLowerCase();
+    if (!q) return true;
+
+    return (
+      entry.name.toLowerCase().includes(q) ||
+      (entry.subject ?? "").toLowerCase().includes(q) ||
+      (entry.email ?? "").toLowerCase().includes(q) ||
+      (entry.phone ?? "").toLowerCase().includes(q) ||
+      entry.message.toLowerCase().includes(q)
+    );
+  }).sort((a, b) => {
+    if (messagesSort === "az") return compareStrings(a.name, b.name, "asc");
+    if (messagesSort === "za") return compareStrings(a.name, b.name, "desc");
+    if (messagesSort === "read") return Number(Boolean(b.messageRead)) - Number(Boolean(a.messageRead));
+    if (messagesSort === "unread") return Number(Boolean(a.messageRead)) - Number(Boolean(b.messageRead));
+    return compareDates(a.createdAt, b.createdAt, messagesSort);
+  });
+  const filteredRizzEntries = rizzEntries.filter((entry) => {
+    const q = rizzSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      entry.name.toLowerCase().includes(q) ||
+      entry.nickname.toLowerCase().includes(q) ||
+      entry.phone.toLowerCase().includes(q) ||
+      humanizeChoiceList(entry.dateIdeas ?? (entry.dateIdea ? [entry.dateIdea] : [])).toLowerCase().includes(q) ||
+      humanizeChoiceList(entry.vibes ?? (entry.vibe ? [entry.vibe] : [])).toLowerCase().includes(q) ||
+      humanizeChoiceList(entry.winOvers ?? (entry.winOver ? [entry.winOver] : [])).toLowerCase().includes(q)
+    );
+  }).sort((a, b) => {
+    if (rizzSort === "az") return compareStrings(a.name, b.name, "asc");
+    if (rizzSort === "za") return compareStrings(a.name, b.name, "desc");
+    return compareDates(a.createdAt, b.createdAt, rizzSort);
+  });
 
   /* ── Derived dashboard stats ── */
 
   /* ── Nav sections config ── */
-  const navItems: { key: NavSection; label: string }[] = [
+  const unreadMessages = contactFormEntries.filter((entry) => !entry.messageRead).length;
+
+  const resumeQuery = resumeSearch.trim().toLowerCase();
+  const filteredExperiences = experiences.filter((exp) => {
+    if (!resumeQuery) return true;
+    return [exp.role, exp.companyName, exp.description, exp.type]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(resumeQuery));
+  });
+  const filteredEducations = educations.filter((education) => {
+    if (!resumeQuery) return true;
+    return [education.degree, education.institution, education.field, education.description]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(resumeQuery));
+  });
+  const filteredSkillsList = skills.filter((skill) => {
+    if (!resumeQuery) return true;
+    return [skill.name, skill.category]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(resumeQuery));
+  });
+  const filteredCertificationsList = certifications.filter((cert) => {
+    if (!resumeQuery) return true;
+    return [cert.name, cert.issuer, cert.date]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(resumeQuery));
+  });
+  const filteredAwardsList = awards.filter((award) => {
+    if (!resumeQuery) return true;
+    return [award.name, award.issuer, award.description, award.date]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(resumeQuery));
+  });
+  const filteredClubsList = clubs.filter((club) => {
+    if (!resumeQuery) return true;
+    return [club.name, club.role, club.description, club.startDate, club.endDate]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(resumeQuery));
+  });
+
+  const smsEmailLast90Days = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 89);
+
+    const rows = Array.from({ length: 90 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      const key = day.toISOString().slice(0, 10);
+      return { key, label: fmtDayLabel(day), sms: 0, email: 0 };
+    });
+
+    const byDay = new Map(rows.map((row) => [row.key, row]));
+    contacts.forEach((contact) => {
+      const createdAt = new Date(contact.createdAt);
+      if (Number.isNaN(createdAt.getTime()) || createdAt < start) return;
+      const bucket = byDay.get(createdAt.toISOString().slice(0, 10));
+      if (!bucket) return;
+      if (contact.phone) bucket.sms += 1;
+      if (contact.email) bucket.email += 1;
+    });
+
+    return rows;
+  })();
+
+  const contactFormLast90Days = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 89);
+
+    const rows = Array.from({ length: 90 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      const key = day.toISOString().slice(0, 10);
+      return { key, label: fmtDayLabel(day), submissions: 0 };
+    });
+
+    const byDay = new Map(rows.map((row) => [row.key, row]));
+    contactFormEntries.forEach((entry) => {
+      const createdAt = new Date(entry.createdAt);
+      if (Number.isNaN(createdAt.getTime()) || createdAt < start) return;
+      const bucket = byDay.get(createdAt.toISOString().slice(0, 10));
+      if (!bucket) return;
+      bucket.submissions += 1;
+    });
+
+    return rows;
+  })();
+
+  const navItems: { key: NavSection; label: string; unreadCount?: number }[] = [
     { key: "dashboard", label: "Dashboard" },
     { key: "projects", label: "Projects" },
     { key: "articles", label: "Articles" },
     { key: "clients", label: "Clients" },
     { key: "resume", label: "Resume" },
     { key: "contacts", label: "Contacts" },
-    { key: "campaigns", label: "Send Message" },
+    { key: "rate-limits", label: "Rate Limits" },
+    { key: "contact-form-entries", label: "Messages", unreadCount: unreadMessages },
+    { key: "campaigns", label: "Compose" },
     { key: "rizz", label: "Rizz" },
   ];
+
+  const adminSearchQuery = adminSearch.trim().toLowerCase();
+  const adminSearchResults = !adminSearchQuery
+    ? []
+    : [
+        ...navItems
+          .filter((item) => item.label.toLowerCase().includes(adminSearchQuery))
+          .map((item) => ({
+            id: `section-${item.key}`,
+            label: item.label,
+            hint: "Section",
+            section: item.key,
+            onSelect: () => {
+              setActiveSection(item.key);
+              setAdminSearch("");
+            },
+          })),
+        ...projects
+          .filter((project) => project.title.toLowerCase().includes(adminSearchQuery))
+          .slice(0, 5)
+          .map((project) => ({
+            id: `project-${project.id}`,
+            label: project.title,
+            hint: "Project",
+            section: "projects" as NavSection,
+            onSelect: () => {
+              setActiveSection("projects");
+              setProjectSearch(project.title);
+              setAdminSearch("");
+            },
+          })),
+        ...articles
+          .filter((article) => article.title.toLowerCase().includes(adminSearchQuery))
+          .slice(0, 5)
+          .map((article) => ({
+            id: `article-${article.id}`,
+            label: article.title,
+            hint: "Article",
+            section: "articles" as NavSection,
+            onSelect: () => {
+              setActiveSection("articles");
+              setArticleSearch(article.title);
+              setAdminSearch("");
+            },
+          })),
+        ...clients
+          .filter((client) => client.name.toLowerCase().includes(adminSearchQuery))
+          .slice(0, 5)
+          .map((client) => ({
+            id: `client-${client.id}`,
+            label: client.name,
+            hint: "Client",
+            section: "clients" as NavSection,
+            onSelect: () => {
+              setActiveSection("clients");
+              setClientSearch(client.name);
+              setAdminSearch("");
+            },
+          })),
+        ...contacts
+          .filter((contact) =>
+            [contact.name, contact.email, contact.phone]
+              .filter(Boolean)
+              .some((value) => value!.toLowerCase().includes(adminSearchQuery))
+          )
+          .slice(0, 5)
+          .map((contact) => ({
+            id: `contact-${contact.id}`,
+            label: contact.name,
+            hint: "Contact",
+            section: "contacts" as NavSection,
+            onSelect: () => {
+              setActiveSection("contacts");
+              setContactsSearch(contact.name);
+              setAdminSearch("");
+            },
+          })),
+        ...rateLimits
+          .filter((entry) =>
+            [entry.ip, entry.browser, entry.userAgent, entry.scope, entry.city, entry.region, entry.country]
+              .filter(Boolean)
+              .some((value) => value!.toLowerCase().includes(adminSearchQuery))
+          )
+          .slice(0, 5)
+          .map((entry) => ({
+            id: `rate-limit-${entry.id}`,
+            label: entry.ip || entry.browser || entry.scope,
+            hint: "Rate Limit",
+            section: "rate-limits" as NavSection,
+            onSelect: () => {
+              setActiveSection("rate-limits");
+              setRateLimitSearch(entry.ip || entry.browser || entry.scope);
+              setAdminSearch("");
+            },
+          })),
+        ...contactFormEntries
+          .filter((entry) =>
+            [entry.name, entry.subject, entry.email, entry.phone, entry.message]
+              .filter(Boolean)
+              .some((value) => value!.toLowerCase().includes(adminSearchQuery))
+          )
+          .slice(0, 5)
+          .map((entry) => ({
+            id: `message-${entry.id}`,
+            label: entry.subject || entry.name,
+            hint: "Message",
+            section: "contact-form-entries" as NavSection,
+            onSelect: () => {
+              setActiveSection("contact-form-entries");
+              setMessageSearch(entry.subject || entry.name);
+              setAdminSearch("");
+            },
+          })),
+        ...campaigns
+          .filter((campaign) =>
+            (campaign.subject || "sms message").toLowerCase().includes(adminSearchQuery)
+          )
+          .slice(0, 5)
+          .map((campaign) => ({
+            id: `campaign-${campaign.id}`,
+            label: campaign.subject || "SMS Message",
+            hint: "Compose",
+            section: "campaigns" as NavSection,
+            onSelect: () => {
+              setActiveSection("campaigns");
+              setAdminSearch("");
+              setCampaignView(campaign);
+            },
+          })),
+        ...rizzEntries
+          .filter((entry) =>
+            [entry.name, entry.nickname, entry.phone]
+              .filter(Boolean)
+              .some((value) => value!.toLowerCase().includes(adminSearchQuery))
+          )
+          .slice(0, 5)
+          .map((entry) => ({
+            id: `rizz-${entry.id}`,
+            label: `${entry.name} (${entry.nickname})`,
+            hint: "Rizz",
+            section: "rizz" as NavSection,
+            onSelect: () => {
+              setActiveSection("rizz");
+              setRizzSearch(entry.name);
+              setAdminSearch("");
+            },
+          })),
+      ].slice(0, 16);
 
   const sectionTitles: Record<NavSection, string> = {
     dashboard: "Overview",
@@ -1880,7 +2881,9 @@ export default function AdminDashboard() {
     clients: "Clients",
     resume: "Resume",
     contacts: "Contacts",
-    campaigns: "Send Message",
+    "rate-limits": "Rate Limits",
+    "contact-form-entries": "Messages",
+    campaigns: "Compose",
     rizz: "Rizz",
   };
 
@@ -1898,23 +2901,28 @@ export default function AdminDashboard() {
       <aside className="fixed top-0 left-0 h-full w-[220px] bg-[#080808] border-r border-white/8 flex flex-col z-30">
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ key, label }) => (
+          {navItems.map(({ key, label, unreadCount }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key)}
-              className={`w-full text-left px-3 py-2 rounded-sm text-xs transition-colors ${
+              className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-sm text-xs transition-colors ${
                 activeSection === key
                   ? "text-[#ef4242] bg-[#ef4242]/8"
                   : "text-white/45 hover:text-white hover:bg-white/4"
               }`}
             >
-              {label}
+              <span>{label}</span>
+              {Boolean(unreadCount) && (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4242] px-1.5 py-0.5 text-[10px] text-white">
+                  {unreadCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
 
         {/* Back link + Logout */}
-        <div className="hidden px-4 py-4 border-t border-white/6 space-y-2">
+        <div className="px-4 py-4 border-t border-white/6 space-y-2">
           <Link href="/" className="flex items-center gap-2 text-[11px] text-white/30 hover:text-white/60 transition-colors">
             <span>←</span>
             <span>MDCran.com</span>
@@ -1933,10 +2941,48 @@ export default function AdminDashboard() {
       <main className="ml-[220px] flex-1 min-h-screen flex flex-col">
         {/* Header */}
         <header className="sticky top-0 z-20 h-14 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/8 px-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-[160px]">
             <h1 className="font-nord text-lg text-white">{sectionTitles[activeSection]}</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex-1 flex justify-center px-6">
+            <div className="relative w-full max-w-xl">
+              <input
+                className="w-full h-10 rounded-sm border border-white/10 bg-white/4 px-4 text-sm text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors"
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                onFocus={() => setAdminSearchFocused(true)}
+                onBlur={() => window.setTimeout(() => setAdminSearchFocused(false), 120)}
+                placeholder="Search admin center..."
+              />
+              {adminSearchFocused && adminSearchQuery && (
+                <div className="absolute top-full mt-2 w-full rounded-sm border border-white/10 bg-[#0b0b0b]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+                  {adminSearchResults.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-white/30">No matches found.</div>
+                  ) : (
+                    <div className="max-h-[360px] overflow-y-auto py-1">
+                      {adminSearchResults.map((result) => (
+                        <button
+                          key={result.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={result.onSelect}
+                          className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-white/4 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm text-white/80">{result.label}</div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">{result.hint}</div>
+                          </div>
+                          <span className="text-[10px] uppercase tracking-[0.18em] text-[#ef4242]/80">
+                            {sectionTitles[result.section]}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 min-w-[160px] justify-end">
             {activeSection === "projects" && (
               <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
             )}
@@ -1947,22 +2993,8 @@ export default function AdminDashboard() {
               <button className={btnRed} onClick={() => setClientModal({ open: true })}>+ New Client</button>
             )}
             {activeSection === "campaigns" && (
-              <button className={btnRed} onClick={() => setCampaignModalOpen(true)}>+ Send Message</button>
+              <button className={btnRed} onClick={() => setCampaignModal({ open: true })}>+ Compose</button>
             )}
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-3 h-9 border border-white/10 text-[11px] text-white/35 hover:text-white/70 hover:border-white/20 rounded-sm transition-colors"
-            >
-              <span>&larr;</span>
-              <span>MDCran.com</span>
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 px-3 h-9 border border-[#ef4242]/20 text-[11px] text-[#ef4242]/70 hover:text-[#ef4242] hover:border-[#ef4242]/35 rounded-sm transition-colors"
-            >
-              <span>&#x23FB;</span>
-              <span>Log Out</span>
-            </button>
           </div>
         </header>
 
@@ -1989,14 +3021,135 @@ export default function AdminDashboard() {
                 ))}
               </div>
 
-              <TapsChart />
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.85fr)] gap-4">
+                <TapsChart />
+                <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                  <div>
+                    <p className="font-nord text-sm text-white">Tap Overrides</p>
+                    <p className="text-xs text-white/35">Manually set tap counts for a project or article when you need to correct tracking.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Type</Label>
+                        <select
+                          className={inputCls}
+                          value={tapEditorType}
+                          onChange={(e) => {
+                            const nextType = e.target.value as "project" | "article";
+                            setTapEditorType(nextType);
+                            const nextTargets = tapTargets.filter((target) => target.type === nextType);
+                            const nextTarget = nextTargets[0];
+                            setTapEditorTargetId(nextTarget?.id ?? "");
+                            setTapEditorCount(String(nextTarget ? tapCounts[nextTarget.id] ?? 0 : ""));
+                          }}
+                        >
+                          <option value="project">Project</option>
+                          <option value="article">Article</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label>Current Count</Label>
+                        <div className="flex h-9 items-center rounded-sm border border-white/10 bg-black/20 px-3 text-sm text-white/60">
+                          {tapEditorTargetId ? (tapCounts[tapEditorTargetId] ?? 0).toLocaleString() : "—"}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Item</Label>
+                      <select
+                        className={inputCls}
+                        value={tapEditorTargetId}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setTapEditorTargetId(nextId);
+                          setTapEditorCount(String(tapCounts[nextId] ?? 0));
+                        }}
+                      >
+                        {filteredTapTargets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Set Taps</Label>
+                      <input
+                        className={inputCls}
+                        inputMode="numeric"
+                        value={tapEditorCount}
+                        onChange={(e) => setTapEditorCount(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-white/8 pt-4">
+                    <span className="text-[11px] text-white/30">
+                      Saved to MongoDB and reflected in the tap chart.
+                    </span>
+                    <button
+                      className={btnRed}
+                      onClick={() => void saveTapOverride()}
+                      disabled={!tapEditorTargetId || tapEditorSaving}
+                    >
+                      {tapEditorSaving ? "Saving..." : "Save Taps"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                  <div className="mb-4">
+                    <p className="font-nord text-sm text-white">SMS + Email Inflow (90 Days)</p>
+                    <p className="text-xs text-white/35">New contacts captured with phone numbers or email addresses.</p>
+                  </div>
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={smsEmailLast90Days}>
+                        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} minTickGap={18} />
+                        <YAxis tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: "#090909", border: "1px solid rgba(255,255,255,0.08)" }}
+                          labelStyle={{ color: "rgba(255,255,255,0.75)" }}
+                        />
+                        <Line type="monotone" dataKey="email" stroke="#ef4242" strokeWidth={2} dot={false} name="Email" />
+                        <Line type="monotone" dataKey="sms" stroke="#d4a853" strokeWidth={2} dot={false} name="SMS" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                  <div className="mb-4">
+                    <p className="font-nord text-sm text-white">Contact Form Submissions (90 Days)</p>
+                    <p className="text-xs text-white/35">Daily volume of messages submitted through the contact page.</p>
+                  </div>
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={contactFormLast90Days}>
+                        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} minTickGap={18} />
+                        <YAxis tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: "#090909", border: "1px solid rgba(255,255,255,0.08)" }}
+                          labelStyle={{ color: "rgba(255,255,255,0.75)" }}
+                        />
+                        <Bar dataKey="submissions" fill="#ef4242" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 gap-4">
                 <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-nord text-sm text-white">Project Views Refresh</p>
-                      <p className="text-xs text-white/35">Scans every linked project video, updates stored view counts, and shows the exact totals used.</p>
+                      <p className="text-xs text-white/35">Scans every linked project video, updates stored view counts, and auto-runs roughly every 20 minutes while the admin center is open.</p>
                     </div>
                     <button
                       className={btnRed}
@@ -2010,13 +3163,15 @@ export default function AdminDashboard() {
                     <div className="border border-white/8 rounded-sm p-3">
                       <p className="text-[10px] tracking-widest uppercase text-white/35 mb-1">Total Views</p>
                       <p className="font-nord text-xl text-white">
-                        {(projectViewsAuditSummary?.totalProjectViews ?? projects.reduce((sum, project) => sum + (project.videos?.reduce((videoSum, video) => videoSum + (video.viewCount ?? 0), 0) ?? 0), 0)).toLocaleString()}
+                        {projectViewsAuditSummary
+                          ? projectViewsAuditSummary.totalProjectViews.toLocaleString()
+                          : "Not run yet"}
                       </p>
                     </div>
                     <div className="border border-white/8 rounded-sm p-3">
                       <p className="text-[10px] tracking-widest uppercase text-white/35 mb-1">Last Refresh</p>
                       <p className="text-xs text-white/55">
-                        {projectViewsAuditSummary?.refreshedAt ? fmtDate(projectViewsAuditSummary.refreshedAt) : "Not run yet"}
+                        {projectViewsAuditSummary?.refreshedAt ? fmtDateTime(projectViewsAuditSummary.refreshedAt) : "Not run yet"}
                       </p>
                     </div>
                   </div>
@@ -2027,6 +3182,26 @@ export default function AdminDashboard() {
                     <pre className="h-80 overflow-auto px-3 py-3 text-[11px] leading-5 text-white/60 whitespace-pre-wrap">
                       {projectViewsAuditLog.join("\n")}
                     </pre>
+                  </div>
+                </div>
+
+                <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-nord text-sm text-white">Spotify Connection</p>
+                      <p className="text-xs text-white/35">Reconnect the Spotify OAuth token used by the homepage now-playing / last-played widget.</p>
+                    </div>
+                    <a
+                      href="/api/spotify/auth"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 items-center justify-center px-4 bg-[#ef4242] hover:bg-[#d93838] text-white text-xs font-medium rounded-sm transition-colors"
+                    >
+                      Connect / Reconnect
+                    </a>
+                  </div>
+                  <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-3 text-xs text-white/40">
+                    This opens Spotify authorization in a new tab and refreshes the token used by the home page widget.
                   </div>
                 </div>
               </div>
@@ -2056,6 +3231,16 @@ export default function AdminDashboard() {
                   <option value="arts-and-entertainment">Arts & Entertainment</option>
                   <option value="motion-and-graphics">Motion & Graphics</option>
                   <option value="coding-projects">Code</option>
+                </select>
+                <select
+                  className={`${inputCls} max-w-[170px]`}
+                  value={projectSort}
+                  onChange={(e) => setProjectSort(e.target.value as typeof projectSort)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">A-Z</option>
+                  <option value="za">Z-A</option>
                 </select>
                 <span className="text-xs text-white/30 self-center ml-auto">{filteredProjects.length} projects</span>
               </div>
@@ -2160,6 +3345,16 @@ export default function AdminDashboard() {
                   value={articleSearch}
                   onChange={(e) => setArticleSearch(e.target.value)}
                 />
+                <select
+                  className={`${inputCls} max-w-[170px]`}
+                  value={articleSort}
+                  onChange={(e) => setArticleSort(e.target.value as typeof articleSort)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">A-Z</option>
+                  <option value="za">Z-A</option>
+                </select>
                 <span className="text-xs text-white/30 self-center ml-auto">{filteredArticles.length} articles</span>
               </div>
 
@@ -2171,7 +3366,7 @@ export default function AdminDashboard() {
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Category</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Excerpt</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Author</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden sm:table-cell">Date</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden sm:table-cell">Date / Time</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Taps</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Featured</th>
                       <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
@@ -2231,8 +3426,29 @@ export default function AdminDashboard() {
               CLIENTS
           ───────────────────────────────────── */}
           {activeSection === "clients" && (
-            <div className="grid grid-cols-3 gap-4">
-              {clients.map((c) => (
+            <div className="space-y-4">
+              <div className="flex gap-3">
+                <input
+                  className={`${inputCls} max-w-xs`}
+                  placeholder="Search clients..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                />
+                <select
+                  className={`${inputCls} max-w-[170px]`}
+                  value={clientSort}
+                  onChange={(e) => setClientSort(e.target.value as typeof clientSort)}
+                >
+                  <option value="az">A-Z</option>
+                  <option value="za">Z-A</option>
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                </select>
+                <span className="text-xs text-white/30 self-center ml-auto">{filteredClients.length} clients</span>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {filteredClients.map((c) => (
                 <div key={c.id} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
@@ -2279,9 +3495,10 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))}
-              {clients.length === 0 && (
-                <div className="col-span-3 text-center py-12 text-white/25 text-xs">No clients yet.</div>
+              {filteredClients.length === 0 && (
+                <div className="xl:col-span-3 text-center py-12 text-white/25 text-xs">No clients found.</div>
               )}
+              </div>
             </div>
           )}
 
@@ -2290,6 +3507,25 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "contacts" && (
             <div className="space-y-4">
+              <div className="flex gap-3">
+                <input
+                  className={`${inputCls} max-w-xs`}
+                  placeholder="Search contacts..."
+                  value={contactsSearch}
+                  onChange={(e) => setContactsSearch(e.target.value)}
+                />
+                <select
+                  className={`${inputCls} max-w-[170px]`}
+                  value={contactsSort}
+                  onChange={(e) => setContactsSort(e.target.value as typeof contactsSort)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">A-Z</option>
+                  <option value="za">Z-A</option>
+                </select>
+                <span className="text-xs text-white/30 self-center ml-auto">{filteredContacts.length} contacts</span>
+              </div>
               <div className="border border-white/8 rounded-sm overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
@@ -2304,7 +3540,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {contacts.map((c) => (
+                    {filteredContacts.map((c) => (
                       <tr key={c.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2.5 text-white/75">{c.name}</td>
                         <td className="px-3 py-2.5 text-white/45 hidden md:table-cell">{c.email || "-"}</td>
@@ -2330,10 +3566,10 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
-                    {contacts.length === 0 && (
+                    {filteredContacts.length === 0 && (
                       <tr>
                         <td colSpan={7} className="px-3 py-8 text-center text-white/25 text-xs">
-                          No contacts yet.
+                          No contacts found.
                         </td>
                       </tr>
                     )}
@@ -2346,6 +3582,178 @@ export default function AdminDashboard() {
           {/* ─────────────────────────────────────
               CAMPAIGNS
           ───────────────────────────────────── */}
+          {activeSection === "rate-limits" && (
+            <div className="space-y-4">
+              <div className="flex gap-3">
+                <input
+                  className={`${inputCls} max-w-sm`}
+                  placeholder="Search rate limits..."
+                  value={rateLimitSearch}
+                  onChange={(e) => setRateLimitSearch(e.target.value)}
+                />
+                <span className="text-xs text-white/30 self-center ml-auto">{filteredRateLimits.length} records</span>
+              </div>
+              <div className="border border-white/8 rounded-sm overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-white/2 border-b border-white/8">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Scope</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">IP</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Browser</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden xl:table-cell">Location</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Usage</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Last Attempt</th>
+                      <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRateLimits.map((entry) => (
+                      <tr key={entry.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
+                        <td className="px-3 py-2.5 text-white/75">
+                          <div>{entry.scope === "contact-form" ? "Contact Form" : "Subscribe Form"}</div>
+                          {entry.notes && <div className="text-[10px] text-white/25">{entry.notes}</div>}
+                        </td>
+                        <td className="px-3 py-2.5 text-white/45 hidden md:table-cell">{entry.ip || "Removed"}</td>
+                        <td className="px-3 py-2.5 text-white/35 hidden lg:table-cell">
+                          <div>{entry.browser || "Removed"}</div>
+                          {entry.userAgent && <div className="text-[10px] text-white/20 truncate max-w-[240px]">{entry.userAgent}</div>}
+                        </td>
+                        <td className="px-3 py-2.5 text-white/35 hidden xl:table-cell">
+                          {[entry.city, entry.region, entry.country].filter(Boolean).join(", ") || "Unknown"}
+                        </td>
+                        <td className="px-3 py-2.5 text-white/60">
+                          <div>{entry.count} / {entry.limit}</div>
+                          <div className="text-[10px] text-[#ef4242]/75">{entry.blockedCount} blocked</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-white/30 hidden lg:table-cell">{fmtDateTime(entry.lastAttemptAt)}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <button className={btnOutline} onClick={() => void mutateRateLimitRecord("reset", entry)}>Reset</button>
+                            <button className={btnOutline} onClick={() => void mutateRateLimitRecord("clear-pii", entry)}>Clear PII</button>
+                            <button className={btnOutlineRed} onClick={() => void deleteRateLimit(entry.id)}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredRateLimits.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-8 text-center text-white/25 text-xs">No rate-limit records found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "contact-form-entries" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <input
+                  className={`${inputCls} max-w-sm`}
+                  value={messageSearch}
+                  onChange={(e) => setMessageSearch(e.target.value)}
+                  placeholder="Search messages..."
+                />
+                <select
+                  className={`${inputCls} max-w-[180px]`}
+                  value={messagesSort}
+                  onChange={(e) => setMessagesSort(e.target.value as typeof messagesSort)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="read">Read First</option>
+                  <option value="unread">Unread First</option>
+                  <option value="az">A-Z</option>
+                  <option value="za">Z-A</option>
+                </select>
+                <button
+                  className={btnOutline}
+                  onClick={() => setMessageReadState(contactFormEntries.map((entry) => entry.id), true)}
+                  disabled={contactFormEntries.length === 0}
+                >
+                  Mark All Read
+                </button>
+                <button
+                  className={btnOutline}
+                  onClick={() => setMessageReadState(contactFormEntries.map((entry) => entry.id), false)}
+                  disabled={contactFormEntries.length === 0}
+                >
+                  Mark All Unread
+                </button>
+                <span className="text-xs text-white/30 self-center ml-auto">
+                  {unreadMessages} unread / {contactFormEntries.length} total
+                </span>
+              </div>
+              {contactFormEntries.length === 0 ? (
+                <div className="rounded-sm border border-white/8 px-4 py-8 text-center text-xs text-white/25">
+                  No messages yet.
+                </div>
+              ) : filteredMessageEntries.length === 0 ? (
+                <div className="rounded-sm border border-white/8 px-4 py-8 text-center text-xs text-white/25">
+                  No messages match that search.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredMessageEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`rounded-sm border p-4 ${
+                        entry.messageRead
+                          ? "border-white/8 bg-white/[0.02]"
+                          : "border-[#ef4242]/20 bg-[#ef4242]/[0.03]"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm text-white/80">{entry.name}</span>
+                            <span className={`rounded-sm px-2 py-0.5 text-[10px] uppercase tracking-widest ${
+                              entry.messageRead
+                                ? "border border-white/10 bg-white/4 text-white/35"
+                                : "border border-[#ef4242]/20 bg-[#ef4242]/10 text-[#ef4242]"
+                            }`}>
+                              {entry.messageRead ? "Read" : "Unread"}
+                            </span>
+                            {entry.subject && (
+                              <span className="rounded-sm border border-white/10 bg-white/4 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/40">
+                                {entry.subject}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-3 text-[11px] text-white/35">
+                            <span>{entry.email || "No email"}</span>
+                            <span>{entry.phone || "No phone"}</span>
+                            <span>{fmtDate(entry.createdAt)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className={btnOutline}
+                            onClick={() => setMessageReadState([entry.id], !entry.messageRead)}
+                          >
+                            Mark {entry.messageRead ? "Unread" : "Read"}
+                          </button>
+                          <button
+                            className={btnOutlineRed}
+                            onClick={() =>
+                              setDeleteConfirm({ type: "contact", id: entry.id, label: entry.name })
+                            }
+                          >
+                            Del
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 whitespace-pre-wrap rounded-sm border border-white/6 bg-black/20 px-3 py-3 text-xs leading-relaxed text-white/55">
+                        {entry.message}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeSection === "campaigns" && (
             <div className="space-y-4">
               <div className="border border-white/8 rounded-sm overflow-hidden">
@@ -2363,7 +3771,22 @@ export default function AdminDashboard() {
                   <tbody>
                     {campaigns.map((c) => (
                       <tr key={c.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
-                        <td className="px-3 py-2.5 text-white/75">{c.subject || "SMS Message"}</td>
+                        <td className="px-3 py-2.5 text-white/75">
+                          <div className="flex flex-col gap-1">
+                            <span>{c.subject || "SMS Message"}</span>
+                            {c.type === "email" && c.recipients > 0 && (
+                              <span className="text-[10px] text-white/25">
+                                Sent {campaignDeliveredCount(c)} / {c.recipients}
+                              </span>
+                            )}
+                            {c.scheduledFor && c.status === "scheduled" && (
+                              <span className="text-[10px] text-white/25">Scheduled {fmtDateTime(c.scheduledFor)}</span>
+                            )}
+                            {c.lastError && (
+                              <span className="text-[10px] text-[#ef4242]/80">{c.lastError}</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-3 py-2.5 hidden md:table-cell">
                           <span className={`text-[10px] px-2 py-0.5 rounded-sm ${c.type === "email" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
                             {c.type}
@@ -2373,9 +3796,10 @@ export default function AdminDashboard() {
                           <CampaignStatusBadge status={c.status} />
                         </td>
                         <td className="px-3 py-2.5 text-white/40 hidden md:table-cell">{c.recipients}</td>
-                        <td className="px-3 py-2.5 text-white/30 hidden sm:table-cell">{fmtDate(c.createdAt)}</td>
+                        <td className="px-3 py-2.5 text-white/30 hidden sm:table-cell">{fmtDateTime(c.sentAt || c.scheduledFor || c.createdAt)}</td>
                         <td className="px-3 py-2.5">
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-2">
+                            <button className={btnGhost} onClick={() => setCampaignView(c)}>View</button>
                             <button className={btnOutlineRed} onClick={() => setDeleteConfirm({ type: "campaign", id: c.id, label: c.subject || "SMS Message" })}>Del</button>
                           </div>
                         </td>
@@ -2397,6 +3821,25 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "rizz" && (
             <div className="space-y-4">
+              <div className="flex gap-3">
+                <input
+                  className={`${inputCls} max-w-xs`}
+                  placeholder="Search rizz submissions..."
+                  value={rizzSearch}
+                  onChange={(e) => setRizzSearch(e.target.value)}
+                />
+                <select
+                  className={`${inputCls} max-w-[170px]`}
+                  value={rizzSort}
+                  onChange={(e) => setRizzSort(e.target.value as typeof rizzSort)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">A-Z</option>
+                  <option value="za">Z-A</option>
+                </select>
+                <span className="text-xs text-white/30 self-center ml-auto">{filteredRizzEntries.length} entries</span>
+              </div>
               <div className="border border-white/8 rounded-sm overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
@@ -2413,7 +3856,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rizzEntries.map((entry) => (
+                    {filteredRizzEntries.map((entry) => (
                       <tr key={entry.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2.5 text-white/75">
                           <div>{entry.name}</div>
@@ -2449,10 +3892,10 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
-                    {rizzEntries.length === 0 && (
+                    {filteredRizzEntries.length === 0 && (
                       <tr>
                         <td colSpan={9} className="px-3 py-8 text-center text-white/25 text-xs">
-                          No rizz submissions yet.
+                          No rizz submissions found.
                         </td>
                       </tr>
                     )}
@@ -2468,6 +3911,17 @@ export default function AdminDashboard() {
                 <p className="text-white/30 text-xs">Loading resume data…</p>
               ) : (
                 <>
+                  <div className="flex gap-3">
+                    <input
+                      className={`${inputCls} max-w-sm`}
+                      placeholder="Search resume..."
+                      value={resumeSearch}
+                      onChange={(e) => setResumeSearch(e.target.value)}
+                    />
+                    <span className="text-xs text-white/30 self-center ml-auto">
+                      {filteredExperiences.length + filteredEducations.length + filteredSkillsList.length + filteredCertificationsList.length + filteredAwardsList.length + filteredClubsList.length} matches
+                    </span>
+                  </div>
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-6">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -2725,7 +4179,7 @@ export default function AdminDashboard() {
                   {/* Work Experience */}
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                     <p className="font-nord text-sm text-white mb-3">Work Experience</p>
-                    {experiences.filter((e) => e.type === "job").map((exp) => (
+                    {filteredExperiences.filter((e) => e.type === "job").map((exp) => (
                       <div key={exp.id} className="border border-white/6 rounded-sm p-4 space-y-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -2741,7 +4195,7 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     ))}
-                    {experiences.filter((e) => e.type === "job").length === 0 && (
+                    {filteredExperiences.filter((e) => e.type === "job").length === 0 && (
                       <p className="text-xs text-white/25">No work experience yet.</p>
                     )}
                   </div>
@@ -2749,7 +4203,7 @@ export default function AdminDashboard() {
                   {/* Volunteer */}
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                     <p className="font-nord text-sm text-white mb-3">Volunteer</p>
-                    {experiences.filter((e) => e.type === "volunteer").map((exp) => (
+                    {filteredExperiences.filter((e) => e.type === "volunteer").map((exp) => (
                       <div key={exp.id} className="border border-white/6 rounded-sm p-4 space-y-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -2765,7 +4219,7 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     ))}
-                    {experiences.filter((e) => e.type === "volunteer").length === 0 && (
+                    {filteredExperiences.filter((e) => e.type === "volunteer").length === 0 && (
                       <p className="text-xs text-white/25">No volunteer work yet.</p>
                     )}
                   </div>
@@ -2773,7 +4227,7 @@ export default function AdminDashboard() {
                   {/* Education */}
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                     <p className="font-nord text-sm text-white mb-3">Education</p>
-                    {educations.map((education) => (
+                    {filteredEducations.map((education) => (
                       <div key={education.id} className="border border-white/6 rounded-sm p-4 space-y-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -2792,7 +4246,7 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     ))}
-                    {educations.length === 0 && (
+                    {filteredEducations.length === 0 && (
                       <p className="text-xs text-white/25">No education yet.</p>
                     )}
                   </div>
@@ -2801,7 +4255,7 @@ export default function AdminDashboard() {
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5">
                     <p className="font-nord text-sm text-white mb-3">Skills</p>
                     <div className="flex flex-wrap gap-2">
-                      {skills.map((s, i) => (
+                      {filteredSkillsList.map((s, i) => (
                         <span
                           key={`${s.name}-${i}`}
                           className="px-2.5 py-1 text-[11px] rounded-sm bg-white/6 text-white/60 border border-white/8"
@@ -2809,14 +4263,14 @@ export default function AdminDashboard() {
                           {s.name}
                         </span>
                       ))}
-                      {skills.length === 0 && <p className="text-xs text-white/25">No skills yet.</p>}
+                      {filteredSkillsList.length === 0 && <p className="text-xs text-white/25">No skills yet.</p>}
                     </div>
                   </div>
 
                   {/* Certifications */}
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                     <p className="font-nord text-sm text-white mb-3">Certifications</p>
-                    {certifications.map((cert) => (
+                    {filteredCertificationsList.map((cert) => (
                       <div key={cert.id} className="flex items-center justify-between border border-white/6 rounded-sm px-4 py-3">
                         <div>
                           <p className="text-sm text-white font-medium">{cert.name}</p>
@@ -2825,13 +4279,13 @@ export default function AdminDashboard() {
                         <span className="text-[10px] text-white/30">{cert.date}</span>
                       </div>
                     ))}
-                    {certifications.length === 0 && <p className="text-xs text-white/25">No certifications yet.</p>}
+                    {filteredCertificationsList.length === 0 && <p className="text-xs text-white/25">No certifications yet.</p>}
                   </div>
 
                   {/* Awards */}
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                     <p className="font-nord text-sm text-white mb-3">Awards</p>
-                    {awards.map((award) => (
+                    {filteredAwardsList.map((award) => (
                       <div key={award.id} className="flex items-center justify-between border border-white/6 rounded-sm px-4 py-3">
                         <div>
                           <p className="text-sm text-white font-medium">{award.name}</p>
@@ -2841,13 +4295,13 @@ export default function AdminDashboard() {
                         <span className="text-[10px] text-white/30">{award.date}</span>
                       </div>
                     ))}
-                    {awards.length === 0 && <p className="text-xs text-white/25">No awards yet.</p>}
+                    {filteredAwardsList.length === 0 && <p className="text-xs text-white/25">No awards yet.</p>}
                   </div>
 
                   {/* Organizations */}
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
                     <p className="font-nord text-sm text-white mb-3">Organizations</p>
-                    {clubs.map((club) => (
+                    {filteredClubsList.map((club) => (
                       <div key={club.id} className="flex items-start justify-between border border-white/6 rounded-sm px-4 py-3">
                         <div>
                           <p className="text-sm text-white font-medium">{club.name}</p>
@@ -2859,7 +4313,7 @@ export default function AdminDashboard() {
                         </span>
                       </div>
                     ))}
-                    {clubs.length === 0 && <p className="text-xs text-white/25">No organizations yet.</p>}
+                    {filteredClubsList.length === 0 && <p className="text-xs text-white/25">No organizations yet.</p>}
                   </div>
                 </>
               )}
@@ -2896,22 +4350,21 @@ export default function AdminDashboard() {
         />
       )}
 
-      {campaignModalOpen && (
+      {campaignModal.open && (
         <CampaignModal
+          initial={campaignModal.editing}
           contacts={contacts}
-          onClose={() => setCampaignModalOpen(false)}
-          onSave={(c) => {
-            setCampaigns((prev) => {
-              const next = [c, ...prev];
-              fetch("/api/admin/campaigns", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(next),
-              }).catch(console.error);
-              return next;
-            });
-            setCampaignModalOpen(false);
-          }}
+          onClose={() => setCampaignModal({ open: false })}
+          onSave={saveCampaign}
+        />
+      )}
+
+      {campaignView && (
+        <CampaignViewModal
+          campaign={campaignView}
+          contacts={contacts}
+          onSendBatch={(campaign, count) => saveCampaign(campaign, "send", count)}
+          onClose={() => setCampaignView(null)}
         />
       )}
 

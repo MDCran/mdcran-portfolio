@@ -7,6 +7,7 @@ import { FileText, Mail } from "lucide-react";
 
 export default function ResumeButton() {
   const pathname = usePathname();
+  if (pathname.startsWith("/admin")) return null;
   const showResume = pathname !== "/resume";
   const showContact = pathname !== "/contact";
 

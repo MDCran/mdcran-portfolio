@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Link2, Check, MessageSquare, ArrowLeft, Send, X } from "lucide-react";
+import { Heart, Link2, Check, Share2, ArrowLeft } from "lucide-react";
 import type { Article, ArticleSection, ArticleCategory } from "@/lib/types";
 import Lightbox from "@/components/shared/Lightbox";
 
@@ -437,9 +437,6 @@ function TapsButton({ articleId }: { articleId: string }) {
 /* ── Share Buttons ──────────────────────────────────────── */
 function ShareButtons() {
   const [copied, setCopied] = useState(false);
-  const [smsInput, setSmsInput] = useState("");
-  const [smsOpen, setSmsOpen] = useState(false);
-  const [smsSent, setSmsSent] = useState(false);
 
   const currentUrl = typeof window !== "undefined" ? window.location.href : "";
 
@@ -450,100 +447,51 @@ function ShareButtons() {
     });
   };
 
-  const handleSms = async () => {
-    if (!smsInput.trim()) return;
-    setSmsSent(true);
-    await fetch("/api/subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: smsInput,
-        customMessage: currentUrl,
-      }),
-    }).catch(() => {});
-    setTimeout(() => {
-      setSmsSent(false);
-      setSmsOpen(false);
-      setSmsInput("");
-    }, 2500);
+  const handleShare = async () => {
+    if (!currentUrl) return;
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ url: currentUrl });
+        return;
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "name" in error &&
+          (error as { name?: string }).name === "AbortError"
+        ) {
+          return;
+        }
+      }
+    }
+
+    handleCopy();
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[140px_140px] sm:items-center">
-        <AnimatePresence initial={false} mode="popLayout">
-          {!smsOpen && (
-            <motion.button
-              key="copy-link"
-              layout
-              onClick={handleCopy}
-              whileTap={{ scale: 0.95 }}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-4 text-xs tracking-wider text-white/50 transition-all hover:border-white/20 hover:text-white"
-            >
-              {copied ? (
-                <><Check size={12} className="text-emerald-400" /> Copied!</>
-              ) : (
-                <><Link2 size={12} /> Copy Link</>
-              )}
-            </motion.button>
-          )}
-
-          {smsOpen ? (
-            <motion.div
-              key="sms-open"
-              layout
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="col-span-2 flex w-full items-center gap-2 overflow-hidden rounded-sm border border-[#ef4242]/40 bg-[#ef4242]/8 p-1"
-            >
-              <input
-                type="tel"
-                value={smsInput}
-                onChange={(e) => setSmsInput(e.target.value)}
-                placeholder="+1 (407) 555-0100"
-                className="h-8 min-w-0 flex-1 bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 text-white text-xs placeholder:text-white/20 outline-none transition-colors"
-              />
-              <button
-                onClick={handleSms}
-                disabled={smsSent}
-                className="h-8 w-8 bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors flex items-center justify-center disabled:opacity-60 shrink-0"
-                aria-label={smsSent ? "Text link sent" : "Send text link"}
-                title={smsSent ? "Sent" : "Send"}
-              >
-                {smsSent ? <Check size={12} /> : <Send size={12} />}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSmsOpen(false);
-                  setSmsInput("");
-                  setSmsSent(false);
-                }}
-                className="h-8 w-8 flex items-center justify-center rounded-sm border border-white/10 text-white/50 hover:text-white hover:border-white/20 transition-colors shrink-0"
-                aria-label="Cancel text link"
-                title="Cancel"
-              >
-                <X size={12} />
-              </button>
-            </motion.div>
+      <div className="grid grid-cols-[1fr_40px] gap-3 sm:grid-cols-[140px_40px] sm:items-center">
+        <motion.button
+          onClick={handleCopy}
+          whileTap={{ scale: 0.95 }}
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-4 text-xs tracking-wider text-white/50 transition-all hover:border-white/20 hover:text-white"
+        >
+          {copied ? (
+            <><Check size={12} className="text-emerald-400" /> Copied!</>
           ) : (
-            <motion.button
-              key="sms-closed"
-              layout
-              onClick={() => setSmsOpen(true)}
-              whileTap={{ scale: 0.95 }}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-4 text-xs tracking-wider text-white/50 transition-all hover:border-white/20 hover:text-white"
-            >
-              <MessageSquare size={12} /> Text Link
-            </motion.button>
+            <><Link2 size={12} /> Copy Link</>
           )}
-        </AnimatePresence>
+        </motion.button>
+        <motion.button
+          onClick={() => void handleShare()}
+          whileTap={{ scale: 0.95 }}
+          className="flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all hover:border-white/20 hover:text-white"
+          aria-label="Share link"
+          title="Share"
+        >
+          <Share2 size={14} />
+        </motion.button>
       </div>
     </div>
   );
