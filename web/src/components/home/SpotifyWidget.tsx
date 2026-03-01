@@ -501,10 +501,6 @@ export default function SpotifyWidget() {
                                 className="group/item cursor-pointer rounded-sm border border-white/8 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.04]"
                                 style={{
                                   borderColor: `${track.accentColor}18`,
-                                  boxShadow:
-                                    selectedFavorite?.id === track.id
-                                      ? `0 0 24px ${track.accentColor}18`
-                                      : undefined,
                                 }}
                               >
                                 <div className="relative mx-auto h-24 w-24 overflow-hidden rounded-sm border border-white/8 bg-white/5">
