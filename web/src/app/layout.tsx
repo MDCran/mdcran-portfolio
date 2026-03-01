@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ResumeButton from "@/components/shared/ResumeButton";
+import KeyboardShortcuts from "@/components/shared/KeyboardShortcuts";
 import {
   DEFAULT_OG_IMAGE,
   DEFAULT_SOCIAL_DESCRIPTION,
@@ -70,6 +71,7 @@ export default function RootLayout({
       <body className="w-full min-h-screen">
         <div className="relative z-[1] w-full min-h-screen flex flex-col">
           {children}
+          <KeyboardShortcuts />
           <ResumeButton />
         </div>
       </body>

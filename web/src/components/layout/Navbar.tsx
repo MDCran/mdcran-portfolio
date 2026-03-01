@@ -69,6 +69,12 @@ export default function Navbar() {
   }, [searchOpen]);
 
   useEffect(() => {
+    const openSearch = () => setSearchOpen(true);
+    window.addEventListener("mdcran:open-search", openSearch);
+    return () => window.removeEventListener("mdcran:open-search", openSearch);
+  }, []);
+
+  useEffect(() => {
     if (!searchOpen || catalog.projects.length || catalog.clients.length || catalog.articles.length) {
       return;
     }

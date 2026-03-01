@@ -56,7 +56,9 @@ export default function WorkPage() {
           {sections.map((section) => (
             <section
               key={section.title}
-              className="relative flex flex-col rounded-sm border border-white/7 bg-white/2 p-6 transition-colors hover:border-[rgba(239,66,66,0.22)] sm:p-7"
+              className={`relative flex cursor-pointer flex-col rounded-sm border border-white/7 bg-white/2 p-6 transition-colors hover:border-[rgba(239,66,66,0.22)] sm:p-7 ${
+                section.links.length === 0 ? "justify-center" : ""
+              }`}
             >
               <Link
                 href={section.href}
@@ -64,7 +66,13 @@ export default function WorkPage() {
                 className="absolute inset-0 z-10 rounded-sm"
               />
 
-              <div className="relative z-20 mb-6 flex items-start justify-between gap-4">
+              <div
+                className={`pointer-events-none relative z-20 flex justify-between gap-4 ${
+                  section.links.length > 0 ? "items-start" : "items-center"
+                } ${
+                  section.links.length > 0 ? "mb-6" : "mb-0"
+                }`}
+              >
                 <div>
                   <h2 className="font-nord text-2xl text-white tracking-wider">
                     {section.title}
@@ -72,7 +80,7 @@ export default function WorkPage() {
                 </div>
                 <Link
                   href={section.href}
-                  className="inline-flex items-center gap-2 text-[11px] tracking-widest uppercase text-[#ef4242] hover:text-white transition-colors"
+                  className="pointer-events-auto inline-flex items-center gap-2 text-[11px] tracking-widest uppercase text-[#ef4242] hover:text-white transition-colors"
                 >
                   Open
                   <ArrowRight size={12} />
@@ -80,7 +88,7 @@ export default function WorkPage() {
               </div>
 
               {section.links.length > 0 && (
-                <div className="relative z-20 mt-auto grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="pointer-events-auto relative z-20 mt-auto grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {section.links.map((link) => (
                     <Link
                       key={link.href}

@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Music2, ExternalLink, Heart, Pause, X, ArrowLeft } from "lucide-react";
 import { createPortal } from "react-dom";
 import useSWR from "swr";
-import type { SpotifyTrack } from "@/lib/types";
+import type { SpotifyHistoryTrack, SpotifyTrack } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -30,7 +30,109 @@ type FavoriteResponse = {
 
 type SelectedFavoriteTrack = FavoriteTrack & {
   sectionTitle: string;
+  source: "favorite" | "live" | "history";
 };
+
+function clampChannel(value: number) {
+  return Math.max(50, Math.min(220, Math.round(value)));
+}
+
+function channelToHex(value: number) {
+  return clampChannel(value).toString(16).padStart(2, "0");
+}
+
+function fallbackAccentFromText(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  const r = 90 + Math.abs(hash % 120);
+  const g = 90 + Math.abs((hash >> 8) % 120);
+  const b = 90 + Math.abs((hash >> 16) % 120);
+
+  return `#${channelToHex(r)}${channelToHex(g)}${channelToHex(b)}`;
+}
+
+function isLightHexColor(color?: string) {
+  if (!color || !color.startsWith("#")) return false;
+  const hex = color.slice(1);
+  const normalized =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((part) => `${part}${part}`)
+          .join("")
+      : hex;
+
+  if (normalized.length !== 6) return false;
+
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+
+  if ([r, g, b].some((value) => Number.isNaN(value))) return false;
+
+  const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+  return luminance >= 168;
+}
+
+async function extractAccentColorFromImage(src?: string, fallbackSeed?: string) {
+  if (!src) {
+    return fallbackAccentFromText(fallbackSeed ?? "spotify");
+  }
+
+  try {
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("image-load-failed"));
+      img.src = src;
+    });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("no-canvas-context");
+
+    const size = 24;
+    canvas.width = size;
+    canvas.height = size;
+    ctx.drawImage(img, 0, 0, size, size);
+
+    const imageData = ctx.getImageData(0, 0, size, size).data;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let totalWeight = 0;
+
+    for (let i = 0; i < imageData.length; i += 4) {
+      const alpha = imageData[i + 3] / 255;
+      if (alpha < 0.4) continue;
+
+      const red = imageData[i];
+      const green = imageData[i + 1];
+      const blue = imageData[i + 2];
+      const brightness = (red + green + blue) / 3;
+      const saturation = Math.max(red, green, blue) - Math.min(red, green, blue);
+      const weight = alpha * (0.6 + saturation / 255) * (brightness > 24 ? 1 : 0.2);
+
+      r += red * weight;
+      g += green * weight;
+      b += blue * weight;
+      totalWeight += weight;
+    }
+
+    if (totalWeight <= 0) {
+      throw new Error("no-weight");
+    }
+
+    return `#${channelToHex(r / totalWeight)}${channelToHex(g / totalWeight)}${channelToHex(b / totalWeight)}`;
+  } catch {
+    return fallbackAccentFromText(fallbackSeed ?? src);
+  }
+}
 
 function SpotifyGlyph() {
   return (
@@ -96,16 +198,16 @@ function formatLastHeard(playedAt?: string, nowMs?: number) {
   if (Number.isNaN(playedMs)) return "";
 
   const deltaSeconds = Math.max(0, Math.floor((nowMs - playedMs) / 1000));
-  if (deltaSeconds < 60) return "Just now";
+  if (deltaSeconds < 60) return "Just Now";
 
   const deltaMinutes = Math.floor(deltaSeconds / 60);
-  if (deltaMinutes < 60) return `${deltaMinutes}m ago`;
+  if (deltaMinutes < 60) return `${deltaMinutes}M Ago`;
 
   const deltaHours = Math.floor(deltaMinutes / 60);
-  if (deltaHours < 24) return `${deltaHours}h ago`;
+  if (deltaHours < 24) return `${deltaHours}H Ago`;
 
   const deltaDays = Math.floor(deltaHours / 24);
-  return `${deltaDays}d ago`;
+  return `${deltaDays}D Ago`;
 }
 
 export default function SpotifyWidget() {
@@ -121,9 +223,12 @@ export default function SpotifyWidget() {
   const [showFavorites, setShowFavorites] = React.useState(false);
   const [favoritesPinned, setFavoritesPinned] = React.useState(false);
   const [selectedFavorite, setSelectedFavorite] = React.useState<SelectedFavoriteTrack | null>(null);
+  const [currentTrackAccentColor, setCurrentTrackAccentColor] = React.useState("#ef4242");
+  const [isLiveTrackTransitioning, setIsLiveTrackTransitioning] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);
   const lastSyncRef = React.useRef<number>(0);
   const closeFavoritesTimerRef = React.useRef<number | null>(null);
+  const liveTransitionTimerRef = React.useRef<number | null>(null);
 
   const openFavorites = React.useCallback(() => {
     if (closeFavoritesTimerRef.current) {
@@ -200,8 +305,127 @@ export default function SpotifyWidget() {
       if (closeFavoritesTimerRef.current) {
         window.clearTimeout(closeFavoritesTimerRef.current);
       }
+      if (liveTransitionTimerRef.current) {
+        window.clearTimeout(liveTransitionTimerRef.current);
+      }
     };
   }, []);
+
+  React.useEffect(() => {
+    const onOpenSpotify = () => {
+      pinFavorites();
+    };
+
+    window.addEventListener("mdcran:open-spotify", onOpenSpotify);
+    return () => {
+      window.removeEventListener("mdcran:open-spotify", onOpenSpotify);
+    };
+  }, [pinFavorites]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!data?.title) {
+      setCurrentTrackAccentColor("#ef4242");
+      return;
+    }
+
+    extractAccentColorFromImage(data.albumArt, `${data.title}-${data.artist ?? ""}`).then((color) => {
+      if (!cancelled) {
+        setCurrentTrackAccentColor(color);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.albumArt, data?.artist, data?.title]);
+
+  const selectedFavoriteSource = selectedFavorite?.source;
+  const selectedFavoriteUrl = selectedFavorite?.url;
+  const selectedFavoriteTitle = selectedFavorite?.title;
+  const selectedFavoriteArtist = selectedFavorite?.artist;
+  const selectedFavoriteAlbumArt = selectedFavorite?.albumArt;
+  const selectedFavoriteAccentColor = selectedFavorite?.accentColor;
+  const selectedFavoriteSectionTitle = selectedFavorite?.sectionTitle;
+
+  React.useEffect(() => {
+    if (selectedFavoriteSource !== "live" || !data?.songUrl || !data?.title || !data?.artist) {
+      return;
+    }
+
+    const nextTrack = {
+      id: data.songUrl,
+      title: data.title,
+      artist: data.artist,
+      albumArt: data.albumArt,
+      url: data.songUrl,
+      accentColor: currentTrackAccentColor,
+      sectionTitle: data.isPlaying ? "Now Playing" : "Last Played",
+      source: "live" as const,
+    };
+
+    if (selectedFavoriteUrl === data.songUrl) {
+      if (liveTransitionTimerRef.current) {
+        window.clearTimeout(liveTransitionTimerRef.current);
+        liveTransitionTimerRef.current = null;
+      }
+      setIsLiveTrackTransitioning(false);
+      const hasChanged =
+        selectedFavoriteTitle !== nextTrack.title ||
+        selectedFavoriteArtist !== nextTrack.artist ||
+        selectedFavoriteAlbumArt !== nextTrack.albumArt ||
+        selectedFavoriteAccentColor !== nextTrack.accentColor ||
+        selectedFavoriteSectionTitle !== nextTrack.sectionTitle;
+
+      if (hasChanged) {
+        setSelectedFavorite((current) =>
+          current && current.source === "live"
+            ? {
+                ...current,
+                ...nextTrack,
+              }
+            : current
+        );
+      }
+      return;
+    }
+
+    if (liveTransitionTimerRef.current) {
+      window.clearTimeout(liveTransitionTimerRef.current);
+    }
+    setIsLiveTrackTransitioning(true);
+    liveTransitionTimerRef.current = window.setTimeout(() => {
+      setSelectedFavorite((current) =>
+        current && current.source === "live" ? nextTrack : current
+      );
+      setIsLiveTrackTransitioning(false);
+      liveTransitionTimerRef.current = null;
+    }, 850);
+  }, [
+    currentTrackAccentColor,
+    data?.albumArt,
+    data?.artist,
+    data?.isPlaying,
+    data?.songUrl,
+    data?.title,
+    selectedFavoriteAccentColor,
+    selectedFavoriteAlbumArt,
+    selectedFavoriteArtist,
+    selectedFavoriteSectionTitle,
+    selectedFavoriteSource,
+    selectedFavoriteTitle,
+    selectedFavoriteUrl,
+  ]);
+
+  React.useEffect(() => {
+    if (selectedFavorite?.source === "live") return;
+    if (liveTransitionTimerRef.current) {
+      window.clearTimeout(liveTransitionTimerRef.current);
+      liveTransitionTimerRef.current = null;
+    }
+    setIsLiveTrackTransitioning(false);
+  }, [selectedFavorite?.source]);
 
   const clampedProgressMs = data?.durationMs
     ? Math.min(displayProgressMs, data.durationMs)
@@ -212,16 +436,81 @@ export default function SpotifyWidget() {
       ? (clampedProgressMs / data.durationMs) * 100
       : 0;
   const lastHeard = !data?.isPlaying ? formatLastHeard(data?.playedAt, nowMs) : "";
+  const historyTracks = data?.history ?? [];
   const isClickable = Boolean(data?.songUrl);
   const cardClassName = `relative overflow-hidden rounded-sm border border-white/8 bg-white/3 px-4 pb-4 pt-4 backdrop-blur-xl group transition-all duration-300 ${
     isClickable ? "hover:border-white/15 cursor-pointer" : "hover:border-white/15"
   }`;
   const openCurrentTrack = () => {
-    if (!data?.songUrl) return;
-    window.open(data.songUrl, "_blank", "noopener,noreferrer");
+    if (!data?.songUrl || !data?.title || !data?.artist) return;
+
+    const matchedFavorite = favoriteData?.sections
+      ?.flatMap((section) =>
+        section.items.map((item) => ({
+          ...item,
+          sectionTitle: section.title,
+        }))
+      )
+      .find((item) => item.url === data.songUrl);
+
+    setFavoritesPinned(true);
+    setShowFavorites(true);
+    setSelectedFavorite({
+      id: matchedFavorite?.id ?? data.songUrl,
+      title: data.title,
+      artist: data.artist,
+      albumArt: data.albumArt,
+      url: data.songUrl,
+      accentColor: matchedFavorite?.accentColor ?? currentTrackAccentColor,
+      sectionTitle: data.isPlaying ? "Now Playing" : "Last Played",
+      source: "live",
+    });
   };
-  const activeFavoriteAccent = selectedFavorite?.accentColor ?? "#1db954";
+  const openHistoryTrack = (track: SpotifyHistoryTrack) => {
+    if (!track.songUrl || !track.title || !track.artist) return;
+
+    const matchedFavorite = favoriteData?.sections
+      ?.flatMap((section) =>
+        section.items.map((item) => ({
+          ...item,
+          sectionTitle: section.title,
+        }))
+      )
+      .find((item) => item.url === track.songUrl);
+
+    setFavoritesPinned(true);
+    setShowFavorites(true);
+    setSelectedFavorite({
+      id: matchedFavorite?.id ?? `${track.songUrl}-${track.playedAt}`,
+      title: track.title,
+      artist: track.artist,
+      albumArt: track.albumArt,
+      url: track.songUrl,
+      accentColor:
+        matchedFavorite?.accentColor ??
+        fallbackAccentFromText(`${track.title}-${track.artist}`),
+      sectionTitle: "Recently Played",
+      source: "history",
+    });
+  };
+  const activeFavoriteAccent = selectedFavorite?.accentColor ?? "#ef4242";
   const activeFavoriteGlow = "#6ef7ff";
+  const spotifyButtonTextColor =
+    selectedFavorite && isLightHexColor(selectedFavorite.accentColor)
+      ? "#07110b"
+      : "#ffffff";
+  const showSidebarNowPanel = !selectedFavorite || selectedFavorite?.source !== "live";
+  const showHistoryOnlySidebar = selectedFavorite?.source === "live";
+  const showFocusedLiveProgress =
+    selectedFavorite?.source === "live" &&
+    !isLiveTrackTransitioning &&
+    selectedFavorite.url === data?.songUrl &&
+    Boolean(data?.isPlaying && data?.durationMs);
+  const showFocusedLiveLastHeard =
+    selectedFavorite?.source === "live" &&
+    !isLiveTrackTransitioning &&
+    !data?.isPlaying &&
+    Boolean(lastHeard);
   const favoritesOverlay =
     isMounted && showFavorites && favoriteData?.sections?.length
       ? createPortal(
@@ -233,50 +522,305 @@ export default function SpotifyWidget() {
               aria-label="Close favorite music"
             />
             <div
-              className="absolute left-1/2 top-1/2 max-h-[calc(100vh-3rem)] w-[min(1280px,96vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm bg-[#07110b]/95 pointer-events-auto"
-              style={{
-                border: `1px solid ${activeFavoriteAccent}2e`,
-                background: `linear-gradient(180deg, rgba(4,12,9,0.96), rgba(4,12,9,0.97))`,
-                boxShadow: `0 0 0 1px ${activeFavoriteAccent}12, 0 0 54px ${activeFavoriteAccent}14, inset 0 0 60px ${activeFavoriteAccent}0d`,
-              }}
-              onMouseEnter={openFavorites}
-              onMouseLeave={closeFavorites}
-              onClick={(event) => event.stopPropagation()}
+              className="absolute inset-x-3 top-3 bottom-3 flex min-h-0 flex-col gap-3 xl:bottom-auto xl:left-1/2 xl:right-auto xl:top-1/2 xl:h-[calc(100vh-6rem)] xl:w-[min(96vw,calc(1200px+19.5rem))] xl:-translate-x-1/2 xl:-translate-y-1/2 xl:flex-row xl:items-stretch xl:gap-6"
             >
+              <div className="hidden h-[calc(100vh-6rem)] w-[18rem] shrink-0 xl:block">
+                {showSidebarNowPanel ? (
+                  <div className="flex h-full flex-col gap-4">
+                    <aside
+                      className={`pointer-events-auto relative shrink-0 overflow-hidden rounded-sm border border-white/8 p-5 ${data?.songUrl ? "cursor-pointer" : ""}`}
+                      style={{
+                        borderColor: "rgba(239, 66, 66, 0.14)",
+                        background:
+                          "linear-gradient(180deg, rgba(18,7,8,0.92), rgba(12,6,7,0.97))",
+                        boxShadow:
+                          "inset 0 0 36px rgba(239, 66, 66, 0.045), 0 0 0 1px rgba(239, 66, 66, 0.04)",
+                      }}
+                      onClick={data?.songUrl ? openCurrentTrack : undefined}
+                      role={data?.songUrl ? "button" : undefined}
+                      tabIndex={data?.songUrl ? 0 : undefined}
+                      onKeyDown={
+                        data?.songUrl
+                          ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                openCurrentTrack();
+                              }
+                            }
+                          : undefined
+                      }
+                    >
+                      {data?.isPlaying ? (
+                        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.16]">
+                          <div className="absolute inset-y-0 left-0 right-0 flex items-end gap-1 px-4">
+                            {Array.from({ length: 18 }).map((_, i) => (
+                              <motion.span
+                                key={`favorites-bars-${i}`}
+                                className="flex-1 rounded-t-full bg-gradient-to-t from-[#1db954] via-[#1db954]/70 to-transparent"
+                                animate={{
+                                  height: [
+                                    `${16 + ((i * 9) % 22)}%`,
+                                    `${38 + ((i * 7) % 34)}%`,
+                                    `${18 + ((i * 5) % 24)}%`,
+                                  ],
+                                }}
+                                transition={{
+                                  duration: 1 + (i % 4) * 0.16,
+                                  repeat: Infinity,
+                                  repeatType: "mirror",
+                                  ease: "easeInOut",
+                                  delay: i * 0.03,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#07110b] via-[#07110b]/55 to-transparent" />
+                        </div>
+                      ) : null}
+
+                      <div className="relative z-10">
+                        <div className="mb-4 flex items-center gap-2">
+                          <Music2 size={12} className="text-[#ef4242]" />
+                          <span className="text-[10px] uppercase tracking-[0.22em] text-white/38">
+                            {data?.isPlaying ? "Now Playing" : "Last Played"}
+                          </span>
+                          {data?.isPlaying ? (
+                            <span className="ml-auto flex gap-0.5">
+                              {[0, 1, 2].map((i) => (
+                                <motion.span
+                                  key={`favorites-now-${i}`}
+                                  className="w-0.5 rounded-full bg-[#ef4242]"
+                                  animate={{ height: ["4px", "11px", "4px"] }}
+                                  transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
+                                />
+                              ))}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {data?.title ? (
+                          <>
+                            <div className="relative mx-auto aspect-square w-full max-w-[14rem] overflow-hidden rounded-sm border border-white/8 bg-white/5">
+                              {data.albumArt ? (
+                                <Image
+                                  src={data.albumArt}
+                                  alt={data.title}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-[#ef4242]/60">
+                                    <Music2 size={24} />
+                                  </div>
+                              )}
+                            </div>
+                            <div className="mt-5 space-y-2 text-center">
+                              <MarqueeText
+                                text={data.title}
+                                className="text-xl text-white"
+                              />
+                              <MarqueeText
+                                text={data.artist ?? ""}
+                                className="text-sm text-white/45"
+                              />
+                              {!data.isPlaying && lastHeard ? (
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-white/28">
+                                  {lastHeard}
+                                </div>
+                              ) : null}
+                            </div>
+                            {data.isPlaying && data.durationMs ? (
+                              <div className="mt-5 space-y-1.5">
+                                <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                                  <motion.div
+                                    className="h-full bg-[#ef4242] rounded-full"
+                                    initial={false}
+                                    animate={{ width: `${progress}%` }}
+                                    transition={{ ease: "linear", duration: 0.2 }}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-white/25 tabular-nums">
+                                  <span>{formatMs(clampedProgressMs)}</span>
+                                  <span>{formatMs(data.durationMs)}</span>
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <div className="rounded-sm border border-white/8 bg-white/[0.02] px-4 py-5 text-center text-sm text-white/28">
+                            Nothing playing right now.
+                          </div>
+                        )}
+                      </div>
+                    </aside>
+
+                    <aside
+                      className="pointer-events-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-white/8"
+                      style={{
+                        borderColor: "rgba(239, 66, 66, 0.16)",
+                        background:
+                          "linear-gradient(180deg, rgba(18,7,8,0.96), rgba(13,7,7,0.98))",
+                        boxShadow:
+                          "inset 0 0 40px rgba(239, 66, 66, 0.05), 0 0 0 1px rgba(239, 66, 66, 0.05)",
+                      }}
+                    >
+                      <div className="border-b border-white/8 px-4 py-2.5">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-[#ef4242]">
+                          Recently Played
+                        </p>
+                      </div>
+                      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2.5 py-2.5">
+                        {historyTracks.length ? (
+                          historyTracks.map((track: SpotifyHistoryTrack) => (
+                            <button
+                              type="button"
+                              key={`${track.songUrl ?? track.title}-${track.playedAt}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openHistoryTrack(track);
+                              }}
+                              className="flex w-full cursor-pointer items-center gap-2.5 rounded-sm border border-white/6 bg-white/[0.02] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.04]"
+                            >
+                              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/8 bg-white/5">
+                                {track.albumArt ? (
+                                  <Image src={track.albumArt} alt={track.title ?? "Spotify track"} fill className="object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-[#ef4242]/60">
+                                    <Music2 size={14} />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <MarqueeText
+                                  text={track.title ?? ""}
+                                  className="text-[13px] text-white"
+                                />
+                                <MarqueeText
+                                  text={track.artist ?? ""}
+                                  className="text-[11px] text-white/42"
+                                />
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="rounded-sm border border-white/8 bg-white/[0.02] px-3 py-4 text-center text-xs text-white/28">
+                            No recent songs yet.
+                          </div>
+                        )}
+                      </div>
+                    </aside>
+                  </div>
+                ) : showHistoryOnlySidebar ? (
+                  <aside
+                    className="pointer-events-auto flex h-full flex-col overflow-hidden rounded-sm border border-white/8"
+                    style={{
+                      borderColor: "rgba(239, 66, 66, 0.16)",
+                      background:
+                        "linear-gradient(180deg, rgba(18,7,8,0.96), rgba(13,7,7,0.98))",
+                      boxShadow:
+                        "inset 0 0 40px rgba(239, 66, 66, 0.05), 0 0 0 1px rgba(239, 66, 66, 0.05)",
+                    }}
+                  >
+                    <div className="border-b border-white/8 px-4 py-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-[#ef4242]">
+                        Recently Played
+                      </p>
+                    </div>
+                    <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2.5 py-2.5">
+                      {historyTracks.length ? (
+                        historyTracks.map((track: SpotifyHistoryTrack) => (
+                          <button
+                            type="button"
+                            key={`${track.songUrl ?? track.title}-${track.playedAt}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openHistoryTrack(track);
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-sm border border-white/6 bg-white/[0.02] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.04]"
+                          >
+                            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/8 bg-white/5">
+                              {track.albumArt ? (
+                                <Image src={track.albumArt} alt={track.title ?? "Spotify track"} fill className="object-cover" />
+                              ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-[#ef4242]/60">
+                                    <Music2 size={14} />
+                                  </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <MarqueeText
+                                text={track.title ?? ""}
+                                className="text-[13px] text-white"
+                              />
+                              <MarqueeText
+                                text={track.artist ?? ""}
+                                className="text-[11px] text-white/42"
+                              />
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="rounded-sm border border-white/8 bg-white/[0.02] px-3 py-4 text-center text-xs text-white/28">
+                          No recent songs yet.
+                        </div>
+                      )}
+                    </div>
+                  </aside>
+                ) : null}
+              </div>
+
               <div
-                className="sticky top-0 z-10 bg-[#07110b]/95 px-6 py-5 backdrop-blur-xl"
+                className="pointer-events-auto flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-sm bg-[#07110b]/95 xl:w-[min(1200px,calc(96vw-19.5rem))]"
                 style={{
-                  borderBottom: `1px solid ${activeFavoriteAccent}22`,
-                  boxShadow: `inset 0 -1px 0 ${activeFavoriteAccent}10`,
+                  border: `1px solid ${activeFavoriteAccent}2e`,
+                  background: "linear-gradient(180deg, rgba(18,7,8,0.95), rgba(12,6,7,0.98))",
+                  boxShadow: `0 0 0 1px ${activeFavoriteAccent}12, 0 0 54px ${activeFavoriteAccent}14, inset 0 0 60px rgba(239, 66, 66, 0.08)`,
                 }}
+                onMouseEnter={openFavorites}
+                onMouseLeave={closeFavorites}
+                onClick={(event) => event.stopPropagation()}
               >
-                <div className="flex items-center justify-between gap-4">
+                <div
+                  className="relative z-10 shrink-0 px-4 py-4 backdrop-blur-xl sm:px-6 sm:py-5"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(22,8,10,0.96), rgba(14,7,8,0.95))",
+                    borderBottom: `1px solid ${activeFavoriteAccent}22`,
+                    boxShadow: `inset 0 -1px 0 ${activeFavoriteAccent}10, inset 0 0 28px rgba(239, 66, 66, 0.035)`,
+                  }}
+                >
+                  <div className="relative flex items-center justify-between gap-3 sm:gap-4">
                   {selectedFavorite ? (
                     <button
                       type="button"
                       onClick={() => setSelectedFavorite(null)}
-                      className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-sm border border-white/8 bg-white/[0.03] text-white/55 transition-colors hover:border-[#1db954]/25 hover:text-white"
+                      className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-sm border border-white/8 bg-white/[0.03] text-white/55 transition-colors hover:border-[#ef4242]/25 hover:text-white"
                       aria-label="Back to favorites grid"
                     >
                       <ArrowLeft size={16} />
                     </button>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <Heart size={15} className="text-[#1db954]" />
-                      <p className="font-nord text-base text-white tracking-wider">My Favorite Music</p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Heart size={15} className="text-[#ef4242]" />
+                      <p className="font-nord text-sm text-white tracking-wider sm:text-base">My Favorites</p>
                     </div>
                   )}
+                  {selectedFavorite?.source === "live" ? (
+                    <p className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 font-nord text-[11px] uppercase tracking-[0.28em] text-white/48 md:block">
+                      
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     onClick={forceCloseFavorites}
-                    className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-sm border border-white/8 bg-white/[0.03] text-white/40 transition-colors hover:border-[#1db954]/25 hover:text-white"
+                    className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-sm border border-white/8 bg-white/[0.03] text-white/40 transition-colors hover:border-[#ef4242]/25 hover:text-white"
                     aria-label="Close favorite music"
                   >
                     <X size={15} />
                   </button>
                 </div>
-              </div>
-              <div className="overflow-x-hidden px-6 py-5 space-y-6">
+                </div>
+                <div className="min-h-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto px-4 py-4 sm:space-y-6 sm:px-6 sm:py-5">
                 <AnimatePresence mode="wait">
                   {selectedFavorite ? (
                     <motion.div
@@ -285,13 +829,43 @@ export default function SpotifyWidget() {
                       animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                       exit={{ opacity: 0, scale: 1.08, filter: "blur(10px)" }}
                       transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
-                      className="relative flex min-h-[min(68vh,760px)] flex-col items-center justify-center overflow-hidden rounded-sm px-5 py-10 text-center"
+                      className="relative flex min-h-full flex-col items-center justify-center overflow-hidden rounded-sm px-4 py-5 text-center sm:px-6 sm:py-6 xl:h-full"
                       style={{
                         border: `1px solid ${selectedFavorite.accentColor}38`,
                         background: `radial-gradient(circle at 50% 42%, ${selectedFavorite.accentColor}30 0%, ${activeFavoriteGlow}12 16%, ${selectedFavorite.accentColor}14 24%, rgba(7,17,11,0.95) 48%, rgba(3,8,5,0.99) 100%)`,
                         boxShadow: `inset 0 0 0 1px ${selectedFavorite.accentColor}16, 0 0 70px ${selectedFavorite.accentColor}12`,
                       }}
                     >
+                      {selectedFavorite.source === "live" && data?.isPlaying && !isLiveTrackTransitioning ? (
+                        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.2]">
+                          <div className="absolute inset-y-0 left-0 right-0 flex items-end gap-1 px-8">
+                            {Array.from({ length: 28 }).map((_, i) => (
+                              <motion.span
+                                key={`focus-live-bars-${i}`}
+                                className="flex-1 rounded-t-full"
+                                style={{
+                                  background: `linear-gradient(to top, ${selectedFavorite.accentColor}, ${selectedFavorite.accentColor}80, transparent)`,
+                                }}
+                                animate={{
+                                  height: [
+                                    `${14 + ((i * 7) % 24)}%`,
+                                    `${34 + ((i * 11) % 40)}%`,
+                                    `${18 + ((i * 5) % 28)}%`,
+                                  ],
+                                }}
+                                transition={{
+                                  duration: 1.1 + (i % 5) * 0.18,
+                                  repeat: Infinity,
+                                  repeatType: "mirror",
+                                  ease: "easeInOut",
+                                  delay: i * 0.03,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#07110b] via-[#07110b]/60 to-transparent" />
+                        </div>
+                      ) : null}
                       <div
                         className="pointer-events-none absolute inset-0"
                         style={{
@@ -375,8 +949,21 @@ export default function SpotifyWidget() {
                         initial={{ opacity: 0, scale: 0.5 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.55, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-                        className="relative z-10 flex h-64 w-64 items-center justify-center"
+                        className="relative z-10 flex h-44 w-44 items-center justify-center sm:h-64 sm:w-64"
                       >
+                        {isLiveTrackTransitioning && selectedFavorite.source === "live" ? (
+                          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-full bg-[#07110b]/72 backdrop-blur-sm">
+                            <motion.div
+                              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/70 sm:h-16 sm:w-16"
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
+                            >
+                              <div className="h-6 w-6 sm:h-7 sm:w-7">
+                                <SpotifyGlyph />
+                              </div>
+                            </motion.div>
+                          </div>
+                        ) : null}
                         <motion.div
                           className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_35%_30%,_rgba(255,255,255,0.5),_rgba(255,255,255,0.08)_10%,_rgba(28,28,28,0.96)_11%,_rgba(10,10,10,0.98)_58%,_rgba(0,0,0,1)_100%)]"
                           style={{
@@ -408,7 +995,7 @@ export default function SpotifyWidget() {
                           initial={{ opacity: 0, scale: 0.7 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.45, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                          className="absolute h-32 w-32 overflow-hidden rounded-full border border-white/10 shadow-[0_0_24px_rgba(0,0,0,0.35)]"
+                          className="absolute h-20 w-20 overflow-hidden rounded-full border border-white/10 shadow-[0_0_24px_rgba(0,0,0,0.35)] sm:h-32 sm:w-32"
                         >
                           {selectedFavorite.albumArt ? (
                             <Image
@@ -430,7 +1017,7 @@ export default function SpotifyWidget() {
                         initial={{ opacity: 0, y: 28 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.42, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                        className="relative z-10 mt-8 space-y-3"
+                        className="relative z-10 mt-6 space-y-3 sm:mt-8"
                       >
                         <p
                           className="text-[11px] uppercase tracking-[0.24em]"
@@ -439,7 +1026,7 @@ export default function SpotifyWidget() {
                           {selectedFavorite.sectionTitle}
                         </p>
                         <h3
-                          className="font-nord text-4xl uppercase tracking-[0.08em] sm:text-5xl"
+                          className="font-nord text-2xl uppercase tracking-[0.08em] sm:text-5xl"
                           style={{
                             backgroundImage: `linear-gradient(90deg, #ffffff 0%, ${activeFavoriteGlow}38 16%, ${selectedFavorite.accentColor} 56%, ${activeFavoriteGlow} 84%, #ffffff 100%)`,
                             WebkitBackgroundClip: "text",
@@ -450,24 +1037,60 @@ export default function SpotifyWidget() {
                         >
                           {selectedFavorite.title}
                         </h3>
-                        <p className="mx-auto max-w-3xl text-base text-white/50 sm:text-lg">
+                        <p className="mx-auto max-w-3xl text-sm text-white/50 sm:text-lg">
                           {selectedFavorite.artist}
                         </p>
-                        <div className="pt-3">
-                          <a
-                            href={selectedFavorite.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-sm px-6 text-sm font-medium text-[#07110b] transition-all"
-                            style={{
-                              border: `1px solid ${selectedFavorite.accentColor}66`,
-                              backgroundColor: selectedFavorite.accentColor,
-                              boxShadow: `0 0 28px ${selectedFavorite.accentColor}2a`,
-                            }}
-                          >
-                            <SpotifyGlyph />
-                            <span>Listen on Spotify</span>
-                          </a>
+                        {showFocusedLiveProgress ? (
+                          <div className="mx-auto mt-2 w-full max-w-xl space-y-1.5">
+                            <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                              <motion.div
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: selectedFavorite.accentColor }}
+                                initial={false}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ ease: "linear", duration: 0.2 }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-white/25 tabular-nums">
+                              <span>{formatMs(clampedProgressMs)}</span>
+                              <span>{formatMs(data.durationMs)}</span>
+                            </div>
+                          </div>
+                        ) : null}
+                        {showFocusedLiveLastHeard ? (
+                          <div className="mx-auto mt-2 text-[11px] uppercase tracking-[0.22em] text-white/32">
+                            {lastHeard}
+                          </div>
+                        ) : null}
+                        <div className="group inline-block pt-3">
+                          <div className="relative inline-block h-12 overflow-visible">
+                            <a
+                              href={selectedFavorite.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative z-10 inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-sm px-6 text-sm font-medium transition-all"
+                              style={{
+                                border: `1px solid ${selectedFavorite.accentColor}66`,
+                                backgroundColor: selectedFavorite.accentColor,
+                                boxShadow: `0 0 28px ${selectedFavorite.accentColor}2a`,
+                                color: spotifyButtonTextColor,
+                              }}
+                            >
+                              <SpotifyGlyph />
+                              <span>Listen on Spotify</span>
+                            </a>
+                            <div
+                              className="pointer-events-none absolute left-0 right-0 top-full -mt-[2px] flex h-0 items-center justify-center overflow-hidden rounded-b-sm border-x border-b px-3 text-[10px] uppercase tracking-[0.16em] opacity-0 transition-all duration-200 group-hover:h-[1.2rem] group-hover:opacity-100"
+                              style={{
+                                borderColor: `${selectedFavorite.accentColor}55`,
+                                backgroundColor: `${selectedFavorite.accentColor}30`,
+                                color: selectedFavorite.accentColor,
+                                backdropFilter: "blur(8px)",
+                              }}
+                            >
+                              Redirect to Spotify.com
+                            </div>
+                          </div>
                         </div>
                       </motion.div>
                     </motion.div>
@@ -478,58 +1101,61 @@ export default function SpotifyWidget() {
                       animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                       exit={{ opacity: 0, scale: 1.04, filter: "blur(8px)" }}
                       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                      className="overflow-hidden space-y-6"
+                      className="min-h-full xl:h-full xl:overflow-hidden"
                     >
-                      {favoriteData.sections.map((section) => (
-                        <div key={section.title}>
-                          <div className="mb-3 flex items-center gap-2">
-                            <div className="h-px w-8 bg-[#1db954]/60" />
-                            <h4 className="text-[11px] uppercase tracking-[0.24em] text-[#1db954]">
-                              {section.title}
-                            </h4>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                            {section.items.map((track) => (
-                              <button
-                                type="button"
-                                key={`${section.title}-${track.id}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setFavoritesPinned(true);
-                                  setSelectedFavorite({ ...track, sectionTitle: section.title });
-                                }}
-                                className="group/item cursor-pointer rounded-sm border border-white/8 bg-white/[0.02] px-3 py-3 text-left transition-colors hover:bg-white/[0.04]"
-                                style={{
-                                  borderColor: `${track.accentColor}18`,
-                                }}
-                              >
-                                <div className="relative mx-auto h-24 w-24 overflow-hidden rounded-sm border border-white/8 bg-white/5">
-                                  {track.albumArt ? (
-                                    <Image src={track.albumArt} alt={track.title} fill className="object-cover" />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-[#1db954]/60">
-                                      <Music2 size={16} />
+                      <div className="flex min-h-full flex-col gap-5 sm:gap-6 xl:justify-between">
+                          {favoriteData.sections.map((section) => (
+                            <div key={section.title}>
+                              <div className="mb-3 flex items-center gap-2">
+                                <div className="h-px w-8 bg-[#ef4242]/60" />
+                                <h4 className="text-[11px] uppercase tracking-[0.24em] text-[#ef4242]">
+                                  {section.title}
+                                </h4>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                                {section.items.map((track) => (
+                                  <button
+                                    type="button"
+                                    key={`${section.title}-${track.id}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setFavoritesPinned(true);
+                                      setSelectedFavorite({ ...track, sectionTitle: section.title, source: "favorite" });
+                                    }}
+                                    className="group/item cursor-pointer rounded-sm border border-white/8 bg-white/[0.02] px-2.5 py-2.5 text-left transition-colors hover:bg-white/[0.04] sm:px-3 sm:py-3"
+                                    style={{
+                                      borderColor: `${track.accentColor}18`,
+                                    }}
+                                  >
+                                    <div className="relative mx-auto h-20 w-20 overflow-hidden rounded-sm border border-white/8 bg-white/5 sm:h-24 sm:w-24">
+                                      {track.albumArt ? (
+                                        <Image src={track.albumArt} alt={track.title} fill className="object-cover" />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-[#1db954]/60">
+                                          <Music2 size={16} />
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                </div>
-                                <div className="mt-3 space-y-1 text-center">
-                                  <MarqueeText
-                                    text={track.title}
-                                    className="text-sm text-white group-hover/item:text-white"
-                                  />
-                                  <MarqueeText
-                                    text={track.artist}
-                                    className="text-xs text-white/40"
-                                  />
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                                    <div className="mt-3 space-y-1 text-center">
+                                      <MarqueeText
+                                        text={track.title}
+                                        className="text-xs text-white group-hover/item:text-white sm:text-sm"
+                                      />
+                                      <MarqueeText
+                                        text={track.artist}
+                                        className="text-[11px] text-white/40 sm:text-xs"
+                                      />
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
+                </div>
               </div>
             </div>
           </div>,
@@ -623,7 +1249,7 @@ export default function SpotifyWidget() {
             <div className="text-[13px] text-white/40 truncate">{data.artist}</div>
             {lastHeard && (
               <div className="text-[10px] text-white/25 mt-1 uppercase tracking-[0.18em]">
-                Last listened {lastHeard}
+                {lastHeard}
               </div>
             )}
           </div>

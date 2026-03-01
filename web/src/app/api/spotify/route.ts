@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import type { SpotifyHistoryTrack, SpotifyTrack } from "@/lib/types";
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
@@ -11,6 +12,9 @@ const CURRENT_PLAYING_ENDPOINT =
   "https://api.spotify.com/v1/me/player/currently-playing";
 const RECENTLY_PLAYED_ENDPOINT =
   "https://api.spotify.com/v1/me/player/recently-played?limit=1";
+const LAST_TRACK_KEY = "spotify_last_track";
+const HISTORY_KEY = "spotify_track_history";
+const HISTORY_LIMIT = 13;
 
 function buildTrackPayload(
   item: {
@@ -45,10 +49,10 @@ async function saveLastSpotifyTrack(
   try {
     const db = await getDb();
     await db.collection("settings").updateOne(
-      { key: "spotify_last_track" },
+      { key: LAST_TRACK_KEY },
       {
         $set: {
-          key: "spotify_last_track",
+          key: LAST_TRACK_KEY,
           value: JSON.stringify({
             ...payload,
             isPlaying: false,
@@ -63,12 +67,65 @@ async function saveLastSpotifyTrack(
   }
 }
 
+async function saveSpotifyTrackHistory(
+  payload: ReturnType<typeof buildTrackPayload>
+) {
+  if (!payload.songUrl || !payload.title || payload.isPlaying) return;
+
+  try {
+    const db = await getDb();
+    const nowIso = payload.playedAt ?? new Date().toISOString();
+    const nextEntry: SpotifyHistoryTrack = {
+      ...payload,
+      isPlaying: false,
+      playedAt: nowIso,
+    };
+
+    const doc = await db
+      .collection("settings")
+      .findOne<{ key: string; value?: string }>({ key: HISTORY_KEY });
+
+    const existing = doc?.value
+      ? ((JSON.parse(doc.value) as SpotifyHistoryTrack[]).filter(Boolean))
+      : [];
+
+    const nextHistory =
+      existing[0]?.songUrl === nextEntry.songUrl
+        ? [nextEntry, ...existing.slice(1)]
+        : [
+            nextEntry,
+            ...existing.filter((entry) => entry?.songUrl !== nextEntry.songUrl),
+          ].slice(0, HISTORY_LIMIT);
+
+    await db.collection("settings").updateOne(
+      { key: HISTORY_KEY },
+      {
+        $set: {
+          key: HISTORY_KEY,
+          value: JSON.stringify(nextHistory.slice(0, HISTORY_LIMIT)),
+        },
+      },
+      { upsert: true }
+    );
+  } catch {
+    // Ignore persistence failures so the widget can still function.
+  }
+}
+
+function isSameSpotifyTrack(
+  a?: Pick<ReturnType<typeof buildTrackPayload>, "songUrl" | "title" | "artist"> | null,
+  b?: Pick<ReturnType<typeof buildTrackPayload>, "songUrl" | "title" | "artist"> | null
+) {
+  if (!a?.songUrl || !b?.songUrl) return false;
+  return a.songUrl === b.songUrl && a.title === b.title && a.artist === b.artist;
+}
+
 async function getSavedLastSpotifyTrack() {
   try {
     const db = await getDb();
     const doc = await db
       .collection("settings")
-      .findOne<{ key: string; value?: string }>({ key: "spotify_last_track" });
+      .findOne<{ key: string; value?: string }>({ key: LAST_TRACK_KEY });
 
     if (!doc?.value) return null;
 
@@ -82,6 +139,50 @@ async function getSavedLastSpotifyTrack() {
   } catch {
     return null;
   }
+}
+
+async function syncCurrentSpotifyTrack(
+  payload: ReturnType<typeof buildTrackPayload>
+) {
+  const previousTrack = await getSavedLastSpotifyTrack();
+
+  if (previousTrack && !isSameSpotifyTrack(previousTrack, payload)) {
+    await saveSpotifyTrackHistory({
+      ...previousTrack,
+      isPlaying: false,
+      playedAt: previousTrack.playedAt ?? new Date().toISOString(),
+    });
+  }
+
+  await saveLastSpotifyTrack(payload);
+}
+
+async function getSpotifyTrackHistory() {
+  try {
+    const db = await getDb();
+    const doc = await db
+      .collection("settings")
+      .findOne<{ key: string; value?: string }>({ key: HISTORY_KEY });
+
+    if (!doc?.value) return [];
+
+    const parsed = JSON.parse(doc.value) as SpotifyHistoryTrack[];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((entry) => entry?.songUrl && entry?.title).slice(0, HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+async function attachHistory(
+  payload: ReturnType<typeof buildTrackPayload> | { isPlaying: false; error?: string }
+) {
+  const history = await getSpotifyTrackHistory();
+  return {
+    ...payload,
+    history,
+  } satisfies SpotifyTrack;
 }
 
 async function getAccessToken() {
@@ -106,14 +207,14 @@ async function getAccessToken() {
 export async function GET() {
   if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
     return NextResponse.json(
-      { isPlaying: false, error: "Spotify not configured" },
+      await attachHistory({ isPlaying: false, error: "Spotify not configured" }),
       { status: 200 }
     );
   }
 
   try {
     const token = await getAccessToken();
-    if (!token) return NextResponse.json({ isPlaying: false });
+    if (!token) return NextResponse.json(await attachHistory({ isPlaying: false }));
 
     // First try the full player state. This still returns the active track when paused.
     const player = await fetch(PLAYER_ENDPOINT, {
@@ -127,8 +228,8 @@ export async function GET() {
           isPlaying: data.is_playing,
           progressMs: data.progress_ms,
         });
-        await saveLastSpotifyTrack(payload);
-        return NextResponse.json(payload);
+        await syncCurrentSpotifyTrack(payload);
+        return NextResponse.json(await attachHistory(payload));
       }
     }
 
@@ -144,14 +245,14 @@ export async function GET() {
           isPlaying: data.is_playing,
           progressMs: data.progress_ms,
         });
-        await saveLastSpotifyTrack(payload);
-        return NextResponse.json(payload);
+        await syncCurrentSpotifyTrack(payload);
+        return NextResponse.json(await attachHistory(payload));
       }
     }
 
     const savedTrack = await getSavedLastSpotifyTrack();
     if (savedTrack) {
-      return NextResponse.json(savedTrack);
+      return NextResponse.json(await attachHistory(savedTrack));
     }
 
     // Fallback to recently played
@@ -167,13 +268,16 @@ export async function GET() {
           isPlaying: false,
           playedAt: recentItem?.played_at,
         });
-        await saveLastSpotifyTrack(payload);
-        return NextResponse.json(payload);
+        await syncCurrentSpotifyTrack(payload);
+        await saveSpotifyTrackHistory(payload);
+        return NextResponse.json(await attachHistory(payload));
       }
     }
 
-    return NextResponse.json({ isPlaying: false });
+    return NextResponse.json(await attachHistory({ isPlaying: false }));
   } catch {
-    return NextResponse.json({ isPlaying: false, error: "Spotify API error" });
+    return NextResponse.json(
+      await attachHistory({ isPlaying: false, error: "Spotify API error" })
+    );
   }
 }
