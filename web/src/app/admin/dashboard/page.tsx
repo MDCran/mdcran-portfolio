@@ -2552,7 +2552,7 @@ export default function AdminDashboard() {
     );
   }).sort((a, b) => (
     clientSort === "newest" || clientSort === "oldest"
-      ? compareDates(a.createdAt, b.createdAt, clientSort)
+      ? compareStrings(a.id, b.id, clientSort === "newest" ? "desc" : "asc")
       : compareStrings(a.name, b.name, clientSort === "az" ? "asc" : "desc")
   ));
   const filteredContacts = contacts.filter((contact) => {

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 
 export const SITE_URL = "https://mdcran.com";
-export const DEFAULT_OG_IMAGE = "/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png";
+export const DEFAULT_OG_IMAGE = "/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png";
+export const DEFAULT_SOCIAL_TITLE = "MDCran | Digital Projects for Creators, Companies, and Online Platforms";
+export const DEFAULT_SOCIAL_DESCRIPTION =
+  "Portfolio, projects, articles, and client work from Michael Cran (MDCran) covering software, design, motion, and immersive online experiences.";
 
 type SeoOptions = {
   title: string;
@@ -67,8 +70,14 @@ export function buildSeoMetadata({
       description,
       url: canonical,
       siteName: "MDCran",
+      locale: "en_US",
       type,
-      images: [socialImage],
+      images: [
+        {
+          url: socialImage,
+          alt: socialTitle,
+        },
+      ],
       ...(type === "article"
         ? {
             publishedTime,
@@ -81,6 +90,7 @@ export function buildSeoMetadata({
       card: "summary_large_image",
       title: socialTitle,
       description,
+      creator: "@mdcran",
       images: [socialImage],
     },
   };
@@ -107,12 +117,16 @@ export function SeoHead({
       <meta property="og:description" content={description} />
       <meta property="og:url" content={canonical} />
       <meta property="og:site_name" content="MDCran" />
+      <meta property="og:locale" content="en_US" />
       <meta property="og:type" content={type} />
       <meta property="og:image" content={socialImage} />
+      <meta property="og:image:alt" content={socialTitle} />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={socialTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={socialImage} />
+      <meta name="twitter:image:alt" content={socialTitle} />
+      <meta name="twitter:creator" content="@mdcran" />
       <meta
         name="robots"
         content={noIndex ? "noindex, nofollow, noarchive" : "index, follow, max-image-preview:large"}

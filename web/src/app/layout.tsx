@@ -1,7 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ResumeButton from "@/components/shared/ResumeButton";
-import { DEFAULT_OG_IMAGE, SITE_URL, absoluteUrl } from "@/lib/seo";
+import {
+  DEFAULT_OG_IMAGE,
+  DEFAULT_SOCIAL_DESCRIPTION,
+  DEFAULT_SOCIAL_TITLE,
+  SITE_URL,
+  absoluteUrl,
+} from "@/lib/seo";
 
 export const viewport: Viewport = {
   themeColor: "#ef4242",
@@ -13,8 +19,7 @@ export const metadata: Metadata = {
     default: "MDCran",
     template: "%s | MDCran",
   },
-  description:
-    "An Independent Contractor creating unique online content — Minecraft maps, events, thumbnail design, video editing, and more.",
+  description: DEFAULT_SOCIAL_DESCRIPTION,
   keywords: [
     "MDCran", "Michael Cran", "Minecraft Map Maker", "Level Designer",
     "Content Manager", "Thumbnail Designer", "Video Editor", "UCF",
@@ -35,18 +40,25 @@ export const metadata: Metadata = {
     apple: "/icon.png",
   },
   openGraph: {
-    title: "MDCran",
-    description: "Independent Contractor · Content Creator · Developer",
+    title: DEFAULT_SOCIAL_TITLE,
+    description: DEFAULT_SOCIAL_DESCRIPTION,
     url: "https://mdcran.com",
     siteName: "MDCran",
+    locale: "en_US",
     type: "website",
-    images: [absoluteUrl(DEFAULT_OG_IMAGE)],
+    images: [
+      {
+        url: absoluteUrl(DEFAULT_OG_IMAGE),
+        alt: DEFAULT_SOCIAL_TITLE,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     images: [absoluteUrl(DEFAULT_OG_IMAGE)],
-    title: "MDCran",
-    description: "Independent Contractor · Content Creator · Developer",
+    title: DEFAULT_SOCIAL_TITLE,
+    description: DEFAULT_SOCIAL_DESCRIPTION,
+    creator: "@mdcran",
   },
 };
 
