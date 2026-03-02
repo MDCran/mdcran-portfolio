@@ -526,7 +526,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
     }
   }
 
-  const authorPic = imageAssetSrc(article.authorProfilePic ?? "/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
+  const authorPic = imageAssetSrc(article.authorProfilePic) ?? "/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png";
 
   return (
     <main className="min-h-screen">

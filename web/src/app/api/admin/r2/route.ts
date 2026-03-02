@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const prefix = req.nextUrl.searchParams.get("prefix");
-    const search = req.nextUrl.searchParams.get("search");
+    const prefix = req.nextUrl.searchParams.get("prefix") ?? undefined;
+    const search = req.nextUrl.searchParams.get("search") ?? undefined;
     return NextResponse.json(await listR2Assets({ prefix, search }));
   } catch (error) {
     return NextResponse.json(
