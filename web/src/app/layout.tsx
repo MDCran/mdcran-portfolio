@@ -12,6 +12,8 @@ import {
   absoluteUrl,
 } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 export const viewport: Viewport = {
   themeColor: "#ef4242",
 };

@@ -138,6 +138,7 @@ const ROUTES: Record<string, string[]> = {
 const COMMANDS = [
   "help",
   "?",
+  "clear",
   "home",
   "ls",
   "pwd",
@@ -149,6 +150,8 @@ const COMMANDS = [
   "about",
   "clients",
   "featured",
+  "projects",
+  "articles",
   "resume",
   "contact",
   "subscribe",
@@ -215,6 +218,18 @@ function promptLabel(path: string[]) {
 
 function logText(text: string, tone: LogTone = "default"): LogEntry {
   return { id: mkId(), text, tone };
+}
+
+// Box header: always perfectly aligned regardless of title length.
+// Box inner width = 52 dashes. Content area = 48 chars max.
+function boxHeader(text: string, tone: LogTone = "accent"): LogEntry[] {
+  const content = text.slice(0, 48);
+  const pad = 48 - content.length;
+  return [
+    logText(`  ┌${"─".repeat(52)}┐`, "muted"),
+    logText(`  │  ${content}${" ".repeat(pad)}  │`, tone),
+    logText(`  └${"─".repeat(52)}┘`, "muted"),
+  ];
 }
 
 function logPrompt(text: string): LogEntry {
@@ -472,38 +487,40 @@ function formatDate(dateStr?: string) {
 function directoryItems(path: string[], data: TerminalData): string[] {
   const key = pathLabel(path);
 
+  const dir = (name: string) => `  ▸  ${name}/`;
+  const item = (slug: string, title: string, extra?: string) => {
+    const base = `  ·  ${slug.padEnd(36)}  ${title}`;
+    return extra ? `${base}  ${extra}` : base;
+  };
+
   if (key === "/") {
-    return ROOTS.map((name) => `DIR   ${name}`);
+    return ROOTS.map((name) => dir(name));
   }
   if (key === "/arts-and-entertainment") {
-    return ["DIR   minecraft-maps", "DIR   events"];
+    return ["minecraft-maps", "events"].map(dir);
   }
   if (key === "/motion-and-graphics") {
-    return [
-      "DIR   thumbnail-design",
-      "DIR   video-editing",
-      "DIR   web-dev-design",
-    ];
+    return ["thumbnail-design", "video-editing", "web-dev-design"].map(dir);
   }
   if (key === "/arts-and-entertainment/minecraft-maps") {
     return data.projects
       .filter((p) => p.subcategory === "minecraft-maps")
-      .map((p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`);
+      .map((p) => item(p.slug, p.title));
   }
   if (key === "/arts-and-entertainment/events") {
     return data.projects
       .filter((p) => p.subcategory === "events")
-      .map((p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`);
+      .map((p) => item(p.slug, p.title));
   }
   if (key === "/motion-and-graphics/thumbnail-design") {
     return data.projects
       .filter((p) => p.subcategory === "thumbnail-design")
-      .map((p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`);
+      .map((p) => item(p.slug, p.title));
   }
   if (key === "/motion-and-graphics/video-editing") {
     return data.projects
       .filter((p) => p.subcategory === "video-editing")
-      .map((p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`);
+      .map((p) => item(p.slug, p.title));
   }
   if (key === "/motion-and-graphics/web-dev-design") {
     return data.projects
@@ -512,12 +529,12 @@ function directoryItems(path: string[], data: TerminalData): string[] {
           p.subcategory === "web-dev-design" ||
           p.extraSubcategories?.includes("web-dev-design")
       )
-      .map((p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`);
+      .map((p) => item(p.slug, p.title));
   }
   if (key === "/code") {
     return data.projects
       .filter(isCodeProject)
-      .map((p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`);
+      .map((p) => item(p.slug, p.title));
   }
   if (key === "/articles") {
     return [...data.articles]
@@ -525,28 +542,24 @@ function directoryItems(path: string[], data: TerminalData): string[] {
         (a, b) =>
           new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()
       )
-      .map((a) => `ITEM  ${a.slug.padEnd(38)}  ${a.title}`);
+      .map((a) => item(a.slug, a.title, a.publishDate));
   }
   if (key === "/clients") {
-    return data.clients.map(
-      (c) => `ITEM  ${c.id.padEnd(38)}  ${c.name}`
-    );
+    return data.clients.map((c) => item(c.id, c.name, c.roles.slice(0, 1).join("")));
   }
   if (key === "/featured-work") {
-    return data.featuredProjects.map(
-      (p) => `ITEM  ${p.slug.padEnd(38)}  ${p.title}`
-    );
+    return data.featuredProjects.map((p) => item(p.slug, p.title, p.subcategory ?? p.category ?? ""));
   }
 
-  // Virtual leaf dirs
+  // Virtual leaf dirs — run the corresponding command
   const virtualHints: Record<string, string> = {
-    "/about": '  Virtual directory. Run "about" to view.',
-    "/resume": '  Virtual directory. Run "resume" to view.',
-    "/contact": '  Virtual directory. Run "contact" to start form.',
-    "/subscribe": '  Virtual directory. Run "subscribe" to start form.',
-    "/unsubscribe": '  Virtual directory. Run "unsubscribe" to start form.',
-    "/privacy": '  Virtual directory. Run "privacy" to view.',
-    "/terms": '  Virtual directory. Run "terms" to view.',
+    "/about":       "  →  run: about",
+    "/resume":      "  →  run: resume",
+    "/contact":     "  →  run: contact <name> <email> <subject> <message>",
+    "/subscribe":   "  →  run: subscribe <name> <email-or-phone>",
+    "/unsubscribe": "  →  run: unsubscribe <email-or-phone>",
+    "/privacy":     "  →  run: privacy",
+    "/terms":       "  →  run: terms",
   };
   if (key in virtualHints) return [virtualHints[key]];
 
@@ -998,13 +1011,41 @@ export default function TerminalExperience() {
       .sort((a, b) => a.localeCompare(b));
   }, [data]);
 
-  const pathAutocomplete = React.useMemo(
-    () =>
-      ["/", "..", ...Array.from(VALID_DIRS)]
-        .filter((value, index, all) => all.indexOf(value) === index)
-        .sort((a, b) => a.localeCompare(b)),
-    []
-  );
+  const pathAutocomplete = React.useMemo(() => {
+    const all = new Set<string>();
+    all.add("/");
+    all.add("..");
+    for (const dir of VALID_DIRS) all.add(dir);
+    for (const root of ROOTS) all.add(root);
+    for (const alias of Object.keys(ROUTES)) all.add(alias);
+    for (const dir of VALID_DIRS) {
+      const seg = dir.split("/").pop();
+      if (seg) all.add(seg);
+    }
+    return [...all].sort((a, b) => a.localeCompare(b));
+  }, []);
+
+  // Context-aware cd completions: what can you cd into from the current cwd?
+  const cdContextCompletions = React.useMemo(() => {
+    const all = new Set<string>();
+    all.add("/");
+    all.add("..");
+    const key = pathLabel(cwd);
+    if (key === "/") {
+      for (const root of ROOTS) all.add(root);
+      for (const alias of Object.keys(ROUTES)) all.add(alias);
+    } else if (key === "/arts-and-entertainment") {
+      all.add("minecraft-maps");
+      all.add("events");
+    } else if (key === "/motion-and-graphics") {
+      all.add("thumbnail-design");
+      all.add("video-editing");
+      all.add("web-dev-design");
+    }
+    // Always allow absolute path navigation too
+    for (const dir of VALID_DIRS) all.add(dir);
+    return [...all].sort((a, b) => a.localeCompare(b));
+  }, [cwd]);
 
   const showInputHint =
     powerState !== "off" &&
@@ -1061,7 +1102,7 @@ export default function TerminalExperience() {
       const query = arg.trimStart();
       if (!query) return "";
       const normalizedQuery = normalize(query);
-      const match = pathAutocomplete.find(
+      const match = cdContextCompletions.find(
         (candidate) =>
           candidate.toLowerCase().startsWith(normalizedQuery) &&
           candidate.toLowerCase() !== normalizedQuery
@@ -1109,7 +1150,7 @@ export default function TerminalExperience() {
     }
 
     return "";
-  }, [entityAutocomplete, input, pathAutocomplete, results, searchAutocomplete]);
+  }, [cdContextCompletions, entityAutocomplete, input, pathAutocomplete, results, searchAutocomplete]);
 
   const commandUsageHint = React.useMemo(() => {
     const raw = input.trimStart();
@@ -1220,6 +1261,76 @@ export default function TerminalExperience() {
     osc.stop(now + (mode === "start" ? 0.26 : 0.4));
   }, []);
 
+  // Subtle keyboard click for each character typed
+  const playTypeSfx = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    if (!audioContextRef.current) audioContextRef.current = new Ctx();
+    const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    const bufLen = Math.floor(ctx.sampleRate * 0.014);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 2600 + Math.random() * 800;
+    filter.Q.value = 1.4;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.045 + Math.random() * 0.012, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.015);
+  }, []);
+
+  // Mechanical "enter" thump when a command is submitted
+  const playCommandSfx = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    if (!audioContextRef.current) audioContextRef.current = new Ctx();
+    const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    // Low thump
+    const bufLen = Math.floor(ctx.sampleRate * 0.07);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.8);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const lpf = ctx.createBiquadFilter();
+    lpf.type = "lowpass";
+    lpf.frequency.value = 650;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.13, now);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+    noise.connect(lpf);
+    lpf.connect(master);
+    master.connect(ctx.destination);
+    // Short tone click
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(210, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.04);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.055, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.07);
+    osc.start(now);
+    osc.stop(now + 0.045);
+  }, []);
+
   const startTerminalShell = React.useCallback(() => {
     if (powerTimeoutRef.current) {
       window.clearTimeout(powerTimeoutRef.current);
@@ -1238,10 +1349,13 @@ export default function TerminalExperience() {
   }, [active, playPowerSfx, powerState]);
 
   // "Turn On TV" button handler — must be in a click event for audio gesture context.
+  // Music starts immediately; terminal shell starts after 2s delay.
   const handleTurnOn = React.useCallback(() => {
     const audio = getOrCreateCrtThemeAudio();
     void audio.play().catch(() => {});
-    startTerminalShell();
+    window.setTimeout(() => {
+      startTerminalShell();
+    }, 2000);
   }, [getOrCreateCrtThemeAudio, startTerminalShell]);
 
   const startTerminal = React.useCallback(() => {
@@ -1346,7 +1460,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  MDCRAN CLI", "accent"),
       logText(
-        "  type  help  for commands  |  Type \"exit\" to close",
+        "  Type \"help\" for commands  |  Type \"exit\" to close",
         "muted"
       ),
       logText(""),
@@ -1469,6 +1583,7 @@ export default function TerminalExperience() {
         focusCommandInput();
         setInput((current) => current + key);
         setCrtPulseTick((current) => current + 1);
+        playTypeSfx();
         return;
       }
 
@@ -1476,6 +1591,7 @@ export default function TerminalExperience() {
         e.preventDefault();
         focusCommandInput();
         setInput((current) => current.slice(0, -1));
+        playTypeSfx();
       }
     };
 
@@ -1596,6 +1712,10 @@ export default function TerminalExperience() {
       case "help":
         doHelp();
         break;
+      case "clear":
+      case "cls":
+        doClear();
+        break;
       case "home":
         doHome();
         break;
@@ -1626,6 +1746,12 @@ export default function TerminalExperience() {
         break;
       case "featured":
         doFeatured();
+        break;
+      case "projects":
+        doProjects();
+        break;
+      case "articles":
+        doArticles();
         break;
       case "resume":
         doResume();
@@ -1685,44 +1811,53 @@ export default function TerminalExperience() {
   // ── /help ──────────────────────────────────────────────────────────────────
 
   function doHelp() {
+    const W = 52;
+    const bar = "─".repeat(W);
     append([
       logText(""),
-      logText(DIV, "muted"),
-      logText("  AVAILABLE COMMANDS", "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader("MDCRAN CLI  ·  COMMAND REFERENCE"),
       logText(""),
-      logText("  NAVIGATION"),
+      logText("  ▸ FILESYSTEM", "muted"),
+      logText(`  ${"─".repeat(W)}`, "muted"),
       logText("    ls                   List current directory contents"),
-      logText("    pwd                  Show current path"),
-      logText("    cd <path>            Change directory  (.. to go up, / for root)"),
-      logText("    home                 Return to root"),
-      logText("    open <slug>          Open a project, article, or client"),
-      logText("    nano <slug>          Alias for open"),
+      logText("    pwd                  Print working directory path"),
+      logText("    cd <path>            Change directory  (.. up · / root)"),
+      logText("    home                 Jump to root  /"),
+      logText("    open <slug>          Open project, article, or client"),
+      logText("    clear                Clear terminal screen"),
       logText(""),
-      logText("  SECTIONS"),
-      logText("    about                About Michael Cran (MDCran)"),
-      logText("    clients              List all clients"),
-      logText("    featured             Featured work"),
-      logText("    resume               Full resume & work history"),
-      logText("    terms                Terms of service"),
-      logText("    privacy              Privacy policy"),
-      logText(""),
-      logText("  SEARCH"),
-      logText("    search <query>       Search projects, articles & clients"),
-      logText("    select <n>           Open search result by number"),
-      logText("    <n>                  Shortcut: type a result number directly"),
-      logText(""),
-      logText("  FORMS"),
-      logText("    contact              contact <name> <email> <subject> <message> [phone]"),
-      logText("    subscribe            subscribe <name> <email-or-phone>"),
-      logText("    unsubscribe          unsubscribe <email-or-phone>"),
-      logText(""),
-      logText("  OTHER"),
+      logText("  ▸ CONTENT", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText("    about                Profile & background info"),
+      logText("    clients              Browse all clients"),
+      logText("    featured             Featured portfolio work"),
+      logText("    projects             All projects"),
+      logText("    articles             All articles"),
+      logText("    resume               Full résumé & work history"),
       logText("    spotify              Now playing on Spotify"),
-      logText("    exit                 Exit terminal  (also: ESC key)"),
-      logText("    help or ?            Show this help screen"),
+      logText("    terms  /  privacy    Legal documents"),
       logText(""),
-      logText(DIV, "muted"),
+      logText("  ▸ SEARCH", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText("    search <query>       Search projects, articles & clients"),
+      logText("    select <n>           Open result by number"),
+      logText("    <n>                  Shortcut — type a number directly"),
+      logText(""),
+      logText("  ▸ CONTACT", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText("    contact <name> <email> <subject> <message> [phone]"),
+      logText("    subscribe <name> <email-or-phone>"),
+      logText("    unsubscribe <email-or-phone>"),
+      logText(""),
+      logText("  ▸ OTHER", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText('    exit                 Type "exit" to close'),
+      logText("    help                 Show this screen"),
+      logText(""),
+      logText(`  ${"─".repeat(W)}`, "muted"),
+      logText("  TAB autocomplete  ·  ↑↓ command history  ·  Ctrl+C clears input", "muted"),
+      logText(`  ${"─".repeat(W)}`, "muted"),
+      logText(""),
     ]);
   }
 
@@ -1731,6 +1866,22 @@ export default function TerminalExperience() {
   function doHome() {
     setCwd([]);
     append([logText("  Navigated to /", "success")]);
+  }
+
+  // ── /clear ─────────────────────────────────────────────────────────────────
+
+  function doClear() {
+    setLogs([
+      logText(ASCII, "accent"),
+      logText(""),
+      logText("  MDCRAN CLI", "accent"),
+      logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
+      logText(""),
+    ]);
+    setPreview(null);
+    setResults([]);
+    setSelectedResultIdx(0);
+    setResultsLabel("Search Results");
   }
 
   // ── /ls ───────────────────────────────────────────────────────────────────
@@ -1747,9 +1898,11 @@ export default function TerminalExperience() {
     } else {
       append([
         logText(""),
-        logText(`  Directory of ${pathLabel(cwd)}`, "muted"),
+        logText(`  ┌─ ${pathLabel(cwd)} ${"─".repeat(Math.max(0, 46 - pathLabel(cwd).length))}`, "muted"),
         logText(""),
-        ...items.map((item) => logText(`  ${item}`)),
+        ...items.map((it) => logText(it)),
+        logText(""),
+        logText(`  ${items.length} item${items.length === 1 ? "" : "s"}`, "muted"),
         logText(""),
       ]);
     }
@@ -1880,26 +2033,25 @@ export default function TerminalExperience() {
     }
 
     const KIND_LABEL: Record<string, string> = {
-      route: "ROUTE",
-      project: "PROJ ",
-      article: "ART  ",
-      client: "CLI  ",
+      route:   "ROUTE  ",
+      project: "PROJ   ",
+      article: "ARTICLE",
+      client:  "CLIENT ",
+      video:   "VIDEO  ",
     };
 
     append([
       logText(""),
-      logText(
-        `  ${hits.length} result${hits.length === 1 ? "" : "s"} for "${query}"`,
-        "muted"
-      ),
+      ...boxHeader(`SEARCH  ·  "${query.slice(0, 36)}"`),
+      logText(`  ${hits.length} result${hits.length === 1 ? "" : "s"} found`, "muted"),
       logText(""),
       ...hits.map((hit, i) =>
         logText(
-          `  [${i + 1}]  ${KIND_LABEL[hit.kind]}  ${hit.label}`
+          `  [${String(i + 1).padStart(2)}]  ${KIND_LABEL[hit.kind] ?? "       "}  ${hit.label}`
         )
       ),
       logText(""),
-      logText("  Type the result number to open it  (e.g.  1)", "muted"),
+      logText("  Type a number to open  ·  e.g.  1", "muted"),
     ]);
   }
 
@@ -1981,34 +2133,34 @@ export default function TerminalExperience() {
         .filter((client): client is Client => Boolean(client)) ?? [];
     const lines: LogEntry[] = [
       logText(""),
-      logText(DIV, "muted"),
-      logText(`  ${p.title.toUpperCase()}`, "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader(p.title.toUpperCase()),
       logText(""),
       ...(p.description ? [logText(`  ${summarizeText(p.description, 320)}`)] : []),
       ...(p.longDescription
         ? [logText(""), logText(`  ${summarizeText(p.longDescription, 520)}`)]
         : []),
       logText(""),
-      logText(`  Type:    ${p.subcategory ?? p.category ?? "—"}`),
+      logText(`  ${"─".repeat(52)}`, "muted"),
+      logText(`  Type      ${p.subcategory ?? p.category ?? "—"}`),
       ...(p.pricing?.status === "free"
-        ? [logText("  Pricing: FREE")]
+        ? [logText("  Pricing   FREE")]
         : []),
-      ...(p.pricing?.price ? [logText(`  Price:   ${formatMoney(p.pricing.price)}`)] : []),
-      ...(p.publishDate ? [logText(`  Date:    ${formatDate(p.publishDate)}`)] : []),
+      ...(p.pricing?.price ? [logText(`  Price     ${formatMoney(p.pricing.price)}`)] : []),
+      ...(p.publishDate ? [logText(`  Date      ${formatDate(p.publishDate)}`)] : []),
       ...(relatedClients.length
-        ? [logText(`  Client:  ${relatedClients.map((client) => client.name).join(", ")}`)]
+        ? [logText(`  Client    ${relatedClients.map((client) => client.name).join(", ")}`)]
         : []),
       ...(p.tags?.length
-        ? [logText(`  Tags:    ${p.tags.join("  ·  ")}`)]
+        ? [logText(`  Tags      ${p.tags.join("  ·  ")}`, "muted")]
         : []),
       ...(p.credits?.length
         ? [
             logText(
-              `  Credits: ${p.credits
+              `  Credits   ${p.credits
                 .slice(0, 4)
                 .map((credit) => `${credit.name} (${credit.role})`)
-                .join("  ·  ")}`
+                .join("  ·  ")}`,
+              "muted"
             ),
           ]
         : []),
@@ -2054,20 +2206,27 @@ export default function TerminalExperience() {
       .map((url) => ({ url, alt: p.title }));
     const coverImg = projectPreviewImages[0]?.url;
     if (coverImg) {
+      const previewDetails: string[] = [
+        p.subcategory ?? p.category ?? "",
+        p.publishDate ? formatDate(p.publishDate) : "",
+        relatedClients.length ? `Client: ${relatedClients.map((c) => c.name).join(", ")}` : "",
+        p.pricing?.status === "free" ? "Free download" : p.pricing?.price ? formatMoney(p.pricing.price) : p.pricing?.status === "unavailable" ? "Unavailable" : "",
+        p.videos?.length ? `${p.videos.length} video${p.videos.length === 1 ? "" : "s"}` : "",
+        p.tags?.length ? p.tags.join(" · ") : "",
+        p.featured ? "★ Featured" : "",
+        p.credits?.length ? `Credits: ${p.credits.slice(0, 3).map((c) => c.name).join(", ")}` : "",
+      ].filter(Boolean);
+
       setPreview({
         title: p.title,
-        subtitle: p.subcategory ?? p.category,
+        subtitle: `${p.subcategory ?? p.category ?? "Project"}  ·  ${p.slug}`,
         imageUrl: coverImg,
         imageAlt: p.title,
         images: projectPreviewImages,
+        details: previewDetails,
         linkUrl: internalUrl,
-        linkLabel: "View project page",
-        caption: [
-          p.pricing?.price ? formatMoney(p.pricing.price) : "",
-          p.videos?.length ? `${p.videos.length} video${p.videos.length === 1 ? "" : "s"}` : "",
-        ]
-          .filter(Boolean)
-          .join("  ·  "),
+        linkLabel: "View project page →",
+        caption: p.longDescription ? summarizeText(p.longDescription, 120) : (p.description ? summarizeText(p.description, 120) : undefined),
       });
     }
   }
@@ -2081,21 +2240,18 @@ export default function TerminalExperience() {
     );
     const lines: LogEntry[] = [
       logText(""),
-      logText(DIV, "muted"),
-      logText(`  ${a.title.toUpperCase()}`, "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader(a.title.toUpperCase()),
       logText(""),
-      logText(
-        `  Published: ${formatDate(a.publishDate)}  ·  By ${a.author}`
-      ),
+      logText(`  Published   ${formatDate(a.publishDate)}  ·  ${a.author}`),
       logText(""),
       ...(a.excerpt ? [logText(`  ${summarizeText(a.excerpt, 360)}`)] : []),
       logText(""),
-      logText(`  Category: ${a.category}`),
-      logText(`  Sections: ${a.sections.length}`),
-      ...(a.updatedDate ? [logText(`  Updated:  ${formatDate(a.updatedDate)}`)] : []),
+      logText(`  ${"─".repeat(52)}`, "muted"),
+      logText(`  Category    ${a.category}`),
+      logText(`  Sections    ${a.sections.length}`),
+      ...(a.updatedDate ? [logText(`  Updated     ${formatDate(a.updatedDate)}`)] : []),
       ...(a.tags?.length
-        ? [logText(""), logText(`  Tags:  ${a.tags.join("  ·  ")}`, "muted")]
+        ? [logText(`  Tags        ${a.tags.join("  ·  ")}`, "muted")]
         : []),
     ];
 
@@ -2144,23 +2300,25 @@ export default function TerminalExperience() {
       .filter((url, index, all) => all.indexOf(url) === index)
       .map((url) => ({ url, alt: a.title }));
     const coverImg = articlePreviewImages[0]?.url;
-    if (coverImg) {
-      setPreview({
-        title: a.title,
-        subtitle: `Published ${formatDate(a.publishDate)}`,
-        imageUrl: coverImg,
-        imageAlt: a.title,
-        images: articlePreviewImages,
-        linkUrl: articleHref,
-        linkLabel: "Read article",
-        caption: [
-          `${a.sections.length} section${a.sections.length === 1 ? "" : "s"}`,
-          articleVideos.length ? `${articleVideos.length} video${articleVideos.length === 1 ? "" : "s"}` : "",
-        ]
-          .filter(Boolean)
-          .join("  ·  "),
-      });
-    }
+    const previewDetails: string[] = [
+      `Author: ${a.author}`,
+      a.updatedDate ? `Updated: ${formatDate(a.updatedDate)}` : "",
+      a.tapCount ? `${a.tapCount.toLocaleString()} tap${a.tapCount === 1 ? "" : "s"}` : "",
+      `${a.sections.length} section${a.sections.length === 1 ? "" : "s"}`,
+      articleVideos.length ? `${articleVideos.length} video${articleVideos.length === 1 ? "" : "s"}` : "",
+      a.featured ? "★ Featured" : "",
+      a.tags?.length ? a.tags.join(" · ") : "",
+    ].filter(Boolean);
+    setPreview({
+      title: a.title,
+      subtitle: `${a.category}  ·  ${formatDate(a.publishDate)}`,
+      ...(coverImg ? { imageUrl: coverImg, imageAlt: a.title } : {}),
+      images: articlePreviewImages,
+      details: previewDetails,
+      quote: a.excerpt ? summarizeText(a.excerpt, 140) : undefined,
+      linkUrl: articleHref,
+      linkLabel: "Read article →",
+    });
   }
 
   // ── Show client ───────────────────────────────────────────────────────────
@@ -2188,19 +2346,18 @@ export default function TerminalExperience() {
     setResultsLabel("Client Options");
     const lines: LogEntry[] = [
       logText(""),
-      logText(DIV, "muted"),
-      logText(`  ${c.name.toUpperCase()}`, "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader(c.name.toUpperCase()),
       logText(""),
+      logText(`  ${"─".repeat(52)}`, "muted"),
     ];
 
     if (c.roles?.length)
-      lines.push(logText(`  Roles:     ${c.roles.join(", ")}`));
-    if (c.location) lines.push(logText(`  Location:  ${c.location}`));
-    if (c.followerCount) lines.push(logText(`  Followers: ${formatCount(c.followerCount)}`));
-    if (c.viewCount) lines.push(logText(`  Views:     ${formatCount(c.viewCount)}`));
-    if (clientProjects.length) lines.push(logText(`  Projects:  ${clientProjects.length}`));
-    if (clientVideos.length) lines.push(logText(`  Videos:    ${clientVideos.length}`));
+      lines.push(logText(`  Roles      ${c.roles.join(", ")}`));
+    if (c.location) lines.push(logText(`  Location   ${c.location}`));
+    if (c.followerCount) lines.push(logText(`  Followers  ${formatCount(c.followerCount)}`));
+    if (c.viewCount) lines.push(logText(`  Views      ${formatCount(c.viewCount)}`));
+    if (clientProjects.length) lines.push(logText(`  Projects   ${clientProjects.length}`));
+    if (clientVideos.length) lines.push(logText(`  Videos     ${clientVideos.length}`));
     if (c.bio) {
       lines.push(logText(""));
       lines.push(logText(`  ${summarizeText(c.bio, 420)}`));
@@ -2320,25 +2477,45 @@ export default function TerminalExperience() {
 
     append([
       logText(""),
-      logText(DIV, "muted"),
-      logText("  ABOUT — MICHAEL CRAN (MDCRAN)", "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader("MICHAEL CRAN  ·  MDCRAN"),
       logText(""),
       ...(about?.description
-        ? [logText(`  ${about.description}`)]
+        ? [logText(`  ${summarizeText(about.description, 460)}`)]
         : []),
       ...(about?.supportingText
-        ? [logText(""), logText(`  ${about.supportingText}`)]
+        ? [logText(""), logText(`  ◈  ${about.supportingText}`, "muted")]
         : []),
       ...(about?.tags?.length
         ? [
             logText(""),
-            logText(`  ${about.tags.join("  ·  ")}`, "muted"),
+            logText(`  ${about.tags.map((t) => `[ ${t} ]`).join("  ")}`, "muted"),
           ]
         : []),
       logText(""),
+      logText("  ─── Links " + "─".repeat(42), "muted"),
+      logLinks([
+        { label: "View resume →", href: "/resume" },
+        { label: "Contact me →", href: "/contact" },
+      ]),
+      logText(""),
     ]);
 
+    // Open the right preview pane with the about photos
+    const aboutImages = (about?.images ?? [])
+      .map((img) => ({ url: imageAssetSrc(img.src) ?? "", alt: img.alt ?? "Michael Cran" }))
+      .filter((img) => Boolean(img.url));
+    if (aboutImages.length) {
+      setPreview({
+        title: "Michael Cran",
+        subtitle: about?.supportingText ?? "MDCran",
+        imageUrl: aboutImages[0].url,
+        imageAlt: aboutImages[0].alt,
+        images: aboutImages,
+        linkUrl: "/resume",
+        linkLabel: "View resume",
+        caption: about?.tags?.map((t) => `[ ${t} ]`).join("  ") ?? "",
+      });
+    }
   }
 
   // ── /clients ──────────────────────────────────────────────────────────────
@@ -2349,22 +2526,28 @@ export default function TerminalExperience() {
       return;
     }
 
+    const hits: SearchHit[] = data.clients.map((c) => ({
+      kind: "client" as const,
+      id: c.id,
+      label: c.name,
+    }));
+    setResults(hits);
+    setSelectedResultIdx(0);
+    setResultsLabel("Clients");
+
     append([
       logText(""),
-      logText(DIV, "muted"),
-      logText("  CLIENTS", "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader(`CLIENTS  ·  ${data.clients.length} total`),
       logText(""),
-      ...data.clients.map((c) =>
+      logText(`  ${"#".padEnd(4)}  ${"NAME".padEnd(22)}  ${"ID / open <id>".padEnd(22)}  ROLES`, "muted"),
+      logText(`  ${"─".repeat(66)}`, "muted"),
+      ...data.clients.map((c, i) =>
         logText(
-          `  ${c.name.padEnd(24)}  ${c.roles.slice(0, 2).join(", ")}`
+          `  ${String(i + 1).padStart(2)}    ${c.name.slice(0, 22).padEnd(22)}  ${c.id.slice(0, 22).padEnd(22)}  ${c.roles.slice(0, 1).join(", ")}`
         )
       ),
       logText(""),
-      logText(
-        "  Run  open <client-id>  to view details.",
-        "muted"
-      ),
+      logText("  open <id>  or  type number to select", "muted"),
       logText(""),
     ]);
   }
@@ -2377,19 +2560,100 @@ export default function TerminalExperience() {
       return;
     }
 
+    const hits: SearchHit[] = data.featuredProjects.map((p) => ({
+      kind: "project" as const,
+      id: p.id,
+      label: p.title,
+    }));
+    setResults(hits);
+    setSelectedResultIdx(0);
+    setResultsLabel("Featured Projects");
+
     append([
       logText(""),
-      logText(DIV, "muted"),
-      logText("  FEATURED WORK", "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader("★  FEATURED WORK"),
       logText(""),
-      ...data.featuredProjects.map((p) =>
+      logText(`  ${"#".padEnd(4)}  ${"TITLE".padEnd(24)}  ${"SLUG / open <slug>".padEnd(26)}  TYPE`, "muted"),
+      logText(`  ${"─".repeat(70)}`, "muted"),
+      ...data.featuredProjects.map((p, i) =>
         logText(
-          `  ${p.title.padEnd(32)}  ${p.subcategory ?? p.category ?? ""}`
+          `  ${String(i + 1).padStart(2)}    ${p.title.slice(0, 24).padEnd(24)}  ${p.slug.slice(0, 26).padEnd(26)}  ${p.subcategory ?? p.category ?? ""}`
         )
       ),
       logText(""),
-      logText("  Run  open <slug>  to view a project.", "muted"),
+      logText("  open <slug>  or  type number to select", "muted"),
+      logText(""),
+    ]);
+  }
+
+  // ── /projects ─────────────────────────────────────────────────────────────
+
+  function doProjects() {
+    if (!data) {
+      append([logText("  Data loading, please wait...", "muted")]);
+      return;
+    }
+
+    const hits: SearchHit[] = data.projects.map((p) => ({
+      kind: "project" as const,
+      id: p.id,
+      label: p.title,
+    }));
+    setResults(hits);
+    setSelectedResultIdx(0);
+    setResultsLabel("Projects");
+
+    append([
+      logText(""),
+      ...boxHeader(`ALL PROJECTS  ·  ${data.projects.length} total`),
+      logText(""),
+      logText(`  ${"#".padEnd(4)}  ${"TITLE".padEnd(24)}  ${"SLUG / open <slug>".padEnd(26)}  TYPE`, "muted"),
+      logText(`  ${"─".repeat(70)}`, "muted"),
+      ...data.projects.map((p, i) =>
+        logText(
+          `  ${String(i + 1).padStart(2)}    ${p.title.slice(0, 24).padEnd(24)}  ${p.slug.slice(0, 26).padEnd(26)}  ${p.subcategory ?? p.category ?? ""}`
+        )
+      ),
+      logText(""),
+      logText("  open <slug>  or  type number to select", "muted"),
+      logText(""),
+    ]);
+  }
+
+  // ── /articles ─────────────────────────────────────────────────────────────
+
+  function doArticles() {
+    if (!data) {
+      append([logText("  Data loading, please wait...", "muted")]);
+      return;
+    }
+
+    const sorted = [...data.articles].sort(
+      (a, b) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()
+    );
+
+    const hits: SearchHit[] = sorted.map((a) => ({
+      kind: "article" as const,
+      id: a.id,
+      label: a.title,
+    }));
+    setResults(hits);
+    setSelectedResultIdx(0);
+    setResultsLabel("Articles");
+
+    append([
+      logText(""),
+      ...boxHeader(`ALL ARTICLES  ·  ${sorted.length} total`),
+      logText(""),
+      logText(`  ${"#".padEnd(4)}  ${"TITLE".padEnd(28)}  ${"SLUG / open <slug>".padEnd(24)}  DATE`, "muted"),
+      logText(`  ${"─".repeat(70)}`, "muted"),
+      ...sorted.map((a, i) =>
+        logText(
+          `  ${String(i + 1).padStart(2)}    ${a.title.slice(0, 28).padEnd(28)}  ${a.slug.slice(0, 24).padEnd(24)}  ${a.publishDate}`
+        )
+      ),
+      logText(""),
+      logText("  open <slug>  or  type number to select", "muted"),
       logText(""),
     ]);
   }
@@ -2404,15 +2668,13 @@ export default function TerminalExperience() {
 
     const lines: LogEntry[] = [
       logText(""),
-      logText(DIV, "muted"),
-      logText("  RESUME - MICHAEL CRAN", "accent"),
-      logText(DIV, "muted"),
+      ...boxHeader("RÉSUMÉ  ·  MICHAEL CRAN  ·  MDCRAN"),
     ];
 
     if (data.experiences?.length) {
       lines.push(logText(""));
-      lines.push(logText("  EXPERIENCE", "muted"));
-      lines.push(logText("  " + "-".repeat(44), "muted"));
+      lines.push(logText("  ▸ EXPERIENCE", "muted"));
+      lines.push(logText("  " + "─".repeat(50), "muted"));
       for (const exp of data.experiences) {
         const period = exp.current
           ? `${exp.startDate} - Present`
@@ -2431,15 +2693,15 @@ export default function TerminalExperience() {
           lines.push(logText(`    ${exp.description}`));
         if (exp.highlights?.length) {
           for (const h of exp.highlights)
-            lines.push(logText(`    * ${h}`));
+            lines.push(logText(`    ·  ${h}`, "muted"));
         }
       }
     }
 
     if (data.educations?.length) {
       lines.push(logText(""));
-      lines.push(logText("  EDUCATION", "muted"));
-      lines.push(logText("  " + "-".repeat(44), "muted"));
+      lines.push(logText("  ▸ EDUCATION", "muted"));
+      lines.push(logText("  " + "─".repeat(50), "muted"));
       for (const edu of data.educations) {
         lines.push(logText(""));
         lines.push(
@@ -2463,8 +2725,8 @@ export default function TerminalExperience() {
 
     if (data.skills?.length) {
       lines.push(logText(""));
-      lines.push(logText("  SKILLS", "muted"));
-      lines.push(logText("  " + "-".repeat(44), "muted"));
+      lines.push(logText("  ▸ SKILLS", "muted"));
+      lines.push(logText("  " + "─".repeat(50), "muted"));
       const grouped: Record<string, string[]> = {};
       for (const skill of data.skills) {
         const cat = skill.category ?? "Other";
@@ -2479,8 +2741,8 @@ export default function TerminalExperience() {
 
     if (data.certifications?.length) {
       lines.push(logText(""));
-      lines.push(logText("  CERTIFICATIONS", "muted"));
-      lines.push(logText("  " + "-".repeat(44), "muted"));
+      lines.push(logText("  ▸ CERTIFICATIONS", "muted"));
+      lines.push(logText("  " + "─".repeat(50), "muted"));
       for (const cert of data.certifications) {
         lines.push(
           logText(
@@ -2492,8 +2754,8 @@ export default function TerminalExperience() {
 
     if (data.awards?.length) {
       lines.push(logText(""));
-      lines.push(logText("  AWARDS", "muted"));
-      lines.push(logText("  " + "-".repeat(44), "muted"));
+      lines.push(logText("  ▸ AWARDS", "muted"));
+      lines.push(logText("  " + "─".repeat(50), "muted"));
       for (const award of data.awards) {
         lines.push(
           logText(
@@ -3073,6 +3335,7 @@ export default function TerminalExperience() {
     }
 
     if (key === "Enter") {
+      playCommandSfx();
       if (hasNavigableResults) {
         openResult(selectedResultIdx);
         return true;
@@ -3150,12 +3413,14 @@ export default function TerminalExperience() {
       e.preventDefault();
       setInput((current) => current + e.key);
       setCrtPulseTick((current) => current + 1);
+      playTypeSfx();
       return;
     }
 
     if (e.key === "Backspace") {
       e.preventDefault();
       setInput((current) => current.slice(0, -1));
+      playTypeSfx();
     }
   }
 
@@ -3443,6 +3708,7 @@ export default function TerminalExperience() {
           dismissStartupInputHint();
           setInput(e.target.value);
           setCrtPulseTick((current) => current + 1);
+          playTypeSfx();
         }}
         onInput={(e) => {
           const target = e.currentTarget;

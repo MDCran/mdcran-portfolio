@@ -1250,3 +1250,51 @@ export async function saveRizzSubmissions(data: RizzSubmission[]): Promise<void>
     await db.collection("rizz").insertMany(data as unknown as Record<string, unknown>[]);
   }
 }
+
+export async function updateR2AssetReferences(oldUrl: string, newUrl: string): Promise<number> {
+  function deepReplace(obj: unknown): unknown {
+    if (typeof obj === "string") return obj === oldUrl ? newUrl : obj;
+    if (Array.isArray(obj)) return obj.map(deepReplace);
+    if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+      return Object.fromEntries(
+        Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, deepReplace(v)])
+      );
+    }
+    return obj;
+  }
+
+  let updatedCount = 0;
+  const db = await getDb();
+
+  const projects = await db.collection("projects").find().toArray();
+  for (const p of projects) {
+    const replaced = deepReplace(p) as Record<string, unknown>;
+    replaced._id = p._id;
+    if (JSON.stringify(replaced) !== JSON.stringify(p)) {
+      await db.collection("projects").replaceOne({ _id: p._id }, replaced);
+      updatedCount++;
+    }
+  }
+
+  const articles = await db.collection("articles").find().toArray();
+  for (const a of articles) {
+    const replaced = deepReplace(a) as Record<string, unknown>;
+    replaced._id = a._id;
+    if (JSON.stringify(replaced) !== JSON.stringify(a)) {
+      await db.collection("articles").replaceOne({ _id: a._id }, replaced);
+      updatedCount++;
+    }
+  }
+
+  const sc = await db.collection("siteContent").findOne({});
+  if (sc) {
+    const replaced = deepReplace(sc) as Record<string, unknown>;
+    replaced._id = sc._id;
+    if (JSON.stringify(replaced) !== JSON.stringify(sc)) {
+      await db.collection("siteContent").replaceOne({ _id: sc._id }, replaced);
+      updatedCount++;
+    }
+  }
+
+  return updatedCount;
+}
