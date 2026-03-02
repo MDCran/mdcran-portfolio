@@ -11,7 +11,7 @@ import Clients from "@/components/home/Clients";
 import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import MercuryPrompt from "@/components/home/MercuryPrompt";
-import { getFeaturedProjects, getClients, getProjects, getSiteContent } from "@/lib/db";
+import { getClients, getProjects, getSiteContent } from "@/lib/db";
 import { buildSeoMetadata } from "@/lib/seo";
 import { assetUrl } from "@/lib/utils";
 
@@ -32,13 +32,20 @@ export const metadata: Metadata = buildSeoMetadata({
 });
 
 export default async function HomePage() {
-  const [allProjects, allClients, featuredProjects, siteContent] = await Promise.all([
+  const [allProjects, allClients, siteContent] = await Promise.all([
     getProjects(),
     getClients(),
-    getFeaturedProjects(),
     getSiteContent(),
   ]);
-  const featuredClients = allClients.filter((client) => client.featured);
+
+  // Use admin-ordered lists if configured, otherwise fall back to featured flag
+  const featuredProjects = siteContent.featuredProjectIds.length
+    ? siteContent.featuredProjectIds.map((id) => allProjects.find((p) => p.id === id)).filter(Boolean) as typeof allProjects
+    : allProjects.filter((p) => p.featured);
+
+  const featuredClients = siteContent.featuredClientIds.length
+    ? siteContent.featuredClientIds.map((id) => allClients.find((c) => c.id === id)).filter(Boolean) as typeof allClients
+    : allClients.filter((c) => c.featured);
 
   const jsonLd = {
     "@context": "https://schema.org",
