@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import { Check, X, Mail, Phone } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
+import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 
 type Mode = "email" | "phone" | "both";
 type Status = "idle" | "loading" | "success" | "error";
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function SubscribePage() {
+  const { data: siteContent } = useSWR("/api/data/site-content", fetcher, { revalidateOnFocus: false });
+  const header = siteContent?.pageHeaders?.subscribe;
   const [mode, setMode] = useState<Mode>("email");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -49,10 +55,27 @@ export default function SubscribePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
     if (!consent) return;
-    if (mode === "email" && !email.trim()) return;
-    if (mode === "phone" && !phone.trim()) return;
-    if (mode === "both" && !email.trim() && !phone.trim()) return;
+    if (mode === "email" && !trimmedEmail) return;
+    if (mode === "phone" && !trimmedPhone) return;
+    if (mode === "both" && (!trimmedEmail || !trimmedPhone)) {
+      setStatus("error");
+      setMessage("Enter both a valid email address and phone number.");
+      return;
+    }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setStatus("error");
+      setMessage("Enter a valid email address.");
+      return;
+    }
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      setStatus("error");
+      setMessage("Enter a valid phone number.");
+      return;
+    }
 
     setStatus("loading");
     setMessage("");
@@ -62,9 +85,9 @@ export default function SubscribePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: mode !== "phone" ? email : undefined,
-          phone: mode !== "email" ? phone : undefined,
-          name: name || undefined,
+          email: mode !== "phone" ? trimmedEmail : undefined,
+          phone: mode !== "email" ? trimmedPhone : undefined,
+          name: name.trim() || undefined,
           consent,
           source: "subscribe-page",
         }),
@@ -77,8 +100,10 @@ export default function SubscribePage() {
       } else {
         setStatus("error");
         setMessage(
-          typeof data?.message === "string"
-            ? data.message
+          typeof data?.error === "string"
+            ? data.error
+            : typeof data?.message === "string"
+              ? data.message
             : "Unable to save your subscription."
         );
       }
@@ -108,11 +133,12 @@ export default function SubscribePage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Subscribe"} />
       <Navbar />
       <PageHeader
-        eyebrow="Preferences"
-        title="Subscribe"
-        description="Choose how you'd like to hear from MDCran and subscribe to updates."
+        eyebrow={header?.eyebrow ?? "Preferences"}
+        title={header?.title ?? "Subscribe"}
+        description={header?.description ?? "Choose how you'd like to hear from MDCran and subscribe to updates."}
         breadcrumbs={[{ label: "Subscribe" }]}
       />
       <main className="content-container max-w-2xl py-14 sm:py-16">

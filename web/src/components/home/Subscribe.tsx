@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Phone, CheckCircle2, AlertCircle } from "lucide-react";
+import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 
 type Mode = "email" | "phone" | "both";
 
@@ -18,20 +19,38 @@ export default function Subscribe() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
     if (!consent) return;
-    if (mode === "email" && !email) return;
-    if (mode === "phone" && !phone) return;
-    if (mode === "both" && !email && !phone) return;
+    if (mode === "email" && !trimmedEmail) return;
+    if (mode === "phone" && !trimmedPhone) return;
+    if (mode === "both" && (!trimmedEmail || !trimmedPhone)) {
+      setStatus("error");
+      setMessage("Enter both a valid email address and phone number.");
+      return;
+    }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setStatus("error");
+      setMessage("Enter a valid email address.");
+      return;
+    }
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      setStatus("error");
+      setMessage("Enter a valid phone number.");
+      return;
+    }
 
     setStatus("loading");
+    setMessage("");
     try {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: mode !== "phone" ? email : undefined,
-          phone: mode !== "email" ? phone : undefined,
-          name: name || undefined,
+          email: mode !== "phone" ? trimmedEmail : undefined,
+          phone: mode !== "email" ? trimmedPhone : undefined,
+          name: name.trim() || undefined,
           consent,
           source: "home-page",
         }),
@@ -42,7 +61,7 @@ export default function Subscribe() {
         setMessage("You're on the list!");
       } else {
         setStatus("error");
-        setMessage(data.message ?? "Something went wrong.");
+        setMessage(data.error ?? data.message ?? "Something went wrong.");
       }
     } catch {
       setStatus("error");

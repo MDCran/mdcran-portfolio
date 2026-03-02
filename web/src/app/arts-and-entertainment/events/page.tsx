@@ -5,10 +5,11 @@ import useSWR from "swr";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import FilterBar, { GRID_COLS_CLASS } from "@/components/shared/FilterBar";
 import ProjectCard from "@/components/shared/ProjectCard";
 import { useGridCols } from "@/lib/useGridCols";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Project, ProjectStatus, SiteContent } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -17,6 +18,10 @@ export default function EventsPage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const header = siteContent?.pageHeaders?.events;
   const allProjects = apiProjects.filter((project) => project.subcategory === "events");
 
   const [query, setQuery] = useState("");
@@ -46,11 +51,12 @@ export default function EventsPage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Events"} />
       <Navbar />
       <PageHeader
-        eyebrow="Arts & Entertainment"
-        title="Events"
-        description="Large-scale competitive and community Minecraft events."
+        eyebrow={header?.eyebrow ?? "Arts & Entertainment"}
+        title={header?.title ?? "Events"}
+        description={header?.description ?? "Large-scale competitive and community Minecraft events."}
         breadcrumbs={[
           { label: "Arts & Entertainment", href: "/arts-and-entertainment" },
           { label: "Events" },

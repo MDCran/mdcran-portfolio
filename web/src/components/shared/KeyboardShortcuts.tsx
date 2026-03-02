@@ -11,6 +11,7 @@ type ShortcutItem = {
 };
 
 const DISPLAY_SHORTCUTS: ShortcutItem[] = [
+  { keys: ["Ctrl", "Alt", "T"], label: "Terminal" },
   { keys: ["G", "H"], label: "Home" },
   { keys: ["G", "E"], label: "Arts & Entertainment" },
   { keys: ["G", "M"], label: "Motion & Graphics" },
@@ -124,6 +125,17 @@ export default function KeyboardShortcuts() {
         setShowOnCtrl(true);
         return;
       }
+      if (
+        event.ctrlKey &&
+        event.altKey &&
+        !event.metaKey &&
+        event.key.toLowerCase() === "t" &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent("mdcran:open-terminal"));
+        return;
+      }
       if (event.defaultPrevented) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
@@ -170,12 +182,47 @@ export default function KeyboardShortcuts() {
       }
     };
 
+    const clearHeldShortcutState = () => {
+      setShowOnCtrl(false);
+      clearSequence();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        clearHeldShortcutState();
+      }
+    };
+
+    const onMouseOut = (event: MouseEvent) => {
+      if (event.relatedTarget === null) {
+        clearHeldShortcutState();
+      }
+    };
+
+    const onPointerLeaveDocument = () => {
+      clearHeldShortcutState();
+    };
+
+    const onFocus = () => {
+      clearHeldShortcutState();
+    };
+
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", clearHeldShortcutState);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("mouseout", onMouseOut);
+    document.documentElement.addEventListener("pointerleave", onPointerLeaveDocument);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       clearSequence();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", clearHeldShortcutState);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("mouseout", onMouseOut);
+      document.documentElement.removeEventListener("pointerleave", onPointerLeaveDocument);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [pathname, router]);
 

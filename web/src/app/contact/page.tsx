@@ -1,17 +1,24 @@
 "use client";
 
 import React, { useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Send, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
+import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 
 type Status = "idle" | "sending" | "success" | "error";
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function ContactPage() {
+  const { data: siteContent } = useSWR("/api/data/site-content", fetcher, { revalidateOnFocus: false });
+  const header = siteContent?.pageHeaders?.contact;
   const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   const [submissionId, setSubmissionId] = useState(() => crypto.randomUUID());
   const [form, setForm] = useState({
     name: "",
@@ -22,14 +29,40 @@ export default function ContactPage() {
     consent: false,
   });
 
-  const set = (k: keyof typeof form, v: string | boolean) =>
+  const set = (k: keyof typeof form, v: string | boolean) => {
+    if (status === "error") {
+      setStatus("idle");
+    }
+    if (errorMessage) {
+      setErrorMessage("");
+    }
     setForm((f) => ({ ...f, [k]: v }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.message || (!form.email && !form.phone)) return;
+    const trimmedEmail = form.email.trim();
+    const trimmedPhone = form.phone.trim();
+
+    if (!form.name.trim() || !form.message.trim()) return;
+    if (!trimmedEmail && !trimmedPhone) {
+      setStatus("error");
+      setErrorMessage("Enter an email address or phone number.");
+      return;
+    }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setStatus("error");
+      setErrorMessage("Enter a valid email address.");
+      return;
+    }
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      setStatus("error");
+      setErrorMessage("Enter a valid phone number.");
+      return;
+    }
     if (!form.consent) return;
 
+    setErrorMessage("");
     setStatus("sending");
     try {
       const res = await fetch("/api/contact", {
@@ -39,23 +72,28 @@ export default function ContactPage() {
       });
       if (res.ok) {
         setStatus("success");
+        setErrorMessage("");
         setForm({ name: "", email: "", phone: "", subject: "", message: "", consent: false });
         setSubmissionId(crypto.randomUUID());
       } else {
+        const data = await res.json().catch(() => null) as { error?: string } | null;
         setStatus("error");
+        setErrorMessage(data?.error || "Something went wrong.");
       }
     } catch {
       setStatus("error");
+      setErrorMessage("Something went wrong.");
     }
   };
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Contact"} />
       <Navbar />
       <PageHeader
-        eyebrow="Get in touch"
-        title="Contact"
-        description="Let's build something extraordinary together."
+        eyebrow={header?.eyebrow ?? "Get in touch"}
+        title={header?.title ?? "Contact"}
+        description={header?.description ?? "Let's build something extraordinary together."}
         breadcrumbs={[{ label: "Contact" }]}
       />
       <main className="content-container py-14 sm:py-16">
@@ -86,7 +124,7 @@ export default function ContactPage() {
             >
               <AlertCircle size={18} className="text-[#ef4242] shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm text-[#ef4242] font-medium">Something went wrong.</p>
+                <p className="text-sm text-[#ef4242] font-medium">{errorMessage || "Something went wrong."}</p>
                 <p className="text-xs text-white/40 mt-1">
                   Please try again or email me directly at{" "}
                   <a href="mailto:contact@mdcran.com" className="text-[#ef4242] hover:underline">

@@ -5,10 +5,11 @@ import useSWR from "swr";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import FilterBar, { GRID_COLS_CLASS } from "@/components/shared/FilterBar";
 import ProjectCard from "@/components/shared/ProjectCard";
 import { useGridCols } from "@/lib/useGridCols";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Project, ProjectStatus, SiteContent } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -17,7 +18,11 @@ export default function CodePage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
   const allProjects = apiProjects.filter((project) => project.category === "coding-projects");
+  const codeContent = siteContent?.codePage;
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
@@ -48,11 +53,15 @@ export default function CodePage() {
 
   return (
     <>
+      <ClientPageTitle title={codeContent?.title ?? "Code"} />
       <Navbar />
       <PageHeader
-        eyebrow="Development"
-        title="Code"
-        description="Design and development of secure software, backend systems, web applications, and custom plugins."
+        eyebrow={codeContent?.eyebrow ?? "Development"}
+        title={codeContent?.title ?? "Code"}
+        description={
+          codeContent?.description ??
+          "Design and development of secure software, backend systems, web applications, and custom plugins."
+        }
         breadcrumbs={[{ label: "Code" }]}
       />
       <main className="content-container py-14 sm:py-16">

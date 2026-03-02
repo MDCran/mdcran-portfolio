@@ -2,16 +2,23 @@ import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import { Image, Video, Monitor } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
+import { getSiteContent } from "@/lib/db";
 
-export const metadata = buildSeoMetadata({
-  title: "Motion & Graphics",
-  description: "Thumbnail design, video editing, and web design.",
-  path: "/motion-and-graphics",
-});
+export async function generateMetadata() {
+  const siteContent = await getSiteContent();
+  const content = siteContent.motionAndGraphics;
 
-const subcategories = [
+  return buildSeoMetadata({
+    title: content.title || "Motion & Graphics",
+    description: content.description || "Thumbnail design, video editing, and web design.",
+    path: "/motion-and-graphics",
+  });
+}
+
+const subcategoriesFallback = [
   {
     icon: Image,
     title: "Thumbnail Design",
@@ -32,14 +39,32 @@ const subcategories = [
   },
 ];
 
-export default function MotionAndGraphicsPage() {
+export default async function MotionAndGraphicsPage() {
+  const siteContent = await getSiteContent();
+  const content = siteContent.motionAndGraphics;
+  const subcategories = [
+    {
+      ...subcategoriesFallback[0],
+      ...(content.cards?.[0] ?? {}),
+    },
+    {
+      ...subcategoriesFallback[1],
+      ...(content.cards?.[1] ?? {}),
+    },
+    {
+      ...subcategoriesFallback[2],
+      ...(content.cards?.[2] ?? {}),
+    },
+  ];
+
   return (
     <>
+      <ClientPageTitle title={content.title} />
       <Navbar />
       <PageHeader
-        eyebrow="Category"
-        title="Motion & Graphics"
-        description="Thumbnail design, video editing, and graphics I've made for creators and online projects."
+        eyebrow={content.eyebrow}
+        title={content.title}
+        description={content.description}
         breadcrumbs={[{ label: "Motion & Graphics" }]}
       />
       <main className="content-container py-16 sm:py-20">

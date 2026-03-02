@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { assetUrl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import type { SiteContent } from "@/lib/types";
 
 /* ─── Corner Brackets ────────────────────────────────────── */
 function CornerBrackets() {
@@ -45,6 +47,7 @@ function ScanLines() {
 /* ─── Admin Login Page ───────────────────────────────────── */
 export default function AdminLoginPage() {
   const router = useRouter();
+  const [brandLogoUrl, setBrandLogoUrl] = useState("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,6 +57,23 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/data/site-content")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: SiteContent | null) => {
+        if (!cancelled && data?.brandLogoUrl) {
+          setBrandLogoUrl(data.brandLogoUrl);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,7 +149,7 @@ export default function AdminLoginPage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png"
+              src={assetUrl(brandLogoUrl)}
               alt="MDCran"
               style={{ height: "48px", width: "auto" }}
               className="rounded-sm opacity-90"

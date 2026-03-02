@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import HomeAmbient from "@/components/home/HomeAmbient";
@@ -10,8 +11,9 @@ import Clients from "@/components/home/Clients";
 import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import MercuryPrompt from "@/components/home/MercuryPrompt";
-import { getFeaturedProjects, getClients, getProjects } from "@/lib/db";
+import { getFeaturedProjects, getClients, getProjects, getSiteContent } from "@/lib/db";
 import { buildSeoMetadata } from "@/lib/seo";
+import { assetUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +32,11 @@ export const metadata: Metadata = buildSeoMetadata({
 });
 
 export default async function HomePage() {
-  const [allProjects, allClients, featuredProjects] = await Promise.all([
+  const [allProjects, allClients, featuredProjects, siteContent] = await Promise.all([
     getProjects(),
     getClients(),
     getFeaturedProjects(),
+    getSiteContent(),
   ]);
   const featuredClients = allClients.filter((client) => client.featured);
 
@@ -45,7 +48,7 @@ export default async function HomePage() {
     jobTitle: "Independent Contractor",
     description: metadata.description,
     url: "https://mdcran.com",
-    image: "https://mdcran.com/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png",
+    image: assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png"),
     address: {
       "@type": "PostalAddress",
       addressLocality: "Orlando",
@@ -93,6 +96,47 @@ export default async function HomePage() {
     },
   };
 
+  const sectionMap: Record<string, ReactNode> = {
+    hero: <Hero content={siteContent.homeHero} />,
+    stats: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
+        <Stats />
+      </div>
+    ),
+    about: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
+        <PhotoReel content={siteContent.homeAbout} />
+      </div>
+    ),
+    services: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
+        <Services content={siteContent.homeServices} />
+      </div>
+    ),
+    featured: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
+        <FeaturedProjects projects={featuredProjects} content={siteContent.homeFeaturedWork} />
+      </div>
+    ),
+    clients: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
+        <Clients clients={featuredClients} projects={allProjects} content={siteContent.homeClients} />
+      </div>
+    ),
+    cta: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "700px" }}>
+        <CTA content={siteContent.homeCta} />
+      </div>
+    ),
+  };
+
+  const orderedSections = siteContent.homeSectionOrder
+    .map((id) => ({ id, node: sectionMap[id] }))
+    .filter((entry): entry is { id: string; node: ReactNode } => !!entry.node);
+  const sectionsToRender = orderedSections.length
+    ? orderedSections
+    : Object.entries(sectionMap).map(([id, node]) => ({ id, node }));
+
   return (
     <>
       <script
@@ -107,25 +151,9 @@ export default async function HomePage() {
       <Navbar />
       <main className="relative overflow-hidden">
         <HomeAmbient />
-        <Hero />
-        <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
-          <Stats />
-        </div>
-        <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
-          <PhotoReel />
-        </div>
-        <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
-          <Services />
-        </div>
-        <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
-          <FeaturedProjects projects={featuredProjects} />
-        </div>
-        <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
-          <Clients clients={featuredClients} projects={allProjects} />
-        </div>
-        <div style={{ contentVisibility: "auto", containIntrinsicSize: "700px" }}>
-          <CTA />
-        </div>
+        {sectionsToRender.map((section) => (
+          <div key={section.id}>{section.node}</div>
+        ))}
         <MercuryPrompt />
       </main>
       <Footer />

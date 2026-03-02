@@ -3,19 +3,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, Send, CheckCircle, Loader2, Phone } from "lucide-react";
+import { Mail, CheckCircle, Phone, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import type { SiteContentSectionIntro } from "@/lib/types";
 
 type Mode = "email" | "sms" | "both";
 type Status = "idle" | "sending" | "success" | "error";
 
-export default function CTA() {
+export default function CTA({ content }: { content?: SiteContentSectionIntro }) {
   const [mode, setMode] = useState<Mode>("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
+  const [message, setMessage] = useState("");
   const modeButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const modeDragPointerIdRef = useRef<number | null>(null);
   const modeDragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -47,31 +50,56 @@ export default function CTA() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consent || !name) return;
-    if (mode === "email" && !email) return;
-    if (mode === "sms" && !phone) return;
-    if (mode === "both" && (!email || !phone)) return;
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
 
+    if (!consent || !name.trim()) return;
+    if (mode === "email" && !trimmedEmail) return;
+    if (mode === "sms" && !trimmedPhone) return;
+    if (mode === "both" && (!trimmedEmail || !trimmedPhone)) {
+      setStatus("error");
+      setMessage("Enter both a valid email address and phone number.");
+      return;
+    }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setStatus("error");
+      setMessage("Enter a valid email address.");
+      return;
+    }
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      setStatus("error");
+      setMessage("Enter a valid phone number.");
+      return;
+    }
+
+    setMessage("");
     setStatus("sending");
     try {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          email: mode !== "sms" ? email : undefined,
-          phone: mode !== "email" ? phone : undefined,
+          name: name.trim(),
+          email: mode !== "sms" ? trimmedEmail : undefined,
+          phone: mode !== "email" ? trimmedPhone : undefined,
           consent,
         }),
       });
       if (res.ok) {
         setStatus("success");
-        setName(""); setEmail(""); setPhone(""); setConsent(false);
+        setMessage("");
+        setName("");
+        setEmail("");
+        setPhone("");
+        setConsent(false);
       } else {
+        const data = await res.json().catch(() => null) as { error?: string; message?: string } | null;
         setStatus("error");
+        setMessage(data?.error || data?.message || "Unable to save your subscription.");
       }
     } catch {
       setStatus("error");
+      setMessage("Unable to save your subscription.");
     }
   };
 
@@ -93,6 +121,11 @@ export default function CTA() {
     updateModeFromPointerTarget(element);
   };
 
+  const title = content?.title ?? "Let's Build It Right";
+  const titleWords = title.split(" ");
+  const topLine = titleWords.length > 1 ? titleWords.slice(0, -1).join(" ") : title;
+  const bottomLine = titleWords.length > 1 ? titleWords[titleWords.length - 1] : "";
+
   return (
     <section className="py-28 border-t border-white/6">
       <div className="content-container">
@@ -102,45 +135,44 @@ export default function CTA() {
           viewport={{ once: true, amount: 0 }}
           className="relative rounded-sm border border-[rgba(239,66,66,0.2)] bg-[rgba(239,66,66,0.04)] p-10 md:p-14 overflow-hidden"
         >
-          {/* Background glow */}
           <div className="absolute inset-0 bg-gradient-to-br from-[rgba(239,66,66,0.08)] via-transparent to-transparent pointer-events-none" />
           <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-[#ef4242] opacity-[0.07] rounded-full blur-3xl pointer-events-none" />
-
-          {/* Corner accents */}
           <div className="absolute top-0 left-0 w-10 h-10 border-l border-t border-[rgba(239,66,66,0.5)]" />
           <div className="absolute top-0 right-0 w-10 h-10 border-r border-t border-[rgba(239,66,66,0.5)]" />
           <div className="absolute bottom-0 left-0 w-10 h-10 border-l border-b border-[rgba(239,66,66,0.5)]" />
           <div className="absolute bottom-0 right-0 w-10 h-10 border-r border-b border-[rgba(239,66,66,0.5)]" />
 
           <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left - CTA copy */}
             <div>
               <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
-             
-                <span className="text-[#ef4242] text-[10px] tracking-widest uppercase">Open for work</span>
+                <span className="text-[#ef4242] text-[10px] tracking-widest uppercase">
+                  {content?.eyebrow ?? "Open for work"}
+                </span>
               </div>
 
               <h2 className="font-nord text-3xl md:text-4xl text-white tracking-wider mb-3">
-                Let&apos;s Build
+                {topLine}
               </h2>
-              <h2 className="font-nord text-3xl md:text-4xl text-[#ef4242] tracking-wider mb-6">
-                It Right
-              </h2>
+              {bottomLine && (
+                <h2 className="font-nord text-3xl md:text-4xl text-[#ef4242] tracking-wider mb-6">
+                  {bottomLine}
+                </h2>
+              )}
 
               <p className="text-sm text-white/40 leading-relaxed mb-8 max-w-sm">
-                Have a project in mind? Whether it’s game development, a web application, custom software, or digital content, I’m ready to help bring it to life.
+                {content?.description ??
+                  "Have a project in mind? Whether it's game development, a web application, custom software, or digital content, I'm ready to help bring it to life."}
               </p>
 
               <div className="flex items-center flex-wrap gap-4">
                 <Button size="xl" asChild>
-                  <Link href="/contact" className="tracking-widest uppercase">
-                    Contact Me
+                  <Link href={content?.ctaHref ?? "/contact"} className="tracking-widest uppercase">
+                    {content?.ctaLabel ?? "Contact Me"}
                   </Link>
                 </Button>
               </div>
             </div>
 
-            {/* Right - Subscribe form */}
             <div>
               <div className="mb-5">
                 <p className="text-xs text-white/40 tracking-wider uppercase mb-1">Newsletter</p>
@@ -160,7 +192,6 @@ export default function CTA() {
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3">
-                  {/* Mode toggle */}
                   <div
                     className="relative flex gap-1 p-1 rounded-sm bg-white/4 border border-white/8 w-fit"
                     onPointerDown={(e) => {
@@ -218,9 +249,7 @@ export default function CTA() {
                         type="button"
                         onClick={() => setMode(m)}
                         className={`relative z-10 px-3 py-1.5 rounded-sm text-[11px] tracking-wider uppercase transition-colors duration-200 ${
-                          mode === m
-                            ? "text-white"
-                            : "text-white/40 hover:text-white/70"
+                          mode === m ? "text-white" : "text-white/40 hover:text-white/70"
                         }`}
                       >
                         {m === "both" ? "Email + SMS" : m === "email" ? "Email" : "SMS"}
@@ -228,7 +257,6 @@ export default function CTA() {
                     ))}
                   </div>
 
-                  {/* Name */}
                   <input
                     type="text"
                     required
@@ -238,13 +266,12 @@ export default function CTA() {
                     className="w-full h-10 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm px-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                   />
 
-                  {/* Email */}
                   {(mode === "email" || mode === "both") && (
                     <div className="relative">
                       <Mail size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
                       <input
                         type="email"
-                        required={mode === "email" || mode === "both"}
+                        required={mode !== "sms"}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="your@email.com"
@@ -253,13 +280,12 @@ export default function CTA() {
                     </div>
                   )}
 
-                  {/* Phone */}
                   {(mode === "sms" || mode === "both") && (
                     <div className="relative">
                       <Phone size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
                       <input
                         type="tel"
-                        required={mode === "sms" || mode === "both"}
+                        required={mode !== "email"}
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+1 (555) 000-0000"
@@ -268,7 +294,6 @@ export default function CTA() {
                     </div>
                   )}
 
-                  {/* Consent */}
                   <label className="flex items-start gap-2.5 cursor-pointer group">
                     <div className="relative shrink-0 mt-0.5">
                       <input
@@ -313,23 +338,20 @@ export default function CTA() {
                     </span>
                   </label>
 
+                  {status === "error" && (
+                    <div className="flex items-center gap-2 text-xs text-[#ef8a8a]">
+                      <AlertCircle size={13} />
+                      <span>{message}</span>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
                     disabled={status === "sending" || !consent}
                     className="w-full h-10 flex items-center justify-center gap-2 bg-[#ef4242] text-white text-xs tracking-widest uppercase rounded-sm hover:bg-[#dd3030] transition-all shadow-[0_0_16px_rgba(239,66,66,0.25)] hover:shadow-[0_0_24px_rgba(239,66,66,0.4)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                   >
-                    {status === "sending" ? (
-                      <><Loader2 size={13} className="animate-spin" /> Subscribing...</>
-                    ) : (
-                      <><Send size={13} /> Subscribe</>
-                    )}
+                    {status === "sending" ? "Subscribing..." : "Subscribe"}
                   </button>
-
-                  {status === "error" && (
-                    <p className="text-[11px] text-[#ef4242] text-center">
-                      Something went wrong. Please try again.
-                    </p>
-                  )}
                 </form>
               )}
             </div>

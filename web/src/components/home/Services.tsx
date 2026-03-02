@@ -4,8 +4,9 @@ import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Gamepad2, Palette, Code2, ArrowRight } from "lucide-react";
+import type { SiteContentPageBlock } from "@/lib/types";
 
-const services = [
+const defaultServices = [
   {
     icon: Gamepad2,
     title: "Arts & Entertainment",
@@ -35,7 +36,28 @@ const services = [
   },
 ];
 
-export default function Services() {
+function serviceIconForHref(href: string) {
+  if (href.includes("arts-and-entertainment")) return Gamepad2;
+  if (href.includes("motion-and-graphics")) return Palette;
+  return Code2;
+}
+
+export default function Services({
+  content,
+}: {
+  content?: SiteContentPageBlock;
+}) {
+  const services = content?.cards?.length
+    ? content.cards.map((card) => ({
+        icon: serviceIconForHref(card.href),
+        title: card.title,
+        description: card.description,
+        href: card.href,
+        items: card.items?.length ? card.items : ["Explore"],
+        accent: "#ef4242",
+      }))
+    : defaultServices;
+
   return (
     <section className="py-24">
       <div className="content-container">
@@ -49,7 +71,9 @@ export default function Services() {
               className="flex items-center gap-3 mb-4"
             >
               <div className="h-px w-8 bg-[#ef4242]" />
-              <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">What I do</span>
+              <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
+                {content?.eyebrow ?? "What I do"}
+              </span>
             </motion.div>
             <motion.h2
               initial={{ opacity: 0, y: 16 }}
@@ -58,7 +82,7 @@ export default function Services() {
               transition={{ delay: 0.1 }}
               className="font-nord text-3xl md:text-4xl text-white tracking-wider"
             >
-              Services
+              {content?.title ?? "Services"}
             </motion.h2>
           </div>
           <motion.p
@@ -68,7 +92,8 @@ export default function Services() {
             transition={{ delay: 0.2 }}
             className="max-w-md text-sm text-white/40 leading-relaxed"
           >
-            Browse Minecraft projects and graphics, as well as the software, web applications, and custom secure systems I develop today.
+            {content?.description ??
+              "Browse Minecraft projects and graphics, as well as the software, web applications, and custom secure systems I develop today."}
           </motion.p>
         </div>
 

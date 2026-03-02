@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
 
@@ -10,6 +11,7 @@ interface LightboxProps {
   onClose: () => void;
   onNavigate: (index: number) => void;
   captions?: string[];
+  fullScreen?: boolean;
 }
 
 const AUTO_CYCLE_MS = 5000;
@@ -20,6 +22,7 @@ export default function Lightbox({
   onClose,
   onNavigate,
   captions,
+  fullScreen = false,
 }: LightboxProps) {
   const lightboxMaxHeight = "calc(100dvh - var(--navbar-height, 72px) - 3rem)";
   const [autoCycle, setAutoCycle] = useState(true);
@@ -101,23 +104,32 @@ export default function Lightbox({
     return () => window.removeEventListener("resize", syncViewportMode);
   }, []);
 
+  const hasCarousel = images.length > 1;
+  const desktopCarouselClearance = hasCarousel ? "11rem" : "1.5rem";
   const viewportPaddingTop = isMobileViewport
-    ? "calc(var(--navbar-height, 72px) + 0.75rem)"
-    : "calc(var(--navbar-height, 72px) + 1rem)";
+    ? (fullScreen ? "0" : "calc(var(--navbar-height, 72px) + 0.75rem)")
+    : (fullScreen ? "0" : "calc(var(--navbar-height, 72px) + 1rem)");
   const viewportPaddingBottom = isLandscapeMobile
     ? "2.5rem"
     : isMobileViewport
       ? "12rem"
-      : "1.5rem";
+      : fullScreen
+        ? (hasCarousel ? "9rem" : "0")
+        : desktopCarouselClearance;
   const resolvedImageMaxHeight = isLandscapeMobile
     ? "calc(100dvh - var(--navbar-height, 72px) - 3.25rem)"
     : isMobileViewport
       ? "calc(100dvh - var(--navbar-height, 72px) - 13rem)"
-      : lightboxMaxHeight;
-  const resolvedImageMaxWidth = isMobileViewport || isLandscapeMobile ? "100vw" : "min(90vw, 1200px)";
+      : fullScreen
+        ? (hasCarousel ? "calc(100dvh - 9.5rem)" : "100dvh")
+        : hasCarousel
+          ? "calc(100dvh - var(--navbar-height, 72px) - 12.5rem)"
+          : lightboxMaxHeight;
+  const resolvedImageMaxWidth =
+    fullScreen || isMobileViewport || isLandscapeMobile ? "100vw" : "min(90vw, 1200px)";
   const isTrayCollapsed = isLandscapeMobile && !isThumbnailTrayExpanded;
 
-  return (
+  const lightboxContent = (
     <AnimatePresence>
       {currentIndex !== null && (
         <motion.div
@@ -127,7 +139,7 @@ export default function Lightbox({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className={`fixed inset-0 z-[9999] flex justify-center pb-6 ${
-            isMobileViewport || isLandscapeMobile ? "items-center px-0" : "items-start px-4"
+            fullScreen || isMobileViewport || isLandscapeMobile ? "items-center px-0" : "items-start px-4"
           }`}
           style={{ paddingTop: viewportPaddingTop, paddingBottom: viewportPaddingBottom }}
           onClick={onClose}
@@ -143,7 +155,7 @@ export default function Lightbox({
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className={`relative z-10 flex w-full items-center justify-center overflow-hidden ${
-              isMobileViewport || isLandscapeMobile
+              fullScreen || isMobileViewport || isLandscapeMobile
                 ? "rounded-none border-0 shadow-none"
                 : "rounded-sm border border-white/15 shadow-[0_40px_120px_rgba(0,0,0,0.9)]"
             }`}
@@ -389,4 +401,10 @@ export default function Lightbox({
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === "undefined") {
+    return lightboxContent;
+  }
+
+  return createPortal(lightboxContent, document.body);
 }

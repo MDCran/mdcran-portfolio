@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { assetUrl } from "./utils";
 
 export const SITE_URL = "https://mdcran.com";
-export const DEFAULT_OG_IMAGE = "/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png";
+export const DEFAULT_SITE_ICON = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png")!;
+export const DEFAULT_OG_IMAGE = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png")!;
 export const DEFAULT_SOCIAL_TITLE = "MDCran | Digital Projects for Creators, Companies, and Online Platforms";
 export const DEFAULT_SOCIAL_DESCRIPTION =
   "Portfolio, projects, articles, and client work from Michael Cran (MDCran) covering software, design, motion, and immersive online experiences.";

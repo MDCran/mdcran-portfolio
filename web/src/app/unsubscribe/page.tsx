@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
 import { Check, X } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function UnsubscribePage() {
+  const { data: siteContent } = useSWR("/api/data/site-content", fetcher, { revalidateOnFocus: false });
+  const header = siteContent?.pageHeaders?.unsubscribe;
   const [identifier, setIdentifier] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(() => {
     if (typeof window === "undefined") return "idle";
@@ -60,11 +65,12 @@ export default function UnsubscribePage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Unsubscribe"} />
       <Navbar />
       <PageHeader
-        eyebrow="Preferences"
-        title="Unsubscribe"
-        description="Enter your email address or phone number to unsubscribe from updates."
+        eyebrow={header?.eyebrow ?? "Preferences"}
+        title={header?.title ?? "Unsubscribe"}
+        description={header?.description ?? "Enter your email address or phone number to unsubscribe from updates."}
         breadcrumbs={[{ label: "Unsubscribe" }]}
       />
       <main className="content-container max-w-lg py-14 sm:py-16">

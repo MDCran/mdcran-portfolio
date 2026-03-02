@@ -2,62 +2,44 @@ import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import { ArrowRight } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
+import { getSiteContent } from "@/lib/db";
 
-export const metadata = buildSeoMetadata({
-  title: "Work",
-  description: "Browse all work categories across portfolio projects, code, and articles.",
-  path: "/work",
-});
+export async function generateMetadata() {
+  const siteContent = await getSiteContent();
+  const header = siteContent.workPage;
 
-const sections = [
-  {
-    title: "Arts & Entertainment",
-    href: "/arts-and-entertainment",
-    links: [
-      { label: "Minecraft Maps", href: "/arts-and-entertainment/minecraft-maps" },
-      { label: "Events", href: "/arts-and-entertainment/events" },
-    ],
-  },
-  {
-    title: "Motion & Graphics",
-    href: "/motion-and-graphics",
-    links: [
-      { label: "Thumbnail Design", href: "/motion-and-graphics/thumbnail-design" },
-      { label: "Video Editing", href: "/motion-and-graphics/video-editing" },
-      { label: "Web Dev & Design", href: "/motion-and-graphics/web-dev-design" },
-    ],
-  },
-  {
-    title: "Code",
-    href: "/code",
-    links: [],
-  },
-  {
-    title: "Articles",
-    href: "/articles",
-    links: [],
-  },
-];
+  return buildSeoMetadata({
+    title: header.title || "Work",
+    description: header.description || "Browse all work categories across portfolio projects, code, and articles.",
+    path: "/work",
+  });
+}
 
-export default function WorkPage() {
+export default async function WorkPage() {
+  const siteContent = await getSiteContent();
+  const header = siteContent.workPage;
+  const sections = header.cards ?? [];
+
   return (
     <>
+      <ClientPageTitle title={header.title} />
       <Navbar />
       <PageHeader
-        eyebrow="Portfolio"
-        title="Work"
-        description="Jump into every major section of the site from one place."
+        eyebrow={header.eyebrow}
+        title={header.title}
+        description={header.description}
         breadcrumbs={[{ label: "Work" }]}
       />
       <main className="content-container py-14 sm:py-16">
         <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
           {sections.map((section) => (
             <section
-              key={section.title}
+              key={`${section.title}-${section.href}`}
               className={`relative flex cursor-pointer flex-col rounded-sm border border-white/7 bg-white/2 p-6 transition-colors hover:border-[rgba(239,66,66,0.22)] sm:p-7 ${
-                section.links.length === 0 ? "justify-center" : ""
+                (section.items?.length ?? 0) === 0 ? "justify-center" : ""
               }`}
             >
               <Link
@@ -68,9 +50,9 @@ export default function WorkPage() {
 
               <div
                 className={`pointer-events-none relative z-20 flex justify-between gap-4 ${
-                  section.links.length > 0 ? "items-start" : "items-center"
+                  (section.items?.length ?? 0) > 0 ? "items-start" : "items-center"
                 } ${
-                  section.links.length > 0 ? "mb-6" : "mb-0"
+                  (section.items?.length ?? 0) > 0 ? "mb-6" : "mb-0"
                 }`}
               >
                 <div>
@@ -87,19 +69,19 @@ export default function WorkPage() {
                 </Link>
               </div>
 
-              {section.links.length > 0 && (
+              {(section.items?.length ?? 0) > 0 && (
                 <div className="pointer-events-auto relative z-20 mt-auto grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {section.links.map((link) => (
+                  {section.items?.map((item) => (
                     <Link
-                      key={link.href}
-                      href={link.href}
+                      key={`${section.href}-${item}`}
+                      href={section.href}
                       className="group relative overflow-hidden rounded-sm border border-white/10 bg-gradient-to-br from-white/[0.04] via-white/[0.015] to-transparent px-4 py-3.5 text-sm text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all hover:border-[rgba(239,66,66,0.28)] hover:text-white hover:shadow-[0_12px_24px_rgba(0,0,0,0.18)]"
                     >
                       <span className="pointer-events-none absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-[#ef4242]/45 to-transparent opacity-80" />
                       <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[rgba(239,66,66,0.05)] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                       <span className="relative inline-flex items-center gap-2.5">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#ef4242]/85 shadow-[0_0_8px_rgba(239,66,66,0.35)]" />
-                        <span>{link.label}</span>
+                        <span>{item}</span>
                         <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
                       </span>
                     </Link>

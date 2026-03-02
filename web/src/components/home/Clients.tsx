@@ -3,14 +3,15 @@
 import React from "react";
 import { motion } from "framer-motion";
 import ClientCard from "@/components/shared/ClientCard";
-import type { Client, Project } from "@/lib/types";
+import type { Client, Project, SiteContentSectionIntro } from "@/lib/types";
 
 interface ClientsProps {
   clients: Client[];
   projects?: Project[];
+  content?: SiteContentSectionIntro;
 }
 
-export default function Clients({ clients, projects = [] }: ClientsProps) {
+export default function Clients({ clients, projects = [], content }: ClientsProps) {
   void projects;
 
   return (
@@ -26,7 +27,7 @@ export default function Clients({ clients, projects = [] }: ClientsProps) {
           >
             <div className="h-px w-8 bg-[#ef4242]" />
             <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
-              Who I&apos;ve worked with
+              {content?.eyebrow ?? "Who I've worked with"}
             </span>
           </motion.div>
           <div className="flex items-end justify-between flex-wrap gap-4">
@@ -37,7 +38,7 @@ export default function Clients({ clients, projects = [] }: ClientsProps) {
               transition={{ delay: 0.1 }}
               className="font-nord text-3xl md:text-4xl text-white tracking-wider"
             >
-              Clients
+              {content?.title ?? "Clients"}
             </motion.h2>
             <motion.p
               initial={{ opacity: 0 }}
@@ -46,7 +47,8 @@ export default function Clients({ clients, projects = [] }: ClientsProps) {
               transition={{ delay: 0.2 }}
               className="max-w-md text-sm text-white/40 leading-relaxed"
             >
-              Collaborating with top content creators, companies, and production teams to deliver premium-quality digital experiences.
+              {content?.description ??
+                "Collaborating with top content creators, companies, and production teams to deliver premium-quality digital experiences."}
             </motion.p>
           </div>
         </div>

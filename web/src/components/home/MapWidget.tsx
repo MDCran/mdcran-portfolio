@@ -3,6 +3,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { MapPin } from "lucide-react";
+import { assetUrl } from "@/lib/utils";
 
 export default function MapWidget() {
   return (
@@ -19,7 +20,7 @@ export default function MapWidget() {
       {/* Static Orlando map image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/cdn/WEB_ASSETS/MAP/orlando-map.png"
+        src={assetUrl("/cdn/WEB_ASSETS/MAP/orlando-map.png")}
         alt="Orlando, FL"
         className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-70 transition-opacity duration-300"
         style={{ filter: "saturate(0.5) brightness(0.6)" }}
@@ -46,7 +47,7 @@ export default function MapWidget() {
           <MapPin size={13} className="text-[#ef4242] shrink-0" />
           <div>
             <div className="text-xs text-white font-medium">Orlando, FL</div>
-            <div className="text-[10px] text-white/40">Available for remote & local work</div>
+            <div className="text-[10px] text-white/40">OPEN FOR WORK</div>
           </div>
         </div>
       </div>
