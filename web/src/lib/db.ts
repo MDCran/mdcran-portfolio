@@ -94,6 +94,8 @@ export async function getSiteContent(): Promise<SiteContent> {
     homeSectionOrder: content?.homeSectionOrder?.length
       ? content.homeSectionOrder
       : defaultSiteContent.homeSectionOrder,
+    featuredProjectIds: content?.featuredProjectIds ?? defaultSiteContent.featuredProjectIds,
+    featuredClientIds: content?.featuredClientIds ?? defaultSiteContent.featuredClientIds,
     homeHero: {
       ...defaultSiteContent.homeHero,
       ...content?.homeHero,
@@ -181,6 +183,8 @@ export async function saveSiteContent(content: SiteContent): Promise<void> {
   const sanitizedContent: SiteContent = {
     ...content,
     id: defaultSiteContent.id,
+    featuredProjectIds: Array.isArray(content.featuredProjectIds) ? content.featuredProjectIds : [],
+    featuredClientIds: Array.isArray(content.featuredClientIds) ? content.featuredClientIds : [],
     homeFeaturedWork: {
       eyebrow: content.homeFeaturedWork.eyebrow,
       title: content.homeFeaturedWork.title,

@@ -200,12 +200,11 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
                   className="relative aspect-square rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
                   onClick={() => onImageClick(imageOffset + i)}
                 >
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={src}
                     alt={imageAssetAlt(image, `Gallery image ${i + 1}`)}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    sizes="(max-width: 640px) 50vw, 33vw"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
                     <div className="w-8 h-8 rounded-full bg-black/70 border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

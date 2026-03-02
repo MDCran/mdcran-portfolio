@@ -148,6 +148,19 @@ export default function ProjectDetail({
               </section>
             )}
 
+            {project.sections && project.sections.length > 0 && (
+              <section className="space-y-1">
+                {project.sections.map((section, i) => (
+                  <ProjectSection
+                    key={i}
+                    section={section}
+                    imageOffset={sectionImageBase + sectionImageOffsets[i]}
+                    onImageClick={setLightboxIndex}
+                  />
+                ))}
+              </section>
+            )}
+
             {hasGallery && (
               <section>
                 <h2 className="font-nord text-lg text-white tracking-wider mb-5">Gallery</h2>
@@ -206,19 +219,6 @@ export default function ProjectDetail({
                     </div>
                   ))}
                 </div>
-              </section>
-            )}
-
-            {project.sections && project.sections.length > 0 && (
-              <section className="space-y-1">
-                {project.sections.map((section, i) => (
-                  <ProjectSection
-                    key={i}
-                    section={section}
-                    imageOffset={sectionImageBase + sectionImageOffsets[i]}
-                    onImageClick={setLightboxIndex}
-                  />
-                ))}
               </section>
             )}
 
@@ -302,10 +302,19 @@ export default function ProjectDetail({
               )}
 
               {project.pricing.status === "for_sale" && (
-                <Button size="lg" className="w-full gap-2">
-                  <ShoppingCart size={14} />
-                  Buy Now {priceFormatted && `· ${priceFormatted}`}
-                </Button>
+                project.pricing.checkoutUrl ? (
+                  <Button size="lg" className="w-full gap-2" asChild>
+                    <a href={project.pricing.checkoutUrl} target="_blank" rel="noopener noreferrer">
+                      <ShoppingCart size={14} />
+                      Buy Now
+                    </a>
+                  </Button>
+                ) : (
+                  <Button size="lg" className="w-full gap-2" disabled>
+                    <ShoppingCart size={14} />
+                    Buy Now
+                  </Button>
+                )
               )}
 
               {project.liveUrl && (
@@ -681,7 +690,8 @@ function HeroContent({
 }
 
 function formatProjectDate(date: string) {
-  return new Date(date).toLocaleDateString("en-US", {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Download, ShoppingCart, Tag } from "lucide-react";
+import { Download, ShoppingCart, Star, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, imageAssetAlt, imageAssetSrc, projectUrl } from "@/lib/utils";
@@ -80,17 +80,26 @@ function PricingAction({ project }: { project: Project }) {
     );
   }
 
-  if (pricing.status === "for_sale" && pricing.price) {
-    const dollars = (pricing.price / 100).toFixed(2);
+  if (pricing.status === "for_sale") {
     return (
       <Button
         variant="default"
         size="sm"
         className="gap-1.5 relative z-[2]"
-        onClick={(e) => e.stopPropagation()}
+        asChild={!!pricing.checkoutUrl}
+        onClick={!pricing.checkoutUrl ? (e) => e.stopPropagation() : undefined}
       >
-        <ShoppingCart size={12} />
-        Buy ${dollars}
+        {pricing.checkoutUrl ? (
+          <a href={pricing.checkoutUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            <ShoppingCart size={12} />
+            Buy Now
+          </a>
+        ) : (
+          <>
+            <ShoppingCart size={12} />
+            Buy Now
+          </>
+        )}
       </Button>
     );
   }
@@ -133,7 +142,12 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-          <div className="absolute top-3 right-3 z-[2]">
+          <div className="absolute top-3 right-3 z-[2] flex flex-col items-end gap-1.5">
+            {project.featured && (
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-[#ef4242]/90 shadow-[0_0_8px_rgba(239,66,66,0.5)] backdrop-blur-sm">
+                <Star size={10} className="text-white fill-white" />
+              </span>
+            )}
             <PricingBadge project={project} />
           </div>
         </div>

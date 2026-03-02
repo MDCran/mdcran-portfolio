@@ -84,37 +84,35 @@ export default function ClientProjectsSection({
   const normalizedQuery = query.trim().toLowerCase();
 
   const filteredProjects = useMemo(() => {
-    if (!normalizedQuery) return projects;
+    const matched = normalizedQuery
+      ? projects.filter((project) => {
+          const haystack = [project.title, project.description, ...(project.tags ?? [])]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(normalizedQuery);
+        })
+      : projects;
 
-    return projects.filter((project) => {
-      const haystack = [
-        project.title,
-        project.description,
-        ...(project.tags ?? []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(normalizedQuery);
+    return [...matched].sort((a, b) => {
+      if (a.featured && !b.featured) return -1;
+      if (!a.featured && b.featured) return 1;
+      return a.title.localeCompare(b.title);
     });
   }, [normalizedQuery, projects]);
 
   const filteredVideos = useMemo(() => {
-    if (!normalizedQuery) return allVideos;
+    const matched = normalizedQuery
+      ? allVideos.filter((video) => {
+          const haystack = [video.title, video.channelName, video.projectTitle]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(normalizedQuery);
+        })
+      : allVideos;
 
-    return allVideos.filter((video) => {
-      const haystack = [
-        video.title,
-        video.channelName,
-        video.projectTitle,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(normalizedQuery);
-    });
+    return [...matched].sort((a, b) => (a.title || a.youtubeId).localeCompare(b.title || b.youtubeId));
   }, [allVideos, normalizedQuery]);
 
   const findTabButtonFromPoint = (clientX: number, clientY: number) => {
