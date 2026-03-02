@@ -994,20 +994,6 @@ function ProjectModal({
 
     if (imagePickerTarget.kind === "cover") {
       setCoverImage((prev) => ({ ...prev, src: url }));
-    } else if (imagePickerTarget.kind === "section-image") {
-      updateSection(imagePickerTarget.sectionIndex, { src: url });
-    } else if (imagePickerTarget.kind === "section-gallery") {
-      updateSectionGalleryImage(imagePickerTarget.sectionIndex, imagePickerTarget.imageIndex, { src: url });
-    }
-
-    setImagePickerTarget(null);
-  }
-
-  function applySelectedImage(url: string) {
-    if (!imagePickerTarget) return;
-
-    if (imagePickerTarget.kind === "cover") {
-      setCoverImage((prev) => ({ ...prev, src: url }));
     } else if (imagePickerTarget.kind === "gallery") {
       updateGalleryImage(imagePickerTarget.index, { src: url });
     } else if (imagePickerTarget.kind === "section-image") {

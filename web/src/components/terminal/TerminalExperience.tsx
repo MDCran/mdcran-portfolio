@@ -1346,7 +1346,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  MDCRAN CLI", "accent"),
       logText(
-        "  type  help  for commands  |  ESC or \"exit\" to close",
+        "  type  help  for commands  |  Type \"exit\" to close",
         "muted"
       ),
       logText(""),
@@ -1409,6 +1409,35 @@ export default function TerminalExperience() {
       window.removeEventListener("pointerdown", onPointerDown, true);
     };
   }, [active, busy, focusTerminalSurface, powerState]);
+
+  React.useEffect(() => {
+    if (!active || powerState !== "on" || busy) return;
+
+    const onWindowEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const shellNode = shellCaptureRef.current;
+      const target = e.target;
+
+      if (
+        shellNode &&
+        target instanceof Node &&
+        !shellNode.contains(target) &&
+        isEditableTarget(target)
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      closeTerminal();
+    };
+
+    window.addEventListener("keydown", onWindowEscape, true);
+    return () => {
+      window.removeEventListener("keydown", onWindowEscape, true);
+    };
+  }, [active, busy, closeTerminal, powerState]);
 
   React.useEffect(() => {
     if (!active || powerState !== "on" || busy) return;
@@ -3540,7 +3569,7 @@ export default function TerminalExperience() {
             className="text-[#86efac]/35 text-[7px] tracking-wider select-none"
             style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
           >
-            ESC or &quot;exit&quot; to close
+            Type &quot;exit&quot; to close
           </span>
           <button
             onClick={(e) => {
