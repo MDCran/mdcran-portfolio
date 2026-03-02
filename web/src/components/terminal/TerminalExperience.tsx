@@ -196,6 +196,17 @@ const EMPTY_FORM = {
 
 const DIV = "─".repeat(52);
 const POWER_BUTTON_HOVER_MS = 40;
+// ─── Boot / close timing ──────────────────────────────────────────────────────
+// Delay (ms) after power button click before the terminal CONTENT appears (animation plays during this time).
+const TERMINAL_APPEAR_MS = 1500;
+// Delay (ms) after terminal opens before the boot text starts printing.
+const TERMINAL_TEXT_DELAY_MS = 1000;
+// Delay (ms) after terminal opens before the retro GIF background starts showing.
+const TERMINAL_GIF_DELAY_MS = 500;
+// Delay (ms) after the close command before the shell DISAPPEARS from screen.
+const TERMINAL_CLOSE_MS = 620;
+// Adjust this to control how far the retro GIF background is inset from the terminal window edges (px)
+const RETRO_GIF_INSET = 20;
 const CRT_THEME_LOOP_START_SECONDS = 4;
 const CRT_THEME_LOOP_END_SECONDS = 35;
 
@@ -911,6 +922,8 @@ export default function TerminalExperience() {
   const [spotifyLive, setSpotifyLive] = React.useState<SpotifyViewState | null>(null);
   const [spotifyClock, setSpotifyClock] = React.useState(() => Date.now());
   const [browseUrl, setBrowseUrl] = React.useState<string | null>(null);
+  const [retroGifIdx, setRetroGifIdx] = React.useState(1);
+  const [gifVisible, setGifVisible] = React.useState(false);
 
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -1434,17 +1447,15 @@ export default function TerminalExperience() {
     powerTimeoutRef.current = window.setTimeout(() => {
       setPowerState("on");
       powerTimeoutRef.current = null;
-    }, 720);
+    }, TERMINAL_APPEAR_MS);
   }, [active, playPowerSfx, powerState]);
 
   // "Turn On TV" button handler — must be in a click event for audio gesture context.
-  // Music starts immediately; terminal shell starts after 2s delay.
+  // Animation starts immediately; content reveals after TERMINAL_APPEAR_MS.
   const handleTurnOn = React.useCallback(() => {
     const audio = getOrCreateCrtThemeAudio();
     void audio.play().catch(() => {});
-    window.setTimeout(() => {
-      startTerminalShell();
-    }, 2000);
+    startTerminalShell();
   }, [getOrCreateCrtThemeAudio, startTerminalShell]);
 
   const startTerminal = React.useCallback(() => {
@@ -1471,8 +1482,40 @@ export default function TerminalExperience() {
       setActive(false);
       setPowerState("off");
       powerTimeoutRef.current = null;
-    }, 620);
+    }, TERMINAL_CLOSE_MS);
   }, [active, playPowerSfx, powerState]);
+
+  // ── Retro GIF background cycling + appear/hide ─────────────────────────────
+  React.useEffect(() => {
+    // Hide GIF instantly when terminal is off or stopping
+    if (powerState === "off" || powerState === "stopping") {
+      setGifVisible(false);
+      return;
+    }
+    if (!isThreeStage) return;
+    // Show GIF after TERMINAL_GIF_DELAY_MS once terminal is on
+    let appearTimer: number | undefined;
+    let cycleTimer: number;
+    appearTimer = window.setTimeout(() => {
+      setGifVisible(true);
+      function schedule() {
+        const delay = 2000 + Math.random() * 2000;
+        cycleTimer = window.setTimeout(() => {
+          setRetroGifIdx((prev) => {
+            let next = prev;
+            while (next === prev) next = Math.floor(Math.random() * 5) + 1;
+            return next;
+          });
+          schedule();
+        }, delay);
+      }
+      schedule();
+    }, TERMINAL_GIF_DELAY_MS);
+    return () => {
+      window.clearTimeout(appearTimer);
+      window.clearTimeout(cycleTimer);
+    };
+  }, [isThreeStage, powerState]);
 
   // ── Data loading ───────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -1544,16 +1587,6 @@ export default function TerminalExperience() {
   // ── Initialize on open ────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!active) return;
-    setLogs([
-      logText(ASCII, "accent"),
-      logText(""),
-      logText("  MDCRAN CLI", "accent"),
-      logText(
-        "  Type \"help\" for commands  |  Type \"exit\" to close",
-        "muted"
-      ),
-      logText(""),
-    ]);
     setCwd([]);
     setPreview(null);
     setResults([]);
@@ -1562,6 +1595,25 @@ export default function TerminalExperience() {
     setFormMode(null);
     setFormState(EMPTY_FORM);
     historyIdxRef.current = -1;
+    setLogs([]);
+    const t = TERMINAL_TEXT_DELAY_MS > 0
+      ? window.setTimeout(() => {
+          setLogs([
+            logText(ASCII, "accent"),
+            logText(""),
+            logText("  MDCRAN CLI", "accent"),
+            logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"),
+            logText(""),
+          ]);
+        }, TERMINAL_TEXT_DELAY_MS)
+      : (setLogs([
+          logText(ASCII, "accent"),
+          logText(""),
+          logText("  MDCRAN CLI", "accent"),
+          logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"),
+          logText(""),
+        ]), undefined);
+    return () => { if (t !== undefined) window.clearTimeout(t); };
   }, [active]);
 
   React.useEffect(() => {
@@ -3701,6 +3753,23 @@ export default function TerminalExperience() {
         onWheel={handleTerminalSurfaceWheel}
         onKeyDownCapture={handleTerminalSurfaceKeyDown}
       >
+      {/* Retro GIF cycling background — behind all effect layers; adjust RETRO_GIF_INSET to control bleed */}
+      {gifVisible && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={retroGifIdx}
+          src={`/retro_${retroGifIdx}.gif`}
+          alt=""
+          className="pointer-events-none absolute z-0 object-cover"
+          style={{
+            inset: RETRO_GIF_INSET,
+            width: `calc(100% - ${RETRO_GIF_INSET * 2}px)`,
+            height: `calc(100% - ${RETRO_GIF_INSET * 2}px)`,
+            opacity: 0.48,
+            filter: "saturate(1.8) brightness(1.2)",
+          }}
+        />
+      )}
       {/* CRT CSS overlays */}
       <>
       {/* Global scanline overlay */}
@@ -4287,7 +4356,7 @@ export default function TerminalExperience() {
 
         .power-starting.crt-shell::before {
           animation:
-            crtStartupBloom 0.8s cubic-bezier(0.16, 0.82, 0.2, 1) forwards,
+            crtStartupBloom 2.5s cubic-bezier(0.16, 0.82, 0.2, 1) forwards,
             crtPulseGlow 0.18s steps(2) 3;
         }
 
@@ -4974,22 +5043,22 @@ export default function TerminalExperience() {
         }
 
         .power-starting .crt-power-vertical {
-          animation: crtStartupVertical 0.28s cubic-bezier(0.16, 0.82, 0.2, 1) 0.34s forwards;
+          animation: crtStartupVertical 1.0s cubic-bezier(0.16, 0.82, 0.2, 1) 1.2s forwards;
         }
 
         .power-starting .crt-power-horizontal {
-          animation: crtStartupHorizontal 0.3s cubic-bezier(0.16, 0.82, 0.2, 1) 0.14s forwards;
+          animation: crtStartupHorizontal 1.0s cubic-bezier(0.16, 0.82, 0.2, 1) 0.5s forwards;
         }
 
         .power-starting .crt-power-dot {
-          animation: crtStartupDot 0.3s ease-out forwards;
+          animation: crtStartupDot 1.0s ease-out forwards;
           box-shadow:
             0 0 28px rgba(180,255,225,0.72),
             0 0 72px rgba(120,225,255,0.42);
         }
 
         .power-starting .crt-power-flash {
-          animation: crtStartupFlash 0.66s ease-out forwards;
+          animation: crtStartupFlash 2.3s ease-out forwards;
         }
 
         .power-stopping .crt-power-vertical {

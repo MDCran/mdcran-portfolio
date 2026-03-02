@@ -539,7 +539,7 @@ export function createCRTScene({
     smoothedPower = THREE.MathUtils.lerp(smoothedPower, targetPower, 0.052);
     currentGlow   = THREE.MathUtils.lerp(currentGlow, targetGlow + pulseStrength * 0.80, 0.072);
     warmup        = THREE.MathUtils.clamp(
-      warmup + ((currentPowerState === "on" || currentPowerState === "starting") ? delta * 0.60 : -delta * 0.80),
+      warmup + ((currentPowerState === "on" || currentPowerState === "starting") ? delta * 0.17 : -delta * 0.80),
       0, 1
     );
     degauss       = Math.max(0, degauss - delta * 0.25);
