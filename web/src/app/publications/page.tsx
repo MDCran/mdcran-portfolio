@@ -2,28 +2,39 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
 import ProjectCard from "@/components/shared/ProjectCard";
-import { getProjectsByCategory } from "@/lib/db";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
+import { getProjectsByCategory, getSiteContent } from "@/lib/db";
 import { buildSeoMetadata } from "@/lib/seo";
 
-export const metadata = buildSeoMetadata({
-  title: "Publications",
-  description: "Storyline writing, world-building, and narrative design.",
-  path: "/publications",
-});
+export async function generateMetadata() {
+  const siteContent = await getSiteContent();
+  const header = siteContent.pageHeaders.publications;
+
+  return buildSeoMetadata({
+    title: header.title || "Publications",
+    description: header.description || "Storyline writing, world-building, and narrative design.",
+    path: "/publications",
+  });
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function PublicationsPage() {
-  const projects = await getProjectsByCategory("publications");
+  const [siteContent, projects] = await Promise.all([
+    getSiteContent(),
+    getProjectsByCategory("publications"),
+  ]);
+  const header = siteContent.pageHeaders.publications;
 
   return (
     <>
+      <ClientPageTitle title={header.title} />
       <Navbar />
       <PageHeader
-        eyebrow="Category"
-        title="Publications"
-        description="Creative storyline writing, world-building, and narrative design for games and digital media."
-        breadcrumbs={[{ label: "Publications" }]}
+        eyebrow={header.eyebrow}
+        title={header.title}
+        description={header.description}
+        breadcrumbs={[{ label: header.title }]}
       />
       <main className="content-container py-16 sm:py-20">
         {projects.length === 0 ? (

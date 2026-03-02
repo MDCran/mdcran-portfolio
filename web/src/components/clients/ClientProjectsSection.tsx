@@ -298,21 +298,6 @@ export default function ClientProjectsSection({
           ))}
         </div>
       )}
-      <style jsx global>{`
-        @keyframes client-video-title-marquee {
-          0%,
-          16% {
-            transform: translateX(0);
-          }
-
-          84%,
-          100% {
-            transform: translateX(
-              min(0px, calc(var(--client-video-title-width, 15rem) - 100%))
-            );
-          }
-        }
-      `}</style>
     </div>
   );
 }

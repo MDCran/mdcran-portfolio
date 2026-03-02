@@ -5,10 +5,11 @@ import useSWR from "swr";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import FilterBar, { GRID_COLS_CLASS } from "@/components/shared/FilterBar";
 import ProjectCard from "@/components/shared/ProjectCard";
 import { useGridCols } from "@/lib/useGridCols";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Project, ProjectStatus, SiteContent } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -17,6 +18,10 @@ export default function WebDevDesignPage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const header = siteContent?.pageHeaders?.webDevDesign;
   const allProjects = apiProjects.filter((project) => project.subcategory === "web-dev-design");
 
   const [query, setQuery] = useState("");
@@ -48,11 +53,12 @@ export default function WebDevDesignPage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Web Dev & Design"} />
       <Navbar />
       <PageHeader
-        eyebrow="Motion & Graphics"
-        title="Web Dev & Design"
-        description="Modern, premium web experiences for creators, companies and brands."
+        eyebrow={header?.eyebrow ?? "Motion & Graphics"}
+        title={header?.title ?? "Web Dev & Design"}
+        description={header?.description ?? "Modern, premium web experiences for creators, companies and brands."}
         breadcrumbs={[
           { label: "Motion & Graphics", href: "/motion-and-graphics" },
           { label: "Web Dev & Design" },

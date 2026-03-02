@@ -5,10 +5,11 @@ import useSWR from "swr";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import FilterBar, { GRID_COLS_CLASS } from "@/components/shared/FilterBar";
 import ProjectCard from "@/components/shared/ProjectCard";
 import { useGridCols } from "@/lib/useGridCols";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Project, ProjectStatus, SiteContent } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -17,6 +18,10 @@ export default function ThumbnailDesignPage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const header = siteContent?.pageHeaders?.thumbnailDesign;
   const allProjects = apiProjects.filter((project) => project.subcategory === "thumbnail-design");
 
   const [query, setQuery] = useState("");
@@ -46,11 +51,12 @@ export default function ThumbnailDesignPage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Thumbnail Design"} />
       <Navbar />
       <PageHeader
-        eyebrow="Motion & Graphics"
-        title="Thumbnail Design"
-        description="Eye-catching thumbnails for gaming and entertainment content."
+        eyebrow={header?.eyebrow ?? "Motion & Graphics"}
+        title={header?.title ?? "Thumbnail Design"}
+        description={header?.description ?? "Eye-catching thumbnails for gaming and entertainment content."}
         breadcrumbs={[
           { label: "Motion & Graphics", href: "/motion-and-graphics" },
           { label: "Thumbnail Design" },

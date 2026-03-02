@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { assetUrl } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Menu, ChevronDown } from "lucide-react";
 import { cn, projectUrl } from "@/lib/utils";
-import type { Project, Client, Article } from "@/lib/types";
+import type { Project, Client, Article, SiteContent } from "@/lib/types";
 
 const navLinks = [
   {
@@ -38,6 +39,7 @@ interface SearchResults {
 
 export default function Navbar() {
   const pathname = usePathname();
+  const [brandLogoUrl, setBrandLogoUrl] = useState("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -72,6 +74,23 @@ export default function Navbar() {
     const openSearch = () => setSearchOpen(true);
     window.addEventListener("mdcran:open-search", openSearch);
     return () => window.removeEventListener("mdcran:open-search", openSearch);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/data/site-content")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: SiteContent | null) => {
+        if (!cancelled && data?.brandLogoUrl) {
+          setBrandLogoUrl(data.brandLogoUrl);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -163,7 +182,7 @@ export default function Navbar() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png"
+              src={assetUrl(brandLogoUrl)}
               alt="MDCran"
               style={{ height: "36px", width: "auto" }}
               className="opacity-90 group-hover:opacity-100 transition-opacity duration-200 rounded-sm"

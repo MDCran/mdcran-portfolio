@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import Image from "next/image";
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, useScroll, useTransform } from "framer-motion";
+import Lightbox from "@/components/shared/Lightbox";
+import { imageAssetSrc, imageAssetAlt } from "@/lib/utils";
+import type { SiteContentAbout } from "@/lib/types";
 
-const photos = [
+const defaultPhotos = [
   { src: "/cdn/WEB_ASSETS/ME/age_3.jpg", alt: "Michael Cran" },
   { src: "/cdn/WEB_ASSETS/ME/age_4.jpg", alt: "Michael Cran" },
 ];
@@ -17,11 +19,21 @@ const gradients = [
   "from-transparent to-black/80",
 ];
 
-const YEARS_CREATING = new Date().getFullYear() - 2018;
-
-export default function PhotoReel() {
+export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
   const ref = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const photos = content?.images?.length ? content.images : defaultPhotos;
+  const lightboxPhotos = photos
+    .map((photo) => {
+      const src = imageAssetSrc(photo);
+      if (!src) return null;
+
+      return {
+        src,
+        alt: imageAssetAlt(photo, content?.title ?? "Michael Cran"),
+      };
+    })
+    .filter((photo): photo is { src: string; alt: string } => !!photo);
 
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -31,51 +43,31 @@ export default function PhotoReel() {
   const x1 = useTransform(scrollYProgress, [0, 1], [-12, 12]);
   const x2 = useTransform(scrollYProgress, [0, 1], [12, -12]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(null);
-      if (e.key === "ArrowRight") setExpanded((p) => p !== null ? (p + 1) % photos.length : null);
-      if (e.key === "ArrowLeft") setExpanded((p) => p !== null ? (p - 1 + photos.length) % photos.length : null);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  useEffect(() => {
-    if (expanded !== null) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [expanded]);
-
   return (
     <>
       <section ref={ref} className="py-28 border-t border-white/6 overflow-hidden">
         <div className="content-container">
-          {/* Header */}
           <div className="flex items-center gap-3 mb-12">
             <div className="h-px w-8 bg-[#ef4242]" />
             <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
-              The Person Behind the Work
+              {content?.eyebrow ?? "The Person Behind the Work"}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
-            {/* Text */}
             <div className="max-w-xl">
               <h2 className="font-nord text-3xl md:text-4xl text-white tracking-wider mb-5">
-                Michael Cran
+                {content?.title ?? "Michael Cran"}
               </h2>
               <p className="text-sm text-white/50 leading-relaxed mb-5">
-                I am a graduate of the University of Central Florida, where I earned a Bachelor of Science in Computer Science. I am a developer focused on building one-of-a-kind digital experiences that put a smile on people’s faces. Over the past {YEARS_CREATING}+ years, I’ve worked as a content manager, developer, map designer, and builder for some of the internet’s most inspiring creators and teams. What started as a casual gaming session at a soccer field evolved into a career building secure enterprise software, platforms, and custom systems that support real users and large online communities.
+                {content?.description ??
+                  "I am a graduate of the University of Central Florida, where I earned a Bachelor of Science in Computer Science. I am a developer focused on building one-of-a-kind digital experiences that put a smile on people's faces."}
               </p>
               <p className="text-sm text-white/35 leading-relaxed mb-8">
-                Based in Orlando, FL — <br></br> Available for remote & local work
+                {content?.supportingText ?? "Based in Orlando, FL - OPEN FOR WORK"}
               </p>
               <div className="flex flex-wrap gap-3">
-                {["Builder", "Designer", "Developer", "Creator"].map((tag) => (
+                {(content?.tags?.length ? content.tags : ["Builder", "Designer", "Developer", "Creator"]).map((tag) => (
                   <span
                     key={tag}
                     className="px-3 py-1.5 rounded-sm border border-[rgba(239,66,66,0.25)] bg-[rgba(239,66,66,0.06)] text-[#ef4242] text-[11px] tracking-wider uppercase"
@@ -86,28 +78,21 @@ export default function PhotoReel() {
               </div>
             </div>
 
-            {/* Mobile grid */}
             <div className="grid grid-cols-2 gap-3 md:hidden">
-              {photos.map((photo, i) => (
+              {lightboxPhotos.map((photo, i) => (
                 <div
                   key={`${photo.src}-mobile`}
                   onClick={() => setExpanded(i)}
                   className="relative aspect-[3/4] overflow-hidden rounded-sm border border-white/12 bg-white/5 cursor-pointer"
                 >
                   <Image src={photo.src} alt={photo.alt} fill className="object-cover object-top" sizes="50vw" />
-                  <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i]} z-10`} />
-                  <div className="absolute inset-0 z-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200">
-                    <div className="w-8 h-8 rounded-full bg-black/60 border border-white/20 flex items-center justify-center">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                    </div>
-                  </div>
+                  <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />
                 </div>
               ))}
             </div>
 
-            {/* Desktop collage */}
             <div className="relative hidden md:block h-[420px] lg:h-[460px] overflow-hidden">
-              {photos.map((photo, i) => (
+              {lightboxPhotos.map((photo, i) => (
                 <motion.div
                   key={photo.src}
                   initial={{ opacity: 0, y: 32, rotate: (i % 2 === 0 ? -2 : 2) * 0.5 }}
@@ -137,12 +122,7 @@ export default function PhotoReel() {
                   className="overflow-hidden rounded-sm border border-white/12 cursor-pointer shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
                 >
                   <div className="relative w-full h-full bg-white/5">
-                    <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i]} z-10`} />
-                    <div className="absolute inset-0 z-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200">
-                      <div className="w-10 h-10 rounded-full bg-black/70 border border-white/20 flex items-center justify-center backdrop-blur-sm">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                      </div>
-                    </div>
+                    <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />
                     <Image
                       src={photo.src}
                       alt={photo.alt}
@@ -165,79 +145,13 @@ export default function PhotoReel() {
         </div>
       </section>
 
-      {/* Lightbox */}
-      <AnimatePresence>
-        {expanded !== null && (
-          <motion.div
-            key="lightbox"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center"
-            onClick={() => setExpanded(null)}
-          >
-            <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-
-            {/* Prev button */}
-            <button
-              onClick={(e) => { e.stopPropagation(); setExpanded((p) => p !== null ? (p - 1 + photos.length) % photos.length : null); }}
-              className="absolute left-4 z-20 w-10 h-10 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors backdrop-blur-sm"
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            <motion.div
-              key={`lightbox-img-${expanded}`}
-              initial={{ scale: 0.88, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.88, opacity: 0 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="relative z-10 max-w-[90vw] max-h-[85vh] rounded-sm overflow-hidden border border-white/15 shadow-[0_40px_120px_rgba(0,0,0,0.8)]"
-              onClick={(e) => e.stopPropagation()}
-              style={{ aspectRatio: "3/4", height: "80vh" }}
-            >
-              <Image
-                src={photos[expanded].src}
-                alt={photos[expanded].alt}
-                fill
-                className="object-cover object-top"
-                sizes="90vw"
-              />
-              <button
-                onClick={() => setExpanded(null)}
-                className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/90 transition-colors backdrop-blur-sm"
-              >
-                <X size={14} />
-              </button>
-              <div className="absolute bottom-0 left-0 right-0 z-20 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent">
-                <p className="text-xs text-white/60 tracking-wider">{photos[expanded].alt}</p>
-              </div>
-            </motion.div>
-
-            {/* Next button */}
-            <button
-              onClick={(e) => { e.stopPropagation(); setExpanded((p) => p !== null ? (p + 1) % photos.length : null); }}
-              className="absolute right-4 z-20 w-10 h-10 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors backdrop-blur-sm"
-            >
-              <ChevronRight size={18} />
-            </button>
-
-            {/* Navigation dots */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex gap-2">
-              {photos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); setExpanded(i); }}
-                  className={`h-1.5 rounded-full transition-all duration-200 ${
-                    i === expanded ? "bg-[#ef4242] w-4" : "bg-white/30 hover:bg-white/60 w-1.5"
-                  }`}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Lightbox
+        images={lightboxPhotos.map((photo) => photo.src)}
+        captions={lightboxPhotos.map((photo) => photo.alt)}
+        currentIndex={expanded}
+        onClose={() => setExpanded(null)}
+        onNavigate={setExpanded}
+      />
     </>
   );
 }

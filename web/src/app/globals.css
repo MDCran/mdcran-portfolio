@@ -318,3 +318,27 @@ body::after {
 @utility animate-glow-pulse {
   animation: glowPulse 3s ease-in-out infinite;
 }
+
+@keyframes sidebar-title-marquee {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+
+  84%,
+  100% {
+    transform: translateX(min(0px, calc(var(--sidebar-title-width, 11rem) - 100%)));
+  }
+}
+
+@keyframes client-video-title-marquee {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+
+  84%,
+  100% {
+    transform: translateX(min(0px, calc(var(--client-video-title-width, 15rem) - 100%)));
+  }
+}

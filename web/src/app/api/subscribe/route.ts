@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getDb } from "@/lib/mongodb";
 import { enforcePublicFormRateLimit } from "@/lib/rate-limit";
+import {
+  isValidEmail,
+  isValidPhoneNumber,
+  normalizeEmail,
+  normalizePhone,
+} from "@/lib/contact-validation";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -10,13 +16,21 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, phone, name, consent, source } = body;
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPhone = normalizePhone(phone);
 
   if (!consent) {
     return NextResponse.json({ error: "Consent required" }, { status: 400 });
   }
 
-  if (!email && !phone) {
+  if (!normalizedEmail && !normalizedPhone) {
     return NextResponse.json({ error: "Email or phone required" }, { status: 400 });
+  }
+  if (normalizedEmail && !isValidEmail(normalizedEmail)) {
+    return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+  }
+  if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
+    return NextResponse.json({ error: "Enter a valid phone number" }, { status: 400 });
   }
 
   const rateLimit = await enforcePublicFormRateLimit(req, "subscribe-form");
@@ -27,8 +41,6 @@ export async function POST(req: NextRequest) {
   try {
     const db = await getDb();
     const now = new Date().toISOString();
-    const normalizedEmail = email ? String(email).trim().toLowerCase() : "";
-    const normalizedPhone = phone ? String(phone).trim() : "";
     const normalizedSource =
       source === "home-page" || source === "subscribe-page"
         ? source

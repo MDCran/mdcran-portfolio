@@ -126,6 +126,18 @@ const QUESTION_STEPS = [
   "Win You Over",
 ] as const;
 
+function isValidPhoneNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return false;
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+
+  return true;
+}
+
 export default function RizzPageClient() {
   const router = useRouter();
   const [stage, setStage] = useState<"pitch" | "form" | "success">("pitch");
@@ -192,6 +204,7 @@ export default function RizzPageClient() {
   }
 
   function updateField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setError("");
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -199,6 +212,7 @@ export default function RizzPageClient() {
     K extends "dateIdeas" | "vibes" | "activities" | "winOvers",
     V extends (typeof form)[K] extends Array<infer U> ? U : never,
   >(key: K, value: V) {
+    setError("");
     setForm((prev) => {
       const current = prev[key] as V[];
       const next = current.includes(value)
@@ -223,6 +237,9 @@ export default function RizzPageClient() {
     if (step === 1) {
       if (!form.phone.trim()) {
         return "Your phone number is required.";
+      }
+      if (!isValidPhoneNumber(form.phone)) {
+        return "Enter a real phone number.";
       }
       return null;
     }
@@ -484,6 +501,9 @@ export default function RizzPageClient() {
                     <label className="space-y-2 block">
                       <span className="text-[11px] tracking-[0.24em] uppercase text-white/45">Phone Number</span>
                       <input
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
                         className="h-11 w-full rounded-sm border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:border-[#ef4242]"
                         value={form.phone}
                         onChange={(event) => updateField("phone", event.target.value)}
@@ -630,7 +650,7 @@ export default function RizzPageClient() {
                   I officially have no excuse to mess this up now.
                 </p>
                 <p className="mt-4 text-[10px] text-center tracking-[0.14em] text-white/30">
-                  Redirecting in {redirectCountdown} seconds... We redirect you to the homepage after ten seconds.
+                  Redirecting in {redirectCountdown} seconds...
                 </p>
               </motion.div>
             )}

@@ -7,7 +7,8 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import type { Article, ArticleCategory } from "@/lib/types";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
+import type { Article, ArticleCategory, SiteContent } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -43,6 +44,10 @@ export default function ArticlesPage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const header = siteContent?.pageHeaders?.articles;
   const allArticles = useMemo(
     () =>
       [...apiArticles].sort(
@@ -90,6 +95,7 @@ export default function ArticlesPage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Articles"} />
       <Navbar />
       <main className="min-h-screen">
         <section className="pt-28 sm:pt-32 pb-16 border-b border-white/6 relative overflow-hidden">
@@ -105,7 +111,7 @@ export default function ArticlesPage() {
             >
               <div className="h-px w-8 bg-[#ef4242]" />
               <span className="text-[10px] tracking-[0.3em] uppercase text-[#ef4242]">
-                Articles & Writing
+                {header?.eyebrow ?? "Articles & Writing"}
               </span>
             </motion.div>
             <motion.h1
@@ -115,7 +121,7 @@ export default function ArticlesPage() {
               className="font-nord text-4xl md:text-6xl text-white tracking-wider mb-4"
               style={{ textShadow: "0 0 40px rgba(239,66,66,0.2)" }}
             >
-              Articles
+              {header?.title ?? "Articles"}
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
@@ -123,7 +129,7 @@ export default function ArticlesPage() {
               transition={{ delay: 0.25 }}
               className="text-sm text-white/40 max-w-xl"
             >
-              A collection of recipes, technical articles, and personal stories. {allArticles.length} and counting. :D
+              {(header?.description ?? "A collection of recipes, technical articles, and personal stories.")} {allArticles.length} and counting. :D
             </motion.p>
           </div>
         </section>

@@ -11,6 +11,7 @@ import {
   awards,
   clubs,
 } from "../src/lib/data";
+import { defaultSiteContent } from "../src/lib/site-content";
 
 loadEnvConfig(process.cwd());
 
@@ -52,6 +53,7 @@ const collections: SeedCollection[] = [
   },
   { name: "awards", docs: awards as unknown as SeedDoc[], uniqueIndex: { id: 1 }, getFilter: (doc) => ({ id: doc.id }) },
   { name: "clubs", docs: clubs as unknown as SeedDoc[], uniqueIndex: { id: 1 }, getFilter: (doc) => ({ id: doc.id }) },
+  { name: "siteContent", docs: [defaultSiteContent as unknown as SeedDoc], uniqueIndex: { id: 1 }, getFilter: (doc) => ({ id: doc.id }) },
 ];
 
 async function ensureUniqueIndex(collection: Collection<SeedDoc>, entry: SeedCollection) {

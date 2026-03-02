@@ -454,21 +454,6 @@ export default function ProjectDetail({
         onNavigate={setLightboxIndex}
         captions={allImageCaptions}
       />
-      <style jsx global>{`
-        @keyframes sidebar-title-marquee {
-          0%,
-          16% {
-            transform: translateX(0);
-          }
-
-          84%,
-          100% {
-            transform: translateX(
-              min(0px, calc(var(--sidebar-title-width, 11rem) - 100%))
-            );
-          }
-        }
-      `}</style>
     </>
   );
 }

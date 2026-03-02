@@ -5,10 +5,11 @@ import useSWR from "swr";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import FilterBar, { GRID_COLS_CLASS } from "@/components/shared/FilterBar";
 import ProjectCard from "@/components/shared/ProjectCard";
 import { useGridCols } from "@/lib/useGridCols";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Project, ProjectStatus, SiteContent } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -17,6 +18,10 @@ export default function VideoEditingPage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const header = siteContent?.pageHeaders?.videoEditing;
   const allProjects = apiProjects.filter((project) => project.subcategory === "video-editing");
 
   const [query, setQuery] = useState("");
@@ -48,11 +53,12 @@ export default function VideoEditingPage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Video Editing"} />
       <Navbar />
       <PageHeader
-        eyebrow="Motion & Graphics"
-        title="Video Editing"
-        description="Fast, on-demand video editing for YouTube and social media."
+        eyebrow={header?.eyebrow ?? "Motion & Graphics"}
+        title={header?.title ?? "Video Editing"}
+        description={header?.description ?? "Fast, on-demand video editing for YouTube and social media."}
         breadcrumbs={[
           { label: "Motion & Graphics", href: "/motion-and-graphics" },
           { label: "Video Editing" },

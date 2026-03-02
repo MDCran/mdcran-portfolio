@@ -17,7 +17,10 @@ import type {
   RizzSubmission,
   Platform,
   SocialLink,
+  SiteContent,
 } from "./types";
+import { defaultSiteContent } from "./site-content";
+import { assetUrl } from "./utils";
 
 const CLIENT_SOCIAL_REFRESH_KEY = "client_social_metrics_refreshed_at";
 const CLIENT_SOCIAL_REFRESH_MS = 60 * 60 * 1000;
@@ -29,11 +32,201 @@ let projectVideoRefreshPromise: Promise<ProjectVideoRefreshReport> | null = null
 
 async function readCollection<T>(collName: string): Promise<T[]> {
   const db = await getDb();
-  return db.collection(collName).find({}, { projection: { _id: 0 } }).toArray() as Promise<T[]>;
+  const rows = await db.collection(collName).find({}, { projection: { _id: 0 } }).toArray();
+  return rows.map((row) => normalizeAssetPaths(row) as T);
+}
+
+function normalizeAssetPaths<T>(value: T): T {
+  if (typeof value === "string") {
+    if (
+      value.startsWith("/") ||
+      value.startsWith("cdn/") ||
+      /^https?:\/\/[^/]+\/cdn\//i.test(value)
+    ) {
+      return (assetUrl(value) ?? value) as T;
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeAssetPaths(entry)) as T;
+  }
+
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, normalizeAssetPaths(entry)])
+    ) as T;
+  }
+
+  return value;
 }
 
 export async function getProjects(): Promise<Project[]> {
   return readCollection<Project>("projects");
+}
+
+export async function getSiteContent(): Promise<SiteContent> {
+  const db = await getDb();
+  const content = await db.collection("siteContent").findOne<SiteContent>(
+    { id: defaultSiteContent.id },
+    { projection: { _id: 0 } }
+  );
+
+  const mergePageBlock = (base: SiteContent["homeServices"], override?: Partial<SiteContent["homeServices"]>) => ({
+    ...base,
+    ...override,
+    cards: override?.cards?.length ? override.cards : base.cards,
+  });
+
+  const mergeSectionIntro = (
+    base: SiteContent["homeFeaturedWork"],
+    override?: Partial<SiteContent["homeFeaturedWork"]>
+  ) => ({
+    ...base,
+    ...override,
+  });
+
+  return {
+    ...defaultSiteContent,
+    ...content,
+    brandLogoUrl: content?.brandLogoUrl || defaultSiteContent.brandLogoUrl,
+    faviconUrl: content?.faviconUrl || defaultSiteContent.faviconUrl,
+    homeSectionOrder: content?.homeSectionOrder?.length
+      ? content.homeSectionOrder
+      : defaultSiteContent.homeSectionOrder,
+    homeHero: {
+      ...defaultSiteContent.homeHero,
+      ...content?.homeHero,
+      serviceTags: content?.homeHero?.serviceTags?.length
+        ? content.homeHero.serviceTags
+        : defaultSiteContent.homeHero.serviceTags,
+      primaryCta: {
+        ...defaultSiteContent.homeHero.primaryCta,
+        ...content?.homeHero?.primaryCta,
+      },
+      secondaryCta: {
+        ...defaultSiteContent.homeHero.secondaryCta,
+        ...content?.homeHero?.secondaryCta,
+      },
+      tertiaryCta: {
+        ...defaultSiteContent.homeHero.tertiaryCta,
+        ...content?.homeHero?.tertiaryCta,
+      },
+    },
+    homeAbout: {
+      ...defaultSiteContent.homeAbout,
+      ...content?.homeAbout,
+      tags: content?.homeAbout?.tags?.length
+        ? content.homeAbout.tags
+        : defaultSiteContent.homeAbout.tags,
+      images: content?.homeAbout?.images?.length
+        ? content.homeAbout.images
+        : defaultSiteContent.homeAbout.images,
+    },
+    homeServices: mergePageBlock(defaultSiteContent.homeServices, content?.homeServices),
+    homeFeaturedWork: mergeSectionIntro(defaultSiteContent.homeFeaturedWork, content?.homeFeaturedWork),
+    homeClients: mergeSectionIntro(defaultSiteContent.homeClients, content?.homeClients),
+    homeCta: mergeSectionIntro(defaultSiteContent.homeCta, content?.homeCta),
+    artsAndEntertainment: mergePageBlock(defaultSiteContent.artsAndEntertainment, content?.artsAndEntertainment),
+    motionAndGraphics: mergePageBlock(defaultSiteContent.motionAndGraphics, content?.motionAndGraphics),
+    workPage: mergePageBlock(defaultSiteContent.workPage, content?.workPage),
+    codePage: {
+      ...defaultSiteContent.codePage,
+      ...content?.codePage,
+    },
+    pageHeaders: {
+      ...defaultSiteContent.pageHeaders,
+      ...content?.pageHeaders,
+      publications: { ...defaultSiteContent.pageHeaders.publications, ...content?.pageHeaders?.publications },
+      articles: { ...defaultSiteContent.pageHeaders.articles, ...content?.pageHeaders?.articles },
+      contact: { ...defaultSiteContent.pageHeaders.contact, ...content?.pageHeaders?.contact },
+      resume: { ...defaultSiteContent.pageHeaders.resume, ...content?.pageHeaders?.resume },
+      subscribe: { ...defaultSiteContent.pageHeaders.subscribe, ...content?.pageHeaders?.subscribe },
+      unsubscribe: { ...defaultSiteContent.pageHeaders.unsubscribe, ...content?.pageHeaders?.unsubscribe },
+      minecraftMaps: { ...defaultSiteContent.pageHeaders.minecraftMaps, ...content?.pageHeaders?.minecraftMaps },
+      events: { ...defaultSiteContent.pageHeaders.events, ...content?.pageHeaders?.events },
+      thumbnailDesign: { ...defaultSiteContent.pageHeaders.thumbnailDesign, ...content?.pageHeaders?.thumbnailDesign },
+      videoEditing: { ...defaultSiteContent.pageHeaders.videoEditing, ...content?.pageHeaders?.videoEditing },
+      webDevDesign: { ...defaultSiteContent.pageHeaders.webDevDesign, ...content?.pageHeaders?.webDevDesign },
+    },
+    footer: {
+      ...defaultSiteContent.footer,
+      ...content?.footer,
+      linkGroups: content?.footer?.linkGroups?.length
+        ? content.footer.linkGroups
+        : defaultSiteContent.footer.linkGroups,
+      bottomLinks: content?.footer?.bottomLinks?.length
+        ? content.footer.bottomLinks
+        : defaultSiteContent.footer.bottomLinks,
+    },
+    termsPage: {
+      ...defaultSiteContent.termsPage,
+      ...content?.termsPage,
+      sections: content?.termsPage?.sections?.length
+        ? content.termsPage.sections
+        : defaultSiteContent.termsPage.sections,
+    },
+    privacyPage: {
+      ...defaultSiteContent.privacyPage,
+      ...content?.privacyPage,
+      sections: content?.privacyPage?.sections?.length
+        ? content.privacyPage.sections
+        : defaultSiteContent.privacyPage.sections,
+    },
+  };
+}
+
+export async function saveSiteContent(content: SiteContent): Promise<void> {
+  const db = await getDb();
+  const sanitizedContent: SiteContent = {
+    ...content,
+    id: defaultSiteContent.id,
+    homeFeaturedWork: {
+      eyebrow: content.homeFeaturedWork.eyebrow,
+      title: content.homeFeaturedWork.title,
+      description: content.homeFeaturedWork.description,
+      ...(content.homeFeaturedWork.ctaLabel?.trim()
+        ? { ctaLabel: content.homeFeaturedWork.ctaLabel.trim() }
+        : {}),
+      ...(content.homeFeaturedWork.ctaHref?.trim()
+        ? { ctaHref: content.homeFeaturedWork.ctaHref.trim() }
+        : {}),
+    },
+    homeClients: {
+      eyebrow: content.homeClients.eyebrow,
+      title: content.homeClients.title,
+      description: content.homeClients.description,
+    },
+    homeCta: {
+      eyebrow: content.homeCta.eyebrow,
+      title: content.homeCta.title,
+      description: content.homeCta.description,
+      ...(content.homeCta.ctaLabel?.trim()
+        ? { ctaLabel: content.homeCta.ctaLabel.trim() }
+        : {}),
+      ...(content.homeCta.ctaHref?.trim()
+        ? { ctaHref: content.homeCta.ctaHref.trim() }
+        : {}),
+    },
+    pageHeaders: {
+      publications: content.pageHeaders.publications,
+      articles: content.pageHeaders.articles,
+      contact: content.pageHeaders.contact,
+      resume: content.pageHeaders.resume,
+      subscribe: content.pageHeaders.subscribe,
+      unsubscribe: content.pageHeaders.unsubscribe,
+      minecraftMaps: content.pageHeaders.minecraftMaps,
+      events: content.pageHeaders.events,
+      thumbnailDesign: content.pageHeaders.thumbnailDesign,
+      videoEditing: content.pageHeaders.videoEditing,
+      webDevDesign: content.pageHeaders.webDevDesign,
+    },
+  };
+  await db.collection("siteContent").updateOne(
+    { id: defaultSiteContent.id },
+    { $set: sanitizedContent },
+    { upsert: true }
+  );
 }
 
 type ClientSocialRefreshReport = {

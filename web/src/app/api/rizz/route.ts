@@ -55,6 +55,18 @@ function asArray<T>(value: T | T[] | undefined | null): T[] {
   return value ? [value] : [];
 }
 
+function isValidPhoneNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return false;
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+
+  return true;
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) {
@@ -74,8 +86,12 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   };
 
-  if (!submission.name || !submission.nickname || !submission.phone) {
+  if (!submission.name || !submission.phone) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  if (!isValidPhoneNumber(submission.phone)) {
+    return NextResponse.json({ error: "Enter a valid phone number" }, { status: 400 });
   }
 
   if (

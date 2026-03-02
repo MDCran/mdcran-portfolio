@@ -1,6 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import ExperienceCard from "@/components/resume/ExperienceCard";
 import {
   getAwards,
@@ -9,6 +10,7 @@ import {
   getClubs,
   getEducations,
   getExperiences,
+  getSiteContent,
   getSkills,
 } from "@/lib/db";
 import {
@@ -26,11 +28,16 @@ import {
 } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
 
-export const metadata = buildSeoMetadata({
-  title: "Resume",
-  description: "Michael Cran's professional experience, skills, certifications, awards, and resume details.",
-  path: "/resume",
-});
+export async function generateMetadata() {
+  const siteContent = await getSiteContent();
+  const header = siteContent.pageHeaders.resume;
+
+  return buildSeoMetadata({
+    title: header.title || "Resume",
+    description: header.description || "Michael Cran's professional experience, skills, certifications, awards, and resume details.",
+    path: "/resume",
+  });
+}
 
 const skillCategoryMeta = {
   technology: { label: "Technology", icon: Code2 },
@@ -77,6 +84,8 @@ export default async function ResumePage() {
     getClubs(),
     getClients(),
   ]);
+  const siteContent = await getSiteContent();
+  const header = siteContent.pageHeaders.resume;
   const clientsById = new Map(clients.map((client) => [client.id, client]));
 
   const jobs = experiences.filter((experience) => experience.type === "job");
@@ -131,10 +140,12 @@ export default async function ResumePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <ClientPageTitle title={header.title} />
       <Navbar />
       <PageHeader
-        eyebrow="Career"
-        title="Resume"
+        eyebrow={header.eyebrow}
+        title={header.title}
+        description={header.description}
         breadcrumbs={[{ label: "Resume" }]}
         actions={
           <div className="flex items-center gap-3">

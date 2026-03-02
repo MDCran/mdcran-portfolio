@@ -5,10 +5,11 @@ import useSWR from "swr";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import FilterBar, { GRID_COLS_CLASS } from "@/components/shared/FilterBar";
 import ProjectCard from "@/components/shared/ProjectCard";
 import { useGridCols } from "@/lib/useGridCols";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Project, ProjectStatus, SiteContent } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -17,6 +18,10 @@ export default function MinecraftMapsPage() {
     fallbackData: [],
     revalidateOnFocus: false,
   });
+  const { data: siteContent } = useSWR<SiteContent>("/api/data/site-content", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const header = siteContent?.pageHeaders?.minecraftMaps;
   const allProjects = apiProjects.filter((project) => project.subcategory === "minecraft-maps");
 
   const [query, setQuery] = useState("");
@@ -48,11 +53,12 @@ export default function MinecraftMapsPage() {
 
   return (
     <>
+      <ClientPageTitle title={header?.title ?? "Minecraft Maps"} />
       <Navbar />
       <PageHeader
-        eyebrow="Arts & Entertainment"
-        title="Minecraft Maps"
-        description="Custom-built Minecraft experiences for the world's biggest YouTubers."
+        eyebrow={header?.eyebrow ?? "Arts & Entertainment"}
+        title={header?.title ?? "Minecraft Maps"}
+        description={header?.description ?? "Custom-built Minecraft experiences for the world's biggest YouTubers."}
         breadcrumbs={[
           { label: "Arts & Entertainment", href: "/arts-and-entertainment" },
           { label: "Minecraft Maps" },

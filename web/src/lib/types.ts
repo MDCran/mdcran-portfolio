@@ -470,3 +470,117 @@ export interface SiteSettings {
   featuredClientIds?: string[];
   featuredArticleId?: string;
 }
+
+export interface SiteContentLinkCard {
+  title: string;
+  description: string;
+  href: string;
+  count?: string;
+  items?: string[];
+}
+
+export interface SiteContentPageBlock {
+  eyebrow: string;
+  title: string;
+  description: string;
+  cards?: SiteContentLinkCard[];
+}
+
+export interface SiteContentActionLink {
+  label: string;
+  href: string;
+}
+
+export interface SiteContentHero {
+  eyebrow: string;
+  titlePrimary: string;
+  titleAccent: string;
+  description: string;
+  supportingText: string;
+  locationText: string;
+  serviceTags: SiteContentActionLink[];
+  primaryCta: SiteContentActionLink;
+  secondaryCta: SiteContentActionLink;
+  tertiaryCta: SiteContentActionLink;
+}
+
+export interface SiteContentAbout {
+  eyebrow: string;
+  title: string;
+  description: string;
+  supportingText: string;
+  tags: string[];
+  images: ImageAsset[];
+}
+
+export interface SiteContentSectionIntro {
+  eyebrow: string;
+  title: string;
+  description: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}
+
+export interface SiteContentFooterLinkGroup {
+  title: string;
+  links: SiteContentActionLink[];
+}
+
+export interface SiteContentFooter {
+  locationText: string;
+  statusLabel: string;
+  emailHref: string;
+  githubHref: string;
+  blurb: string;
+  linkGroups: SiteContentFooterLinkGroup[];
+  bottomLinks: SiteContentActionLink[];
+  copyrightText: string;
+}
+
+export interface SiteContentPageHeaders {
+  publications: Omit<SiteContentPageBlock, "cards">;
+  articles: Omit<SiteContentPageBlock, "cards">;
+  contact: Omit<SiteContentPageBlock, "cards">;
+  resume: Omit<SiteContentPageBlock, "cards">;
+  subscribe: Omit<SiteContentPageBlock, "cards">;
+  unsubscribe: Omit<SiteContentPageBlock, "cards">;
+  minecraftMaps: Omit<SiteContentPageBlock, "cards">;
+  events: Omit<SiteContentPageBlock, "cards">;
+  thumbnailDesign: Omit<SiteContentPageBlock, "cards">;
+  videoEditing: Omit<SiteContentPageBlock, "cards">;
+  webDevDesign: Omit<SiteContentPageBlock, "cards">;
+}
+
+export interface SiteContentLegalSection {
+  heading: string;
+  body: string;
+  bullets?: string[];
+}
+
+export interface SiteContentLegalPage {
+  eyebrow: string;
+  title: string;
+  lastUpdated: string;
+  sections: SiteContentLegalSection[];
+}
+
+export interface SiteContent {
+  id: string;
+  brandLogoUrl: string;
+  faviconUrl: string;
+  homeSectionOrder: string[];
+  homeHero: SiteContentHero;
+  homeAbout: SiteContentAbout;
+  homeServices: SiteContentPageBlock;
+  homeFeaturedWork: SiteContentSectionIntro;
+  homeClients: SiteContentSectionIntro;
+  homeCta: SiteContentSectionIntro;
+  artsAndEntertainment: SiteContentPageBlock;
+  motionAndGraphics: SiteContentPageBlock;
+  workPage: SiteContentPageBlock;
+  codePage: Omit<SiteContentPageBlock, "cards">;
+  pageHeaders: SiteContentPageHeaders;
+  footer: SiteContentFooter;
+  termsPage: SiteContentLegalPage;
+  privacyPage: SiteContentLegalPage;
+}

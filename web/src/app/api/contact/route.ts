@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getDb } from "@/lib/mongodb";
 import { enforcePublicFormRateLimit } from "@/lib/rate-limit";
+import {
+  isValidEmail,
+  isValidPhoneNumber,
+  normalizeEmail,
+  normalizePhone,
+} from "@/lib/contact-validation";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -10,15 +16,26 @@ export async function POST(req: NextRequest) {
   }
 
   const { name, email, phone, subject, message, consent } = body;
+  const normalizedName = String(name ?? "").trim();
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPhone = normalizePhone(phone);
+  const normalizedSubject = String(subject ?? "").trim();
+  const normalizedMessage = String(message ?? "").trim();
 
   if (!consent) {
     return NextResponse.json({ error: "Consent required" }, { status: 400 });
   }
-  if (!name || !message) {
+  if (!normalizedName || !normalizedMessage) {
     return NextResponse.json({ error: "Name and message required" }, { status: 400 });
   }
-  if (!email && !phone) {
+  if (!normalizedEmail && !normalizedPhone) {
     return NextResponse.json({ error: "Email or phone required" }, { status: 400 });
+  }
+  if (normalizedEmail && !isValidEmail(normalizedEmail)) {
+    return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+  }
+  if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
+    return NextResponse.json({ error: "Enter a valid phone number" }, { status: 400 });
   }
 
   const rateLimit = await enforcePublicFormRateLimit(req, "contact-form");
@@ -29,11 +46,6 @@ export async function POST(req: NextRequest) {
   try {
     const db = await getDb();
     const now = new Date().toISOString();
-    const normalizedName = String(name).trim();
-    const normalizedEmail = email ? String(email).trim().toLowerCase() : "";
-    const normalizedPhone = phone ? String(phone).trim() : "";
-    const normalizedSubject = subject ? String(subject).trim() : "";
-    const normalizedMessage = String(message).trim();
 
     const existingContact =
       normalizedEmail && normalizedPhone

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSWRConfig } from "swr";
@@ -16,6 +16,7 @@ import {
   Bar,
 } from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
+import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 import type {
   Project,
   Article,
@@ -40,7 +41,10 @@ import type {
   RateLimitRecord,
   RizzSubmission,
   ImageAsset,
+  SiteContent,
 } from "@/lib/types";
+import { defaultSiteContent } from "@/lib/site-content";
+import { assetUrl } from "@/lib/utils";
 
 /* ─── Local-only types ───────────────────────────────────── */
 type Contact = ContactSubmission;
@@ -54,11 +58,33 @@ type MetricsAuditResponse = {
   refreshedAt?: string;
 };
 
+type R2BrowserFile = {
+  key: string;
+  name: string;
+  size: number;
+  lastModified?: string;
+  publicUrl: string;
+};
+
+type R2BrowserFolder = {
+  name: string;
+  prefix: string;
+};
+
+type R2BrowserResponse = {
+  prefix: string;
+  folders: R2BrowserFolder[];
+  files: R2BrowserFile[];
+  mode: "browse" | "search";
+};
+
 type NavSection =
   | "dashboard"
   | "projects"
   | "articles"
   | "clients"
+  | "r2-assets"
+  | "site-content"
   | "resume"
   | "contacts"
   | "rate-limits"
@@ -157,18 +183,31 @@ function fmtDayLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatBytes(bytes?: number): string {
+  const value = Math.max(0, bytes ?? 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+  return `${(value / 1024 ** 3).toFixed(1)} GB`;
+}
+
+function isImageAssetFile(fileName: string): boolean {
+  return /\.(?:png|jpe?g|gif|webp|avif|svg|ico)$/i.test(fileName);
+}
+
 function formatContactSource(source?: string): string {
   if (!source) return "—";
   if (source === "contact-form") return "Contact page";
   if (source === "home-page" || source === "subscribe-form") return "Home page";
   if (source === "subscribe-page") return "Subscribe page";
+  if (source === "admin-center") return "Admin Center";
   return humanizeChoice(source);
 }
 
 function formatRateLimitScope(scope?: string): string {
   if (!scope) return "—";
   if (scope === "contact-form") return "Contact page";
-  if (scope === "subscribe-form") return "Home / Subscribe pages";
+  if (scope === "subscribe-form") return "Home page / Subscribe page";
   return humanizeChoice(scope);
 }
 
@@ -242,6 +281,180 @@ function Field({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-col gap-0">{children}</div>;
 }
 
+type EditableActionLink = SiteContent["footer"]["bottomLinks"][number];
+
+function StringChipEditor({
+  items,
+  onChange,
+  placeholder,
+  addLabel = "Add",
+}: {
+  items: string[];
+  onChange: (items: string[]) => void;
+  placeholder?: string;
+  addLabel?: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  function addItem() {
+    const next = draft.trim();
+    if (!next) return;
+    onChange([...items, next]);
+    setDraft("");
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_auto] gap-2">
+        <input
+          className={inputCls}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addItem();
+            }
+          }}
+          placeholder={placeholder}
+        />
+        <button type="button" className={`${btnOutline} cursor-pointer`} onClick={addItem}>
+          {addLabel}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, index) => (
+          <div
+            key={`${item}-${index}`}
+            draggable
+            onDragStart={() => setDragIndex(index)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (dragIndex === null) return;
+              onChange(arrayMove(items, dragIndex, index));
+              setDragIndex(null);
+            }}
+            onDragEnd={() => setDragIndex(null)}
+            className="inline-flex max-w-full cursor-move items-center gap-2 rounded-sm border border-white/10 bg-black/20 px-2.5 py-2 text-xs text-white/75"
+          >
+            <span className="truncate">{item}</span>
+            <button
+              type="button"
+              className="text-white/35 transition-colors hover:text-[#ef4242]"
+              onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+              aria-label={`Remove ${item}`}
+            >
+              x
+            </button>
+          </div>
+        ))}
+        {items.length === 0 && <p className="text-xs text-white/25">No items yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ActionLinkListEditor({
+  items,
+  onChange,
+}: {
+  items: EditableActionLink[];
+  onChange: (items: EditableActionLink[]) => void;
+}) {
+  const [labelDraft, setLabelDraft] = useState("");
+  const [hrefDraft, setHrefDraft] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  function addItem() {
+    const label = labelDraft.trim();
+    const href = hrefDraft.trim();
+    if (!label && !href) return;
+
+    onChange([
+      ...items,
+      {
+        label: label || href || "Link",
+        href: href || "/",
+      },
+    ]);
+    setLabelDraft("");
+    setHrefDraft("");
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1fr_1.4fr_auto]">
+        <input
+          className={inputCls}
+          value={labelDraft}
+          onChange={(e) => setLabelDraft(e.target.value)}
+          placeholder="Link label"
+        />
+        <input
+          className={inputCls}
+          value={hrefDraft}
+          onChange={(e) => setHrefDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addItem();
+            }
+          }}
+          placeholder="/link"
+        />
+        <button type="button" className={`${btnOutline} cursor-pointer`} onClick={addItem}>
+          Add Link
+        </button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div
+            key={`${item.label}-${item.href}-${index}`}
+            draggable
+            onDragStart={() => setDragIndex(index)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (dragIndex === null) return;
+              onChange(arrayMove(items, dragIndex, index));
+              setDragIndex(null);
+            }}
+            onDragEnd={() => setDragIndex(null)}
+            className="grid cursor-move grid-cols-1 gap-2 rounded-sm border border-white/8 bg-black/20 p-3 lg:grid-cols-[1fr_1.4fr_auto]"
+          >
+            <input
+              className={inputCls}
+              value={item.label}
+              onChange={(e) =>
+                onChange(items.map((entry, itemIndex) => (
+                  itemIndex === index ? { ...entry, label: e.target.value } : entry
+                )))
+              }
+            />
+            <input
+              className={inputCls}
+              value={item.href}
+              onChange={(e) =>
+                onChange(items.map((entry, itemIndex) => (
+                  itemIndex === index ? { ...entry, href: e.target.value } : entry
+                )))
+              }
+            />
+            <button
+              type="button"
+              className="text-xs text-[#ef4242]/70 transition-colors hover:text-[#ef4242]"
+              onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        {items.length === 0 && <p className="text-xs text-white/25">No links yet.</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Modal wrapper ──────────────────────────────────────── */
 function Modal({
   title,
@@ -267,6 +480,301 @@ function Modal({
         {children}
       </div>
     </div>
+  );
+}
+
+function ContactEditorModal({
+  initial,
+  onClose,
+  onSave,
+}: {
+  initial?: Contact | null;
+  onClose: () => void;
+  onSave: (contact: Contact) => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [email, setEmail] = useState(initial?.email ?? "");
+  const [phone, setPhone] = useState(initial?.phone ?? "");
+  const [subscribed, setSubscribed] = useState(initial?.subscribed ?? true);
+  const [subject, setSubject] = useState(initial?.subject ?? "");
+  const [message, setMessage] = useState(initial?.message ?? "");
+  const [error, setError] = useState("");
+
+  function handleSave() {
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    if (!trimmedEmail && !trimmedPhone) {
+      setError("Email or phone is required.");
+      return;
+    }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      setError("Enter a valid phone number.");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    onSave({
+      id: initial?.id ?? uid(),
+      name: name.trim(),
+      email: trimmedEmail ? trimmedEmail.toLowerCase() : undefined,
+      phone: trimmedPhone || undefined,
+      subject: subject.trim() || "Admin Contact",
+      message: message.trim() || "Added from the admin center.",
+      source: "admin-center",
+      subscribed,
+      createdAt: initial?.createdAt ?? now,
+      updatedAt: now,
+      messageRead: initial?.messageRead ?? true,
+      messageReadAt: initial?.messageReadAt ?? now,
+    });
+  }
+
+  return (
+    <Modal title={initial ? "Edit Contact" : "Add Contact"} onClose={onClose}>
+      <div className="p-6 space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field>
+            <Label required>Name</Label>
+            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Contact name" />
+          </Field>
+          <Field>
+            <Label>Email</Label>
+            <input className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
+          </Field>
+          <Field>
+            <Label>Phone</Label>
+            <input className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
+          </Field>
+          <Field>
+            <Label>Subscribed</Label>
+            <button
+              type="button"
+              className={`h-9 rounded-sm border text-xs transition-colors ${
+                subscribed
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-white/10 bg-white/4 text-white/45 hover:text-white"
+              }`}
+              onClick={() => setSubscribed((prev) => !prev)}
+            >
+              {subscribed ? "Subscribed" : "Not Subscribed"}
+            </button>
+          </Field>
+        </div>
+        <Field>
+          <Label>Subject</Label>
+          <input className={inputCls} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Admin Contact" />
+        </Field>
+        <Field>
+          <Label>Notes</Label>
+          <textarea className={textareaCls} rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Added from the admin center." />
+        </Field>
+        {error && <p className="text-[11px] text-[#ef4242]">{error}</p>}
+      </div>
+      <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/8">
+        <button className={`${btnGhost} cursor-pointer`} onClick={onClose}>Cancel</button>
+        <button className={`${btnRed} cursor-pointer`} onClick={handleSave}>Save Contact</button>
+      </div>
+    </Modal>
+  );
+}
+
+function R2ImagePickerModal({
+  title = "Select Image",
+  onClose,
+  onSelect,
+}: {
+  title?: string;
+  onClose: () => void;
+  onSelect: (url: string) => void;
+}) {
+  const [prefix, setPrefix] = useState("");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [folders, setFolders] = useState<R2BrowserFolder[]>([]);
+  const [files, setFiles] = useState<R2BrowserFile[]>([]);
+  const imageFiles = files.filter((file) => isImageAssetFile(file.name));
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const timeout = window.setTimeout(async () => {
+      const params = new URLSearchParams();
+      if (prefix) {
+        params.set("prefix", prefix);
+      }
+      if (search.trim()) {
+        params.set("search", search.trim());
+      }
+
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(`/api/admin/r2${params.toString() ? `?${params.toString()}` : ""}`, {
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as R2BrowserResponse | { error?: string };
+
+        if (!response.ok) {
+          throw new Error("error" in data && data.error ? data.error : "Failed to load R2 assets.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        const payload = data as R2BrowserResponse;
+        setFolders(payload.folders);
+        setFiles(payload.files);
+      } catch (fetchError) {
+        if (controller.signal.aborted || cancelled) {
+          return;
+        }
+        setFolders([]);
+        setFiles([]);
+        setError(fetchError instanceof Error ? fetchError.message : "Failed to load R2 assets.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }, search.trim() ? 180 : 0);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [prefix, search]);
+
+  return (
+    <Modal title={title} onClose={onClose} wide>
+      <div className="p-6 space-y-4">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <input
+            className={inputCls}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search images..."
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={btnOutline}
+              onClick={() => setSearch("")}
+              disabled={!search}
+            >
+              Clear Search
+            </button>
+            <button
+              type="button"
+              className={btnOutline}
+              onClick={() => {
+                const trimmed = prefix.replace(/\/$/, "");
+                setSearch("");
+                setPrefix(trimmed.includes("/") ? `${trimmed.slice(0, trimmed.lastIndexOf("/") + 1)}` : "");
+              }}
+              disabled={!prefix}
+            >
+              Up One Level
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-[11px] text-white/35">
+          <span className="text-white/50">Location:</span> {search.trim() ? `Search in ${prefix || "bucket root"}` : prefix || "bucket root"}
+        </div>
+
+        {error && (
+          <div className="rounded-sm border border-[#ef4242]/20 bg-[#ef4242]/8 px-3 py-2 text-xs text-[#ef4242]">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="border border-white/7 bg-white/2 rounded-sm overflow-hidden">
+            <div className="border-b border-white/8 px-4 py-3 text-[10px] tracking-widest uppercase text-white/35">
+              Folders
+            </div>
+            <div className="max-h-[420px] overflow-y-auto">
+              {folders.length === 0 ? (
+                <div className="px-4 py-6 text-xs text-white/25">
+                  {search.trim() ? "Folder browse is hidden while searching." : "No folders here."}
+                </div>
+              ) : (
+                folders.map((folder) => (
+                  <button
+                    key={folder.prefix}
+                    type="button"
+                    className="flex w-full items-center justify-between border-b border-white/6 px-4 py-3 text-left text-xs text-white/55 transition-colors hover:bg-white/3 hover:text-white"
+                    onClick={() => {
+                      setSearch("");
+                      setPrefix(folder.prefix);
+                    }}
+                  >
+                    <span className="truncate">{folder.name}/</span>
+                    <span className="text-white/20">Open</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="border border-white/7 bg-white/2 rounded-sm overflow-hidden">
+            <div className="border-b border-white/8 px-4 py-3 text-[10px] tracking-widest uppercase text-white/35">
+              Images ({imageFiles.length})
+            </div>
+            {imageFiles.length === 0 ? (
+              <div className="px-4 py-8 text-center text-xs text-white/25">
+                {loading ? "Loading images..." : "No image files found here."}
+              </div>
+            ) : (
+              <div className="max-h-[420px] overflow-y-auto space-y-0">
+                {imageFiles.map((file) => (
+                  <div key={file.key} className="border-b border-white/6 px-4 py-3 last:border-b-0">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <img
+                          src={file.publicUrl}
+                          alt={file.name}
+                          className="h-14 w-20 shrink-0 rounded-sm border border-white/8 bg-black/20 object-cover"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-xs text-white/75">{file.name}</div>
+                          <div className="truncate text-[10px] text-white/25">{file.key}</div>
+                          <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-white/25">
+                            <span>{formatBytes(file.size)}</span>
+                            <span>{fmtDateTime(file.lastModified)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={`${btnOutline} cursor-pointer`}
+                        onClick={() => onSelect(file.publicUrl)}
+                      >
+                        Select Image
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -348,6 +856,13 @@ function ProjectModal({
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
   );
   const [errors, setErrors] = useState<string[]>([]);
+  const [imagePickerTarget, setImagePickerTarget] = useState<
+    | null
+    | { kind: "cover" }
+    | { kind: "gallery"; index: number }
+    | { kind: "section-image"; sectionIndex: number }
+    | { kind: "section-gallery"; sectionIndex: number; imageIndex: number }
+  >(null);
 
   function validate() {
     const e: string[] = [];
@@ -474,9 +989,40 @@ function ProjectModal({
     updateSection(sectionIdx, { images: nextImages.length ? nextImages : [{ src: "", alt: "" }] });
   }
 
+  function applySelectedImage(url: string) {
+    if (!imagePickerTarget) return;
+
+    if (imagePickerTarget.kind === "cover") {
+      setCoverImage((prev) => ({ ...prev, src: url }));
+    } else if (imagePickerTarget.kind === "section-image") {
+      updateSection(imagePickerTarget.sectionIndex, { src: url });
+    } else if (imagePickerTarget.kind === "section-gallery") {
+      updateSectionGalleryImage(imagePickerTarget.sectionIndex, imagePickerTarget.imageIndex, { src: url });
+    }
+
+    setImagePickerTarget(null);
+  }
+
+  function applySelectedImage(url: string) {
+    if (!imagePickerTarget) return;
+
+    if (imagePickerTarget.kind === "cover") {
+      setCoverImage((prev) => ({ ...prev, src: url }));
+    } else if (imagePickerTarget.kind === "gallery") {
+      updateGalleryImage(imagePickerTarget.index, { src: url });
+    } else if (imagePickerTarget.kind === "section-image") {
+      updateSection(imagePickerTarget.sectionIndex, { src: url });
+    } else if (imagePickerTarget.kind === "section-gallery") {
+      updateSectionGalleryImage(imagePickerTarget.sectionIndex, imagePickerTarget.imageIndex, { src: url });
+    }
+
+    setImagePickerTarget(null);
+  }
+
   const isErr = (f: string) => errors.includes(f);
 
   return (
+    <>
     <Modal title={initial ? "Edit Project" : "New Project"} onClose={onClose} wide>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -569,7 +1115,7 @@ function ProjectModal({
 
         <Field>
           <Label>Cover Image URL</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
             <input
               className={inputCls}
               value={coverImage.src}
@@ -582,6 +1128,9 @@ function ProjectModal({
               onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
               placeholder="Cover alt text"
             />
+            <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "cover" })}>
+              Select Image
+            </button>
           </div>
         </Field>
 
@@ -589,7 +1138,7 @@ function ProjectModal({
           <Label>Gallery Images</Label>
           <div className="space-y-2">
             {galleryImages.map((image, idx) => (
-              <div key={idx} className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
+              <div key={idx} className="grid grid-cols-[1.6fr_1fr_auto_auto] gap-2">
                 <input
                   className={inputCls}
                   value={image.src}
@@ -602,6 +1151,9 @@ function ProjectModal({
                   onChange={(e) => updateGalleryImage(idx, { alt: e.target.value })}
                   placeholder="Alt text"
                 />
+                <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "gallery", index: idx })}>
+                  Select Image
+                </button>
                 <button
                   type="button"
                   onClick={() => removeGalleryImage(idx)}
@@ -806,7 +1358,12 @@ function ProjectModal({
                 )}
                 {sec.type === "image" && (
                   <div className="space-y-1.5">
-                    <input className={inputCls} value={sec.src ?? ""} onChange={(e) => updateSection(idx, { src: e.target.value })} placeholder="Image URL" />
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input className={inputCls} value={sec.src ?? ""} onChange={(e) => updateSection(idx, { src: e.target.value })} placeholder="Image URL" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-image", sectionIndex: idx })}>
+                        Select Image
+                      </button>
+                    </div>
                     <input className={inputCls} value={sec.alt ?? ""} onChange={(e) => updateSection(idx, { alt: e.target.value })} placeholder="Alt text" />
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
                   </div>
@@ -823,7 +1380,7 @@ function ProjectModal({
                 {sec.type === "gallery" && (
                   <div className="space-y-2">
                     {(sec.images ?? [""]).map((image, imageIdx) => (
-                      <div key={imageIdx} className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
+                      <div key={imageIdx} className="grid grid-cols-[1.6fr_1fr_auto_auto] gap-2">
                         <input
                           className={inputCls}
                           value={toEditableImageAsset(image).src}
@@ -836,6 +1393,9 @@ function ProjectModal({
                           onChange={(e) => updateSectionGalleryImage(idx, imageIdx, { alt: e.target.value })}
                           placeholder="Alt text"
                         />
+                        <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-gallery", sectionIndex: idx, imageIndex: imageIdx })}>
+                          Select Image
+                        </button>
                         <button
                           type="button"
                           onClick={() => removeSectionGalleryImage(idx, imageIdx)}
@@ -881,6 +1441,14 @@ function ProjectModal({
         <button className={btnRed} onClick={handleSave}>Save Project</button>
       </div>
     </Modal>
+    {imagePickerTarget && (
+      <R2ImagePickerModal
+        title="Select Project Image"
+        onClose={() => setImagePickerTarget(null)}
+        onSelect={applySelectedImage}
+      />
+    )}
+    </>
   );
 }
 
@@ -1002,6 +1570,7 @@ function ArticleModal({
   const isErr = (f: string) => errors.includes(f);
 
   return (
+    <>
     <Modal title={initial ? "Edit Article" : "New Article"} onClose={onClose} wide>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -1057,7 +1626,7 @@ function ArticleModal({
 
         <Field>
           <Label>Cover Image URL</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
             <input
               className={inputCls}
               value={coverImage.src}
@@ -1070,6 +1639,9 @@ function ArticleModal({
               onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
               placeholder="Cover alt text"
             />
+            <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "cover" })}>
+              Select Image
+            </button>
           </div>
         </Field>
 
@@ -1103,7 +1675,12 @@ function ArticleModal({
                 )}
                 {sec.type === "image" && (
                   <div className="space-y-1.5">
-                    <input className={inputCls} value={sec.src ?? ""} onChange={(e) => updateSection(idx, { src: e.target.value })} placeholder="Image URL" />
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input className={inputCls} value={sec.src ?? ""} onChange={(e) => updateSection(idx, { src: e.target.value })} placeholder="Image URL" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-image", sectionIndex: idx })}>
+                        Select Image
+                      </button>
+                    </div>
                     <input className={inputCls} value={sec.alt ?? ""} onChange={(e) => updateSection(idx, { alt: e.target.value })} placeholder="Alt text" />
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
                   </div>
@@ -1120,7 +1697,7 @@ function ArticleModal({
                 {sec.type === "gallery" && (
                   <div className="space-y-2">
                     {(sec.images ?? [{ src: "", alt: "" }]).map((image, imageIdx) => (
-                      <div key={imageIdx} className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
+                      <div key={imageIdx} className="grid grid-cols-[1.6fr_1fr_auto_auto] gap-2">
                         <input
                           className={inputCls}
                           value={toEditableImageAsset(image).src}
@@ -1133,6 +1710,9 @@ function ArticleModal({
                           onChange={(e) => updateSectionGalleryImage(idx, imageIdx, { alt: e.target.value })}
                           placeholder="Alt text"
                         />
+                        <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-gallery", sectionIndex: idx, imageIndex: imageIdx })}>
+                          Select Image
+                        </button>
                         <button
                           type="button"
                           onClick={() => removeSectionGalleryImage(idx, imageIdx)}
@@ -1223,6 +1803,14 @@ function ArticleModal({
         <button className={btnRed} onClick={handleSave}>Save Article</button>
       </div>
     </Modal>
+    {imagePickerTarget && (
+      <R2ImagePickerModal
+        title="Select Article Image"
+        onClose={() => setImagePickerTarget(null)}
+        onSelect={applySelectedImage}
+      />
+    )}
+    </>
   );
 }
 
@@ -1245,6 +1833,7 @@ function ClientModal({
   const [bio, setBio] = useState(initial?.bio ?? "");
   const [location, setLocation] = useState(initial?.location ?? "");
   const [avatarUrl, setAvatarUrl] = useState(initial?.avatarUrl ?? "");
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const [roles, setRoles] = useState((initial?.roles ?? []).join(", "));
   const [featured, setFeatured] = useState(initial?.featured ?? false);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(initial?.socialLinks ?? []);
@@ -1302,6 +1891,7 @@ function ClientModal({
   const platforms: Platform[] = ["youtube", "twitch", "tiktok", "instagram", "facebook", "x", "github", "website", "spotify", "discord", "other"];
 
   return (
+    <>
     <Modal title={initial ? "Edit Client" : "New Client"} onClose={onClose} wide>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -1332,7 +1922,12 @@ function ClientModal({
           </Field>
           <Field>
             <Label>Avatar URL</Label>
-            <input className={inputCls} value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="/cdn/…/avatar.jpg" />
+            <div className="grid grid-cols-[1.6fr_auto] gap-2">
+              <input className={inputCls} value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="/cdn/…/avatar.jpg" />
+              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerOpen(true)}>
+                Select Image
+              </button>
+            </div>
           </Field>
         </div>
 
@@ -1453,6 +2048,17 @@ function ClientModal({
         <button className={btnRed} onClick={handleSave}>Save Client</button>
       </div>
     </Modal>
+    {imagePickerOpen && (
+      <R2ImagePickerModal
+        title="Select Client Image"
+        onClose={() => setImagePickerOpen(false)}
+        onSelect={(url) => {
+          setAvatarUrl(url);
+          setImagePickerOpen(false);
+        }}
+      />
+    )}
+    </>
   );
 }
 
@@ -2015,6 +2621,21 @@ export default function AdminDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [siteContent, setSiteContent] = useState<SiteContent>(defaultSiteContent);
+  const [siteContentImageTarget, setSiteContentImageTarget] = useState<null | "brandLogoUrl" | "faviconUrl">(null);
+  const [r2Folders, setR2Folders] = useState<R2BrowserFolder[]>([]);
+  const [r2Files, setR2Files] = useState<R2BrowserFile[]>([]);
+  const [r2Prefix, setR2Prefix] = useState("");
+  const [r2Search, setR2Search] = useState("");
+  const [r2Mode, setR2Mode] = useState<"browse" | "search">("browse");
+  const [r2Loading, setR2Loading] = useState(false);
+  const [r2Uploading, setR2Uploading] = useState(false);
+  const [r2Loaded, setR2Loaded] = useState(false);
+  const [r2Error, setR2Error] = useState("");
+  const [r2CopiedUrl, setR2CopiedUrl] = useState("");
+  const [r2PreviewFile, setR2PreviewFile] = useState<R2BrowserFile | null>(null);
+  const r2CopyResetRef = useRef<number | null>(null);
+  const r2FileInputRef = useRef<HTMLInputElement | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -2052,7 +2673,7 @@ export default function AdminDashboard() {
   /* ── Filters ── */
   const [projectSearch, setProjectSearch] = useState("");
   const [projectCategoryFilter, setProjectCategoryFilter] = useState("");
-  const [projectSort, setProjectSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
+  const [projectSort, setProjectSort] = useState<"newest" | "oldest" | "az" | "za" | "category">("newest");
   const [articleSearch, setArticleSearch] = useState("");
   const [articleSort, setArticleSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
   const [clientSearch, setClientSearch] = useState("");
@@ -2074,6 +2695,7 @@ export default function AdminDashboard() {
   const [clientModal, setClientModal] = useState<{ open: boolean; editing?: Client }>({ open: false });
   const [campaignModal, setCampaignModal] = useState<{ open: boolean; editing?: Campaign }>({ open: false });
   const [campaignView, setCampaignView] = useState<Campaign | null>(null);
+  const [contactModal, setContactModal] = useState<{ open: boolean; editing?: Contact | null }>({ open: false });
 
   /* ── Delete confirm ── */
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "project" | "article" | "client" | "contact" | "campaign" | "rizz"; id: string; label: string } | null>(null);
@@ -2095,10 +2717,11 @@ export default function AdminDashboard() {
       } catch {}
 
       try {
-        const [pRes, aRes, cRes, contactsRes, rateLimitsRes, campaignsRes, rizzRes, tapsRes] = await Promise.all([
+        const [pRes, aRes, cRes, siteContentRes, contactsRes, rateLimitsRes, campaignsRes, rizzRes, tapsRes] = await Promise.all([
           fetch("/api/admin/projects"),
           fetch("/api/admin/articles"),
           fetch("/api/admin/clients"),
+          fetch("/api/admin/site-content"),
           fetch("/api/admin/contacts"),
           fetch("/api/admin/rate-limits"),
           fetch("/api/admin/campaigns"),
@@ -2111,6 +2734,8 @@ export default function AdminDashboard() {
         else setArticles([]);
         if (cRes.ok) setClients(await cRes.json());
         else setClients([]);
+        if (siteContentRes.ok) setSiteContent(await siteContentRes.json());
+        else setSiteContent(defaultSiteContent);
         if (contactsRes.ok) setContacts(await contactsRes.json());
         else setContacts([]);
         if (rateLimitsRes.ok) setRateLimits(await rateLimitsRes.json());
@@ -2131,6 +2756,7 @@ export default function AdminDashboard() {
         setProjects([]);
         setArticles([]);
         setClients([]);
+        setSiteContent(defaultSiteContent);
         setContacts([]);
         setRateLimits([]);
         setCampaigns([]);
@@ -2594,6 +3220,188 @@ export default function AdminDashboard() {
     });
   }
 
+  function saveContact(contact: Contact) {
+    setContacts((prev) => {
+      const exists = prev.some((entry) => entry.id === contact.id);
+      const next = exists
+        ? prev.map((entry) => (entry.id === contact.id ? contact : entry))
+        : [contact, ...prev];
+      persistContacts(next);
+      return next;
+    });
+    setContactModal({ open: false });
+  }
+
+  async function saveSiteContentEditor() {
+    const response = await fetch("/api/admin/site-content", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(siteContent),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to save site content.");
+    }
+  }
+
+  const loadR2Assets = useCallback(async (next?: { prefix?: string; search?: string }) => {
+    const prefix = next?.prefix ?? r2Prefix;
+    const search = next?.search ?? r2Search;
+    const params = new URLSearchParams();
+
+    if (prefix) {
+      params.set("prefix", prefix);
+    }
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    setR2Loading(true);
+    setR2Error("");
+
+    try {
+      const response = await fetch(`/api/admin/r2${params.toString() ? `?${params.toString()}` : ""}`);
+      const data = (await response.json()) as R2BrowserResponse | { error?: string };
+
+      if (!response.ok) {
+        throw new Error("error" in data && data.error ? data.error : "Failed to load R2 assets.");
+      }
+
+      const payload = data as R2BrowserResponse;
+      setR2Prefix(payload.prefix);
+      setR2Folders(payload.folders);
+      setR2Files(payload.files);
+      setR2Mode(payload.mode);
+      setR2Loaded(true);
+    } catch (error) {
+      setR2Error(error instanceof Error ? error.message : "Failed to load R2 assets.");
+      setR2Folders([]);
+      setR2Files([]);
+    } finally {
+      setR2Loading(false);
+    }
+  }, [r2Prefix, r2Search]);
+
+  useEffect(() => {
+    if (activeSection !== "r2-assets" || r2Loaded) {
+      return;
+    }
+
+    void loadR2Assets();
+  }, [activeSection, r2Loaded, loadR2Assets]);
+
+  useEffect(() => {
+    if (activeSection !== "r2-assets" || !r2Loaded) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void loadR2Assets();
+    }, r2Search.trim() ? 180 : 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeSection, r2Loaded, r2Prefix, r2Search, loadR2Assets]);
+
+  async function uploadR2Files(fileList: FileList | null) {
+    if (!fileList?.length) {
+      return;
+    }
+
+    setR2Uploading(true);
+    setR2Error("");
+
+    try {
+      for (const file of Array.from(fileList)) {
+        const formData = new FormData();
+        formData.set("file", file);
+        formData.set("prefix", r2Prefix);
+
+        const response = await fetch("/api/admin/r2", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error || `Upload failed for ${file.name}.`);
+        }
+      }
+
+      await loadR2Assets();
+    } catch (error) {
+      setR2Error(error instanceof Error ? error.message : "Failed to upload file.");
+    } finally {
+      setR2Uploading(false);
+      if (r2FileInputRef.current) {
+        r2FileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function deleteR2File(key: string) {
+    if (!window.confirm(`Delete ${key}? This cannot be undone.`)) {
+      return;
+    }
+
+    setR2Error("");
+
+    try {
+      const response = await fetch("/api/admin/r2", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to delete file.");
+      }
+
+      await loadR2Assets();
+    } catch (error) {
+      setR2Error(error instanceof Error ? error.message : "Failed to delete file.");
+    }
+  }
+
+  async function copyR2Link(url: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        setR2Error("");
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.top = "-9999px";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (!copied) {
+          throw new Error("Copy command failed.");
+        }
+      }
+
+      setR2Error("");
+      setR2CopiedUrl(url);
+      if (r2CopyResetRef.current) {
+        window.clearTimeout(r2CopyResetRef.current);
+      }
+      r2CopyResetRef.current = window.setTimeout(() => {
+        setR2CopiedUrl("");
+        r2CopyResetRef.current = null;
+      }, 1600);
+    } catch {
+      setR2Error("Failed to copy link.");
+    }
+  }
+
   function toggleContactSubscription(id: string) {
     setContacts((prev) => {
       const next = prev.map((c) => (c.id === id ? { ...c, subscribed: !c.subscribed } : c));
@@ -2705,6 +3513,17 @@ export default function AdminDashboard() {
     const matchCat = !projectCategoryFilter || p.category === projectCategoryFilter;
     return matchSearch && matchCat;
   }).sort((a, b) => {
+    if (projectSort === "category") {
+      const categoryCompare = compareStrings(a.category, b.category, "asc");
+      if (categoryCompare !== 0) return categoryCompare;
+
+      const aSubcategory = a.subcategory ?? "";
+      const bSubcategory = b.subcategory ?? "";
+      const subcategoryCompare = compareStrings(aSubcategory, bSubcategory, "asc");
+      if (subcategoryCompare !== 0) return subcategoryCompare;
+
+      return compareStrings(a.title, b.title, "asc");
+    }
     if (projectSort === "az") return compareStrings(a.title, b.title, "asc");
     if (projectSort === "za") return compareStrings(a.title, b.title, "desc");
     return compareDates(a.publishDate, b.publishDate, projectSort);
@@ -2893,6 +3712,8 @@ export default function AdminDashboard() {
     { key: "projects", label: "Projects" },
     { key: "articles", label: "Articles" },
     { key: "clients", label: "Clients" },
+    { key: "r2-assets", label: "R2 Assets" },
+    { key: "site-content", label: "Site Content" },
     { key: "resume", label: "Resume" },
     { key: "contacts", label: "Contacts" },
     { key: "rate-limits", label: "Rate Limits" },
@@ -3054,6 +3875,8 @@ export default function AdminDashboard() {
     projects: "Projects",
     articles: "Articles",
     clients: "Clients",
+    "r2-assets": "R2 Assets",
+    "site-content": "Site Content",
     resume: "Resume",
     contacts: "Contacts",
     "rate-limits": "Rate Limits",
@@ -3416,6 +4239,7 @@ export default function AdminDashboard() {
                   <option value="oldest">Oldest</option>
                   <option value="az">A-Z</option>
                   <option value="za">Z-A</option>
+                  <option value="category">Category + Subcategory</option>
                 </select>
                 <span className="text-xs text-white/30 self-center ml-auto">{filteredProjects.length} projects</span>
               </div>
@@ -3442,7 +4266,7 @@ export default function AdminDashboard() {
                         <td className="px-3 py-2">
                           {p.coverImage ? (
                             <img
-                              src={toEditableImageAsset(p.coverImage).src}
+                              src={assetUrl(toEditableImageAsset(p.coverImage).src)}
                               alt={toEditableImageAsset(p.coverImage).alt ?? ""}
                               className="w-10 h-[30px] object-cover rounded-sm opacity-80"
                             />
@@ -3632,7 +4456,7 @@ export default function AdminDashboard() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
                       {c.avatarUrl ? (
-                        <img src={c.avatarUrl} alt={c.name} className="w-9 h-9 rounded-full object-cover opacity-90" />
+                        <img src={assetUrl(c.avatarUrl)} alt={c.name} className="w-9 h-9 rounded-full object-cover opacity-90" />
                       ) : (
                         <div className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center text-white/30 text-xs">
                           {c.name.charAt(0)}
@@ -3686,7 +4510,23 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "contacts" && (
             <div className="space-y-4">
-              <div className="flex gap-3">
+              <div className="rounded-sm border border-white/8 bg-white/[0.02] p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="flex-1">
+                    <p className="font-nord text-sm text-white">Contacts</p>
+                    <p className="text-xs text-white/35">
+                      Manage subscribers and outreach contacts collected from the site or added manually.
+                    </p>
+                  </div>
+                  <button
+                    className={`${btnRed} cursor-pointer`}
+                    onClick={() => setContactModal({ open: true, editing: null })}
+                  >
+                    Add Contact
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
                   placeholder="Search contacts..."
@@ -3703,7 +4543,9 @@ export default function AdminDashboard() {
                   <option value="az">A-Z</option>
                   <option value="za">Z-A</option>
                 </select>
-                <span className="text-xs text-white/30 self-center ml-auto">{filteredContacts.length} contacts</span>
+                <span className="rounded-sm border border-white/8 bg-white/[0.02] px-3 h-9 inline-flex items-center text-xs text-white/35 ml-auto">
+                  {filteredContacts.length} contacts
+                </span>
               </div>
               <div className="border border-white/8 rounded-sm overflow-hidden">
                 <table className="w-full text-xs">
@@ -3739,7 +4581,13 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-3 py-2.5 text-white/30 hidden sm:table-cell">{fmtDate(c.createdAt)}</td>
                         <td className="px-3 py-2.5">
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              className={`${btnOutline} cursor-pointer`}
+                              onClick={() => setContactModal({ open: true, editing: c })}
+                            >
+                              Edit
+                            </button>
                             <button className={btnOutlineRed} onClick={() => setDeleteConfirm({ type: "contact", id: c.id, label: c.name })}>Del</button>
                           </div>
                         </td>
@@ -3763,14 +4611,29 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "rate-limits" && (
             <div className="space-y-4">
-              <div className="flex gap-3">
+              <div className="rounded-sm border border-white/8 bg-white/[0.02] p-4">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="font-nord text-sm text-white">Rate Limits</p>
+                    <p className="text-xs text-white/35">
+                      Public forms are limited to 5 submissions per IP address for each form scope.
+                    </p>
+                  </div>
+                  <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-xs text-white/35">
+                    Per-IP limit: 5
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
                 <input
                   className={`${inputCls} max-w-sm`}
                   placeholder="Search rate limits..."
                   value={rateLimitSearch}
                   onChange={(e) => setRateLimitSearch(e.target.value)}
                 />
-                <span className="text-xs text-white/30 self-center ml-auto">{filteredRateLimits.length} records</span>
+                <span className="rounded-sm border border-white/8 bg-white/[0.02] px-3 h-9 inline-flex items-center text-xs text-white/35 ml-auto">
+                  {filteredRateLimits.length} records
+                </span>
               </div>
               <div className="border border-white/8 rounded-sm overflow-hidden">
                 <table className="w-full text-xs">
@@ -3930,6 +4793,1099 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeSection === "r2-assets" && (
+            <div className="space-y-6">
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="flex-1">
+                    <p className="font-nord text-sm text-white">Cloudflare R2 Bucket</p>
+                    <p className="text-xs text-white/35">
+                      Browse folders, search assets, upload files into the current folder, delete files, and copy public CDN links.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className={btnOutline}
+                      onClick={() => void loadR2Assets()}
+                      disabled={r2Loading}
+                    >
+                      {r2Loading ? "Refreshing..." : "Refresh"}
+                    </button>
+                    <button
+                      className={btnGhost}
+                      onClick={() => r2FileInputRef.current?.click()}
+                      disabled={r2Uploading}
+                    >
+                      {r2Uploading ? "Uploading..." : "Upload File"}
+                    </button>
+                    <input
+                      ref={r2FileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => void uploadR2Files(e.target.files)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+                  <input
+                    className={inputCls}
+                    value={r2Search}
+                    onChange={(e) => setR2Search(e.target.value)}
+                    placeholder="Search this folder or bucket..."
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      className={btnOutline}
+                      onClick={() => {
+                        setR2Search("");
+                        void loadR2Assets({ search: "" });
+                      }}
+                      disabled={!r2Search}
+                    >
+                      Clear Search
+                    </button>
+                    <button
+                      className={btnOutline}
+                      onClick={() => {
+                        const trimmed = r2Prefix.replace(/\/$/, "");
+                        const parent = trimmed.includes("/") ? `${trimmed.slice(0, trimmed.lastIndexOf("/") + 1)}` : "";
+                        setR2Search("");
+                        setR2Prefix(parent);
+                      }}
+                      disabled={!r2Prefix}
+                    >
+                      Up One Level
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-[11px] text-white/35">
+                  <span className="text-white/50">Location:</span>{" "}
+                  {r2Mode === "search"
+                    ? `Search results for "${r2Search.trim()}" in ${r2Prefix || "bucket root"}`
+                    : r2Prefix || "bucket root"}
+                </div>
+
+                {r2Error && (
+                  <div className="rounded-sm border border-[#ef4242]/20 bg-[#ef4242]/8 px-3 py-2 text-xs text-[#ef4242]">
+                    {r2Error}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="border border-white/7 bg-white/2 rounded-sm overflow-hidden">
+                  <div className="border-b border-white/8 px-4 py-3 text-[10px] tracking-widest uppercase text-white/35">
+                    Folders
+                  </div>
+                  <div className="max-h-[520px] overflow-y-auto">
+                    {r2Folders.length === 0 ? (
+                      <div className="px-4 py-6 text-xs text-white/25">
+                        {r2Mode === "search" ? "Folder browse is disabled while searching." : "No folders in this location."}
+                      </div>
+                    ) : (
+                      r2Folders.map((folder) => (
+                        <button
+                          key={folder.prefix}
+                          className="flex w-full items-center justify-between border-b border-white/6 px-4 py-3 text-left text-xs text-white/55 transition-colors hover:bg-white/3 hover:text-white"
+                          onClick={() => {
+                            setR2Search("");
+                            setR2Prefix(folder.prefix);
+                          }}
+                        >
+                          <span className="truncate">{folder.name}/</span>
+                          <span className="text-white/20">Open</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="border border-white/7 bg-white/2 rounded-sm overflow-hidden">
+                  <div className="border-b border-white/8 px-4 py-3 text-[10px] tracking-widest uppercase text-white/35">
+                    Files ({r2Files.length})
+                  </div>
+                  {r2Files.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-xs text-white/25">
+                      {r2Loading ? "Loading assets..." : "No files found."}
+                    </div>
+                  ) : (
+                    <div className="max-h-[520px] overflow-y-auto">
+                      {r2Files.map((file) => (
+                        <div
+                          key={file.key}
+                          className="border-b border-white/6 px-4 py-3 last:border-b-0"
+                        >
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex min-w-0 items-start gap-3">
+                              {isImageAssetFile(file.name) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setR2PreviewFile(file)}
+                                  className="block shrink-0 transition-opacity hover:opacity-90"
+                                >
+                                  <img
+                                    src={file.publicUrl}
+                                    alt={file.name}
+                                    className="h-14 w-20 rounded-sm border border-white/8 bg-black/20 object-cover"
+                                  />
+                                </button>
+                              ) : (
+                                <div className="flex h-14 w-20 shrink-0 items-center justify-center rounded-sm border border-white/8 bg-black/20 text-[10px] uppercase tracking-[0.18em] text-white/20">
+                                  File
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="truncate text-xs text-white/75">{file.name}</div>
+                                <div className="truncate text-[10px] text-white/25">{file.key}</div>
+                                <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-white/25">
+                                  <span>{formatBytes(file.size)}</span>
+                                  <span>{fmtDateTime(file.lastModified)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <a
+                                href={file.publicUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={btnOutline}
+                              >
+                                Open
+                              </a>
+                              <button
+                                className={`${btnOutline} cursor-pointer`}
+                                onClick={() => void copyR2Link(file.publicUrl)}
+                              >
+                                {r2CopiedUrl === file.publicUrl ? "Copied." : "Copy Link"}
+                              </button>
+                              <button
+                                className={btnOutlineRed}
+                                onClick={() => void deleteR2File(file.key)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "site-content" && (
+            <div className="space-y-6">
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-nord text-sm text-white">Editable Site Copy</p>
+                    <p className="text-xs text-white/35">
+                      Saved to MongoDB and used to drive shared brand assets, homepage copy and order, footer content, work and subpage headers, and legal page content.
+                    </p>
+                  </div>
+                  <button className={`${btnRed} cursor-pointer`} onClick={() => void saveSiteContentEditor()}>
+                    Save Site Content
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <Label>Shared Logo URL</Label>
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input
+                        className={inputCls}
+                        value={siteContent.brandLogoUrl}
+                        onChange={(e) =>
+                          setSiteContent((prev) => ({
+                            ...prev,
+                            brandLogoUrl: e.target.value,
+                          }))
+                        }
+                        placeholder="https://cdn.mdcran.com/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png"
+                      />
+                      <button
+                        type="button"
+                        className={`${btnOutline} cursor-pointer`}
+                        onClick={() => setSiteContentImageTarget("brandLogoUrl")}
+                      >
+                        Select Image
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Favicon URL</Label>
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input
+                        className={inputCls}
+                        value={siteContent.faviconUrl}
+                        onChange={(e) =>
+                          setSiteContent((prev) => ({
+                            ...prev,
+                            faviconUrl: e.target.value,
+                          }))
+                        }
+                        placeholder="https://cdn.mdcran.com/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png"
+                      />
+                      <button
+                        type="button"
+                        className={`${btnOutline} cursor-pointer`}
+                        onClick={() => setSiteContentImageTarget("faviconUrl")}
+                      >
+                        Select Image
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="flex h-16 w-full items-center gap-3 rounded-sm border border-white/8 bg-black/20 px-3">
+                      {siteContent.brandLogoUrl ? (
+                        <img
+                          src={assetUrl(siteContent.brandLogoUrl)}
+                          alt="Shared brand logo preview"
+                          className="max-h-10 w-auto rounded-sm object-contain"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-sm border border-white/10 bg-white/5" />
+                      )}
+                      <span className="text-xs text-white/35">Navbar, footer, and admin login logo</span>
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="flex h-16 w-full items-center gap-3 rounded-sm border border-white/8 bg-black/20 px-3">
+                      {siteContent.faviconUrl ? (
+                        <img
+                          src={assetUrl(siteContent.faviconUrl)}
+                          alt="Favicon preview"
+                          className="h-8 w-8 rounded-sm object-contain"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-sm border border-white/10 bg-white/5" />
+                      )}
+                      <span className="text-xs text-white/35">Browser tab, bookmark, and app icon metadata</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {([
+                ["homeServices", "Home: Services Section"],
+                ["artsAndEntertainment", "Arts & Entertainment Page"],
+                ["motionAndGraphics", "Motion & Graphics Page"],
+              ] as const).map(([key, label]) => {
+                const block = siteContent[key];
+                const showCountField = key === "artsAndEntertainment";
+                const showItemsField = key === "homeServices";
+                const cardGridClass = showCountField && showItemsField
+                  ? "grid-cols-4"
+                  : showCountField || showItemsField
+                    ? "grid-cols-3"
+                    : "grid-cols-2";
+                const descriptionSpanClass = showCountField && showItemsField
+                  ? "col-span-4"
+                  : showCountField || showItemsField
+                    ? "col-span-3"
+                    : "col-span-2";
+
+                return (
+                  <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                    <p className="font-nord text-sm text-white">{label}</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label>Eyebrow</Label>
+                        <input
+                          className={inputCls}
+                          value={block.eyebrow}
+                          onChange={(e) =>
+                            setSiteContent((prev) => ({
+                              ...prev,
+                              [key]: { ...prev[key], eyebrow: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Title</Label>
+                        <input
+                          className={inputCls}
+                          value={block.title}
+                          onChange={(e) =>
+                            setSiteContent((prev) => ({
+                              ...prev,
+                              [key]: { ...prev[key], title: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Description</Label>
+                        <textarea
+                          className={textareaCls}
+                          rows={2}
+                          value={block.description}
+                          onChange={(e) =>
+                            setSiteContent((prev) => ({
+                              ...prev,
+                              [key]: { ...prev[key], description: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {(block.cards ?? []).map((card, cardIndex) => (
+                        <div key={`${key}-${cardIndex}`} className={`grid ${cardGridClass} gap-3 rounded-sm border border-white/8 p-3`}>
+                          <div className={descriptionSpanClass}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] tracking-widest uppercase text-white/30">
+                                Card {cardIndex + 1}
+                              </span>
+                              <button
+                                type="button"
+                                className="text-[#ef4242]/70 hover:text-[#ef4242] text-[11px] cursor-pointer"
+                                onClick={() =>
+                                  setSiteContent((prev) => ({
+                                    ...prev,
+                                    [key]: {
+                                      ...prev[key],
+                                      cards: (prev[key].cards ?? []).filter((_, index) => index !== cardIndex),
+                                    },
+                                  }))
+                                }
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Card Title</Label>
+                            <input
+                              className={inputCls}
+                              value={card.title}
+                              onChange={(e) =>
+                                setSiteContent((prev) => ({
+                                  ...prev,
+                                  [key]: {
+                                    ...prev[key],
+                                    cards: (prev[key].cards ?? []).map((entry, index) =>
+                                      index === cardIndex ? { ...entry, title: e.target.value } : entry
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>Link</Label>
+                            <input
+                              className={inputCls}
+                              value={card.href}
+                              onChange={(e) =>
+                                setSiteContent((prev) => ({
+                                  ...prev,
+                                  [key]: {
+                                    ...prev[key],
+                                    cards: (prev[key].cards ?? []).map((entry, index) =>
+                                      index === cardIndex ? { ...entry, href: e.target.value } : entry
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                          {showCountField && (
+                            <div>
+                              <Label>Count / Label</Label>
+                              <input
+                                className={inputCls}
+                                value={card.count ?? ""}
+                                onChange={(e) =>
+                                  setSiteContent((prev) => ({
+                                    ...prev,
+                                    [key]: {
+                                      ...prev[key],
+                                      cards: (prev[key].cards ?? []).map((entry, index) =>
+                                        index === cardIndex ? { ...entry, count: e.target.value || undefined } : entry
+                                      ),
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                          )}
+                          {showItemsField && (
+                            <div>
+                              <Label>Items</Label>
+                              <StringChipEditor
+                                items={card.items ?? []}
+                                placeholder="Add a service tag"
+                                onChange={(items) =>
+                                  setSiteContent((prev) => ({
+                                    ...prev,
+                                    [key]: {
+                                      ...prev[key],
+                                      cards: (prev[key].cards ?? []).map((entry, index) =>
+                                        index === cardIndex ? { ...entry, items } : entry
+                                      ),
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                          )}
+                          <div className={descriptionSpanClass}>
+                            <Label>Description</Label>
+                            <textarea
+                              className={textareaCls}
+                              rows={2}
+                              value={card.description}
+                              onChange={(e) =>
+                                setSiteContent((prev) => ({
+                                  ...prev,
+                                  [key]: {
+                                    ...prev[key],
+                                    cards: (prev[key].cards ?? []).map((entry, index) =>
+                                      index === cardIndex ? { ...entry, description: e.target.value } : entry
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className={`${btnOutline} cursor-pointer`}
+                      onClick={() =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          [key]: {
+                            ...prev[key],
+                            cards: [
+                              ...(prev[key].cards ?? []),
+                              {
+                                title: "New Card",
+                                description: "",
+                                href: "/",
+                                ...(showCountField ? { count: "" } : {}),
+                                ...(showItemsField ? { items: [] } : {}),
+                              },
+                            ],
+                          },
+                        }))
+                      }
+                    >
+                      + Add Card
+                    </button>
+                  </div>
+                );
+              })}
+
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <p className="font-nord text-sm text-white">Code Page Header</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label>Eyebrow</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.codePage.eyebrow}
+                      onChange={(e) =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          codePage: { ...prev.codePage, eyebrow: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Title</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.codePage.title}
+                      onChange={(e) =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          codePage: { ...prev.codePage, title: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <textarea
+                      className={textareaCls}
+                      rows={2}
+                      value={siteContent.codePage.description}
+                      onChange={(e) =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          codePage: { ...prev.codePage, description: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <p className="font-nord text-sm text-white">Homepage Layout, Hero, and About</p>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <Label>Homepage Section Order</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeSectionOrder.join(", ")}
+                      onChange={(e) =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          homeSectionOrder: e.target.value
+                            .split(",")
+                            .map((item) => item.trim().toLowerCase())
+                            .filter(Boolean),
+                        }))
+                      }
+                      placeholder="hero, stats, about, services, featured, clients, cta"
+                    />
+                  </div>
+                  <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-xs text-white/35">
+                    Valid keys: `hero`, `stats`, `about`, `services`, `featured`, `clients`, `cta`
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                  <div>
+                    <Label>Hero Eyebrow</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.eyebrow}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, eyebrow: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Hero Title Primary</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.titlePrimary}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, titlePrimary: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Hero Title Accent</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.titleAccent}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, titleAccent: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <Label>Hero Description</Label>
+                    <textarea
+                      className={textareaCls}
+                      rows={2}
+                      value={siteContent.homeHero.description}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, description: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Hero Supporting Text</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.supportingText}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, supportingText: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <Label>Hero Location Text</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.locationText}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, locationText: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Primary CTA Label</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.primaryCta.label}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, primaryCta: { ...prev.homeHero.primaryCta, label: e.target.value } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Primary CTA Link</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.primaryCta.href}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, primaryCta: { ...prev.homeHero.primaryCta, href: e.target.value } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Secondary CTA Label</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.secondaryCta.label}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, secondaryCta: { ...prev.homeHero.secondaryCta, label: e.target.value } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Secondary CTA Link</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.secondaryCta.href}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, secondaryCta: { ...prev.homeHero.secondaryCta, href: e.target.value } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Tertiary CTA Label</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.tertiaryCta.label}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, tertiaryCta: { ...prev.homeHero.tertiaryCta, label: e.target.value } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Tertiary CTA Link</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeHero.tertiaryCta.href}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, tertiaryCta: { ...prev.homeHero.tertiaryCta, href: e.target.value } } }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Hero Service Tags (one per line: Label | /link)</Label>
+                  <textarea
+                    className={textareaCls}
+                    rows={5}
+                    value={siteContent.homeHero.serviceTags.map((tag) => `${tag.label} | ${tag.href}`).join("\n")}
+                    onChange={(e) =>
+                      setSiteContent((prev) => ({
+                        ...prev,
+                        homeHero: {
+                          ...prev.homeHero,
+                          serviceTags: e.target.value
+                            .split("\n")
+                            .map((line) => line.trim())
+                            .filter(Boolean)
+                            .map((line) => {
+                              const [label, href] = line.split("|").map((part) => part.trim());
+                              return { label: label || href || "Link", href: href || "/" };
+                            }),
+                        },
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="border-t border-white/8 pt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <Label>About Eyebrow</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeAbout.eyebrow}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, eyebrow: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>About Title</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeAbout.title}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, title: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <Label>About Description</Label>
+                    <textarea
+                      className={textareaCls}
+                      rows={4}
+                      value={siteContent.homeAbout.description}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, description: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <Label>About Supporting Text</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeAbout.supportingText}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, supportingText: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <Label>About Tags (comma-separated)</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.homeAbout.tags.join(", ")}
+                      onChange={(e) =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          homeAbout: {
+                            ...prev.homeAbout,
+                            tags: e.target.value.split(",").map((item) => item.trim()).filter(Boolean),
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                  {siteContent.homeAbout.images.map((image, index) => (
+                    <React.Fragment key={`about-image-${index}`}>
+                      <div>
+                        <Label>About Image {index + 1} URL</Label>
+                        <input
+                          className={inputCls}
+                          value={image.src}
+                          onChange={(e) =>
+                            setSiteContent((prev) => ({
+                              ...prev,
+                              homeAbout: {
+                                ...prev.homeAbout,
+                                images: prev.homeAbout.images.map((entry, entryIndex) =>
+                                  entryIndex === index ? { ...entry, src: e.target.value } : entry
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>About Image {index + 1} Alt</Label>
+                        <input
+                          className={inputCls}
+                          value={image.alt ?? ""}
+                          onChange={(e) =>
+                            setSiteContent((prev) => ({
+                              ...prev,
+                              homeAbout: {
+                                ...prev.homeAbout,
+                                images: prev.homeAbout.images.map((entry, entryIndex) =>
+                                  entryIndex === index ? { ...entry, alt: e.target.value } : entry
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </React.Fragment>
+                  ))}
+                  <div className="lg:col-span-2">
+                    <button
+                      type="button"
+                      className={`${btnOutline} cursor-pointer`}
+                      onClick={() =>
+                        setSiteContent((prev) => ({
+                          ...prev,
+                          homeAbout: {
+                            ...prev.homeAbout,
+                            images: [...prev.homeAbout.images, { src: "", alt: "" }],
+                          },
+                        }))
+                      }
+                    >
+                      + Add About Image
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {([
+                ["homeFeaturedWork", "Homepage: Featured Work", true],
+                ["homeClients", "Homepage: Clients", false],
+                ["homeCta", "Homepage: Newsletter CTA", true],
+              ] as const).map(([key, label, showCtaFields]) => (
+                <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                  <p className="font-nord text-sm text-white">{label}</p>
+                  <div className={`grid grid-cols-1 gap-3 ${showCtaFields ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+                    <div>
+                      <Label>Eyebrow</Label>
+                      <input
+                        className={inputCls}
+                        value={siteContent[key].eyebrow}
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], eyebrow: e.target.value } }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Title</Label>
+                      <input
+                        className={inputCls}
+                        value={siteContent[key].title}
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], title: e.target.value } }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <textarea
+                        className={textareaCls}
+                        rows={2}
+                        value={siteContent[key].description}
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], description: e.target.value } }))}
+                      />
+                    </div>
+                    {showCtaFields && (
+                      <div>
+                        <Label>CTA Label</Label>
+                        <input
+                          className={inputCls}
+                          value={siteContent[key].ctaLabel ?? ""}
+                          onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], ctaLabel: e.target.value } }))}
+                        />
+                      </div>
+                    )}
+                    {showCtaFields && (
+                      <div>
+                        <Label>CTA Link</Label>
+                        <input
+                          className={inputCls}
+                          value={siteContent[key].ctaHref ?? ""}
+                          onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], ctaHref: e.target.value } }))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <p className="font-nord text-sm text-white">Work Page</p>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                  <div>
+                    <Label>Eyebrow</Label>
+                    <input className={inputCls} value={siteContent.workPage.eyebrow} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, eyebrow: e.target.value } }))} />
+                  </div>
+                  <div>
+                    <Label>Title</Label>
+                    <input className={inputCls} value={siteContent.workPage.title} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, title: e.target.value } }))} />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <textarea className={textareaCls} rows={2} value={siteContent.workPage.description} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, description: e.target.value } }))} />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {(siteContent.workPage.cards ?? []).map((card, cardIndex) => (
+                    <div key={`work-card-${cardIndex}`} className="grid grid-cols-1 gap-3 rounded-sm border border-white/8 p-3 lg:grid-cols-3">
+                      <div className="lg:col-span-3 flex items-center justify-between">
+                        <span className="text-[10px] tracking-widest uppercase text-white/30">Section {cardIndex + 1}</span>
+                        <button
+                          type="button"
+                          className="text-[#ef4242]/70 hover:text-[#ef4242] text-[11px] cursor-pointer"
+                          onClick={() => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).filter((_, index) => index !== cardIndex) } }))}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div>
+                        <Label>Section Title</Label>
+                        <input className={inputCls} value={card.title} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).map((entry, index) => index === cardIndex ? { ...entry, title: e.target.value } : entry) } }))} />
+                      </div>
+                      <div>
+                        <Label>Section Link</Label>
+                        <input className={inputCls} value={card.href} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).map((entry, index) => index === cardIndex ? { ...entry, href: e.target.value } : entry) } }))} />
+                      </div>
+                      <div>
+                        <Label>Items</Label>
+                        <StringChipEditor
+                          items={card.items ?? []}
+                          placeholder="Add a linked item"
+                          onChange={(items) =>
+                            setSiteContent((prev) => ({
+                              ...prev,
+                              workPage: {
+                                ...prev.workPage,
+                                cards: (prev.workPage.cards ?? []).map((entry, index) =>
+                                  index === cardIndex ? { ...entry, items } : entry
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="lg:col-span-3">
+                        <Label>Description</Label>
+                        <textarea className={textareaCls} rows={2} value={card.description} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).map((entry, index) => index === cardIndex ? { ...entry, description: e.target.value } : entry) } }))} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className={`${btnOutline} cursor-pointer`}
+                  onClick={() =>
+                    setSiteContent((prev) => ({
+                      ...prev,
+                      workPage: {
+                        ...prev.workPage,
+                        cards: [
+                          ...(prev.workPage.cards ?? []),
+                          { title: "New Section", description: "", href: "/", items: [] },
+                        ],
+                      },
+                    }))
+                  }
+                >
+                  + Add Work Section
+                </button>
+              </div>
+
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <p className="font-nord text-sm text-white">Page Headers</p>
+                {([
+                  ["publications", "Publications"],
+                  ["articles", "Articles"],
+                  ["contact", "Contact"],
+                  ["resume", "Resume"],
+                  ["subscribe", "Subscribe"],
+                  ["unsubscribe", "Unsubscribe"],
+                  ["minecraftMaps", "Minecraft Maps"],
+                  ["events", "Events"],
+                  ["thumbnailDesign", "Thumbnail Design"],
+                  ["videoEditing", "Video Editing"],
+                  ["webDevDesign", "Web Dev & Design"],
+                ] as const).map(([key, label]) => (
+                  <div key={key} className="grid grid-cols-1 gap-3 rounded-sm border border-white/8 p-3 lg:grid-cols-3">
+                    <div className="lg:col-span-3 text-[11px] tracking-widest uppercase text-white/35">{label}</div>
+                    <div>
+                      <Label>Eyebrow</Label>
+                      <input className={inputCls} value={siteContent.pageHeaders[key].eyebrow} onChange={(e) => setSiteContent((prev) => ({ ...prev, pageHeaders: { ...prev.pageHeaders, [key]: { ...prev.pageHeaders[key], eyebrow: e.target.value } } }))} />
+                    </div>
+                    <div>
+                      <Label>Title</Label>
+                      <input className={inputCls} value={siteContent.pageHeaders[key].title} onChange={(e) => setSiteContent((prev) => ({ ...prev, pageHeaders: { ...prev.pageHeaders, [key]: { ...prev.pageHeaders[key], title: e.target.value } } }))} />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <textarea className={textareaCls} rows={2} value={siteContent.pageHeaders[key].description} onChange={(e) => setSiteContent((prev) => ({ ...prev, pageHeaders: { ...prev.pageHeaders, [key]: { ...prev.pageHeaders[key], description: e.target.value } } }))} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <p className="font-nord text-sm text-white">Footer</p>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                  <div>
+                    <Label>Location Text</Label>
+                    <input className={inputCls} value={siteContent.footer.locationText} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, locationText: e.target.value } }))} />
+                  </div>
+                  <div>
+                    <Label>Status Label</Label>
+                    <input className={inputCls} value={siteContent.footer.statusLabel} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, statusLabel: e.target.value } }))} />
+                  </div>
+                  <div>
+                    <Label>Email Link</Label>
+                    <input className={inputCls} value={siteContent.footer.emailHref} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, emailHref: e.target.value } }))} />
+                  </div>
+                  <div>
+                    <Label>GitHub Link</Label>
+                    <input className={inputCls} value={siteContent.footer.githubHref} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, githubHref: e.target.value } }))} />
+                  </div>
+                  <div>
+                    <Label>Copyright Text</Label>
+                    <input className={inputCls} value={siteContent.footer.copyrightText} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, copyrightText: e.target.value } }))} />
+                  </div>
+                  <div className="lg:col-span-3">
+                    <Label>Footer Blurb</Label>
+                    <textarea className={textareaCls} rows={2} value={siteContent.footer.blurb} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, blurb: e.target.value } }))} />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {siteContent.footer.linkGroups.map((group, groupIndex) => (
+                    <div key={`footer-group-${groupIndex}`} className="rounded-sm border border-white/8 p-3 space-y-3">
+                      <div>
+                        <Label>Group Title</Label>
+                        <input className={inputCls} value={group.title} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, linkGroups: prev.footer.linkGroups.map((entry, index) => index === groupIndex ? { ...entry, title: e.target.value } : entry) } }))} />
+                      </div>
+                      {group.links.map((link, linkIndex) => (
+                        <div key={`footer-link-${groupIndex}-${linkIndex}`} className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          <div>
+                            <Label>Link Label</Label>
+                            <input className={inputCls} value={link.label} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, linkGroups: prev.footer.linkGroups.map((entry, index) => index === groupIndex ? { ...entry, links: entry.links.map((entryLink, entryLinkIndex) => entryLinkIndex === linkIndex ? { ...entryLink, label: e.target.value } : entryLink) } : entry) } }))} />
+                          </div>
+                          <div>
+                            <Label>Link URL</Label>
+                            <input className={inputCls} value={link.href} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, linkGroups: prev.footer.linkGroups.map((entry, index) => index === groupIndex ? { ...entry, links: entry.links.map((entryLink, entryLinkIndex) => entryLinkIndex === linkIndex ? { ...entryLink, href: e.target.value } : entryLink) } : entry) } }))} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <Label>Bottom Links</Label>
+                  <ActionLinkListEditor
+                    items={siteContent.footer.bottomLinks}
+                    onChange={(bottomLinks) =>
+                      setSiteContent((prev) => ({
+                        ...prev,
+                        footer: {
+                          ...prev.footer,
+                          bottomLinks,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {([
+                ["termsPage", "Terms Page"],
+                ["privacyPage", "Privacy Page"],
+              ] as const).map(([key, label]) => (
+                <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                  <p className="font-nord text-sm text-white">{label}</p>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <div>
+                      <Label>Eyebrow</Label>
+                      <input className={inputCls} value={siteContent[key].eyebrow} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], eyebrow: e.target.value } }))} />
+                    </div>
+                    <div>
+                      <Label>Title</Label>
+                      <input className={inputCls} value={siteContent[key].title} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], title: e.target.value } }))} />
+                    </div>
+                    <div>
+                      <Label>Last Updated</Label>
+                      <input className={inputCls} value={siteContent[key].lastUpdated} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], lastUpdated: e.target.value } }))} />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {siteContent[key].sections.map((section, sectionIndex) => (
+                      <div key={`${key}-section-${sectionIndex}`} className="rounded-sm border border-white/8 p-3 space-y-3">
+                        <div>
+                          <Label>Section Heading</Label>
+                          <input className={inputCls} value={section.heading} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], sections: prev[key].sections.map((entry, index) => index === sectionIndex ? { ...entry, heading: e.target.value } : entry) } }))} />
+                        </div>
+                        <div>
+                          <Label>Section Body</Label>
+                          <textarea className={textareaCls} rows={3} value={section.body} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], sections: prev[key].sections.map((entry, index) => index === sectionIndex ? { ...entry, body: e.target.value } : entry) } }))} />
+                        </div>
+                        <div>
+                          <Label>Bullets</Label>
+                          <StringChipEditor
+                            items={section.bullets ?? []}
+                            placeholder="Add a bullet"
+                            onChange={(bullets) =>
+                              setSiteContent((prev) => ({
+                                ...prev,
+                                [key]: {
+                                  ...prev[key],
+                                  sections: prev[key].sections.map((entry, index) =>
+                                    index === sectionIndex ? { ...entry, bullets } : entry
+                                  ),
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -4555,6 +6511,14 @@ export default function AdminDashboard() {
         />
       )}
 
+      {contactModal.open && (
+        <ContactEditorModal
+          initial={contactModal.editing ?? undefined}
+          onClose={() => setContactModal({ open: false })}
+          onSave={saveContact}
+        />
+      )}
+
       {campaignModal.open && (
         <CampaignModal
           initial={campaignModal.editing}
@@ -4578,6 +6542,61 @@ export default function AdminDashboard() {
           label={deleteConfirm.label}
           onCancel={() => setDeleteConfirm(null)}
           onConfirm={confirmDelete}
+        />
+      )}
+
+      {r2PreviewFile && (
+        <Modal
+          title={r2PreviewFile.name}
+          onClose={() => setR2PreviewFile(null)}
+          wide
+        >
+          <div className="space-y-4 p-6">
+            <div className="overflow-hidden rounded-sm border border-white/8 bg-black/30">
+              <img
+                src={r2PreviewFile.publicUrl}
+                alt={r2PreviewFile.name}
+                className="max-h-[70vh] w-full object-contain"
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/35">
+              <span className="truncate">{r2PreviewFile.key}</span>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={r2PreviewFile.publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={btnOutline}
+                >
+                  Open
+                </a>
+                <button
+                  className={`${btnOutline} cursor-pointer`}
+                  onClick={() => void copyR2Link(r2PreviewFile.publicUrl)}
+                >
+                  {r2CopiedUrl === r2PreviewFile.publicUrl ? "Copied." : "Copy Link"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {siteContentImageTarget && (
+        <R2ImagePickerModal
+          title={
+            siteContentImageTarget === "brandLogoUrl"
+              ? "Select Shared Logo"
+              : "Select Favicon"
+          }
+          onClose={() => setSiteContentImageTarget(null)}
+          onSelect={(url) => {
+            setSiteContent((prev) => ({
+              ...prev,
+              [siteContentImageTarget]: url,
+            }));
+            setSiteContentImageTarget(null);
+          }}
         />
       )}
     </div>

@@ -2,16 +2,23 @@ import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
+import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import { Gamepad2, Swords } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
+import { getSiteContent } from "@/lib/db";
 
-export const metadata = buildSeoMetadata({
-  title: "Arts & Entertainment",
-  description: "Minecraft maps, immersive events, and resource packs.",
-  path: "/arts-and-entertainment",
-});
+export async function generateMetadata() {
+  const siteContent = await getSiteContent();
+  const content = siteContent.artsAndEntertainment;
 
-const subcategories = [
+  return buildSeoMetadata({
+    title: content.title || "Arts & Entertainment",
+    description: content.description || "Minecraft maps, immersive events, and resource packs.",
+    path: "/arts-and-entertainment",
+  });
+}
+
+const subcategoriesFallback = [
   {
     icon: Gamepad2,
     title: "Minecraft Maps",
@@ -28,14 +35,28 @@ const subcategories = [
   },
 ];
 
-export default function ArtsAndEntertainmentPage() {
+export default async function ArtsAndEntertainmentPage() {
+  const siteContent = await getSiteContent();
+  const content = siteContent.artsAndEntertainment;
+  const subcategories = [
+    {
+      ...subcategoriesFallback[0],
+      ...(content.cards?.[0] ?? {}),
+    },
+    {
+      ...subcategoriesFallback[1],
+      ...(content.cards?.[1] ?? {}),
+    },
+  ];
+
   return (
     <>
+      <ClientPageTitle title={content.title} />
       <Navbar />
       <PageHeader
-        eyebrow="Category"
-        title="Arts & Entertainment"
-        description="Custom Minecraft maps and immersive events for the world's biggest gaming creators."
+        eyebrow={content.eyebrow}
+        title={content.title}
+        description={content.description}
         breadcrumbs={[{ label: "Arts & Entertainment" }]}
       />
       <main className="content-container py-16 sm:py-20">
