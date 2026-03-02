@@ -806,6 +806,7 @@ export default function TerminalExperience() {
   const [formState, setFormState] = React.useState(EMPTY_FORM);
   const [busy, setBusy] = React.useState(false);
   const [inputFocused, setInputFocused] = React.useState(false);
+  const [showStartupInputHint, setShowStartupInputHint] = React.useState(false);
   const [spotifyLive, setSpotifyLive] = React.useState<SpotifyViewState | null>(null);
   const [spotifyClock, setSpotifyClock] = React.useState(() => Date.now());
 
@@ -879,6 +880,10 @@ export default function TerminalExperience() {
     if (powerState !== "on" || busy) return;
     focusCommandInput();
   }, [busy, focusCommandInput, powerState]);
+
+  const dismissStartupInputHint = React.useCallback(() => {
+    setShowStartupInputHint(false);
+  }, []);
 
   const scheduleCommandRefocus = React.useCallback(
     (delayMs = 140) => {
@@ -1000,6 +1005,12 @@ export default function TerminalExperience() {
         .sort((a, b) => a.localeCompare(b)),
     []
   );
+
+  const showInputHint =
+    powerState !== "off" &&
+    !busy &&
+    !input &&
+    (showStartupInputHint || !inputFocused);
 
   // Ghost text autocomplete suggestion
   const ghostSuffix = React.useMemo(() => {
@@ -1215,6 +1226,8 @@ export default function TerminalExperience() {
       powerTimeoutRef.current = null;
     }
     if (active && powerState !== "stopping") return;
+    setInput("");
+    setShowStartupInputHint(true);
     setActive(true);
     setPowerState("starting");
     playPowerSfx("start");
@@ -3171,7 +3184,7 @@ export default function TerminalExperience() {
       {/* ── "Turn On TV" power button — shown on /terminal before boot ─── */}
       {isThreeStage && powerState === "off" && (
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center">
-          <div className="pointer-events-auto flex flex-col items-center">
+          <div className="pointer-events-auto hidden min-[900px]:flex flex-col items-center">
             <button
               onClick={handleTurnOn}
                 className="group relative flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-full border border-[#4ade80]/20 bg-[#040806] transition-all hover:border-[#4ade80]/60 hover:bg-[#070f08] focus:outline-none"
@@ -3202,10 +3215,27 @@ export default function TerminalExperience() {
               <span className="sr-only">Turn On TV</span>
             </button>
           </div>
+          <div className="pointer-events-auto mx-6 hidden max-w-[18rem] rounded-sm border border-[#4ade80]/10 bg-[#041109]/55 px-5 py-4 text-center max-[899px]:block">
+            <p
+              className="text-[12px] leading-6 text-[#86efac]/55"
+              style={{ textShadow: "0 0 10px rgba(74, 222, 128, 0.08)" }}
+            >
+              This feature is for desktop users only. Sorry! &lt;3
+            </p>
+          </div>
           <Link
             href="/"
-            className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] text-[#86efac]/32 transition-colors hover:text-[#86efac]/52"
-            style={{ textShadow: "0 0 10px rgba(74, 222, 128, 0.08)" }}
+            className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] transition-colors"
+            style={{
+              color: "rgba(240, 253, 244, 0.52)",
+              textShadow: "0 0 12px rgba(74, 222, 128, 0.14)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "rgba(240, 253, 244, 0.82)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "rgba(240, 253, 244, 0.52)";
+            }}
           >
             &lt;- MDCran.com
           </Link>
@@ -3220,9 +3250,9 @@ export default function TerminalExperience() {
         style={{
           // In Three.js mode: keep the terminal constrained to the CRT screen area.
           width:       isThreeStage ? "67vw" : undefined,
-          height:      isThreeStage ? "85vh" : undefined,
+          height:      isThreeStage ? "93vh" : undefined,
           maxWidth:    isThreeStage ? "67vw" : undefined,
-          maxHeight:   isThreeStage ? "85vh" : undefined,
+          maxHeight:   isThreeStage ? "93vh" : undefined,
           borderColor: isThreeStage ? "transparent" : undefined,
           boxShadow:   isThreeStage
             ? "none"
@@ -3381,6 +3411,7 @@ export default function TerminalExperience() {
             value: e.target.value,
             valueLength: e.target.value.length,
           });
+          dismissStartupInputHint();
           setInput(e.target.value);
           setCrtPulseTick((current) => current + 1);
         }}
@@ -3428,6 +3459,7 @@ export default function TerminalExperience() {
         onBlur={() => {
           debugTerminalEvent("blur");
           setInputFocused(false);
+          setInput("");
           scheduleCommandRefocus(120);
         }}
         onPointerDown={(e) => {
@@ -3435,11 +3467,13 @@ export default function TerminalExperience() {
             x: e.clientX,
             y: e.clientY,
           });
+          dismissStartupInputHint();
           e.stopPropagation();
           focusCommandInput();
         }}
         onClick={(e) => {
           debugTerminalEvent("click");
+          dismissStartupInputHint();
           e.stopPropagation();
           focusCommandInput();
         }}
@@ -3688,6 +3722,19 @@ export default function TerminalExperience() {
               ))}
             </div>
           )}
+          {showInputHint && (
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
+              aria-hidden
+            >
+              <span
+                className="crt-input-hint text-[#86efac]/48"
+                style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.2)" }}
+              >
+                Press Here to Start Typing...
+              </span>
+            </div>
+          )}
           {/* Ghost autocomplete suggestion */}
           {ghostSuffix && (
             <div
@@ -3698,18 +3745,14 @@ export default function TerminalExperience() {
               <span className="text-[#86efac]/30">{ghostSuffix}</span>
             </div>
           )}
-          {powerState === "on" && (
+          {powerState === "on" && inputFocused && !showStartupInputHint && (
             <div
               className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
               aria-hidden
             >
               <span className="invisible">{input}</span>
               <span
-                className={`crt-input-cursor ${
-                  inputFocused || (active && powerState === "on" && !busy)
-                    ? "crt-input-cursor-active"
-                    : ""
-                }`}
+                className="crt-input-cursor crt-input-cursor-active"
               />
             </div>
           )}
@@ -3889,6 +3932,10 @@ export default function TerminalExperience() {
 
         .crt-input-cursor-active {
           opacity: 0.96;
+        }
+
+        .crt-input-hint {
+          animation: crtInputHintPulse 1.35s ease-in-out infinite;
         }
 
         .crt-phosphor-mask {
@@ -4937,6 +4984,11 @@ export default function TerminalExperience() {
         @keyframes crtCursorBlink {
           0%, 46% { opacity: 0.96; }
           47%, 100% { opacity: 0.08; }
+        }
+
+        @keyframes crtInputHintPulse {
+          0%, 100% { opacity: 0.16; }
+          50% { opacity: 0.42; }
         }
       `}</style>
     </div>
