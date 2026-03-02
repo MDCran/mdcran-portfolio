@@ -192,6 +192,8 @@ const EMPTY_FORM = {
 
 const DIV = "─".repeat(52);
 const POWER_BUTTON_HOVER_MS = 40;
+const CRT_THEME_LOOP_START_SECONDS = 4;
+const CRT_THEME_LOOP_END_SECONDS = 35;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -812,6 +814,7 @@ export default function TerminalExperience() {
   const shellCaptureRef = React.useRef<HTMLDivElement | null>(null);
   const crtThemeRef = React.useRef<HTMLAudioElement | null>(null);
   const powerTimeoutRef = React.useRef<number | null>(null);
+  const refocusTimeoutRef = React.useRef<number | null>(null);
   const audioContextRef = React.useRef<AudioContext | null>(null);
   const requestedRef = React.useRef(false);
   const comboRef = React.useRef(0);
@@ -821,6 +824,29 @@ export default function TerminalExperience() {
 
   const debugTerminalEvent = React.useCallback((...args: unknown[]) => {
     void args;
+  }, []);
+
+  const getOrCreateCrtThemeAudio = React.useCallback(() => {
+    if (!crtThemeRef.current) {
+      const audio = new Audio("/crt-theme-song.mp3");
+      audio.loop = false;
+      audio.volume = 0.16;
+      audio.ontimeupdate = () => {
+        if (audio.currentTime >= CRT_THEME_LOOP_END_SECONDS) {
+          audio.currentTime = CRT_THEME_LOOP_START_SECONDS;
+        }
+      };
+      audio.onended = () => {
+        audio.currentTime = CRT_THEME_LOOP_START_SECONDS;
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+          void playPromise.catch(() => {});
+        }
+      };
+      crtThemeRef.current = audio;
+    }
+
+    return crtThemeRef.current;
   }, []);
 
   const focusCommandInput = React.useCallback(() => {
@@ -853,6 +879,45 @@ export default function TerminalExperience() {
     if (powerState !== "on" || busy) return;
     focusCommandInput();
   }, [busy, focusCommandInput, powerState]);
+
+  const scheduleCommandRefocus = React.useCallback(
+    (delayMs = 140) => {
+      if (typeof window === "undefined") return;
+      if (refocusTimeoutRef.current) {
+        window.clearTimeout(refocusTimeoutRef.current);
+      }
+
+      refocusTimeoutRef.current = window.setTimeout(() => {
+        refocusTimeoutRef.current = null;
+        if (powerState !== "on" || busy) return;
+
+        const shellNode = shellCaptureRef.current;
+        const activeNode = document.activeElement;
+
+        if (!shellNode || activeNode === inputRef.current) return;
+        if (
+          activeNode instanceof Node &&
+          activeNode !== document.body &&
+          !shellNode.contains(activeNode)
+        ) {
+          return;
+        }
+        if (isEditableTarget(activeNode) && activeNode !== shellNode) return;
+
+        focusCommandInput();
+      }, delayMs);
+    },
+    [busy, focusCommandInput, powerState]
+  );
+
+  React.useEffect(() => {
+    return () => {
+      if (refocusTimeoutRef.current) {
+        window.clearTimeout(refocusTimeoutRef.current);
+        refocusTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     if (powerState !== "on") return;
@@ -1161,15 +1226,10 @@ export default function TerminalExperience() {
 
   // "Turn On TV" button handler — must be in a click event for audio gesture context.
   const handleTurnOn = React.useCallback(() => {
-    if (!crtThemeRef.current) {
-      const audio = new Audio("/crt-theme-song.mp3");
-      audio.loop = true;
-      audio.volume = 0.16;
-      crtThemeRef.current = audio;
-    }
-    void crtThemeRef.current.play().catch(() => {});
+    const audio = getOrCreateCrtThemeAudio();
+    void audio.play().catch(() => {});
     startTerminalShell();
-  }, [startTerminalShell]);
+  }, [getOrCreateCrtThemeAudio, startTerminalShell]);
 
   const startTerminal = React.useCallback(() => {
     if (!isTerminalRoute) {
@@ -1422,12 +1482,7 @@ export default function TerminalExperience() {
     }
 
     // powerState === "on"
-    if (!crtThemeRef.current) {
-      const audio = new Audio("/crt-theme-song.mp3");
-      audio.loop = true;
-      audio.volume = 0.16;
-      crtThemeRef.current = audio;
-    }
+    getOrCreateCrtThemeAudio();
 
     const tryPlay = () => {
       const audio = crtThemeRef.current;
@@ -1450,7 +1505,7 @@ export default function TerminalExperience() {
         crtThemeRef.current.currentTime = 0;
       }
     };
-  }, [powerState]);
+  }, [getOrCreateCrtThemeAudio, powerState]);
 
   React.useEffect(() => {
     if (!spotifyLive) return;
@@ -3149,7 +3204,7 @@ export default function TerminalExperience() {
           </div>
           <Link
             href="/"
-            className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] text-[#86efac]/22 transition-colors hover:text-[#86efac]/45"
+            className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] text-[#86efac]/32 transition-colors hover:text-[#86efac]/52"
             style={{ textShadow: "0 0 10px rgba(74, 222, 128, 0.08)" }}
           >
             &lt;- MDCran.com
@@ -3176,6 +3231,11 @@ export default function TerminalExperience() {
             ? "linear-gradient(180deg, rgba(4,10,7,0.62) 0%, rgba(4,10,7,0.55) 100%)"
             : "linear-gradient(180deg, rgba(49,44,36,0.18) 0%, rgba(10,10,8,0.86) 10%, rgba(3,8,5,0.98) 100%)",
           borderRadius: isThreeStage ? 28 : undefined,
+        }}
+        onFocus={(e) => {
+          if (e.target === e.currentTarget) {
+            scheduleCommandRefocus(0);
+          }
         }}
         onPointerDown={() => focusTerminalSurface()}
         onClick={() => focusTerminalSurface()}
@@ -3359,11 +3419,16 @@ export default function TerminalExperience() {
         tabIndex={0}
         onFocus={() => {
           debugTerminalEvent("focus");
+          if (refocusTimeoutRef.current) {
+            window.clearTimeout(refocusTimeoutRef.current);
+            refocusTimeoutRef.current = null;
+          }
           setInputFocused(true);
         }}
         onBlur={() => {
           debugTerminalEvent("blur");
           setInputFocused(false);
+          scheduleCommandRefocus(120);
         }}
         onPointerDown={(e) => {
           debugTerminalEvent("pointerdown", {
@@ -3466,6 +3531,9 @@ export default function TerminalExperience() {
           ref={transcriptRef}
           className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
           style={{ textShadow: "0 0 7px rgba(74, 222, 128, 0.12)" }}
+          onScroll={() => {
+            scheduleCommandRefocus(180);
+          }}
         >
           {loading && (
             <div className="text-[#86efac]/45 text-[0.525rem] py-2">
