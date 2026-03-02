@@ -1463,6 +1463,24 @@ function ArticleModal({
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
   );
   const [errors, setErrors] = useState<string[]>([]);
+  const [imagePickerTarget, setImagePickerTarget] = useState<
+    | null
+    | { kind: "cover" }
+    | { kind: "section-image"; sectionIndex: number }
+    | { kind: "section-gallery"; sectionIndex: number; imageIndex: number }
+  >(null);
+
+  function applySelectedImage(url: string) {
+    if (!imagePickerTarget) return;
+    if (imagePickerTarget.kind === "cover") {
+      setCoverImage((prev) => ({ ...prev, src: url }));
+    } else if (imagePickerTarget.kind === "section-image") {
+      updateSection(imagePickerTarget.sectionIndex, { src: url });
+    } else if (imagePickerTarget.kind === "section-gallery") {
+      updateSectionGalleryImage(imagePickerTarget.sectionIndex, imagePickerTarget.imageIndex, { src: url });
+    }
+    setImagePickerTarget(null);
+  }
 
   function validate() {
     const e: string[] = [];

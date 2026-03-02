@@ -6,7 +6,7 @@ import { assetUrl } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Menu, ChevronDown } from "lucide-react";
-import { cn, projectUrl } from "@/lib/utils";
+import { cn, projectUrl, imageAssetSrc } from "@/lib/utils";
 import type { Project, Client, Article, SiteContent } from "@/lib/types";
 
 const navLinks = [
@@ -437,7 +437,7 @@ export default function Navbar() {
                               Projects
                             </div>
                             {results.projects.map((p) => {
-                              const thumb = p.coverImage ?? p.images?.[0];
+                              const thumb = imageAssetSrc(p.coverImage ?? p.images?.[0]);
                               return (
                                 <Link
                                   key={p.id}
@@ -512,9 +512,9 @@ export default function Navbar() {
                               >
                                 {/* Cover thumbnail */}
                                 <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5">
-                                  {a.coverImage ? (
+                                  {imageAssetSrc(a.coverImage) ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={a.coverImage} alt={a.title} className="w-full h-full object-cover" />
+                                    <img src={imageAssetSrc(a.coverImage)} alt={a.title} className="w-full h-full object-cover" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                       <div className="w-3 h-3 bg-purple-400/40 rounded-sm" />

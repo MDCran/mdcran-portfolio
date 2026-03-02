@@ -117,7 +117,7 @@ export interface Project {
   extraCategories?: Category[];
   extraSubcategories?: Subcategory[];
   coverImage?: string | ImageAsset;
-  images?: ImageAsset[];
+  images?: (string | ImageAsset)[];
   clientIds?: string[];
   publisherId?: string;   // company that published/contracted the work
   credits?: ProjectCredit[];
@@ -296,7 +296,7 @@ export interface ArticleSection {
   content?: string;    // markdown text / code / quote text
   caption?: string;
   src?: string;        // single image src
-  images?: ImageAsset[];   // gallery images
+  images?: (string | ImageAsset)[];   // gallery images
   youtubeId?: string;  // embedded video
   language?: string;   // code block language
   alt?: string;

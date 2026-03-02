@@ -4,6 +4,7 @@ import ProjectDetail from "@/components/shared/ProjectDetail";
 import { getProjects, getClients, hydrateProjectVideos } from "@/lib/db";
 import { pickRandomRelatedProjects } from "@/lib/project-detail";
 import { buildSeoMetadata } from "@/lib/seo";
+import { imageAssetSrc } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: project.title,
     description: project.description ?? "Explore this web design project by MDCran.",
     path: `/motion-and-graphics/web-dev-design/${project.slug}`,
-    image: project.coverImage,
+    image: imageAssetSrc(project.coverImage),
   });
 }
 
