@@ -71,11 +71,11 @@ async function main() {
       const docs = await collection.find({}).toArray();
 
       for (const doc of docs) {
-        const { _id, ...rest } = doc as Record<string, unknown> & { _id: unknown };
-        const [rewritten, changed] = rewriteNode(rest);
+        const { _id, ...rest } = doc;
+        const [rewritten, changed] = rewriteNode(rest as Document);
         if (!changed) continue;
 
-        await collection.replaceOne({ _id }, rewritten);
+        await collection.replaceOne({ _id }, rewritten as Document);
         updatedCount += 1;
       }
     }
