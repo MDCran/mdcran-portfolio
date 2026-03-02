@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -65,7 +66,7 @@ function normalizePrefix(prefix?: string | null) {
   return cleaned.endsWith("/") ? cleaned : `${cleaned}/`;
 }
 
-function publicUrlForKey(key: string) {
+export function publicUrlForKey(key: string) {
   return `${CDN_BASE_URL}/${key.replace(/^\/+/, "")}`;
 }
 
@@ -206,4 +207,19 @@ export async function deleteR2Asset(key: string) {
       Key: trimmed,
     })
   );
+}
+
+export async function copyR2Asset(oldKey: string, newKey: string) {
+  await getClient().send(
+    new CopyObjectCommand({
+      Bucket: R2_BUCKET!,
+      CopySource: `${R2_BUCKET}/${oldKey.replace(/^\/+/, "")}`,
+      Key: newKey.replace(/^\/+/, ""),
+    })
+  );
+}
+
+export async function renameR2Asset(oldKey: string, newKey: string) {
+  await copyR2Asset(oldKey, newKey);
+  await deleteR2Asset(oldKey);
 }

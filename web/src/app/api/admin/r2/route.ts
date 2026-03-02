@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
-import { deleteR2Asset, listR2Assets, uploadR2Asset } from "@/lib/r2";
+import { deleteR2Asset, listR2Assets, publicUrlForKey, renameR2Asset, uploadR2Asset } from "@/lib/r2";
+import { updateR2AssetReferences } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   if (!(await isAdminAuthenticated())) {
@@ -62,6 +63,35 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to delete file." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = (await req.json()) as { oldKey?: string; newKey?: string };
+    if (!body.oldKey?.trim() || !body.newKey?.trim()) {
+      return NextResponse.json({ error: "oldKey and newKey are required." }, { status: 400 });
+    }
+
+    const oldKey = body.oldKey.trim();
+    const newKey = body.newKey.trim();
+
+    if (oldKey === newKey) {
+      return NextResponse.json({ error: "oldKey and newKey must be different." }, { status: 400 });
+    }
+
+    await renameR2Asset(oldKey, newKey);
+    const updatedRefs = await updateR2AssetReferences(publicUrlForKey(oldKey), publicUrlForKey(newKey));
+    return NextResponse.json({ ok: true, updatedRefs });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to rename file." },
       { status: 500 }
     );
   }

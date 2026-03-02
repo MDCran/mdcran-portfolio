@@ -612,10 +612,17 @@ function R2ImagePickerModal({
   const [uploading, setUploading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [folders, setFolders] = useState<R2BrowserFolder[]>([]);
   const [files, setFiles] = useState<R2BrowserFile[]>([]);
   const pickerFileInputRef = useRef<HTMLInputElement>(null);
   const imageFiles = files.filter((file) => isImageAssetFile(file.name));
+
+  function goUpOneLevel() {
+    const trimmed = prefix.replace(/\/$/, "");
+    setSearch("");
+    setPrefix(trimmed.includes("/") ? `${trimmed.slice(0, trimmed.lastIndexOf("/") + 1)}` : "");
+  }
 
   async function uploadPickerFiles(fileList: FileList | null) {
     if (!fileList?.length) return;
@@ -717,11 +724,7 @@ function R2ImagePickerModal({
             <button
               type="button"
               className={btnOutline}
-              onClick={() => {
-                const trimmed = prefix.replace(/\/$/, "");
-                setSearch("");
-                setPrefix(trimmed.includes("/") ? `${trimmed.slice(0, trimmed.lastIndexOf("/") + 1)}` : "");
-              }}
+              onClick={goUpOneLevel}
               disabled={!prefix}
             >
               Up One Level
@@ -741,8 +744,20 @@ function R2ImagePickerModal({
           </div>
         </div>
 
-        <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-[11px] text-white/35">
-          <span className="text-white/50">Location:</span> {search.trim() ? `Search in ${prefix || "bucket root"}` : prefix || "bucket root"}
+        <div className="flex items-center gap-2 rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-[11px] text-white/35">
+          <button
+            type="button"
+            disabled={!prefix}
+            onClick={goUpOneLevel}
+            className="shrink-0 text-[11px] text-white/40 hover:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Back
+          </button>
+          <span className="text-white/20">|</span>
+          <span>
+            <span className="text-white/50">Location:</span>{" "}
+            {search.trim() ? `Search in ${prefix || "bucket root"}` : prefix || "bucket root"}
+          </span>
         </div>
 
         {error && (
@@ -780,7 +795,18 @@ function R2ImagePickerModal({
             </div>
           </div>
 
-          <div className="border border-white/7 bg-white/2 rounded-sm overflow-hidden">
+          <div
+            className={`border bg-white/2 rounded-sm overflow-hidden relative transition-colors ${dragOver ? "border-[#ef4242]/50" : "border-white/7"}`}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }}
+            onDragEnter={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.types.includes("Files")) void uploadPickerFiles(e.dataTransfer.files); }}
+          >
+            {dragOver && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-[#ef4242]/60 bg-[#ef4242]/8">
+                <p className="font-nord text-sm text-[#ef4242]">Drop to upload</p>
+              </div>
+            )}
             <div className="border-b border-white/8 px-4 py-3 text-[10px] tracking-widest uppercase text-white/35">
               Images ({imageFiles.length})
             </div>
@@ -2769,6 +2795,12 @@ export default function AdminDashboard() {
   const [r2Error, setR2Error] = useState("");
   const [r2CopiedUrl, setR2CopiedUrl] = useState("");
   const [r2PreviewFile, setR2PreviewFile] = useState<R2BrowserFile | null>(null);
+  const [r2DragOver, setR2DragOver] = useState(false);
+  const [r2DragFile, setR2DragFile] = useState<R2BrowserFile | null>(null);
+  const [r2DropTarget, setR2DropTarget] = useState<string | null>(null);
+  const [r2RenameTarget, setR2RenameTarget] = useState<R2BrowserFile | null>(null);
+  const [r2RenameValue, setR2RenameValue] = useState("");
+  const [r2Renaming, setR2Renaming] = useState(false);
   const r2CopyResetRef = useRef<number | null>(null);
   const r2FileInputRef = useRef<HTMLInputElement | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -2833,7 +2865,7 @@ export default function AdminDashboard() {
   const [contactModal, setContactModal] = useState<{ open: boolean; editing?: Contact | null }>({ open: false });
 
   /* ── Delete confirm ── */
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "project" | "article" | "client" | "contact" | "campaign" | "rizz"; id: string; label: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "project" | "article" | "client" | "contact" | "campaign" | "rizz" | "r2"; id: string; label: string } | null>(null);
 
   /* ── API hydration ── */
   useEffect(() => {
@@ -3474,11 +3506,63 @@ export default function AdminDashboard() {
     }
   }
 
-  async function deleteR2File(key: string) {
-    if (!window.confirm(`Delete ${key}? This cannot be undone.`)) {
-      return;
-    }
+  function goUpOneR2Level() {
+    const trimmed = r2Prefix.replace(/\/$/, "");
+    const parent = trimmed.includes("/") ? `${trimmed.slice(0, trimmed.lastIndexOf("/") + 1)}` : "";
+    setR2Search("");
+    setR2Prefix(parent);
+  }
 
+  async function renameR2FileConfirmed() {
+    if (!r2RenameTarget || !r2RenameValue.trim()) return;
+    const oldKey = r2RenameTarget.key;
+    const dir = oldKey.includes("/") ? oldKey.slice(0, oldKey.lastIndexOf("/") + 1) : "";
+    const newKey = `${dir}${r2RenameValue.trim()}`;
+    setR2Renaming(true);
+    setR2Error("");
+    try {
+      const response = await fetch("/api/admin/r2", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldKey, newKey }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Rename failed.");
+      }
+      setR2RenameTarget(null);
+      setR2RenameValue("");
+      await loadR2Assets();
+    } catch (error) {
+      setR2Error(error instanceof Error ? error.message : "Rename failed.");
+    } finally {
+      setR2Renaming(false);
+    }
+  }
+
+  async function moveR2File(oldKey: string, newKey: string) {
+    setR2Error("");
+    try {
+      const response = await fetch("/api/admin/r2", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldKey, newKey }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Move failed.");
+      }
+      await loadR2Assets();
+    } catch (error) {
+      setR2Error(error instanceof Error ? error.message : "Move failed.");
+    }
+  }
+
+  function deleteR2File(key: string) {
+    setDeleteConfirm({ type: "r2", id: key, label: key });
+  }
+
+  async function deleteR2FileConfirmed(key: string) {
     setR2Error("");
 
     try {
@@ -3622,6 +3706,7 @@ export default function AdminDashboard() {
     if (deleteConfirm.type === "contact") deleteContact(deleteConfirm.id);
     if (deleteConfirm.type === "campaign") deleteCampaign(deleteConfirm.id);
     if (deleteConfirm.type === "rizz") deleteRizzSubmission(deleteConfirm.id);
+    if (deleteConfirm.type === "r2") void deleteR2FileConfirmed(deleteConfirm.id);
     setDeleteConfirm(null);
   }
 
@@ -4809,7 +4894,6 @@ export default function AdminDashboard() {
                         <td className="px-3 py-2.5">
                           <div className="flex flex-wrap justify-end gap-1.5">
                             <button className={btnOutline} onClick={() => void mutateRateLimitRecord("reset", entry)}>Reset</button>
-                            <button className={btnOutline} onClick={() => void mutateRateLimitRecord("clear-pii", entry)}>Clear PII</button>
                             <button className={btnOutlineRed} onClick={() => void deleteRateLimit(entry.id)}>Delete</button>
                           </div>
                         </td>
@@ -4936,12 +5020,23 @@ export default function AdminDashboard() {
 
           {activeSection === "r2-assets" && (
             <div className="space-y-6">
-              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+              <div
+                className={`border bg-white/2 rounded-sm p-5 space-y-4 relative transition-colors ${r2DragOver ? "border-[#ef4242]/50 bg-[#ef4242]/5" : "border-white/7"}`}
+                onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setR2DragOver(true); } }}
+                onDragEnter={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setR2DragOver(true); } }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setR2DragOver(false); }}
+                onDrop={(e) => { e.preventDefault(); setR2DragOver(false); if (e.dataTransfer.types.includes("Files")) void uploadR2Files(e.dataTransfer.files); }}
+              >
+                {r2DragOver && (
+                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-[#ef4242]/60 bg-[#ef4242]/8">
+                    <p className="font-nord text-sm text-[#ef4242]">Drop files to upload</p>
+                  </div>
+                )}
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                   <div className="flex-1">
                     <p className="font-nord text-sm text-white">Cloudflare R2 Bucket</p>
                     <p className="text-xs text-white/35">
-                      Browse folders, search assets, upload files into the current folder, delete files, and copy public CDN links.
+                      Browse folders, search assets, upload files into the current folder, delete files, and copy public CDN links. Drag files to upload or drag file rows to folders to move.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -4989,12 +5084,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       className={btnOutline}
-                      onClick={() => {
-                        const trimmed = r2Prefix.replace(/\/$/, "");
-                        const parent = trimmed.includes("/") ? `${trimmed.slice(0, trimmed.lastIndexOf("/") + 1)}` : "";
-                        setR2Search("");
-                        setR2Prefix(parent);
-                      }}
+                      onClick={goUpOneR2Level}
                       disabled={!r2Prefix}
                     >
                       Up One Level
@@ -5002,11 +5092,22 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-[11px] text-white/35">
-                  <span className="text-white/50">Location:</span>{" "}
-                  {r2Mode === "search"
-                    ? `Search results for "${r2Search.trim()}" in ${r2Prefix || "bucket root"}`
-                    : r2Prefix || "bucket root"}
+                <div className="flex items-center gap-2 rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-[11px] text-white/35">
+                  <button
+                    type="button"
+                    disabled={!r2Prefix}
+                    onClick={goUpOneR2Level}
+                    className="shrink-0 text-[11px] text-white/40 hover:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Back
+                  </button>
+                  <span className="text-white/20">|</span>
+                  <span>
+                    <span className="text-white/50">Location:</span>{" "}
+                    {r2Mode === "search"
+                      ? `Search results for "${r2Search.trim()}" in ${r2Prefix || "bucket root"}`
+                      : r2Prefix || "bucket root"}
+                  </span>
                 </div>
 
                 {r2Error && (
@@ -5030,14 +5131,28 @@ export default function AdminDashboard() {
                       r2Folders.map((folder) => (
                         <button
                           key={folder.prefix}
-                          className="flex w-full items-center justify-between border-b border-white/6 px-4 py-3 text-left text-xs text-white/55 transition-colors hover:bg-white/3 hover:text-white"
+                          className={`flex w-full items-center justify-between border-b px-4 py-3 text-left text-xs transition-colors ${r2DropTarget === folder.prefix ? "border-[#ef4242]/40 bg-[#ef4242]/10 text-[#ef4242]" : "border-white/6 text-white/55 hover:bg-white/3 hover:text-white"}`}
                           onClick={() => {
                             setR2Search("");
                             setR2Prefix(folder.prefix);
                           }}
+                          onDragOver={(e) => { if (r2DragFile) { e.preventDefault(); setR2DropTarget(folder.prefix); } }}
+                          onDragEnter={(e) => { if (r2DragFile) { e.preventDefault(); setR2DropTarget(folder.prefix); } }}
+                          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setR2DropTarget(null); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (r2DragFile) {
+                              const filename = r2DragFile.key.split("/").pop() ?? r2DragFile.name;
+                              void moveR2File(r2DragFile.key, `${folder.prefix}${filename}`);
+                            }
+                            setR2DropTarget(null);
+                            setR2DragFile(null);
+                          }}
                         >
                           <span className="truncate">{folder.name}/</span>
-                          <span className="text-white/20">Open</span>
+                          <span className={r2DropTarget === folder.prefix ? "text-[#ef4242]/60" : "text-white/20"}>
+                            {r2DropTarget === folder.prefix ? "Drop here" : "Open"}
+                          </span>
                         </button>
                       ))
                     )}
@@ -5057,7 +5172,13 @@ export default function AdminDashboard() {
                       {r2Files.map((file) => (
                         <div
                           key={file.key}
-                          className="border-b border-white/6 px-4 py-3 last:border-b-0"
+                          draggable
+                          onDragStart={(e) => {
+                            setR2DragFile(file);
+                            e.dataTransfer.setData("text/plain", file.key);
+                          }}
+                          onDragEnd={() => { setR2DragFile(null); setR2DropTarget(null); }}
+                          className={`border-b border-white/6 px-4 py-3 last:border-b-0 transition-opacity cursor-grab ${r2DragFile?.key === file.key ? "opacity-40" : ""}`}
                         >
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex min-w-0 items-start gap-3">
@@ -5101,6 +5222,12 @@ export default function AdminDashboard() {
                                 onClick={() => void copyR2Link(file.publicUrl)}
                               >
                                 {r2CopiedUrl === file.publicUrl ? "Copied." : "Copy Link"}
+                              </button>
+                              <button
+                                className={`${btnOutline} cursor-pointer`}
+                                onClick={() => { setR2RenameTarget(file); setR2RenameValue(file.name); }}
+                              >
+                                Rename
                               </button>
                               <button
                                 className={btnOutlineRed}
@@ -6334,8 +6461,8 @@ export default function AdminDashboard() {
                             <select className={inputCls} value={exp.type} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, type: e.target.value as Experience["type"] } : item)))}><option value="job">Job</option><option value="volunteer">Volunteer</option><option value="renowned">Renowned</option></select>
                             <input className={inputCls} value={exp.companyName} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, companyName: e.target.value } : item)))} placeholder="Company name" />
                             <input className={inputCls} value={exp.role} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, role: e.target.value } : item)))} placeholder="Role" />
-                            <input className={inputCls} value={exp.startDate} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value } : item)))} placeholder="MM-YYYY" />
-                            <input className={inputCls} value={exp.endDate ?? ""} disabled={!!exp.current} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="MM-YYYY" />
+                            <input className={inputCls} value={exp.startDate} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value } : item)))} placeholder="YYYY-MM" />
+                            <input className={inputCls} value={exp.endDate ?? ""} disabled={!!exp.current} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
                           </div>
                           <label className="flex items-center gap-2 text-xs text-white/50">
                             <input type="checkbox" className="accent-[#ef4242]" checked={!!exp.current} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, current: e.target.checked, endDate: e.target.checked ? undefined : item.endDate } : item)))} />
@@ -6409,8 +6536,8 @@ export default function AdminDashboard() {
                             <input className={inputCls} value={education.institution} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, institution: e.target.value } : item)))} placeholder="Institution" />
                             <input className={inputCls} value={education.degree} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, degree: e.target.value } : item)))} placeholder="Degree" />
                             <input className={inputCls} value={education.field ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, field: e.target.value || undefined } : item)))} placeholder="Field of study" />
-                            <input className={inputCls} value={education.startDate} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value } : item)))} placeholder="MM-YYYY" />
-                            <input className={inputCls} value={education.endDate ?? ""} disabled={!!education.current} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="MM-YYYY" />
+                            <input className={inputCls} value={education.startDate} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value } : item)))} placeholder="YYYY-MM" />
+                            <input className={inputCls} value={education.endDate ?? ""} disabled={!!education.current} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
                             <input className={inputCls} value={education.location ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, location: e.target.value || undefined } : item)))} placeholder="Location" />
                             <input className={inputCls} value={education.gpa ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, gpa: e.target.value || undefined } : item)))} placeholder="GPA (optional)" />
                           </div>
@@ -6498,7 +6625,7 @@ export default function AdminDashboard() {
                           className="border border-white/6 rounded-sm p-4 grid grid-cols-2 gap-3 cursor-move"
                         >
                           <input className={inputCls} value={cert.id} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, id: e.target.value } : item)))} placeholder="ID" />
-                          <input className={inputCls} value={cert.date} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="MM-YYYY" />
+                          <input className={inputCls} value={cert.date} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="YYYY-MM" />
                           <input className={inputCls} value={cert.name} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Name" />
                           <input className={inputCls} value={cert.issuer} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, issuer: e.target.value } : item)))} placeholder="Issuer" />
                           <input className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 h-9 text-sm text-white outline-none placeholder-white/25 transition-colors" value={cert.credentialUrl ?? ""} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, credentialUrl: e.target.value || undefined } : item)))} placeholder="Credential URL" />
@@ -6526,7 +6653,7 @@ export default function AdminDashboard() {
                           className="border border-white/6 rounded-sm p-4 grid grid-cols-2 gap-3 cursor-move"
                         >
                           <input className={inputCls} value={award.id} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, id: e.target.value } : item)))} placeholder="ID" />
-                          <input className={inputCls} value={award.date} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="MM-YYYY" />
+                          <input className={inputCls} value={award.date} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="YYYY-MM" />
                           <input className={inputCls} value={award.name} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Name" />
                           <input className={inputCls} value={award.issuer ?? ""} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, issuer: e.target.value || undefined } : item)))} placeholder="Issuer" />
                           <textarea className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none" rows={2} value={award.description ?? ""} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value || undefined } : item)))} placeholder="Description" />
@@ -6557,8 +6684,8 @@ export default function AdminDashboard() {
                           <input className={inputCls} value={club.name} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Name" />
                           <input className={inputCls} value={club.role ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, role: e.target.value || undefined } : item)))} placeholder="Role" />
                           <input className={inputCls} value={club.url ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, url: e.target.value || undefined } : item)))} placeholder="URL" />
-                          <input className={inputCls} value={club.startDate ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value || undefined } : item)))} placeholder="MM-YYYY" />
-                          <input className={inputCls} value={club.endDate ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="MM-YYYY" />
+                          <input className={inputCls} value={club.startDate ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
+                          <input className={inputCls} value={club.endDate ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
                           <textarea className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none" rows={2} value={club.description ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value || undefined } : item)))} placeholder="Description" />
                           <button className="col-span-2 text-left text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setClubs((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
                         </div>
@@ -6772,6 +6899,45 @@ export default function AdminDashboard() {
           onCancel={() => setDeleteConfirm(null)}
           onConfirm={confirmDelete}
         />
+      )}
+
+      {r2RenameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-sm border border-white/10 bg-[#0d0d0d] p-6">
+            <p className="font-nord text-sm text-white">Rename File</p>
+            <p className="truncate text-[11px] text-white/35">Current: {r2RenameTarget.name}</p>
+            <div className="flex gap-2">
+              <input
+                className={`${inputCls} flex-1`}
+                value={r2RenameValue}
+                onChange={(e) => setR2RenameValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void renameR2FileConfirmed(); }}
+                placeholder="new-filename.ext"
+                autoFocus
+              />
+              <button
+                type="button"
+                className={btnOutline}
+                onClick={() => {
+                  const ext = r2RenameTarget.name.includes(".") ? `.${r2RenameTarget.name.split(".").pop()}` : "";
+                  setR2RenameValue(`${crypto.randomUUID()}${ext}`);
+                }}
+              >
+                UUID
+              </button>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button className={btnGhost} onClick={() => { setR2RenameTarget(null); setR2RenameValue(""); }}>Cancel</button>
+              <button
+                className={btnRed}
+                disabled={!r2RenameValue.trim() || r2Renaming}
+                onClick={() => void renameR2FileConfirmed()}
+              >
+                {r2Renaming ? "Renaming…" : "Rename"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {r2PreviewFile && (
