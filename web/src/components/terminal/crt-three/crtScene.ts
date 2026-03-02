@@ -25,6 +25,12 @@ export type CRTSceneController = {
   triggerPulse: (amount?: number) => void;
 };
 
+// Pointer/tilt responsiveness tuning for the DOM terminal overlay.
+// Higher values feel snappier; lower values feel heavier/smoother.
+const CRT_POINTER_FOLLOW_LERP = 0.1;
+const CRT_MONITOR_TILT_LERP = 0.1;
+const CRT_MONITOR_ROLL_LERP = 0.1;
+
 // ─── Geometry helpers ─────────────────────────────────────────────────────────
 
 /** Convex CRT screen surface — displaces Z by a radial quadratic. */
@@ -528,7 +534,7 @@ export function createCRTScene({
     lastFrameAt = now;
     elapsed    += delta;
 
-    pointerSmooth.lerp(pointerTarget, 0.052);
+    pointerSmooth.lerp(pointerTarget, CRT_POINTER_FOLLOW_LERP);
     pulseStrength = Math.max(0, pulseStrength - delta * 0.38);
     smoothedPower = THREE.MathUtils.lerp(smoothedPower, targetPower, 0.052);
     currentGlow   = THREE.MathUtils.lerp(currentGlow, targetGlow + pulseStrength * 0.80, 0.072);
@@ -559,13 +565,13 @@ export function createCRTScene({
     monitorGroup.position.y  = 0.04 + Math.sin(elapsed * 0.88) * 0.058;
     monitorGroup.position.x  = Math.sin(elapsed * 0.31) * 0.028;
     monitorGroup.rotation.y  = THREE.MathUtils.lerp(
-      monitorGroup.rotation.y, 0.08 + pointerSmooth.x * 0.20, 0.055
+      monitorGroup.rotation.y, 0.08 + pointerSmooth.x * 0.20, CRT_MONITOR_TILT_LERP
     );
     monitorGroup.rotation.x  = THREE.MathUtils.lerp(
-      monitorGroup.rotation.x, -0.08 - pointerSmooth.y * 0.13, 0.055
+      monitorGroup.rotation.x, -0.08 - pointerSmooth.y * 0.13, CRT_MONITOR_TILT_LERP
     );
     monitorGroup.rotation.z  = THREE.MathUtils.lerp(
-      monitorGroup.rotation.z, Math.sin(elapsed * 0.41) * 0.013, 0.028
+      monitorGroup.rotation.z, Math.sin(elapsed * 0.41) * 0.013, CRT_MONITOR_ROLL_LERP
     );
 
     const screenElement = getScreenElement?.();

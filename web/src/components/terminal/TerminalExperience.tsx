@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type {
   Article,
@@ -190,6 +191,7 @@ const EMPTY_FORM = {
 };
 
 const DIV = "─".repeat(52);
+const POWER_BUTTON_HOVER_MS = 40;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -229,13 +231,23 @@ function durationText(ms?: number) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function dateTimeText(dateStr?: string) {
+function relativeTimeText(dateStr?: string, nowMs = Date.now()) {
   if (!dateStr) return "";
-  try {
-    return new Date(dateStr).toLocaleString("en-US");
-  } catch {
-    return dateStr;
-  }
+
+  const playedMs = new Date(dateStr).getTime();
+  if (Number.isNaN(playedMs)) return "";
+
+  const deltaSeconds = Math.max(0, Math.floor((nowMs - playedMs) / 1000));
+  if (deltaSeconds < 60) return "just now";
+
+  const deltaMinutes = Math.floor(deltaSeconds / 60);
+  if (deltaMinutes < 60) return `${deltaMinutes}m ago`;
+
+  const deltaHours = Math.floor(deltaMinutes / 60);
+  if (deltaHours < 24) return `${deltaHours}h ago`;
+
+  const deltaDays = Math.floor(deltaHours / 24);
+  return `${deltaDays}d ago`;
 }
 
 function formatMoney(cents?: number) {
@@ -383,8 +395,8 @@ function progressBar(progressMs?: number, durationMs?: number) {
 }
 
 function resolveSpotifyTrack(track: SpotifyTrack) {
-  const latestHistory = track.history?.[0];
-  return track?.isPlaying && track?.title ? track : latestHistory;
+  if (track?.title) return track;
+  return track.history?.[0];
 }
 
 function spotifyProgressNow(spotify: SpotifyViewState, nowMs = Date.now()) {
@@ -409,19 +421,22 @@ function spotifyPreviewState(
 
   const isLive = Boolean(spotify.track.isPlaying && spotify.track.title);
   const progressMs = spotifyProgressNow(spotify, nowMs);
+  const details = [
+    activeTrack.artist ? `Artist: ${activeTrack.artist}` : "",
+    activeTrack.albumName ? `Album: ${activeTrack.albumName}` : "",
+    isLive
+      ? `Time: ${durationText(progressMs)} / ${durationText(activeTrack.durationMs)}`
+      : "",
+    isLive ? progressBar(progressMs, activeTrack.durationMs) : "",
+    isLive ? "Status: LIVE" : `Status: ${relativeTimeText(activeTrack.playedAt, nowMs) || "recent"}`,
+  ].filter(Boolean);
 
   return {
     title: activeTrack.title,
     subtitle: isLive ? "Spotify · Now Playing" : "Spotify · Last Played",
     imageUrl: activeTrack.albumArt,
     imageAlt: activeTrack.albumName ?? activeTrack.title,
-    details: [
-      activeTrack.artist ? `Artist: ${activeTrack.artist}` : "",
-      activeTrack.albumName ? `Album: ${activeTrack.albumName}` : "",
-      `Time: ${durationText(progressMs)} / ${durationText(activeTrack.durationMs)}`,
-      progressBar(progressMs, activeTrack.durationMs),
-      isLive ? "Status: LIVE" : `Status: ${dateTimeText(activeTrack.playedAt)}`,
-    ].filter(Boolean),
+    details,
     linkUrl: activeTrack.songUrl,
     linkLabel: "Listen on Spotify",
     caption: activeTrack.artist ?? activeTrack.albumName,
@@ -647,7 +662,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
 
   return (
     <div
-      className={`whitespace-pre-wrap leading-5 ${toneClass} ${weightClass}`}
+      className={`whitespace-pre-wrap leading-[0.875rem] ${toneClass} ${weightClass}`}
       style={{ textShadow: "0 0 6px rgba(74, 222, 128, 0.14)" }}
     >
       {entry.text}
@@ -672,12 +687,12 @@ function PreviewPanel({
   return (
     <div className="flex flex-col gap-4 p-4 h-full overflow-y-auto">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[#86efac]/35 text-[10px] tracking-widest uppercase">
+        <span className="text-[#86efac]/35 text-[7px] tracking-widest uppercase">
           Preview
         </span>
         <button
           onClick={onClose}
-          className="text-[#86efac]/35 hover:text-[#dcfce7] transition-colors text-sm leading-none"
+          className="text-[#86efac]/35 hover:text-[#dcfce7] transition-colors text-[0.6125rem] leading-none"
         >
           ✕
         </button>
@@ -720,16 +735,16 @@ function PreviewPanel({
       )}
 
       <div className="space-y-1.5">
-        <div className="text-[#d9fbe3]/90 text-sm leading-snug font-medium">
+        <div className="text-[#d9fbe3]/90 text-[0.6125rem] leading-snug font-medium">
           {preview.title}
         </div>
         {preview.subtitle && (
-          <div className="text-[#86efac]/45 text-xs leading-snug">
+          <div className="text-[#86efac]/45 text-[0.525rem] leading-snug">
             {preview.subtitle}
           </div>
         )}
         {preview.caption && (
-          <div className="text-[#86efac]/30 text-xs leading-snug">
+          <div className="text-[#86efac]/30 text-[0.525rem] leading-snug">
             {preview.caption}
           </div>
         )}
@@ -738,7 +753,7 @@ function PreviewPanel({
             {preview.details.map((detail, index) => (
               <div
                 key={`${detail}-${index}`}
-                className="text-[#86efac]/55 text-xs leading-snug"
+                className="text-[#86efac]/55 text-[0.525rem] leading-snug"
               >
                 {detail}
               </div>
@@ -746,7 +761,7 @@ function PreviewPanel({
           </div>
         )}
         {preview.quote && (
-          <div className="rounded border border-[#4ade80]/12 bg-[#05160c]/70 px-3 py-2 text-[#bbf7d0]/70 text-xs leading-snug">
+          <div className="rounded border border-[#4ade80]/12 bg-[#05160c]/70 px-3 py-2 text-[#bbf7d0]/70 text-[0.525rem] leading-snug">
             &quot;{preview.quote}&quot;
           </div>
         )}
@@ -757,7 +772,7 @@ function PreviewPanel({
           href={preview.linkUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#86efac] text-xs underline underline-offset-2 hover:text-[#dcfce7] transition-colors"
+          className="text-[#86efac] text-[0.525rem] underline underline-offset-2 hover:text-[#dcfce7] transition-colors"
         >
           ↗ {preview.linkLabel ?? "View"}
         </a>
@@ -767,74 +782,6 @@ function PreviewPanel({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-
-function SpotifyLivePanel({
-  spotify,
-  nowMs,
-}: {
-  spotify: SpotifyViewState;
-  nowMs: number;
-}) {
-  const activeTrack = resolveSpotifyTrack(spotify.track);
-  if (!activeTrack?.title) return null;
-
-  const isLive = Boolean(spotify.track.isPlaying && spotify.track.title);
-  const progressMs = spotifyProgressNow(spotify, nowMs);
-  const durationMs = activeTrack.durationMs ?? 0;
-  const lineStyle = { textShadow: "0 0 6px rgba(74, 222, 128, 0.14)" };
-
-  return (
-    <div className="mb-3 rounded border border-[#4ade80]/15 bg-[#041109]/80 px-3 py-3">
-      <div className="whitespace-pre-wrap leading-5 text-[#86efac]/45" style={lineStyle}>
-        {DIV}
-      </div>
-      <div className="whitespace-pre-wrap leading-5 font-semibold text-[#4ade80]" style={lineStyle}>
-        {`  ${isLive ? "NOW PLAYING" : "LAST PLAYED"}`}
-      </div>
-      <div className="whitespace-pre-wrap leading-5 text-[#86efac]/45" style={lineStyle}>
-        {DIV}
-      </div>
-      <div className="h-2" />
-      <div className="whitespace-pre-wrap leading-5 text-[#d9fbe3]/85" style={lineStyle}>
-        {`  ${activeTrack.title}`}
-      </div>
-      {activeTrack.artist && (
-        <div className="whitespace-pre-wrap leading-5 text-[#86efac]/45" style={lineStyle}>
-          {`  ${activeTrack.artist}`}
-        </div>
-      )}
-      {activeTrack.albumName && (
-        <div className="whitespace-pre-wrap leading-5 text-[#86efac]/45" style={lineStyle}>
-          {`  ${activeTrack.albumName}`}
-        </div>
-      )}
-      <div className="h-2" />
-      <div className="whitespace-pre-wrap leading-5 text-[#d9fbe3]/85" style={lineStyle}>
-        {`  ${durationText(progressMs)} / ${durationText(durationMs)}`}
-      </div>
-      <div className="whitespace-pre-wrap leading-5 text-[#d9fbe3]/85" style={lineStyle}>
-        {`  ${progressBar(progressMs, durationMs)}`}
-      </div>
-      <div className="whitespace-pre-wrap leading-5 text-[#86efac]/45" style={lineStyle}>
-        {`  ${isLive ? "LIVE" : `Played ${dateTimeText(activeTrack.playedAt)}`}`}
-      </div>
-      {activeTrack.songUrl && (
-        <>
-          <div className="h-2" />
-          <a
-            href={activeTrack.songUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors"
-            style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.22)" }}
-          >
-            ↗ Listen on Spotify
-          </a>
-        </>
-      )}
-    </div>
-  );
-}
 
 export default function TerminalExperience() {
   const pathname = usePathname();
@@ -872,25 +819,11 @@ export default function TerminalExperience() {
   const historyIdxRef = React.useRef(-1);
   const commandControlKeyRef = React.useRef<(key: string) => boolean>(() => false);
 
-  const debugTerminalEvent = React.useCallback(
-    (label: string, details?: Record<string, unknown>) => {
-      if (typeof window === "undefined") return;
-      console.log("[terminal-overlay]", {
-        label,
-        powerState,
-        busy,
-        activeElement:
-          document.activeElement instanceof HTMLElement
-            ? `${document.activeElement.tagName.toLowerCase()}#${document.activeElement.id || ""}.${document.activeElement.className || ""}`
-            : null,
-        ...details,
-      });
-    },
-    [busy, powerState]
-  );
+  const debugTerminalEvent = React.useCallback((...args: unknown[]) => {
+    void args;
+  }, []);
 
   const focusCommandInput = React.useCallback(() => {
-    if (powerState !== "on" || busy) return;
     const node = inputRef.current;
     if (!node) {
       debugTerminalEvent("focus-miss", { reason: "no-input-ref" });
@@ -914,7 +847,7 @@ export default function TerminalExperience() {
     applyFocus();
     window.requestAnimationFrame(applyFocus);
     window.setTimeout(applyFocus, 90);
-  }, [busy, debugTerminalEvent, powerState]);
+  }, [debugTerminalEvent]);
 
   const focusTerminalSurface = React.useCallback(() => {
     if (powerState !== "on" || busy) return;
@@ -1223,7 +1156,7 @@ export default function TerminalExperience() {
     powerTimeoutRef.current = window.setTimeout(() => {
       setPowerState("on");
       powerTimeoutRef.current = null;
-    }, 520);
+    }, 720);
   }, [active, playPowerSfx, powerState]);
 
   // "Turn On TV" button handler — must be in a click event for audio gesture context.
@@ -1261,12 +1194,9 @@ export default function TerminalExperience() {
     powerTimeoutRef.current = window.setTimeout(() => {
       setActive(false);
       setPowerState("off");
-      if (isTerminalRoute) {
-        router.push("/");
-      }
       powerTimeoutRef.current = null;
-    }, 460);
-  }, [active, isTerminalRoute, playPowerSfx, powerState, router]);
+    }, 620);
+  }, [active, playPowerSfx, powerState]);
 
   // ── Data loading ───────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -1343,7 +1273,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  MDCRAN CLI", "accent"),
       logText(
-        "  type  help  for commands  |  ESC or  exit  to close",
+        "  type  help  for commands  |  ESC or \"exit\" to close",
         "muted"
       ),
       logText(""),
@@ -1942,12 +1872,6 @@ export default function TerminalExperience() {
     if (p.liveUrl) links.push({ label: "Live site ↗", href: p.liveUrl });
     if (p.externalUrl)
       links.push({ label: "External link ↗", href: p.externalUrl });
-    const firstVideo = p.videos?.[0];
-    if (firstVideo?.youtubeId)
-      links.push({
-        label: `YouTube ↗`,
-        href: `https://youtu.be/${firstVideo.youtubeId}`,
-      });
     if (
       p.pricing?.downloadUrl &&
       p.pricing.status === "free"
@@ -1991,7 +1915,6 @@ export default function TerminalExperience() {
             ),
           ]
         : []),
-      logText(`  Command: open ${p.slug}`, "muted"),
     ];
 
     if (links.length) {
@@ -2893,8 +2816,6 @@ export default function TerminalExperience() {
 
       if (!announce) return;
 
-      const currentProgress = spotifyProgressNow(nextState, nextState.fetchedAt);
-      const currentDuration = activeTrack.durationMs;
       const lines: LogEntry[] = [
         logText(""),
         logText(DIV, "muted"),
@@ -2906,15 +2827,24 @@ export default function TerminalExperience() {
         logText(`  ${activeTrack.albumName ?? ""}`, "muted"),
         logText(""),
         logText(
-          `  ${durationText(currentProgress)} / ${durationText(currentDuration)}`
-        ),
-        logText(`  ${progressBar(currentProgress, currentDuration)}`),
-        logText(
-          `  ${isLive ? "LIVE" : `Played ${dateTimeText(activeTrack.playedAt)}`}`,
+          `  ${isLive ? "LIVE" : relativeTimeText(activeTrack.playedAt, nextState.fetchedAt) || "recent"}`,
           "muted"
         ),
         logText(""),
       ];
+
+      if (isLive) {
+        const currentProgress = spotifyProgressNow(nextState, nextState.fetchedAt);
+        const currentDuration = activeTrack.durationMs;
+        lines.splice(
+          lines.length - 2,
+          0,
+          logText(
+            `  ${durationText(currentProgress)} / ${durationText(currentDuration)}`
+          ),
+          logText(`  ${progressBar(currentProgress, currentDuration)}`)
+        );
+      }
 
       if (activeTrack.songUrl) {
         lines.push(
@@ -3132,6 +3062,20 @@ export default function TerminalExperience() {
     }
   }
 
+  function handleTerminalSurfaceWheel(e: React.WheelEvent<HTMLElement>) {
+    if (powerState !== "on" || e.ctrlKey) return;
+
+    const transcript = transcriptRef.current;
+    if (!transcript || transcript.scrollHeight <= transcript.clientHeight) return;
+
+    let deltaY = e.deltaY;
+    if (e.deltaMode === 1) deltaY *= 16;
+    if (e.deltaMode === 2) deltaY *= transcript.clientHeight;
+
+    transcript.scrollTop += deltaY;
+    e.preventDefault();
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   // On the /terminal route we always render (to show the "Turn On TV" button
@@ -3175,29 +3119,41 @@ export default function TerminalExperience() {
           <div className="pointer-events-auto flex flex-col items-center">
             <button
               onClick={handleTurnOn}
-              className="group relative flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-full border border-[#4ade80]/20 bg-[#040806] transition-all duration-500 hover:border-[#4ade80]/60 hover:bg-[#070f08] focus:outline-none"
-              style={{
-                boxShadow: "0 0 50px rgba(74,222,128,0.08), inset 0 0 24px rgba(74,222,128,0.04)",
-              }}
-            >
+                className="group relative flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-full border border-[#4ade80]/20 bg-[#040806] transition-all hover:border-[#4ade80]/60 hover:bg-[#070f08] focus:outline-none"
+                style={{
+                  boxShadow: "0 0 50px rgba(74,222,128,0.08), inset 0 0 24px rgba(74,222,128,0.04)",
+                  transitionDuration: `${POWER_BUTTON_HOVER_MS}ms`,
+                }}
+              >
               <div
-                className="absolute inset-4 rounded-full border border-[#4ade80]/15 transition-colors duration-500 group-hover:border-[#4ade80]/40"
-                style={{ boxShadow: "inset 0 0 14px rgba(74,222,128,0.06)" }}
+                className="absolute inset-4 rounded-full border border-[#4ade80]/15 transition-colors group-hover:border-[#4ade80]/40"
+                style={{
+                  boxShadow: "inset 0 0 14px rgba(74,222,128,0.06)",
+                  transitionDuration: `${POWER_BUTTON_HOVER_MS}ms`,
+                }}
               />
               {/* Power icon */}
               <svg
-                className="relative z-10 h-10 w-10 text-[#4ade80]/40 transition-colors duration-500 group-hover:text-[#4ade80]/80"
+                className="relative z-10 h-10 w-10 text-[#4ade80]/40 transition-colors group-hover:text-[#4ade80]/80"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1.5}
                 viewBox="0 0 24 24"
                 aria-hidden
+                style={{ transitionDuration: `${POWER_BUTTON_HOVER_MS}ms` }}
               >
                 <path strokeLinecap="round" d="M12 3v5M5.636 5.636a9 9 0 1 0 12.728 0" />
               </svg>
               <span className="sr-only">Turn On TV</span>
             </button>
           </div>
+          <Link
+            href="/"
+            className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] text-[#86efac]/22 transition-colors hover:text-[#86efac]/45"
+            style={{ textShadow: "0 0 10px rgba(74, 222, 128, 0.08)" }}
+          >
+            &lt;- MDCran.com
+          </Link>
         </div>
       )}
       {/* Terminal shell — hidden in Three.js off-state; shown as overlay otherwise */}
@@ -3208,9 +3164,9 @@ export default function TerminalExperience() {
         className={`crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[#6d6553]/30 bg-[#090a08] outline-none`}
         style={{
           // In Three.js mode: keep the terminal constrained to the CRT screen area.
-          width:       isThreeStage ? "85vw" : undefined,
+          width:       isThreeStage ? "67vw" : undefined,
           height:      isThreeStage ? "85vh" : undefined,
-          maxWidth:    isThreeStage ? "85vw" : undefined,
+          maxWidth:    isThreeStage ? "67vw" : undefined,
           maxHeight:   isThreeStage ? "85vh" : undefined,
           borderColor: isThreeStage ? "transparent" : undefined,
           boxShadow:   isThreeStage
@@ -3223,6 +3179,7 @@ export default function TerminalExperience() {
         }}
         onPointerDown={() => focusTerminalSurface()}
         onClick={() => focusTerminalSurface()}
+        onWheel={handleTerminalSurfaceWheel}
         onKeyDownCapture={handleTerminalSurfaceKeyDown}
       >
       {/* CRT CSS overlays */}
@@ -3360,7 +3317,6 @@ export default function TerminalExperience() {
         autoFocus={powerState === "on"}
         value={input}
         onChange={(e) => {
-          if (powerState !== "on" || busy) return;
           debugTerminalEvent("change", {
             value: e.target.value,
             valueLength: e.target.value.length,
@@ -3394,13 +3350,13 @@ export default function TerminalExperience() {
             value: e.currentTarget.value,
           });
         }}
-        readOnly={powerState !== "on" || busy}
+        readOnly={false}
         spellCheck={false}
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         inputMode="text"
-        tabIndex={powerState === "on" ? 0 : -1}
+        tabIndex={0}
         onFocus={() => {
           debugTerminalEvent("focus");
           setInputFocused(true);
@@ -3410,7 +3366,6 @@ export default function TerminalExperience() {
           setInputFocused(false);
         }}
         onPointerDown={(e) => {
-          if (powerState !== "on") return;
           debugTerminalEvent("pointerdown", {
             x: e.clientX,
             y: e.clientY,
@@ -3419,19 +3374,23 @@ export default function TerminalExperience() {
           focusCommandInput();
         }}
         onClick={(e) => {
-          if (powerState !== "on") return;
           debugTerminalEvent("click");
           e.stopPropagation();
           focusCommandInput();
         }}
-        className="absolute z-[11] block cursor-text appearance-none border-0 bg-transparent text-transparent outline-none"
+        onWheel={(e) => {
+          e.stopPropagation();
+          handleTerminalSurfaceWheel(e);
+        }}
+        className="absolute z-[50] block cursor-text appearance-none border-0 bg-transparent text-transparent outline-none"
         style={{
-          inset: isThreeStage ? "6px" : "10px",
-          borderRadius: "22px",
-          width: isThreeStage ? "calc(100% - 12px)" : "calc(100% - 20px)",
-          height: isThreeStage ? "calc(100% - 12px)" : "calc(100% - 20px)",
-          pointerEvents: powerState === "on" ? "auto" : "none",
-          background: "rgba(0, 0, 0, 0.001)",
+          left: isThreeStage ? "6px" : "10px",
+          right: isThreeStage ? "6px" : "10px",
+          bottom: isThreeStage ? "6px" : "10px",
+          borderRadius: "16px",
+          height: isThreeStage ? "64px" : "72px",
+          pointerEvents: "auto",
+          background: "rgba(0, 255, 0, 0.015)",
           color: "transparent",
           caretColor: "transparent",
         }}
@@ -3471,7 +3430,7 @@ export default function TerminalExperience() {
         </div>
 
         <div
-          className="text-[#86efac]/45 text-[11px] tracking-wider select-none"
+          className="text-[#86efac]/45 text-[8px] tracking-wider select-none"
           style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
         >
           {pathLabel(cwd)}
@@ -3479,7 +3438,7 @@ export default function TerminalExperience() {
 
         <div className="hidden sm:flex items-center gap-3">
           <span
-            className="text-[#86efac]/35 text-[10px] tracking-wider select-none"
+            className="text-[#86efac]/35 text-[7px] tracking-wider select-none"
             style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
           >
             ESC or &quot;exit&quot; to close
@@ -3489,7 +3448,7 @@ export default function TerminalExperience() {
               e.stopPropagation();
               closeTerminal();
             }}
-            className="text-[#86efac]/35 hover:text-[#dcfce7] transition-colors text-sm leading-none"
+            className="text-[#86efac]/35 hover:text-[#dcfce7] transition-colors text-[0.6125rem] leading-none"
             style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
           >
             ✕
@@ -3505,24 +3464,23 @@ export default function TerminalExperience() {
         {/* Transcript */}
         <div
           ref={transcriptRef}
-          className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-sm"
+          className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
           style={{ textShadow: "0 0 7px rgba(74, 222, 128, 0.12)" }}
         >
           {loading && (
-            <div className="text-[#86efac]/45 text-xs py-2">
+            <div className="text-[#86efac]/45 text-[0.525rem] py-2">
               Loading terminal data...
             </div>
           )}
           {logs.map((entry) => (
             <LogLine key={entry.id} entry={entry} />
           ))}
-          {spotifyLive && <SpotifyLivePanel spotify={spotifyLive} nowMs={spotifyClock} />}
           <div className="h-3" />
         </div>
 
         {/* Preview panel */}
         {activePreview && (
-          <div className="hidden md:flex w-72 lg:w-80 shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#031008]/92">
+            <div className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#031008]/92">
             <PreviewPanel
               preview={activePreview}
               onClose={() => {
@@ -3556,7 +3514,7 @@ export default function TerminalExperience() {
       >
         {results.length > 0 && (
           <div className="mb-2 rounded border border-[#4ade80]/15 bg-[#05160c]/90 px-2 py-2">
-            <div className="mb-1 px-1 text-[10px] tracking-wider text-[#86efac]/45 uppercase">
+            <div className="mb-1 px-1 text-[7px] tracking-wider text-[#86efac]/45 uppercase">
               {resultsLabel} · Arrow keys to select · Enter to open
             </div>
             <div className="flex flex-col gap-1">
@@ -3589,7 +3547,7 @@ export default function TerminalExperience() {
                 return (
                   <div
                     key={`${result.kind}-${"id" in result ? result.id : result.label}-${index}`}
-                    className={`rounded px-2 py-1 text-xs leading-snug ${
+                    className={`rounded px-2 py-1 text-[0.525rem] leading-snug ${
                       isActive
                         ? "bg-[#0d2e1a] text-[#dcfce7]"
                         : "text-[#86efac]/65"
@@ -3610,21 +3568,21 @@ export default function TerminalExperience() {
           </div>
         )}
         {commandUsageHint && (
-          <div className="mb-2 rounded border border-[#4ade80]/15 bg-[#05160c]/85 px-3 py-2 text-[11px] text-[#86efac]/55">
+          <div className="mb-2 rounded border border-[#4ade80]/15 bg-[#05160c]/85 px-3 py-2 text-[8px] text-[#86efac]/55">
             / {commandUsageHint}
           </div>
         )}
         <div className="flex items-center gap-2">
         {formMode && (
           <span
-            className="text-[#fde68a]/70 text-[11px] shrink-0 select-none tracking-wider uppercase"
+            className="text-[#fde68a]/70 text-[8px] shrink-0 select-none tracking-wider uppercase"
             style={{ textShadow: "0 0 8px rgba(250, 204, 21, 0.18)" }}
           >
             [{formMode}]
           </span>
         )}
         <span
-          className="text-[#4ade80] text-sm shrink-0 select-none"
+          className="text-[#4ade80] text-[0.6125rem] shrink-0 select-none"
           style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.2)" }}
           onPointerDown={() => focusTerminalSurface()}
         >
@@ -3636,7 +3594,7 @@ export default function TerminalExperience() {
         >
           {input && (
             <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-sm overflow-hidden"
+              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
               aria-hidden
             >
               {coloredInputSegments.map((segment, index) => (
@@ -3665,7 +3623,7 @@ export default function TerminalExperience() {
           {/* Ghost autocomplete suggestion */}
           {ghostSuffix && (
             <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-sm overflow-hidden"
+              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
               aria-hidden
             >
               <span className="invisible">{input}</span>
@@ -3674,7 +3632,7 @@ export default function TerminalExperience() {
           )}
           {powerState === "on" && (
             <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-sm overflow-hidden"
+              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
               aria-hidden
             >
               <span className="invisible">{input}</span>
@@ -3689,13 +3647,13 @@ export default function TerminalExperience() {
           )}
           <div
             aria-hidden
-            className="relative z-[2] w-full select-none text-sm opacity-0"
+            className="relative z-[2] w-full select-none text-[0.6125rem] opacity-0"
           >
             {busy ? "Processing..." : "."}
           </div>
         </div>
         {busy && (
-          <span className="text-[#86efac]/40 text-xs animate-pulse select-none">
+          <span className="text-[#86efac]/40 text-[0.525rem] animate-pulse select-none">
             wait...
           </span>
         )}
@@ -3768,25 +3726,26 @@ export default function TerminalExperience() {
 
         .power-starting .crt-content-layer {
           animation:
-            crtPowerOnContent 0.52s ease-out,
-            crtContentDrift 9s ease-in-out 0.52s infinite,
-            crtContentJitter 0.18s steps(2) 0.52s infinite;
+            crtPowerOnContent 0.72s cubic-bezier(0.16, 0.82, 0.2, 1) forwards,
+            crtPowerOnStabilize 0.18s steps(2) 0.52s 2,
+            crtContentDrift 9s ease-in-out 0.72s infinite,
+            crtContentJitter 0.18s steps(2) 0.72s infinite;
         }
 
         .power-stopping .crt-content-layer {
-          animation: crtPowerOffContent 0.46s ease-in forwards;
+          animation: crtPowerOffContent 0.62s cubic-bezier(0.55, 0, 0.82, 0.32) forwards;
         }
 
         .power-starting.crt-shell::before {
           animation:
-            crtStartupBloom 0.6s ease-out forwards,
-            crtPulseGlow 0.3s steps(2) 2;
+            crtStartupBloom 0.8s cubic-bezier(0.16, 0.82, 0.2, 1) forwards,
+            crtPulseGlow 0.18s steps(2) 3;
         }
 
         .power-stopping.crt-shell::before {
           animation:
-            crtShutdownBloom 0.44s ease-out forwards,
-            crtPulseGlow 0.18s steps(2) 3;
+            crtShutdownBloom 0.62s cubic-bezier(0.55, 0, 0.82, 0.32) forwards,
+            crtPulseGlow 0.14s steps(2) 4;
         }
 
         .crt-content-layer {
@@ -4209,14 +4168,35 @@ export default function TerminalExperience() {
             crtNoiseDrift 0.18s steps(3) infinite;
         }
 
+        .power-starting .crt-rgb-fringe {
+          opacity: 0.3;
+          filter: blur(2.5px) saturate(1.18);
+          animation-duration: 0.08s, 0.34s;
+        }
+
+        .power-starting .crt-afterimage-layer {
+          opacity: 0.16;
+          filter: blur(9px);
+        }
+
+        .power-starting .crt-static-burst-layer {
+          opacity: 0.08;
+        }
+
         .power-stopping .crt-rgb-fringe {
-          opacity: 0.26;
-          animation-duration: 0.08s, 0.22s;
+          opacity: 0.34;
+          filter: blur(2.8px) saturate(1.24);
+          animation-duration: 0.06s, 0.18s;
+        }
+
+        .power-stopping .crt-afterimage-layer {
+          opacity: 0.18;
+          filter: blur(9px);
         }
 
         .power-stopping .crt-tear-layer,
         .power-stopping .crt-static-burst-layer {
-          opacity: 0.12;
+          opacity: 0.18;
         }
 
         .crt-hud-corners {
@@ -4441,35 +4421,41 @@ export default function TerminalExperience() {
         }
 
         .power-starting .crt-power-vertical {
-          animation: crtStartupVertical 0.24s ease-out forwards;
+          animation: crtStartupVertical 0.28s cubic-bezier(0.16, 0.82, 0.2, 1) 0.34s forwards;
         }
 
         .power-starting .crt-power-horizontal {
-          animation: crtStartupHorizontal 0.34s ease-out 0.16s forwards;
+          animation: crtStartupHorizontal 0.3s cubic-bezier(0.16, 0.82, 0.2, 1) 0.14s forwards;
         }
 
         .power-starting .crt-power-dot {
-          animation: crtStartupDot 0.42s ease-out forwards;
+          animation: crtStartupDot 0.3s ease-out forwards;
+          box-shadow:
+            0 0 28px rgba(180,255,225,0.72),
+            0 0 72px rgba(120,225,255,0.42);
         }
 
         .power-starting .crt-power-flash {
-          animation: crtStartupFlash 0.52s ease-out forwards;
+          animation: crtStartupFlash 0.66s ease-out forwards;
         }
 
         .power-stopping .crt-power-vertical {
-          animation: crtShutdownVertical 0.4s ease-in 0.06s forwards;
+          animation: crtShutdownVertical 0.34s cubic-bezier(0.55, 0, 0.82, 0.32) 0.08s forwards;
         }
 
         .power-stopping .crt-power-horizontal {
-          animation: crtShutdownHorizontal 0.24s ease-in forwards;
+          animation: crtShutdownHorizontal 0.42s cubic-bezier(0.2, 0.75, 0.28, 1) forwards;
         }
 
         .power-stopping .crt-power-dot {
-          animation: crtShutdownDot 0.46s ease-in forwards;
+          animation: crtShutdownDot 0.24s ease-in 0.34s forwards;
+          box-shadow:
+            0 0 30px rgba(180,255,225,0.8),
+            0 0 80px rgba(120,225,255,0.5);
         }
 
         .power-stopping .crt-power-flash {
-          animation: crtShutdownFlash 0.22s ease-out forwards;
+          animation: crtShutdownFlash 0.3s ease-out forwards;
         }
 
         @keyframes crtStaticShift {
@@ -4722,18 +4708,26 @@ export default function TerminalExperience() {
         }
 
         @keyframes crtPowerOnContent {
-          0% { opacity: 0; transform: scaleY(0.01) scaleX(0); filter: brightness(2.4); }
-          26% { opacity: 0.95; transform: scaleY(0.02) scaleX(0.08); filter: brightness(2.2); }
-          54% { opacity: 1; transform: scaleY(0.08) scaleX(1); filter: brightness(1.8); }
-          100% { opacity: 1; transform: scaleY(1) scaleX(1); filter: brightness(1); }
+          0% { opacity: 0; transform: scaleY(0.004) scaleX(0.008); filter: brightness(3) saturate(1.25); }
+          16% { opacity: 0.98; transform: scaleY(0.008) scaleX(0.03); filter: brightness(2.7) saturate(1.2); }
+          40% { opacity: 1; transform: scaleY(0.016) scaleX(1); filter: brightness(2.1) saturate(1.14); }
+          68% { opacity: 1; transform: scaleY(1.03) scaleX(1); filter: brightness(1.34) saturate(1.08); }
+          84% { opacity: 0.985; transform: scaleY(0.985) scaleX(1); filter: brightness(1.08) saturate(1.03); }
+          100% { opacity: 1; transform: scaleY(1) scaleX(1); filter: brightness(1) saturate(1); }
         }
 
         @keyframes crtPowerOffContent {
-          0% { opacity: 1; transform: scaleY(1) scaleX(1); filter: brightness(1); }
-          26% { opacity: 0.98; transform: scaleY(0.92) scaleX(1.01); filter: brightness(1.15); }
-          58% { opacity: 0.96; transform: scaleY(0.05) scaleX(1); filter: brightness(2.05); }
-          82% { opacity: 0.8; transform: scaleY(0.018) scaleX(0.14); filter: brightness(2.35); }
-          100% { opacity: 0; transform: scaleY(0.006) scaleX(0); filter: brightness(2.6); }
+          0% { opacity: 1; transform: scaleY(1) scaleX(1); filter: brightness(1) saturate(1); }
+          24% { opacity: 0.99; transform: scaleY(1.01) scaleX(1.002); filter: brightness(1.14) saturate(1.04); }
+          54% { opacity: 0.98; transform: scaleY(0.016) scaleX(1); filter: brightness(1.95) saturate(1.14); }
+          76% { opacity: 0.94; transform: scaleY(0.012) scaleX(0.16); filter: brightness(2.28) saturate(1.2); }
+          100% { opacity: 0; transform: scaleY(0.004) scaleX(0.006); filter: brightness(2.8) saturate(1.26); }
+        }
+
+        @keyframes crtPowerOnStabilize {
+          0% { opacity: 1; filter: brightness(1.18); }
+          50% { opacity: 0.992; filter: brightness(0.94); }
+          100% { opacity: 1; filter: brightness(1); }
         }
 
         @keyframes crtContentDrift {
@@ -4812,55 +4806,58 @@ export default function TerminalExperience() {
         }
 
         @keyframes crtStartupVertical {
-          0% { height: 0; opacity: 0.9; }
-          60% { height: 100%; opacity: 0.8; }
+          0% { height: 2px; opacity: 0; }
+          18% { height: 2px; opacity: 0.14; }
+          74% { height: 100%; opacity: 0.7; }
           100% { height: 100%; opacity: 0; }
         }
 
         @keyframes crtStartupHorizontal {
-          0% { width: 0; opacity: 0.95; }
-          55% { width: 100%; opacity: 0.85; }
+          0% { width: 0; opacity: 0; }
+          12% { width: 0; opacity: 0.88; }
+          62% { width: 100%; opacity: 0.92; }
           100% { width: 100%; opacity: 0; }
         }
 
         @keyframes crtStartupDot {
-          0% { width: 8px; height: 8px; opacity: 0.35; }
-          20% { width: 20px; height: 20px; opacity: 0.75; }
-          55% { width: 180px; height: 26px; opacity: 0.65; }
-          100% { width: 100%; height: 100%; opacity: 0; }
+          0% { width: 3px; height: 3px; opacity: 0; }
+          24% { width: 18px; height: 18px; opacity: 0.98; }
+          58% { width: 76px; height: 7px; opacity: 0.9; }
+          100% { width: 120px; height: 3px; opacity: 0; }
         }
 
         @keyframes crtStartupFlash {
-          0% { opacity: 0.65; }
-          22% { opacity: 0.9; }
+          0% { opacity: 0.18; }
+          20% { opacity: 0.86; }
+          54% { opacity: 0.34; }
           100% { opacity: 0; }
         }
 
         @keyframes crtShutdownHorizontal {
-          0% { width: 100%; opacity: 0.8; }
-          38% { width: 100%; opacity: 0.94; }
-          72% { width: 10%; opacity: 1; }
+          0% { width: 100%; opacity: 0.12; }
+          22% { width: 100%; opacity: 0.92; }
+          68% { width: 18%; opacity: 1; }
           100% { width: 0; opacity: 0; }
         }
 
         @keyframes crtShutdownVertical {
           0% { height: 100%; opacity: 0; }
-          16% { height: 100%; opacity: 0.32; }
-          38% { height: 100%; opacity: 0.78; }
+          18% { height: 100%; opacity: 0.26; }
+          56% { height: 32%; opacity: 0.76; }
           100% { height: 0; opacity: 0; }
         }
 
         @keyframes crtShutdownDot {
           0% { width: 0; height: 0; opacity: 0; }
-          44% { width: 18px; height: 18px; opacity: 0.84; }
-          68% { width: 10px; height: 10px; opacity: 0.92; }
+          36% { width: 6px; height: 6px; opacity: 0.55; }
+          72% { width: 14px; height: 14px; opacity: 0.98; }
           100% { width: 2px; height: 2px; opacity: 0; }
         }
 
         @keyframes crtShutdownFlash {
           0% { opacity: 0; }
-          20% { opacity: 0.16; }
-          42% { opacity: 0.32; }
+          18% { opacity: 0.14; }
+          44% { opacity: 0.4; }
           100% { opacity: 0; }
         }
 

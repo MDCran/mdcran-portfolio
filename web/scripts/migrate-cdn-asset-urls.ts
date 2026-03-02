@@ -1,5 +1,5 @@
 import { loadEnvConfig } from "@next/env";
-import { MongoClient } from "mongodb";
+import { MongoClient, type Document } from "mongodb";
 
 loadEnvConfig(process.cwd());
 
@@ -10,6 +10,8 @@ const CDN_BASE_URL = (process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "https://cdn.mdcra
 if (!MONGODB_URI) {
   throw new Error("Missing MONGODB_URI. Set it before running the migration.");
 }
+
+const mongoUri = MONGODB_URI;
 
 function normalizeAssetUrl(value: string): string {
   if (value.startsWith("/cdn/")) {
@@ -55,7 +57,7 @@ function rewriteNode<T>(value: T): [T, boolean] {
 }
 
 async function main() {
-  const client = new MongoClient(MONGODB_URI);
+  const client = new MongoClient(mongoUri);
 
   try {
     await client.connect();
@@ -65,7 +67,7 @@ async function main() {
     let updatedCount = 0;
 
     for (const { name } of collections) {
-      const collection = db.collection(name);
+      const collection = db.collection<Document>(name);
       const docs = await collection.find({}).toArray();
 
       for (const doc of docs) {
