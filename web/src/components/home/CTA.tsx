@@ -271,7 +271,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                       <Mail size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
                       <input
                         type="email"
-                        required={mode !== "sms"}
+                        required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="your@email.com"
@@ -285,7 +285,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                       <Phone size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
                       <input
                         type="tel"
-                        required={mode !== "email"}
+                        required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+1 (555) 000-0000"
