@@ -742,6 +742,22 @@ export const projects: Project[] = [
     tags: ["Design", "Thumbnail", "Minecraft"],
     pricing: { status: "unavailable" },
     featured: true,
+    videos: [
+      { youtubeId: "QtP467LwzQk", title: "Animal Crossing Hide & Seek in Minecraft" },
+      { youtubeId: "npQEoUyw2UU", title: "Fortnite Board Game in Minecraft" },
+      { youtubeId: "mtGN41cFjmI", title: "Minecraft Board Game" },
+      { youtubeId: "z2bcQBZyaY8", title: "MrBeast Build Challenge in Minecraft" },
+      { youtubeId: "5HdqqWMj9Q0", title: "Halloween Simulator in Minecraft" },
+      { youtubeId: "ivPDX07NZxg", title: "Christmas Simulator in Minecraft" },
+      { youtubeId: "zvFu2oxBv3Y", title: "Super Mario Hide & Seek in Minecraft" },
+      { youtubeId: "NKZlTiZgyxA", title: "5 Nights With Smile Dog in Minecraft" },
+      { youtubeId: "2UM1le4b_hM", title: "7 Top Secret Minecraft Bases" },
+      { youtubeId: "_AqBKtPRXkQ", title: "Babies in Minecraft" },
+      { youtubeId: "nAqhGtPksUo", title: "Breeding Simulator in Minecraft" },
+      { youtubeId: "6K-BDfGxri8", title: "Spiral Lucky Block Bedwars!" },
+      { youtubeId: "1XsPTTq8utw", title: "Lucky Block Bed-Wars Event" },
+      { youtubeId: "8xr_O6bIbv0", title: "How I CREATED a Map for PopularMMOs!" },
+    ],
   },
   {
     id: "thumbnails-cod",
@@ -765,6 +781,15 @@ export const projects: Project[] = [
     credits: [{ name: "Michael Cran", role: "Graphic Designer", isMe: true }],
     tags: ["Design", "Thumbnail", "Call of Duty"],
     pricing: { status: "unavailable" },
+    videos: [
+      { youtubeId: "SkmixuXHm1M", title: "OMG Dude I Just B*sted All Over My Setup! — Search & Destroy Sniping" },
+      { youtubeId: "sCUCJ6NU7VU", title: "Best Sniping Search & Destroy Moments #1" },
+      { youtubeId: "EFNKZtEY-Q4", title: "33 KILLS in 10 Rounds — Search & Destroy Sniping" },
+      { youtubeId: "P8fHr3Tq7XM", title: "Best Sniping Search & Destroy Moments #2" },
+      { youtubeId: "rL8sOl1-bdc", title: "Best Sniping Search & Destroy Moments #3" },
+      { youtubeId: "LeewsbwLW9I", title: "Best Sniping Search & Destroy Moments #4" },
+      { youtubeId: "ghj48cUOMkg", title: "Fails & Funny Moments #1" },
+    ],
   },
   // ─ More Minecraft Maps ──────────────────────────────────
   {

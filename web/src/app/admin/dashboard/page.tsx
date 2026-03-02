@@ -160,7 +160,10 @@ function normalizeSectionForSave(section: ArticleSection): ArticleSection {
 
 function fmtDate(d?: string): string {
   if (!d) return "—";
-  try { return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }); }
+  try {
+    const [year, month, day] = d.split("T")[0].split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  }
   catch { return d; }
 }
 
@@ -193,6 +196,13 @@ function formatBytes(bytes?: number): string {
 
 function isImageAssetFile(fileName: string): boolean {
   return /\.(?:png|jpe?g|gif|webp|avif|svg|ico)$/i.test(fileName);
+}
+
+/** Shows last 2 key segments so files with the same filename are distinguishable (e.g. COD_MW3/cover.png) */
+function r2DisplayName(key: string): string {
+  const parts = key.split("/").filter(Boolean);
+  if (parts.length <= 1) return key;
+  return parts.slice(-2).join("/");
 }
 
 function formatContactSource(source?: string): string {
@@ -599,10 +609,37 @@ function R2ImagePickerModal({
   const [prefix, setPrefix] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
   const [folders, setFolders] = useState<R2BrowserFolder[]>([]);
   const [files, setFiles] = useState<R2BrowserFile[]>([]);
+  const pickerFileInputRef = useRef<HTMLInputElement>(null);
   const imageFiles = files.filter((file) => isImageAssetFile(file.name));
+
+  async function uploadPickerFiles(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    setUploading(true);
+    setError("");
+    try {
+      for (const file of Array.from(fileList)) {
+        const formData = new FormData();
+        formData.set("file", file);
+        formData.set("prefix", prefix);
+        const response = await fetch("/api/admin/r2", { method: "POST", body: formData });
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error || `Upload failed for ${file.name}.`);
+        }
+      }
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+      if (pickerFileInputRef.current) pickerFileInputRef.current.value = "";
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -656,7 +693,7 @@ function R2ImagePickerModal({
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [prefix, search]);
+  }, [prefix, search, refreshKey]);
 
   return (
     <Modal title={title} onClose={onClose} wide>
@@ -668,7 +705,7 @@ function R2ImagePickerModal({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search images..."
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               type="button"
               className={btnOutline}
@@ -689,6 +726,18 @@ function R2ImagePickerModal({
             >
               Up One Level
             </button>
+            <label className={`${btnRed} cursor-pointer flex items-center gap-1.5 px-3 h-8 text-[11px]`}>
+              {uploading ? "Uploading…" : "Upload File"}
+              <input
+                ref={pickerFileInputRef}
+                type="file"
+                accept="image/*,video/*,.pdf"
+                multiple
+                className="hidden"
+                onChange={(e) => uploadPickerFiles(e.target.files)}
+                disabled={uploading}
+              />
+            </label>
           </div>
         </div>
 
@@ -751,8 +800,8 @@ function R2ImagePickerModal({
                           className="h-14 w-20 shrink-0 rounded-sm border border-white/8 bg-black/20 object-cover"
                         />
                         <div className="min-w-0">
-                          <div className="truncate text-xs text-white/75">{file.name}</div>
-                          <div className="truncate text-[10px] text-white/25">{file.key}</div>
+                          <div className="truncate text-xs text-white/75" title={file.key}>{r2DisplayName(file.key)}</div>
+                          <div className="truncate text-[10px] text-white/25">{file.publicUrl}</div>
                           <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-white/25">
                             <span>{formatBytes(file.size)}</span>
                             <span>{fmtDateTime(file.lastModified)}</span>
@@ -841,6 +890,7 @@ function ProjectModal({
   const [pricingStatus, setPricingStatus] = useState<ProjectStatus>(initial?.pricing.status ?? "free");
   const [price, setPrice] = useState(initial?.pricing.price ? (initial.pricing.price / 100).toFixed(2) : "");
   const [downloadUrl, setDownloadUrl] = useState(initial?.pricing.downloadUrl ?? "");
+  const [checkoutUrl, setCheckoutUrl] = useState(initial?.pricing.checkoutUrl ?? "");
   const [liveUrl, setLiveUrl] = useState(initial?.liveUrl ?? "");
   const [externalUrl, setExternalUrl] = useState(initial?.externalUrl ?? "");
   const [featured, setFeatured] = useState(initial?.featured ?? false);
@@ -903,6 +953,7 @@ function ProjectModal({
         status: pricingStatus,
         price: pricingStatus === "for_sale" && price ? Math.round(parseFloat(price) * 100) : undefined,
         downloadUrl: pricingStatus === "free" && downloadUrl ? downloadUrl.trim() : undefined,
+        checkoutUrl: pricingStatus === "for_sale" && checkoutUrl ? checkoutUrl.trim() : undefined,
       },
       liveUrl: liveUrl.trim() || undefined,
       externalUrl: externalUrl.trim() || undefined,
@@ -1167,6 +1218,14 @@ function ProjectModal({
               <Label>Price (USD)</Label>
               <input className={inputCls} type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="9.99" />
             </Field>
+          )}
+          {pricingStatus === "for_sale" && (
+            <div className="col-span-3">
+              <Field>
+                <Label>Checkout URL</Label>
+                <input className={inputCls} value={checkoutUrl} onChange={(e) => setCheckoutUrl(e.target.value)} placeholder="https://… (Stripe, Gumroad, etc.)" />
+              </Field>
+            </div>
           )}
           {pricingStatus === "free" && (
             <div className="col-span-2">
@@ -1504,11 +1563,13 @@ function ArticleModal({
       coverImage: cleanImageAsset(coverImage) ?? undefined,
       author: author.trim() || "MDCran",
       publishDate: publishDate || new Date().toISOString().slice(0, 10),
-      updatedDate: initial?.updatedDate,
+      updatedDate: initial ? new Date().toISOString().slice(0, 10) : undefined,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
       category,
       sections: cleanedSections,
       featured,
+      tapCount: initial?.tapCount,
+      authorProfilePic: initial?.authorProfilePic,
     };
     onSave(article);
   }
@@ -2611,6 +2672,76 @@ function toLocalDateTimeInputValue(iso: string): string {
 
   const offsetMs = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SEED DATABASE CARD
+═══════════════════════════════════════════════════════════ */
+function SeedDatabaseCard({ onSeeded }: { onSeeded: () => void }) {
+  const [seeding, setSeeding] = React.useState(false);
+  const [results, setResults] = React.useState<{ collection: string; seeded: number; skipped: boolean }[] | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleSeed() {
+    setSeeding(true);
+    setResults(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/seed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force: false }) });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Seed failed"); return; }
+      setResults(data.results);
+      onSeeded();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  const anySeeded = results?.some((r) => !r.skipped);
+
+  return (
+    <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-nord text-sm text-white">Seed Database</p>
+          <p className="text-xs text-white/35 mt-0.5">
+            Populate empty MongoDB collections from the built-in data.ts defaults. Existing records are never overwritten.
+          </p>
+        </div>
+        <button
+          onClick={handleSeed}
+          disabled={seeding}
+          className="shrink-0 h-8 px-4 text-xs tracking-wider uppercase border border-white/15 text-white/70 hover:text-white hover:border-white/30 rounded-sm transition-colors disabled:opacity-40"
+        >
+          {seeding ? "Seeding…" : "Seed Empty Collections"}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-400">{error}</p>
+      )}
+
+      {results && (
+        <div className="space-y-1">
+          {results.map((r) => (
+            <div key={r.collection} className="flex items-center gap-3 text-xs">
+              <span className={r.skipped ? "text-white/30" : "text-emerald-400"}>
+                {r.skipped ? "—" : "✓"}
+              </span>
+              <span className="text-white/60 w-28">{r.collection}</span>
+              <span className="text-white/40">
+                {r.skipped ? "already has data — skipped" : `${r.seeded} record${r.seeded !== 1 ? "s" : ""} inserted`}
+              </span>
+            </div>
+          ))}
+          {anySeeded && <p className="text-xs text-emerald-400/70 pt-1">Done. Data refreshed above.</p>}
+          {!anySeeded && <p className="text-xs text-white/30 pt-1">All collections already have data — nothing was seeded.</p>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4023,6 +4154,9 @@ export default function AdminDashboard() {
                 ))}
               </div>
 
+              {/* Seed database utility */}
+              <SeedDatabaseCard onSeeded={() => { fetch("/api/admin/projects").then(r => r.ok ? r.json() : []).then(d => setProjects(d)); fetch("/api/admin/articles").then(r => r.ok ? r.json() : []).then(d => setArticles(d)); fetch("/api/admin/clients").then(r => r.ok ? r.json() : []).then(d => setClients(d)); }} />
+
               <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.85fr)] gap-4">
                 <TapsChart />
                 <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
@@ -4945,8 +5079,8 @@ export default function AdminDashboard() {
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <div className="truncate text-xs text-white/75">{file.name}</div>
-                                <div className="truncate text-[10px] text-white/25">{file.key}</div>
+                                <div className="truncate text-xs text-white/75" title={file.key}>{r2DisplayName(file.key)}</div>
+                                <div className="truncate text-[10px] text-white/25">{file.publicUrl}</div>
                                 <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-white/25">
                                   <span>{formatBytes(file.size)}</span>
                                   <span>{fmtDateTime(file.lastModified)}</span>
@@ -5338,6 +5472,97 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* ─── Featured Projects Order ─── */}
+              {(() => {
+                const featuredProjects = projects.filter((p) => p.featured);
+                const savedIds = siteContent.featuredProjectIds.filter((id) => featuredProjects.some((p) => p.id === id));
+                const missingIds = featuredProjects.filter((p) => !savedIds.includes(p.id)).map((p) => p.id);
+                const orderedIds = [...savedIds, ...missingIds];
+                const ordered = orderedIds.map((id) => featuredProjects.find((p) => p.id === id)).filter(Boolean) as typeof featuredProjects;
+
+                function moveFeaturedProject(from: number, to: number) {
+                  const newIds = arrayMove(orderedIds, from, to);
+                  const next = { ...siteContent, featuredProjectIds: newIds };
+                  setSiteContent(next);
+                  void fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                }
+
+                return (
+                  <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                    <div>
+                      <p className="font-nord text-sm text-white">Featured Projects — Home Page Order</p>
+                      <p className="text-xs text-white/40 mt-1">Only featured projects are listed. Use arrows to set the display order — saves instantly.</p>
+                    </div>
+                    {ordered.length === 0 ? (
+                      <p className="text-xs text-white/30 italic">No projects are marked as featured. Mark a project as "Featured" in the Projects tab first.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {ordered.map((p, i) => (
+                          <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
+                            <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                            <span className="flex-1 text-xs text-white/80 truncate min-w-0">{p.title}</span>
+                            <span className="text-[10px] text-white/25 shrink-0">{p.subcategory ?? p.category}</span>
+                            <div className="flex gap-1 shrink-0">
+                              <button type="button" disabled={i === 0}
+                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
+                                onClick={() => moveFeaturedProject(i, i - 1)}>↑</button>
+                              <button type="button" disabled={i === ordered.length - 1}
+                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
+                                onClick={() => moveFeaturedProject(i, i + 1)}>↓</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ─── Featured Clients Order ─── */}
+              {(() => {
+                const featuredClients = clients.filter((c) => c.featured);
+                const savedIds = siteContent.featuredClientIds.filter((id) => featuredClients.some((c) => c.id === id));
+                const missingIds = featuredClients.filter((c) => !savedIds.includes(c.id)).map((c) => c.id);
+                const orderedIds = [...savedIds, ...missingIds];
+                const ordered = orderedIds.map((id) => featuredClients.find((c) => c.id === id)).filter(Boolean) as typeof featuredClients;
+
+                function moveFeaturedClient(from: number, to: number) {
+                  const newIds = arrayMove(orderedIds, from, to);
+                  const next = { ...siteContent, featuredClientIds: newIds };
+                  setSiteContent(next);
+                  void fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                }
+
+                return (
+                  <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                    <div>
+                      <p className="font-nord text-sm text-white">Featured Clients — Home Page Order</p>
+                      <p className="text-xs text-white/40 mt-1">Only featured clients are listed. Use arrows to set the display order — saves instantly.</p>
+                    </div>
+                    {ordered.length === 0 ? (
+                      <p className="text-xs text-white/30 italic">No clients are marked as featured. Mark a client as "Featured" in the Clients tab first.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {ordered.map((c, i) => (
+                          <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
+                            <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                            <span className="flex-1 text-xs text-white/80 truncate min-w-0">{c.name}</span>
+                            <div className="flex gap-1 shrink-0">
+                              <button type="button" disabled={i === 0}
+                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
+                                onClick={() => moveFeaturedClient(i, i - 1)}>↑</button>
+                              <button type="button" disabled={i === ordered.length - 1}
+                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
+                                onClick={() => moveFeaturedClient(i, i + 1)}>↓</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Homepage Layout, Hero, and About</p>

@@ -29,14 +29,23 @@ export default function ThumbnailDesignPage() {
   const [cols, setCols] = useGridCols("grid_cols_thumbnail-design_v2");
 
   const filtered = useMemo(() => {
-    return allProjects.filter((project) => {
-      const matchesQuery =
-        !query ||
-        project.title.toLowerCase().includes(query.toLowerCase()) ||
-        project.tags?.some((tag) => tag.toLowerCase().includes(query.toLowerCase()));
-      const matchesStatus = statusFilter === "all" || project.pricing.status === statusFilter;
-      return matchesQuery && matchesStatus;
-    });
+    return allProjects
+      .filter((project) => {
+        const matchesQuery =
+          !query ||
+          project.title.toLowerCase().includes(query.toLowerCase()) ||
+          project.tags?.some((tag) => tag.toLowerCase().includes(query.toLowerCase()));
+        const matchesStatus = statusFilter === "all" || project.pricing.status === statusFilter;
+        return matchesQuery && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        if (!a.publishDate && !b.publishDate) return 0;
+        if (!a.publishDate) return 1;
+        if (!b.publishDate) return -1;
+        return b.publishDate.localeCompare(a.publishDate);
+      });
   }, [allProjects, query, statusFilter]);
 
   const counts = useMemo(

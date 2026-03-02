@@ -6,6 +6,7 @@ export interface ProjectPricing {
   price?: number;           // USD cents e.g. 999 = $9.99
   stripeProductId?: string;
   downloadUrl?: string;
+  checkoutUrl?: string;     // direct checkout/payment link for for_sale items
 }
 
 // ─── Social Platforms ─────────────────────────────────────
@@ -569,6 +570,8 @@ export interface SiteContent {
   brandLogoUrl: string;
   faviconUrl: string;
   homeSectionOrder: string[];
+  featuredProjectIds: string[];   // ordered list of project IDs shown on home page
+  featuredClientIds: string[];    // ordered list of client IDs shown on home page
   homeHero: SiteContentHero;
   homeAbout: SiteContentAbout;
   homeServices: SiteContentPageBlock;
