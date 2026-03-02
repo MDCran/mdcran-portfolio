@@ -157,6 +157,7 @@ const COMMANDS = [
   "subscribe",
   "unsubscribe",
   "spotify",
+  "browse",
   "terms",
   "privacy",
   "exit",
@@ -796,6 +797,93 @@ function PreviewPanel({
   );
 }
 
+// ─── Browser Panel ────────────────────────────────────────────────────────────
+
+function BrowserPanel({
+  url,
+  onClose,
+  onNavigate,
+}: {
+  url: string;
+  onClose: () => void;
+  onNavigate: (url: string) => void;
+}) {
+  const [inputVal, setInputVal] = React.useState(url);
+
+  React.useEffect(() => {
+    setInputVal(url);
+  }, [url]);
+
+  function navigate(rawUrl: string) {
+    const nav = rawUrl.trim();
+    if (!nav) return;
+    onNavigate(/^https?:\/\//i.test(nav) ? nav : `https://${nav}`);
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Address bar */}
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-[#4ade80]/10 bg-[#020b05]/90 px-2 py-1.5">
+        <span
+          className="shrink-0 select-none text-[7px] tracking-widest uppercase text-[#86efac]/30"
+          style={{ textShadow: "0 0 8px rgba(74,222,128,0.14)" }}
+        >
+          www
+        </span>
+        <form
+          className="flex min-w-0 flex-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            navigate(inputVal);
+          }}
+        >
+          <input
+            className="w-full min-w-0 rounded-sm border border-[#4ade80]/10 bg-[#031008] px-2 py-0.5 text-[0.525rem] text-[#d9fbe3]/85 placeholder-[#86efac]/20 outline-none transition-colors focus:border-[#4ade80]/35"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            placeholder="https://example.com"
+            style={{ textShadow: "0 0 6px rgba(74,222,128,0.1)" }}
+          />
+        </form>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open in new tab"
+          className="shrink-0 px-1 text-[0.525rem] text-[#86efac]/30 transition-colors hover:text-[#86efac]/70"
+        >
+          ↗
+        </a>
+        <button
+          onClick={onClose}
+          className="shrink-0 text-[0.6125rem] leading-none text-[#86efac]/30 transition-colors hover:text-[#dcfce7]"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Embedded iframe */}
+      <div className="relative min-h-0 flex-1">
+        <iframe
+          key={url}
+          src={url}
+          className="h-full w-full border-0 bg-white"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          title="embedded browser"
+        />
+        {/* CRT scanline overlay to keep the terminal aesthetic */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TerminalExperience() {
@@ -822,6 +910,7 @@ export default function TerminalExperience() {
   const [showStartupInputHint, setShowStartupInputHint] = React.useState(false);
   const [spotifyLive, setSpotifyLive] = React.useState<SpotifyViewState | null>(null);
   const [spotifyClock, setSpotifyClock] = React.useState(() => Date.now());
+  const [browseUrl, setBrowseUrl] = React.useState<string | null>(null);
 
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -1700,7 +1789,7 @@ export default function TerminalExperience() {
       return;
     }
 
-    if (!["open", "nano", "select"].includes(cmd)) {
+    if (!["open", "nano", "select", "browse"].includes(cmd)) {
       clearPreview();
     }
     if (cmd !== "spotify") {
@@ -1789,6 +1878,9 @@ export default function TerminalExperience() {
       case "spotify":
         void doSpotify();
         break;
+      case "browse":
+        doBrowse(rest);
+        break;
       case "terms":
         doTerms();
         break;
@@ -1806,6 +1898,43 @@ export default function TerminalExperience() {
           ),
         ]);
     }
+  }
+
+  // ── /browse ────────────────────────────────────────────────────────────────
+
+  function doBrowse(rawUrl: string) {
+    const trimmed = rawUrl.trim();
+
+    if (!trimmed) {
+      if (browseUrl) {
+        setBrowseUrl(null);
+        append([logText("  Browser closed.", "muted")]);
+      } else {
+        append([
+          logText("  Usage: browse <url>", "error"),
+          logText("  Example: browse wikipedia.org", "muted"),
+          logText("  Note: some sites block embedding — use ↗ to open in a new tab", "muted"),
+        ]);
+      }
+      return;
+    }
+
+    const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+    try {
+      new URL(url);
+    } catch {
+      append([logText(`  Invalid URL: ${trimmed}`, "error")]);
+      return;
+    }
+
+    clearPreview();
+    setSpotifyLive(null);
+    setBrowseUrl(url);
+    append([
+      logText(`  Opening ${url}`, "success"),
+      logText("  Note: some sites block embedding — click ↗ in the address bar to open in a new tab", "muted"),
+    ]);
   }
 
   // ── /help ──────────────────────────────────────────────────────────────────
@@ -1849,6 +1978,11 @@ export default function TerminalExperience() {
       logText("    subscribe <name> <email-or-phone>"),
       logText("    unsubscribe <email-or-phone>"),
       logText(""),
+      logText("  ▸ WEB", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText("    browse <url>         Embed a website in the terminal panel"),
+      logText("    browse               Close the embedded browser"),
+      logText(""),
       logText("  ▸ OTHER", "muted"),
       logText(`  ${bar}`, "muted"),
       logText('    exit                 Type "exit" to close'),
@@ -1879,6 +2013,7 @@ export default function TerminalExperience() {
       logText(""),
     ]);
     setPreview(null);
+    setBrowseUrl(null);
     setResults([]);
     setSelectedResultIdx(0);
     setResultsLabel("Search Results");
@@ -3875,9 +4010,17 @@ export default function TerminalExperience() {
           <div className="h-3" />
         </div>
 
-        {/* Preview panel */}
-        {activePreview && (
-            <div className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#031008]/92">
+        {/* Browser panel — shown when browse <url> is active */}
+        {browseUrl ? (
+          <div className="hidden md:flex w-[55%] shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#020b05]">
+            <BrowserPanel
+              url={browseUrl}
+              onClose={() => setBrowseUrl(null)}
+              onNavigate={(url) => setBrowseUrl(url)}
+            />
+          </div>
+        ) : activePreview ? (
+          <div className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#031008]/92">
             <PreviewPanel
               preview={activePreview}
               onClose={() => {
@@ -3886,7 +4029,7 @@ export default function TerminalExperience() {
               }}
             />
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Input bar */}
