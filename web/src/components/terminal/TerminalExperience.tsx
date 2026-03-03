@@ -1363,6 +1363,7 @@ export default function TerminalExperience() {
   const [browserFloatSize, setBrowserFloatSize] = React.useState({ w: 0, h: 0 });
   const browserFloatPosRef = React.useRef({ x: 0, y: 0 });
   const browserFloatSizeRef = React.useRef({ w: 0, h: 0 });
+  const [isBrowserDragging, setIsBrowserDragging] = React.useState(false);
   const browserBodyRef = React.useRef<HTMLDivElement | null>(null);
   const prevBrowseUrlRef = React.useRef<string | null>(null);
   const [retroGifIdx, setRetroGifIdx] = React.useState(1);
@@ -4653,8 +4654,8 @@ export default function TerminalExperience() {
                 setBrowserFloatPos((p) => ({ ...p, y: newY }));
                 setBrowserFloatSize((s) => ({ ...s, h: newH }));
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
             <div className="absolute inset-x-2 bottom-0 h-1.5 z-[65] cursor-ns-resize" onMouseDown={(e) => {
               e.preventDefault();
@@ -4666,8 +4667,8 @@ export default function TerminalExperience() {
                 browserFloatSizeRef.current = { ...browserFloatSizeRef.current, h: newH };
                 setBrowserFloatSize((s) => ({ ...s, h: newH }));
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
             <div className="absolute inset-y-2 left-0 w-1.5 z-[65] cursor-col-resize" onMouseDown={(e) => {
               e.preventDefault();
@@ -4683,8 +4684,8 @@ export default function TerminalExperience() {
                 setBrowserFloatPos((p) => ({ ...p, x: newX }));
                 setBrowserFloatSize((s) => ({ ...s, w: newW }));
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
             <div className="absolute inset-y-2 right-0 w-1.5 z-[65] cursor-col-resize" onMouseDown={(e) => {
               e.preventDefault();
@@ -4696,8 +4697,8 @@ export default function TerminalExperience() {
                 browserFloatSizeRef.current = { ...browserFloatSizeRef.current, w: newW };
                 setBrowserFloatSize((s) => ({ ...s, w: newW }));
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
 
             {/* ── Corner resize handles (8×8, sit above edge handles) ── */}
@@ -4720,8 +4721,8 @@ export default function TerminalExperience() {
                 setBrowserFloatPos({ x: newX, y: newY });
                 setBrowserFloatSize({ w: newW, h: newH });
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
             {/* Top-right */}
             <div className="absolute top-0 right-0 w-3 h-3 z-[70] cursor-nesw-resize" onMouseDown={(e) => {
@@ -4742,8 +4743,8 @@ export default function TerminalExperience() {
                 setBrowserFloatPos((p) => ({ ...p, y: newY }));
                 setBrowserFloatSize({ w: newW, h: newH });
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
             {/* Bottom-left */}
             <div className="absolute bottom-0 left-0 w-3 h-3 z-[70] cursor-nesw-resize" onMouseDown={(e) => {
@@ -4764,8 +4765,8 @@ export default function TerminalExperience() {
                 setBrowserFloatPos((p) => ({ ...p, x: newX }));
                 setBrowserFloatSize({ w: newW, h: newH });
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
             {/* Bottom-right */}
             <div className="absolute bottom-0 right-0 w-3 h-3 z-[70] cursor-nwse-resize" onMouseDown={(e) => {
@@ -4782,9 +4783,12 @@ export default function TerminalExperience() {
                 browserFloatSizeRef.current = { w: newW, h: newH };
                 setBrowserFloatSize({ w: newW, h: newH });
               };
-              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
-              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+              setIsBrowserDragging(true); document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
             }} />
+
+            {/* Drag shield — covers iframe during drag/resize so mouseup fires correctly */}
+            {isBrowserDragging && <div className="absolute inset-0 z-[60]" />}
 
             <BrowserPanel
               url={browseUrl}
@@ -4807,7 +4811,8 @@ export default function TerminalExperience() {
                   browserFloatPosRef.current = { x: newX, y: newY };
                   setBrowserFloatPos({ x: newX, y: newY });
                 };
-                const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+                const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); setIsBrowserDragging(false); };
+                setIsBrowserDragging(true);
                 document.addEventListener("mousemove", onMove);
                 document.addEventListener("mouseup", onUp);
               }}
