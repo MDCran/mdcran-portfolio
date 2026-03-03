@@ -7,7 +7,7 @@ import { ArrowRight, Star, X } from "lucide-react";
 import ChromaKeyVideo from "./ChromaKeyVideo";
 
 const REVEAL_DELAY_MS = 2000;
-const COUNTDOWN_SECONDS = 30;
+const COUNTDOWN_SECONDS = 15;
 const VIDEO_REVEAL_DELAY_MS = 520;
 const COLLAPSE_DELAY_MS = 220;
 const REDACTION_TRIGGER_SECONDS = 1;

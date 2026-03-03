@@ -59,6 +59,8 @@ type PreviewState = {
   linkUrl?: string;
   linkLabel?: string;
   caption?: string;
+  projectData?: Project;
+  articleData?: Article;
 };
 
 type SpotifyViewState = {
@@ -467,13 +469,11 @@ function spotifyPreviewState(
   const isLive = Boolean(spotify.track.isPlaying && spotify.track.title);
   const progressMs = spotifyProgressNow(spotify, nowMs);
   const details = [
-    activeTrack.artist ? `Artist: ${activeTrack.artist}` : "",
-    activeTrack.albumName ? `Album: ${activeTrack.albumName}` : "",
     isLive
       ? `Time: ${durationText(progressMs)} / ${durationText(activeTrack.durationMs)}`
       : "",
     isLive ? progressBar(progressMs, activeTrack.durationMs) : "",
-    isLive ? "Status: LIVE" : `Status: ${relativeTimeText(activeTrack.playedAt, nowMs) || "recent"}`,
+    isLive ? "LIVE" : relativeTimeText(activeTrack.playedAt, nowMs) || "recent",
   ].filter(Boolean);
 
   return {
@@ -515,11 +515,10 @@ function formatDate(dateStr?: string) {
 function directoryItems(path: string[], data: TerminalData): string[] {
   const key = pathLabel(path);
 
-  const dir = (name: string) => `  ▸  ${name}/`;
-  const item = (slug: string, title: string, extra?: string) => {
-    const base = `  ·  ${slug.padEnd(36)}  ${title}`;
-    return extra ? `${base}  ${extra}` : base;
-  };
+  const dir = (name: string) => `  [DIR ]  ${name}/`;
+  const proj = (slug: string, title: string) => `  [PROJ]  ${slug.padEnd(32)}  ${title}`;
+  const art = (slug: string, title: string, date?: string) => `  [ART ]  ${slug.padEnd(32)}  ${title}${date ? `  ${date}` : ""}`;
+  const clt = (id: string, name: string, role?: string) => `  [CLT ]  ${id.padEnd(32)}  ${name}${role ? `  ${role}` : ""}`;
 
   if (key === "/") {
     return ROOTS.map((name) => dir(name));
@@ -533,22 +532,22 @@ function directoryItems(path: string[], data: TerminalData): string[] {
   if (key === "/arts-and-entertainment/minecraft-maps") {
     return data.projects
       .filter((p) => p.subcategory === "minecraft-maps")
-      .map((p) => item(p.slug, p.title));
+      .map((p) => proj(p.slug, p.title));
   }
   if (key === "/arts-and-entertainment/events") {
     return data.projects
       .filter((p) => p.subcategory === "events")
-      .map((p) => item(p.slug, p.title));
+      .map((p) => proj(p.slug, p.title));
   }
   if (key === "/motion-and-graphics/thumbnail-design") {
     return data.projects
       .filter((p) => p.subcategory === "thumbnail-design")
-      .map((p) => item(p.slug, p.title));
+      .map((p) => proj(p.slug, p.title));
   }
   if (key === "/motion-and-graphics/video-editing") {
     return data.projects
       .filter((p) => p.subcategory === "video-editing")
-      .map((p) => item(p.slug, p.title));
+      .map((p) => proj(p.slug, p.title));
   }
   if (key === "/motion-and-graphics/web-dev-design") {
     return data.projects
@@ -557,12 +556,12 @@ function directoryItems(path: string[], data: TerminalData): string[] {
           p.subcategory === "web-dev-design" ||
           p.extraSubcategories?.includes("web-dev-design")
       )
-      .map((p) => item(p.slug, p.title));
+      .map((p) => proj(p.slug, p.title));
   }
   if (key === "/code") {
     return data.projects
       .filter(isCodeProject)
-      .map((p) => item(p.slug, p.title));
+      .map((p) => proj(p.slug, p.title));
   }
   if (key === "/articles") {
     return [...data.articles]
@@ -570,13 +569,13 @@ function directoryItems(path: string[], data: TerminalData): string[] {
         (a, b) =>
           new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()
       )
-      .map((a) => item(a.slug, a.title, a.publishDate));
+      .map((a) => art(a.slug, a.title, a.publishDate));
   }
   if (key === "/clients") {
-    return data.clients.map((c) => item(c.id, c.name, c.roles.slice(0, 1).join("")));
+    return data.clients.map((c) => clt(c.id, c.name, c.roles.slice(0, 1).join("")));
   }
   if (key === "/featured-work") {
-    return data.featuredProjects.map((p) => item(p.slug, p.title, p.subcategory ?? p.category ?? ""));
+    return data.featuredProjects.map((p) => proj(p.slug, p.title));
   }
 
   // Virtual leaf dirs — run the corresponding command
@@ -705,13 +704,14 @@ function LogLine({ entry }: { entry: LogEntry }) {
 
   if (entry.typeDurationMs) {
     const lines = (entry.text ?? "").split("\n");
+    const isMultiline = lines.length > 1; // ASCII art — keep exact whitespace, no wrap
     const steps = Math.max(
-      lines.length > 1 ? Math.max(...lines.map((l) => l.length)) : (entry.text?.length ?? 1),
+      isMultiline ? Math.max(...lines.map((l) => l.length)) : (entry.text?.length ?? 1),
       1,
     );
     return (
       <div
-        className={`whitespace-pre leading-[0.875rem] overflow-hidden ${toneClass} ${weightClass}`}
+        className={`${isMultiline ? "whitespace-pre" : "whitespace-pre-wrap break-all"} leading-[0.875rem] overflow-hidden ${toneClass} ${weightClass}`}
         style={{
           textShadow: "0 0 6px rgba(74, 222, 128, 0.14)",
           animation: `crtTyping ${entry.typeDurationMs}ms steps(${steps}, end) both`,
@@ -724,7 +724,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
 
   return (
     <div
-      className={`whitespace-pre-wrap leading-[0.875rem] ${toneClass} ${weightClass}`}
+      className={`whitespace-pre-wrap break-words leading-[0.875rem] ${toneClass} ${weightClass}`}
       style={{ textShadow: "0 0 6px rgba(74, 222, 128, 0.14)" }}
     >
       {entry.text}
@@ -732,13 +732,256 @@ function LogLine({ entry }: { entry: LogEntry }) {
   );
 }
 
+function PreviewImage({ url, alt }: { url: string; alt?: string }) {
+  return (
+    <div className="relative w-full overflow-hidden rounded border border-[#4ade80]/12 bg-black/70">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={alt ?? ""} className="block h-auto max-h-52 w-full object-contain" />
+      <div className="pointer-events-none absolute inset-0" style={{ background: "repeating-linear-gradient(180deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 3px)" }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.4) 100%)" }} />
+    </div>
+  );
+}
+
 function PreviewPanel({
   preview,
   onClose,
+  clients = [],
 }: {
   preview: PreviewState;
   onClose: () => void;
+  clients?: Client[];
 }) {
+  const p = preview.projectData;
+  const a = preview.articleData;
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  const header = (
+    <div className="flex shrink-0 items-center justify-between border-b border-[#4ade80]/8 px-3 py-2">
+      <span className="text-[7px] tracking-widest uppercase text-[#86efac]/30">Preview</span>
+      <button onClick={onClose} className="text-[0.6125rem] leading-none text-[#86efac]/35 transition-colors hover:text-[#dcfce7]">✕</button>
+    </div>
+  );
+
+  // ── Project rich view ─────────────────────────────────────────────────────
+  if (p) {
+    const relatedClients = (p.clientIds ?? [])
+      .map((id) => clients.find((c) => c.id === id))
+      .filter((c): c is Client => Boolean(c));
+    const galleryImgs = (p.images ?? [])
+      .map((img) => imageAssetSrc(img))
+      .filter((u): u is string => Boolean(u));
+    const internalUrl = projectUrl(p.category, p.slug, p.subcategory ?? undefined);
+
+    return (
+      <div className="flex h-full flex-col">
+        {header}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-3 py-3">
+          {/* Title + category */}
+          <div>
+            <div className="text-[0.65rem] font-semibold leading-snug text-[#d9fbe3]/90">{p.title}</div>
+            <div className="mt-0.5 text-[0.5rem] text-[#86efac]/45">
+              {[p.subcategory ?? p.category, p.publishDate ? formatDate(p.publishDate) : ""].filter(Boolean).join("  ·  ")}
+            </div>
+          </div>
+
+          {/* Tags */}
+          {p.tags?.length ? (
+            <div className="flex flex-wrap gap-1">
+              {p.tags.map((t) => (
+                <span key={t} className="rounded border border-[#4ade80]/15 bg-[#4ade80]/5 px-1.5 py-px text-[0.45rem] text-[#86efac]/60">{t}</span>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Description */}
+          {p.description && (
+            <p className="text-[0.525rem] leading-relaxed text-[#d9fbe3]/75 break-words">{p.description}</p>
+          )}
+          {p.longDescription && (
+            <p className="text-[0.525rem] leading-relaxed text-[#d9fbe3]/60 break-words">{p.longDescription}</p>
+          )}
+
+          {/* Gallery images (no cover) */}
+          {galleryImgs.length > 0 && (
+            <div className="space-y-2">
+              {galleryImgs.slice(0, 5).map((url, i) => (
+                <PreviewImage key={i} url={url} alt={p.title} />
+              ))}
+            </div>
+          )}
+
+          {/* Meta table */}
+          <div className="space-y-0.5 border-t border-[#4ade80]/8 pt-2">
+            {relatedClients.length > 0 && (
+              <div className="flex gap-2 text-[0.5rem]">
+                <span className="w-14 shrink-0 text-[#86efac]/35">Client</span>
+                <span className="text-[#d9fbe3]/70">{relatedClients.map((c) => c.name).join(", ")}</span>
+              </div>
+            )}
+            {p.pricing?.status === "free" && (
+              <div className="flex gap-2 text-[0.5rem]">
+                <span className="w-14 shrink-0 text-[#86efac]/35">Pricing</span>
+                <span className="text-[#86efac]/70">Free download</span>
+              </div>
+            )}
+            {p.pricing?.price ? (
+              <div className="flex gap-2 text-[0.5rem]">
+                <span className="w-14 shrink-0 text-[#86efac]/35">Price</span>
+                <span className="text-[#d9fbe3]/70">{formatMoney(p.pricing.price)}</span>
+              </div>
+            ) : null}
+            {p.credits?.length ? (
+              <div className="flex gap-2 text-[0.5rem]">
+                <span className="w-14 shrink-0 text-[#86efac]/35">Credits</span>
+                <span className="text-[#d9fbe3]/70 break-words">{p.credits.map((c) => `${c.name} (${c.role})`).join(", ")}</span>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Videos */}
+          {p.videos?.length ? (
+            <div className="space-y-1 border-t border-[#4ade80]/8 pt-2">
+              <div className="text-[0.45rem] uppercase tracking-widest text-[#86efac]/30">Videos</div>
+              {p.videos.slice(0, 4).map((v, i) => (
+                <a
+                  key={i}
+                  href={`https://youtu.be/${v.youtubeId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-1.5 text-[0.5rem] text-[#86efac]/70 hover:text-[#86efac] transition-colors"
+                >
+                  <span className="mt-px shrink-0 text-[#86efac]/30">▶</span>
+                  <span className="break-words">{v.title || `Video ${i + 1}`}</span>
+                </a>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Links */}
+          <div className="flex flex-wrap gap-3 border-t border-[#4ade80]/8 pt-2">
+            <a href={internalUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ Project page</a>
+            {p.liveUrl && <a href={p.liveUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac]/70 underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ Live site</a>}
+            {p.externalUrl && <a href={p.externalUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac]/70 underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ External link</a>}
+            {p.pricing?.downloadUrl && p.pricing.status === "free" && <a href={p.pricing.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac]/70 underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↓ Download</a>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Article rich view ─────────────────────────────────────────────────────
+  if (a) {
+    const sectionImages = a.sections.flatMap((sec) => {
+      if (sec.type === "image" && sec.src) return [{ url: imageAssetSrc(sec.src) ?? "", alt: sec.alt ?? sec.caption ?? a.title }];
+      if (sec.type === "gallery" && sec.images?.length) return sec.images.slice(0, 3).map((img) => ({ url: imageAssetSrc(img) ?? "", alt: sec.caption ?? a.title }));
+      return [];
+    }).filter((img) => Boolean(img.url));
+
+    return (
+      <div className="flex h-full flex-col">
+        {header}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-3 py-3">
+          {/* Title + meta */}
+          <div>
+            <div className="text-[0.65rem] font-semibold leading-snug text-[#d9fbe3]/90">{a.title}</div>
+            <div className="mt-0.5 text-[0.5rem] text-[#86efac]/45">
+              {a.author}  ·  {formatDate(a.publishDate)}
+            </div>
+            <div className="mt-0.5 text-[0.5rem] text-[#86efac]/30">{a.category}</div>
+          </div>
+
+          {/* Tags */}
+          {a.tags?.length ? (
+            <div className="flex flex-wrap gap-1">
+              {a.tags.map((t) => (
+                <span key={t} className="rounded border border-[#4ade80]/15 bg-[#4ade80]/5 px-1.5 py-px text-[0.45rem] text-[#86efac]/60">{t}</span>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Excerpt */}
+          {a.excerpt && (
+            <div className="rounded border border-[#4ade80]/10 bg-[#05160c]/60 px-2.5 py-2 text-[0.525rem] leading-relaxed text-[#bbf7d0]/65 italic break-words">
+              &quot;{a.excerpt}&quot;
+            </div>
+          )}
+
+          {/* Sections */}
+          <div className="space-y-2.5 border-t border-[#4ade80]/8 pt-2">
+            {a.sections.map((sec, i) => {
+              if (sec.type === "text" && sec.content) {
+                return <p key={i} className="text-[0.525rem] leading-relaxed text-[#d9fbe3]/70 break-words">{sec.content.length > 400 ? sec.content.slice(0, 400) + "…" : sec.content}</p>;
+              }
+              if (sec.type === "image" && sec.src) {
+                const u = imageAssetSrc(sec.src);
+                return u ? <PreviewImage key={i} url={u} alt={sec.alt ?? sec.caption ?? a.title} /> : null;
+              }
+              if (sec.type === "gallery" && sec.images?.length) {
+                return (
+                  <div key={i} className="grid grid-cols-2 gap-1">
+                    {sec.images.slice(0, 4).map((img, j) => {
+                      const u = imageAssetSrc(img);
+                      return u ? <PreviewImage key={j} url={u} alt={sec.caption ?? a.title} /> : null;
+                    })}
+                  </div>
+                );
+              }
+              if (sec.type === "video" && sec.youtubeId) {
+                return (
+                  <a key={i} href={`https://youtu.be/${sec.youtubeId}`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-start gap-1.5 text-[0.5rem] text-[#86efac]/70 hover:text-[#86efac] transition-colors">
+                    <span className="mt-px shrink-0 text-[#86efac]/30">▶</span>
+                    <span className="break-words">{sec.caption ?? `Watch video`}</span>
+                  </a>
+                );
+              }
+              if ((sec.type === "checklist" || sec.type === "steps" || sec.type === "ingredient-list" || sec.type === "store-checklist") && sec.items?.length) {
+                const Tag = sec.type === "steps" ? "ol" : "ul";
+                return (
+                  <Tag key={i} className={`space-y-0.5 text-[0.5rem] text-[#d9fbe3]/65 ${sec.type === "steps" ? "list-decimal" : "list-disc"} list-inside`}>
+                    {sec.items.slice(0, 8).map((item, j) => <li key={j} className="break-words">{item}</li>)}
+                    {sec.items.length > 8 && <li className="text-[#86efac]/30">+{sec.items.length - 8} more…</li>}
+                  </Tag>
+                );
+              }
+              if (sec.type === "quote" && sec.content) {
+                return <blockquote key={i} className="border-l-2 border-[#4ade80]/30 pl-2 text-[0.525rem] italic text-[#bbf7d0]/55 break-words">&quot;{sec.content}&quot;</blockquote>;
+              }
+              if (sec.type === "code" && sec.content) {
+                const lines = sec.content.split("\n").slice(0, 8);
+                return <pre key={i} className="rounded bg-[#010a04] px-2 py-1.5 text-[0.45rem] leading-relaxed text-[#86efac]/60 overflow-x-auto">{lines.join("\n")}{sec.content.split("\n").length > 8 ? "\n…" : ""}</pre>;
+              }
+              if (sec.type === "info-block" && sec.label) {
+                return <div key={i} className="flex gap-2 text-[0.5rem]"><span className="shrink-0 text-[#86efac]/35">{sec.label}</span><span className="text-[#d9fbe3]/70">{sec.value}</span></div>;
+              }
+              if (sec.type === "divider") {
+                return <div key={i} className="border-t border-[#4ade80]/10" />;
+              }
+              return null;
+            })}
+          </div>
+
+          {/* Taps + updated */}
+          {(a.tapCount || a.updatedDate) && (
+            <div className="flex gap-3 border-t border-[#4ade80]/8 pt-2 text-[0.45rem] text-[#86efac]/30">
+              {a.tapCount ? <span>{a.tapCount.toLocaleString()} taps</span> : null}
+              {a.updatedDate ? <span>Updated {formatDate(a.updatedDate)}</span> : null}
+            </div>
+          )}
+
+          {/* Links */}
+          <div className="border-t border-[#4ade80]/8 pt-2">
+            <a href={`/articles/${a.slug}`} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ Read full article</a>
+          </div>
+          {/* Spacer for scroll */}
+          <div className="h-2" />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Generic preview (Spotify, clients, routes) ────────────────────────────
   const previewImages =
     preview.images?.length
       ? preview.images
@@ -747,100 +990,83 @@ function PreviewPanel({
       : [];
 
   return (
-    <div className="flex flex-col gap-4 p-4 h-full overflow-y-auto">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[#86efac]/35 text-[7px] tracking-widest uppercase">
-          Preview
-        </span>
-        <button
-          onClick={onClose}
-          className="text-[#86efac]/35 hover:text-[#dcfce7] transition-colors text-[0.6125rem] leading-none"
-        >
-          ✕
-        </button>
-      </div>
-
-      {previewImages.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {previewImages.map((image, index) => (
-            <div
-              key={`${image.url}-${index}`}
-              className="relative flex w-full items-center justify-center rounded overflow-hidden border border-[#4ade80]/15 bg-black/70 p-2 min-h-24"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={image.url}
-                alt={image.alt ?? preview.title}
-                className="block h-auto max-h-[50vh] w-full object-contain"
-              />
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    "repeating-linear-gradient(180deg, transparent, transparent 2px, rgba(0,0,0,0.10) 2px, rgba(0,0,0,0.10) 4px)",
-                }}
-              />
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%)",
-                }}
-              />
-              <div
-                className="absolute inset-0 pointer-events-none border border-white/5"
-                style={{ boxShadow: "inset 0 0 20px rgba(0,0,0,0.4)" }}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-1.5">
-        <div className="text-[#d9fbe3]/90 text-[0.6125rem] leading-snug font-medium">
-          {preview.title}
-        </div>
-        {preview.subtitle && (
-          <div className="text-[#86efac]/45 text-[0.525rem] leading-snug">
-            {preview.subtitle}
-          </div>
-        )}
-        {preview.caption && (
-          <div className="text-[#86efac]/30 text-[0.525rem] leading-snug">
-            {preview.caption}
-          </div>
-        )}
-        {preview.details?.length && (
-          <div className="space-y-1 pt-1">
-            {preview.details.map((detail, index) => (
-              <div
-                key={`${detail}-${index}`}
-                className="text-[#86efac]/55 text-[0.525rem] leading-snug"
-              >
-                {detail}
-              </div>
+    <div className="flex h-full flex-col">
+      {header}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-3 py-3">
+        {previewImages.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {previewImages.map((image, index) => (
+              <PreviewImage key={`${image.url}-${index}`} url={image.url} alt={image.alt ?? preview.title} />
             ))}
           </div>
         )}
-        {preview.quote && (
-          <div className="rounded border border-[#4ade80]/12 bg-[#05160c]/70 px-3 py-2 text-[#bbf7d0]/70 text-[0.525rem] leading-snug">
-            &quot;{preview.quote}&quot;
-          </div>
+
+        <div className="space-y-1.5">
+          <div className="text-[0.65rem] font-semibold leading-snug text-[#d9fbe3]/90">{preview.title}</div>
+          {preview.subtitle && <div className="text-[0.525rem] leading-snug text-[#86efac]/45">{preview.subtitle}</div>}
+          {preview.caption && <div className="text-[0.525rem] leading-snug text-[#86efac]/30 break-words">{preview.caption}</div>}
+          {preview.details?.length ? (
+            <div className="space-y-0.5 pt-1">
+              {preview.details.map((detail, index) => (
+                <div key={`${detail}-${index}`} className="text-[0.525rem] leading-snug text-[#86efac]/55 break-words">{detail}</div>
+              ))}
+            </div>
+          ) : null}
+          {preview.quote && (
+            <div className="rounded border border-[#4ade80]/12 bg-[#05160c]/70 px-2.5 py-2 text-[0.525rem] leading-snug italic text-[#bbf7d0]/70 break-words">
+              &quot;{preview.quote}&quot;
+            </div>
+          )}
+        </div>
+
+        {preview.linkUrl && (
+          <a href={preview.linkUrl} target="_blank" rel="noopener noreferrer" className="text-[0.525rem] text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">
+            ↗ {preview.linkLabel ?? "View"}
+          </a>
         )}
       </div>
-
-      {preview.linkUrl && (
-        <a
-          href={preview.linkUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[#86efac] text-[0.525rem] underline underline-offset-2 hover:text-[#dcfce7] transition-colors"
-        >
-          ↗ {preview.linkLabel ?? "View"}
-        </a>
-      )}
     </div>
   );
+}
+
+// ─── Browser content filter ───────────────────────────────────────────────────
+
+const BLOCKED_DOMAINS = new Set([
+  "pornhub.com","xvideos.com","xnxx.com","redtube.com","youporn.com","tube8.com",
+  "xhamster.com","spankbang.com","eporner.com","tnaflix.com","txxx.com",
+  "brazzers.com","naughtyamerica.com","bangbros.com","mofos.com","realitykings.com",
+  "onlyfans.com","fansly.com","manyvids.com","4tube.com","drtuber.com",
+  "chaturbate.com","cam4.com","stripchat.com","bongacams.com","myfreecams.com",
+  "livejasmin.com","camsoda.com","streamate.com","jasmin.com",
+  "rule34.xxx","e621.net","hentai2read.com","nhentai.net","hentaifox.com",
+]);
+
+function sanitizeBrowseUrl(raw: string): { url: string; blocked: boolean } {
+  const full = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(full);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const baseDomain = host.split(".").slice(-2).join(".");
+    if (BLOCKED_DOMAINS.has(host) || BLOCKED_DOMAINS.has(baseDomain)) {
+      return { url: full, blocked: true };
+    }
+    // Enforce safe search on search engines
+    if (host === "google.com" && /\/search/.test(parsed.pathname)) {
+      parsed.searchParams.set("safe", "strict");
+    }
+    if (host === "bing.com" && /\/search/.test(parsed.pathname)) {
+      parsed.searchParams.set("adlt", "strict");
+    }
+    if (host === "duckduckgo.com") {
+      parsed.searchParams.set("kp", "1");
+    }
+    if (host === "youtube.com") {
+      parsed.searchParams.set("restrict", "strict");
+    }
+    return { url: parsed.toString(), blocked: false };
+  } catch {
+    return { url: full, blocked: false };
+  }
 }
 
 // ─── Browser Panel ────────────────────────────────────────────────────────────
@@ -849,83 +1075,258 @@ function BrowserPanel({
   url,
   onClose,
   onNavigate,
+  onMinimize,
+  onTitleBarDragStart,
+  minimized,
 }: {
   url: string;
   onClose: () => void;
   onNavigate: (url: string) => void;
+  onMinimize: () => void;
+  onTitleBarDragStart?: (e: React.MouseEvent) => void;
+  minimized: boolean;
 }) {
   const [inputVal, setInputVal] = React.useState(url);
+  const [loadKey, setLoadKey] = React.useState(0);
+  const [blockedUrl, setBlockedUrl] = React.useState<string | null>(null);
+  const [glitchBars, setGlitchBars] = React.useState<
+    Array<{ top: number; height: number; shift: number; color: string; skew: number }>
+  >([]);
 
   React.useEffect(() => {
     setInputVal(url);
+    setBlockedUrl(null);
+    setLoadKey((k) => k + 1);
   }, [url]);
+
+  // Periodic glitch bursts — more frequent and more intense
+  React.useEffect(() => {
+    if (minimized) return;
+    const interval = window.setInterval(() => {
+      const roll = Math.random();
+      if (roll < 0.3) {
+        const count = 1 + Math.floor(Math.random() * 3);
+        const bars = Array.from({ length: count }, () => ({
+          top: 2 + Math.random() * 88,
+          height: 0.3 + Math.random() * 5,
+          shift: (Math.random() - 0.5) * 22,
+          skew: (Math.random() - 0.5) * 4,
+          color: Math.random() < 0.6
+            ? `rgba(74,222,128,${0.07 + Math.random() * 0.12})`
+            : Math.random() < 0.5
+            ? `rgba(255,${Math.floor(Math.random() * 80)},80,${0.06 + Math.random() * 0.1})`
+            : `rgba(255,255,255,${0.03 + Math.random() * 0.06})`,
+        }));
+        setGlitchBars(bars);
+        const dur = 40 + Math.random() * 110;
+        window.setTimeout(() => setGlitchBars([]), dur);
+      }
+    }, 2200);
+    return () => window.clearInterval(interval);
+  }, [minimized]);
 
   function navigate(rawUrl: string) {
     const nav = rawUrl.trim();
     if (!nav) return;
-    onNavigate(/^https?:\/\//i.test(nav) ? nav : `https://${nav}`);
+    const { url: safeUrl, blocked } = sanitizeBrowseUrl(nav);
+    if (blocked) {
+      setBlockedUrl(safeUrl);
+      return;
+    }
+    setBlockedUrl(null);
+    onNavigate(safeUrl);
   }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Address bar */}
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-[#4ade80]/10 bg-[#020b05]/90 px-2 py-1.5">
-        <span
-          className="shrink-0 select-none text-[7px] tracking-widest uppercase text-[#86efac]/30"
-          style={{ textShadow: "0 0 8px rgba(74,222,128,0.14)" }}
-        >
-          www
-        </span>
-        <form
-          className="flex min-w-0 flex-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            navigate(inputVal);
-          }}
-        >
-          <input
-            className="w-full min-w-0 rounded-sm border border-[#4ade80]/10 bg-[#031008] px-2 py-0.5 text-[0.525rem] text-[#d9fbe3]/85 placeholder-[#86efac]/20 outline-none transition-colors focus:border-[#4ade80]/35"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            placeholder="https://example.com"
-            style={{ textShadow: "0 0 6px rgba(74,222,128,0.1)" }}
+      {/* Mac-style title bar — drag area */}
+      <div
+        className="flex shrink-0 items-center gap-2 border-b border-[#4ade80]/10 bg-[#020b05]/95 px-2.5 py-1.5 cursor-grab active:cursor-grabbing select-none"
+        onMouseDown={(e) => {
+          // Only drag from the bar background (not from inputs/buttons)
+          const target = e.target as HTMLElement;
+          if (target.tagName === "INPUT" || target.tagName === "BUTTON" || target.closest("button") || target.closest("input")) return;
+          onTitleBarDragStart?.(e);
+        }}
+      >
+        {/* Traffic lights */}
+        <div className="flex shrink-0 items-center gap-[5px]">
+          <button
+            onClick={onClose}
+            title="Close"
+            className="h-[10px] w-[10px] rounded-full transition-opacity hover:opacity-80"
+            style={{ background: "#ff5f57", boxShadow: "0 0 4px rgba(255,95,87,0.5)" }}
           />
-        </form>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Open in new tab"
-          className="shrink-0 px-1 text-[0.525rem] text-[#86efac]/30 transition-colors hover:text-[#86efac]/70"
-        >
-          ↗
-        </a>
-        <button
-          onClick={onClose}
-          className="shrink-0 text-[0.6125rem] leading-none text-[#86efac]/30 transition-colors hover:text-[#dcfce7]"
-        >
-          ✕
-        </button>
+          {/* Yellow = no-op */}
+          <span
+            className="block h-[10px] w-[10px] rounded-full"
+            style={{ background: "#ffbd2e", boxShadow: "0 0 4px rgba(255,189,46,0.4)" }}
+          />
+          <button
+            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            title="Open in new tab"
+            className="h-[10px] w-[10px] rounded-full transition-opacity hover:opacity-80"
+            style={{ background: "#28c840", boxShadow: "0 0 4px rgba(40,200,64,0.5)" }}
+          />
+        </div>
+
+        {/* Address bar */}
+        {!minimized && (
+          <form
+            className="flex min-w-0 flex-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              navigate(inputVal);
+            }}
+          >
+            <input
+              className="w-full min-w-0 rounded-sm border border-[#4ade80]/10 bg-[#031008] px-2 py-0.5 text-[0.525rem] text-[#d9fbe3]/85 placeholder-[#86efac]/20 outline-none transition-colors focus:border-[#4ade80]/35"
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              placeholder="https://example.com"
+              style={{ textShadow: "0 0 6px rgba(74,222,128,0.1)" }}
+            />
+          </form>
+        )}
       </div>
 
-      {/* Embedded iframe */}
-      <div className="relative min-h-0 flex-1">
-        <iframe
-          key={url}
-          src={url}
-          className="h-full w-full border-0 bg-white"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-          title="embedded browser"
-        />
-        {/* CRT scanline overlay to keep the terminal aesthetic */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px)",
-          }}
-        />
-      </div>
+      {/* Content area — hidden when minimized */}
+      {!minimized && (
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          {blockedUrl ? (
+            /* Blocked content screen */
+            <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#020b05] px-6 text-center">
+              <div className="text-[#ff5f57] text-[0.85rem] font-medium" style={{ textShadow: "0 0 12px rgba(255,95,87,0.5)" }}>
+                ACCESS BLOCKED
+              </div>
+              <div className="text-[#86efac]/40 text-[0.5rem] leading-relaxed max-w-[220px]">
+                This content has been blocked by the terminal browser&apos;s content filter.
+              </div>
+              <div className="text-[#86efac]/25 text-[0.45rem] font-mono break-all max-w-[220px]">
+                {blockedUrl}
+              </div>
+              <button
+                onClick={() => setBlockedUrl(null)}
+                className="mt-1 text-[0.5rem] text-[#86efac]/35 underline hover:text-[#86efac]/70 transition-colors"
+              >
+                Go back
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="absolute inset-0 overflow-hidden">
+                <iframe
+                  key={url}
+                  src={url}
+                  className="border-0 bg-white absolute top-0 left-0"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  title="embedded browser"
+                  style={{
+                    filter: "brightness(0.84) saturate(0.80) contrast(1.06)",
+                    transform: "scale(0.75)",
+                    transformOrigin: "top left",
+                    width: "133.33%",
+                    height: "133.33%",
+                  }}
+                />
+              </div>
+
+              {/* Scrolling scanlines */}
+              <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  background: "repeating-linear-gradient(180deg, transparent 0px, transparent 2px, rgba(0,0,0,0.22) 2px, rgba(0,0,0,0.22) 3px)",
+                  animation: "browserScanScroll 5s linear infinite",
+                }}
+              />
+
+              {/* Phosphor green tint */}
+              <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{ background: "rgba(10,255,90,0.028)", mixBlendMode: "screen" }}
+              />
+
+              {/* RGB chromatic edge aberration */}
+              <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  boxShadow: "inset 3px 0 0 rgba(255,30,80,0.07), inset -3px 0 0 rgba(0,255,160,0.07)",
+                  animation: "crtRgbShift 8s ease-in-out infinite",
+                }}
+              />
+
+              {/* Horizontal scan beam */}
+              <div
+                className="pointer-events-none absolute inset-x-0 z-10 h-[4px]"
+                style={{
+                  background: "linear-gradient(90deg, transparent 0%, rgba(74,222,128,0.05) 20%, rgba(74,222,128,0.11) 50%, rgba(74,222,128,0.05) 80%, transparent 100%)",
+                  animation: "browserBeamSweep 3.5s linear infinite",
+                }}
+              />
+
+              {/* Interlace drift */}
+              <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  background: "repeating-linear-gradient(180deg, transparent 0px, transparent 1px, rgba(0,0,0,0.06) 1px, rgba(0,0,0,0.06) 2px)",
+                  animation: "crtInterlaceDrift 0.8s ease-in-out infinite",
+                }}
+              />
+
+              {/* Vignette */}
+              <div
+                className="pointer-events-none absolute inset-0 z-20"
+                style={{ background: "radial-gradient(ellipse at 50% 50%, transparent 38%, rgba(0,5,2,0.78) 100%)" }}
+              />
+
+              {/* Flicker overlay */}
+              <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{ animation: "browserFlicker 0.11s steps(2) infinite" }}
+              />
+
+              {/* Glitch bars */}
+              {glitchBars.map((bar, i) => (
+                <div
+                  key={i}
+                  className="pointer-events-none absolute inset-x-0 z-[25]"
+                  style={{
+                    top: `${bar.top}%`,
+                    height: `${bar.height}%`,
+                    transform: `translateX(${bar.shift}px) skewX(${bar.skew}deg)`,
+                    background: bar.color,
+                    mixBlendMode: "screen",
+                  }}
+                />
+              ))}
+
+              {/* Load static flash */}
+              <div
+                key={`static-${loadKey}`}
+                className="pointer-events-none absolute inset-0 z-30"
+                style={{
+                  animation: "browserLoadStatic 0.5s steps(5) forwards",
+                  background: "repeating-linear-gradient(0deg, rgba(0,28,10,0.92) 0px, rgba(0,0,0,0.88) 1px, transparent 1px, transparent 2px)",
+                }}
+              />
+
+              {/* Corner brackets */}
+              <div className="pointer-events-none absolute inset-0 z-20">
+                <div className="absolute left-1.5 top-1.5 h-4 w-4 border-l-2 border-t-2 border-[#4ade80]/20" />
+                <div className="absolute right-1.5 top-1.5 h-4 w-4 border-r-2 border-t-2 border-[#4ade80]/20" />
+                <div className="absolute bottom-1.5 left-1.5 h-4 w-4 border-b-2 border-l-2 border-[#4ade80]/20" />
+                <div className="absolute bottom-1.5 right-1.5 h-4 w-4 border-b-2 border-r-2 border-[#4ade80]/20" />
+              </div>
+
+              {/* Inner border glow */}
+              <div
+                className="pointer-events-none absolute inset-0 z-20"
+                style={{ boxShadow: "inset 0 0 22px rgba(74,222,128,0.05)" }}
+              />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -957,6 +1358,13 @@ export default function TerminalExperience() {
   const [spotifyLive, setSpotifyLive] = React.useState<SpotifyViewState | null>(null);
   const [spotifyClock, setSpotifyClock] = React.useState(() => Date.now());
   const [browseUrl, setBrowseUrl] = React.useState<string | null>(null);
+  const [browserMinimized, setBrowserMinimized] = React.useState(false);
+  const [browserFloatPos, setBrowserFloatPos] = React.useState({ x: 0, y: 0 });
+  const [browserFloatSize, setBrowserFloatSize] = React.useState({ w: 0, h: 0 });
+  const browserFloatPosRef = React.useRef({ x: 0, y: 0 });
+  const browserFloatSizeRef = React.useRef({ w: 0, h: 0 });
+  const browserBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const prevBrowseUrlRef = React.useRef<string | null>(null);
   const [retroGifIdx, setRetroGifIdx] = React.useState(1);
   const [gifVisible, setGifVisible] = React.useState(false);
   const [gifEnabled, setGifEnabled] = React.useState(true);
@@ -973,6 +1381,7 @@ export default function TerminalExperience() {
   const historyRef = React.useRef<string[]>([]);
   const historyIdxRef = React.useRef(-1);
   const commandControlKeyRef = React.useRef<(key: string) => boolean>(() => false);
+  const spotifyProgressEntryIds = React.useRef<{ time: string; bar: string } | null>(null);
 
   const debugTerminalEvent = React.useCallback((...args: unknown[]) => {
     void args;
@@ -1403,75 +1812,110 @@ export default function TerminalExperience() {
     osc.stop(now + (mode === "start" ? 0.26 : 0.4));
   }, []);
 
-  // Subtle keyboard click for each character typed
-  const playTypeSfx = React.useCallback(() => {
-    if (typeof window === "undefined") return;
+  // Helper: get or create an AudioContext and ensure it's running before use
+  const getAudioCtx = React.useCallback((): Promise<AudioContext> | null => {
+    if (typeof window === "undefined") return null;
     const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
+    if (!Ctx) return null;
     if (!audioContextRef.current) audioContextRef.current = new Ctx();
     const ctx = audioContextRef.current;
-    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
-    const now = ctx.currentTime;
-    const bufLen = Math.floor(ctx.sampleRate * 0.014);
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
-    const noise = ctx.createBufferSource();
-    noise.buffer = buf;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 2600 + Math.random() * 800;
-    filter.Q.value = 1.4;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.045 + Math.random() * 0.012, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    noise.start(now);
-    noise.stop(now + 0.015);
+    if (ctx.state === "running") return Promise.resolve(ctx);
+    return ctx.resume().then(() => ctx).catch(() => null) as Promise<AudioContext>;
   }, []);
+
+  // Subtle keyboard click for each character typed
+  const playTypeSfx = React.useCallback(() => {
+    const ctxP = getAudioCtx();
+    if (!ctxP) return;
+    void ctxP.then((ctx) => {
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const bufLen = Math.floor(ctx.sampleRate * 0.014);
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 2600 + Math.random() * 800;
+      filter.Q.value = 1.4;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.045 + Math.random() * 0.012, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.015);
+    });
+  }, [getAudioCtx]);
+
+  // Soft teletype tick for boot animation character printing
+  const playPrintSfx = React.useCallback(() => {
+    const ctxP = getAudioCtx();
+    if (!ctxP) return;
+    void ctxP.then((ctx) => {
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const bufLen = Math.floor(ctx.sampleRate * 0.007);
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 3800 + Math.random() * 500;
+      filter.Q.value = 2.2;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.018 + Math.random() * 0.006, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.006);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.008);
+    });
+  }, [getAudioCtx]);
 
   // Mechanical "enter" thump when a command is submitted
   const playCommandSfx = React.useCallback(() => {
-    if (typeof window === "undefined") return;
-    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    if (!audioContextRef.current) audioContextRef.current = new Ctx();
-    const ctx = audioContextRef.current;
-    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
-    const now = ctx.currentTime;
-    // Low thump
-    const bufLen = Math.floor(ctx.sampleRate * 0.07);
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.8);
-    const noise = ctx.createBufferSource();
-    noise.buffer = buf;
-    const lpf = ctx.createBiquadFilter();
-    lpf.type = "lowpass";
-    lpf.frequency.value = 650;
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0.13, now);
-    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
-    noise.connect(lpf);
-    lpf.connect(master);
-    master.connect(ctx.destination);
-    // Short tone click
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(210, now);
-    osc.frequency.exponentialRampToValueAtTime(60, now + 0.04);
-    const oscGain = ctx.createGain();
-    oscGain.gain.setValueAtTime(0.055, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
-    osc.connect(oscGain);
-    oscGain.connect(ctx.destination);
-    noise.start(now);
-    noise.stop(now + 0.07);
-    osc.start(now);
-    osc.stop(now + 0.045);
-  }, []);
+    const ctxP = getAudioCtx();
+    if (!ctxP) return;
+    void ctxP.then((ctx) => {
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const bufLen = Math.floor(ctx.sampleRate * 0.07);
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.8);
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const lpf = ctx.createBiquadFilter();
+      lpf.type = "lowpass";
+      lpf.frequency.value = 650;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.13, now);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+      noise.connect(lpf);
+      lpf.connect(master);
+      master.connect(ctx.destination);
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(210, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.04);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.055, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+      osc.connect(oscGain);
+      oscGain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.07);
+      osc.start(now);
+      osc.stop(now + 0.045);
+    });
+  }, [getAudioCtx]);
 
   const startTerminalShell = React.useCallback(() => {
     if (powerTimeoutRef.current) {
@@ -1481,6 +1925,12 @@ export default function TerminalExperience() {
     if (active && powerState !== "stopping") return;
     setInput("");
     setShowStartupInputHint(true);
+    setBrowseUrl(null);
+    prevBrowseUrlRef.current = null;
+    setBrowserMinimized(false);
+    setPreview(null);
+    setSpotifyLive(null);
+    setResults([]);
     setActive(true);
     setPowerState("starting");
     playPowerSfx("start");
@@ -1516,6 +1966,13 @@ export default function TerminalExperience() {
       crtThemeRef.current.pause();
       crtThemeRef.current.currentTime = 0;
     }
+    // Reset all overlays so they're gone when the terminal reopens
+    setBrowseUrl(null);
+    prevBrowseUrlRef.current = null;
+    setBrowserMinimized(false);
+    setPreview(null);
+    setSpotifyLive(null);
+    setResults([]);
     setPowerState("stopping");
     playPowerSfx("stop");
     powerTimeoutRef.current = window.setTimeout(() => {
@@ -1660,11 +2117,20 @@ export default function TerminalExperience() {
         duration,
       );
       timers.push(t);
+      // Schedule per-character print sounds during the typewriter animation
+      if (typed && duration > 0) {
+        const tickInterval = 25; // ~40 chars/sec matches TERMINAL_PRINT_SPEED_CPS
+        const tickCount = Math.floor(duration / tickInterval);
+        for (let i = 0; i < tickCount; i++) {
+          const st = window.setTimeout(() => playPrintSfx(), cursor + i * tickInterval);
+          timers.push(st);
+        }
+      }
       cursor += duration + 40;
     }
 
     return () => { timers.forEach((t) => window.clearTimeout(t)); };
-  }, [active]);
+  }, [active, playPrintSfx]);
 
   React.useEffect(() => {
     if (!active || powerState !== "on") return;
@@ -1864,6 +2330,47 @@ export default function TerminalExperience() {
     return () => window.clearInterval(interval);
   }, [spotifyLive]);
 
+  // Update the Spotify progress bar + time entries in the chat log every second
+  React.useEffect(() => {
+    const ids = spotifyProgressEntryIds.current;
+    if (!ids || !spotifyLive || !spotifyLive.track.isPlaying) return;
+    const now = Date.now();
+    const activeTrack = resolveSpotifyTrack(spotifyLive.track);
+    const progressMs = spotifyProgressNow(spotifyLive, now);
+    const durationMs = activeTrack?.durationMs;
+    setLogs((prev) =>
+      prev.map((entry) => {
+        if (entry.id === ids.time) {
+          return { ...entry, text: `  ${durationText(progressMs)} / ${durationText(durationMs)}` };
+        }
+        if (entry.id === ids.bar) {
+          return { ...entry, text: `  ${progressBar(progressMs, durationMs)}` };
+        }
+        return entry;
+      })
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotifyClock]);
+
+  // Initialize browser floating position/size when browseUrl is first set
+  React.useEffect(() => {
+    if (!browseUrl || browseUrl === prevBrowseUrlRef.current) return;
+    prevBrowseUrlRef.current = browseUrl;
+    // Use a tiny timeout to let the body div mount and measure
+    const t = window.setTimeout(() => {
+      const body = browserBodyRef.current;
+      if (!body) return;
+      const w = Math.max(320, Math.round(body.offsetWidth * 0.54));
+      const h = Math.max(280, Math.round(body.offsetHeight * 0.72));
+      const x = body.offsetWidth - w - 8;
+      const y = body.offsetHeight - h - 8;
+      browserFloatPosRef.current = { x, y };
+      browserFloatSizeRef.current = { w, h };
+      setBrowserFloatPos({ x, y });
+      setBrowserFloatSize({ w, h });
+    }, 30);
+    return () => window.clearTimeout(t);
+  }, [browseUrl]);
 
   // ────────────────────────────────────────────────────────────────────────────
   // Command dispatch
@@ -1893,6 +2400,10 @@ export default function TerminalExperience() {
 
     if (!["open", "nano", "select", "browse", "browser"].includes(cmd)) {
       clearPreview();
+    }
+    if (!["browse", "browser"].includes(cmd) && browseUrl) {
+      setBrowseUrl(null);
+      prevBrowseUrlRef.current = null;
     }
     if (cmd !== "spotify") {
       setSpotifyLive(null);
@@ -1999,7 +2510,7 @@ export default function TerminalExperience() {
       default:
         append([
           logText(
-            `  ${cmd}: command not found  ·  type  help  for a list of commands`,
+            `  ${cmd}: command not found — Type "help" for commands`,
             "error"
           ),
         ]);
@@ -2009,11 +2520,9 @@ export default function TerminalExperience() {
   // ── /togglebackground ─────────────────────────────────────────────────────
 
   function doToggleBackground() {
-    setGifEnabled((prev) => {
-      const next = !prev;
-      append([logText(`  Background GIFs ${next ? "enabled" : "disabled"}.`, "muted")]);
-      return next;
-    });
+    const next = !gifEnabled;
+    setGifEnabled(next);
+    append([logText(`  Background: ${next ? "enabled" : "disabled"}`, "muted")]);
   }
 
   // ── /browse ────────────────────────────────────────────────────────────────
@@ -2035,7 +2544,7 @@ export default function TerminalExperience() {
       return;
     }
 
-    const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const { url, blocked } = sanitizeBrowseUrl(trimmed);
 
     try {
       new URL(url);
@@ -2044,12 +2553,18 @@ export default function TerminalExperience() {
       return;
     }
 
+    if (blocked) {
+      append([logText("  Access denied: that site is blocked by the content filter.", "error")]);
+      return;
+    }
+
     clearPreview();
     setSpotifyLive(null);
+    setBrowserMinimized(false);
     setBrowseUrl(url);
     append([
       logText(`  Opening ${url}`, "success"),
-      logText("  Note: some sites block embedding — click ↗ in the address bar to open in a new tab", "muted"),
+      logText("  Note: some sites block embedding — click ↗ to open in a new tab", "muted"),
     ]);
   }
 
@@ -2085,8 +2600,6 @@ export default function TerminalExperience() {
       logText("  ▸ SEARCH", "muted"),
       logText(`  ${bar}`, "muted"),
       logText("    search <query>       Search projects, articles & clients"),
-      logText("    select <n>           Open result by number"),
-      logText("    <n>                  Shortcut — type a number directly"),
       logText(""),
       logText("  ▸ CONTACT", "muted"),
       logText(`  ${bar}`, "muted"),
@@ -2106,7 +2619,7 @@ export default function TerminalExperience() {
       logText("    help                 Show this screen"),
       logText(""),
       logText(`  ${"─".repeat(W)}`, "muted"),
-      logText("  TAB autocomplete  ·  ↑↓ command history  ·  Ctrl+C clears input", "muted"),
+      logText('  Type "exit" to close', "muted"),
       logText(`  ${"─".repeat(W)}`, "muted"),
       logText(""),
     ]);
@@ -2131,6 +2644,7 @@ export default function TerminalExperience() {
     ]);
     setPreview(null);
     setBrowseUrl(null);
+    prevBrowseUrlRef.current = null;
     setResults([]);
     setSelectedResultIdx(0);
     setResultsLabel("Search Results");
@@ -2452,35 +2966,13 @@ export default function TerminalExperience() {
     lines.push(logText(""));
     append(lines);
 
-    const projectPreviewImages = (p.images?.map((image) => imageAssetSrc(image)) ?? [])
-      .filter((url): url is string => Boolean(url))
-      .filter((url, index, all) => all.indexOf(url) === index)
-      .map((url) => ({ url, alt: p.title }));
-    const coverImg = projectPreviewImages[0]?.url;
-    if (coverImg) {
-      const previewDetails: string[] = [
-        p.subcategory ?? p.category ?? "",
-        p.publishDate ? formatDate(p.publishDate) : "",
-        relatedClients.length ? `Client: ${relatedClients.map((c) => c.name).join(", ")}` : "",
-        p.pricing?.status === "free" ? "Free download" : p.pricing?.price ? formatMoney(p.pricing.price) : p.pricing?.status === "unavailable" ? "Unavailable" : "",
-        p.videos?.length ? `${p.videos.length} video${p.videos.length === 1 ? "" : "s"}` : "",
-        p.tags?.length ? p.tags.join(" · ") : "",
-        p.featured ? "★ Featured" : "",
-        p.credits?.length ? `Credits: ${p.credits.slice(0, 3).map((c) => c.name).join(", ")}` : "",
-      ].filter(Boolean);
-
-      setPreview({
-        title: p.title,
-        subtitle: `${p.subcategory ?? p.category ?? "Project"}  ·  ${p.slug}`,
-        imageUrl: coverImg,
-        imageAlt: p.title,
-        images: projectPreviewImages,
-        details: previewDetails,
-        linkUrl: internalUrl,
-        linkLabel: "View project page →",
-        caption: p.longDescription ? summarizeText(p.longDescription, 120) : (p.description ? summarizeText(p.description, 120) : undefined),
-      });
-    }
+    setPreview({
+      title: p.title,
+      subtitle: `${p.subcategory ?? p.category ?? "Project"}`,
+      linkUrl: internalUrl,
+      linkLabel: "View project page →",
+      projectData: p,
+    });
   }
 
   // ── Show article ──────────────────────────────────────────────────────────
@@ -2536,39 +3028,12 @@ export default function TerminalExperience() {
     lines.push(logText(""));
     append(lines);
 
-    const articlePreviewImages = [
-      imageAssetSrc(a.coverImage),
-      ...a.sections.flatMap((section) => {
-        if (section.type === "image" && section.src) {
-          return [imageAssetSrc(section.src)];
-        }
-        if (section.type === "gallery" && section.images?.length) {
-          return section.images.map((image) => imageAssetSrc(image));
-        }
-        return [];
-      }),
-    ]
-      .filter((url): url is string => Boolean(url))
-      .filter((url, index, all) => all.indexOf(url) === index)
-      .map((url) => ({ url, alt: a.title }));
-    const coverImg = articlePreviewImages[0]?.url;
-    const previewDetails: string[] = [
-      `Author: ${a.author}`,
-      a.updatedDate ? `Updated: ${formatDate(a.updatedDate)}` : "",
-      a.tapCount ? `${a.tapCount.toLocaleString()} tap${a.tapCount === 1 ? "" : "s"}` : "",
-      `${a.sections.length} section${a.sections.length === 1 ? "" : "s"}`,
-      articleVideos.length ? `${articleVideos.length} video${articleVideos.length === 1 ? "" : "s"}` : "",
-      a.featured ? "★ Featured" : "",
-      a.tags?.length ? a.tags.join(" · ") : "",
-    ].filter(Boolean);
     setPreview({
       title: a.title,
       subtitle: `${a.category}  ·  ${formatDate(a.publishDate)}`,
-      images: articlePreviewImages,
-      details: previewDetails,
-      quote: a.excerpt ? summarizeText(a.excerpt, 140) : undefined,
       linkUrl: articleHref,
       linkLabel: "Read article →",
+      articleData: a,
     });
   }
 
@@ -3434,7 +3899,6 @@ export default function TerminalExperience() {
         logText(""),
         logText(`  ${activeTrack.title}`),
         logText(`  ${activeTrack.artist ?? ""}`, "muted"),
-        logText(`  ${activeTrack.albumName ?? ""}`, "muted"),
         logText(""),
         logText(
           `  ${isLive ? "LIVE" : relativeTimeText(activeTrack.playedAt, nextState.fetchedAt) || "recent"}`,
@@ -3446,14 +3910,15 @@ export default function TerminalExperience() {
       if (isLive) {
         const currentProgress = spotifyProgressNow(nextState, nextState.fetchedAt);
         const currentDuration = activeTrack.durationMs;
-        lines.splice(
-          lines.length - 2,
-          0,
-          logText(
-            `  ${durationText(currentProgress)} / ${durationText(currentDuration)}`
-          ),
-          logText(`  ${progressBar(currentProgress, currentDuration)}`)
+        const timeEntry = logText(
+          `  ${durationText(currentProgress)} / ${durationText(currentDuration)}`
         );
+        const barEntry = logText(`  ${progressBar(currentProgress, currentDuration)}`);
+        // Store IDs so the clock effect can update them in place
+        spotifyProgressEntryIds.current = { time: timeEntry.id, bar: barEntry.id };
+        lines.splice(lines.length - 2, 0, timeEntry, barEntry);
+      } else {
+        spotifyProgressEntryIds.current = null;
       }
 
       if (activeTrack.songUrl) {
@@ -4084,10 +4549,21 @@ export default function TerminalExperience() {
             : undefined
         }
       >
-        <div className="flex items-center gap-3">
+        {/* Traffic lights: red=exit, yellow=no-op, green=indicator */}
+        <div className="flex items-center gap-[5px]">
+          <button
+            onClick={(e) => { e.stopPropagation(); closeTerminal(); }}
+            title="Exit terminal"
+            className="h-2.5 w-2.5 rounded-full cursor-pointer transition-opacity hover:opacity-80"
+            style={{ background: "#ff5f57", boxShadow: "0 0 6px rgba(255,95,87,0.35)" }}
+          />
           <span
-            className="block h-2.5 w-2.5 rounded-full bg-[#4ade80]/75"
-            style={{ boxShadow: "0 0 10px rgba(74, 222, 128, 0.45)" }}
+            className="block h-2.5 w-2.5 rounded-full"
+            style={{ background: "#ffbd2e", boxShadow: "0 0 5px rgba(255,189,46,0.25)" }}
+          />
+          <span
+            className="block h-2.5 w-2.5 rounded-full"
+            style={{ background: "#28c840", boxShadow: "0 0 8px rgba(40,200,64,0.35)" }}
           />
         </div>
 
@@ -4098,32 +4574,21 @@ export default function TerminalExperience() {
           {pathLabel(cwd)}
         </div>
 
-        <div className="hidden sm:flex items-center gap-3">
-          <span
-            className="text-[#86efac]/35 text-[7px] tracking-wider select-none"
-            style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
-          >
-            Type &quot;exit&quot; to close
-          </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              closeTerminal();
-            }}
-            className="text-[#86efac]/35 hover:text-[#dcfce7] transition-colors text-[0.6125rem] leading-none"
-            style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
-          >
-            ✕
-          </button>
-        </div>
+        <span
+          className="hidden sm:block text-[#86efac]/35 text-[7px] tracking-wider select-none"
+          style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
+        >
+          Type &quot;exit&quot; to close
+        </span>
       </div>
 
       {/* Body */}
       <div
+        ref={browserBodyRef}
         className="crt-content-layer relative z-10 flex flex-1 min-h-0"
         style={isThreeStage ? { background: "rgba(3, 12, 7, 0.08)" } : undefined}
       >
-        {/* Transcript */}
+        {/* Transcript — always full width; browser floats as overlay */}
         <div
           ref={transcriptRef}
           className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
@@ -4143,26 +4608,212 @@ export default function TerminalExperience() {
           <div className="h-3" />
         </div>
 
-        {/* Browser panel — shown when browse <url> is active */}
-        {browseUrl ? (
-          <div className="hidden md:flex w-[55%] shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#020b05]">
-            <BrowserPanel
-              url={browseUrl}
-              onClose={() => setBrowseUrl(null)}
-              onNavigate={(url) => setBrowseUrl(url)}
-            />
-          </div>
-        ) : activePreview ? (
+        {/* Preview panel (sidebar) — only shown when no browser and preview is active */}
+        {!browseUrl && activePreview && (
           <div className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#031008]/92">
             <PreviewPanel
               preview={activePreview}
+              clients={data?.clients ?? []}
               onClose={() => {
                 setSpotifyLive(null);
                 setPreview(null);
               }}
             />
           </div>
-        ) : null}
+        )}
+
+        {/* Floating browser window — absolutely positioned overlay */}
+        {browseUrl && browserFloatSize.w > 0 && (
+          <div
+            className="hidden md:block absolute z-50 rounded-sm border border-[#4ade80]/20 bg-[#020b05] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_0_1px_rgba(74,222,128,0.06)]"
+            style={{
+              left: browserFloatPos.x,
+              top: browserFloatPos.y,
+              width: browserMinimized ? "auto" : browserFloatSize.w,
+              height: browserMinimized ? "auto" : browserFloatSize.h,
+              minWidth: 220,
+              overflow: "visible", // keep resize handles outside clip region
+            }}
+          >
+            {/* Inner clip wrapper so browser content stays bounded */}
+            <div className="absolute inset-0 overflow-hidden rounded-sm pointer-events-none" style={{ zIndex: 1 }} />
+
+            {/* ── Edge resize handles ── */}
+            <div className="absolute inset-x-2 top-0 h-1.5 z-[65] cursor-ns-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startY = e.clientY; const startTop = browserFloatPosRef.current.y; const startH = browserFloatSizeRef.current.h;
+              const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                if (!container) return;
+                const dy = ev.clientY - startY;
+                const newH = Math.max(160, startH - dy);
+                const newY = Math.max(0, Math.min(startTop + dy, container.offsetHeight - 160));
+                browserFloatPosRef.current = { ...browserFloatPosRef.current, y: newY };
+                browserFloatSizeRef.current = { ...browserFloatSizeRef.current, h: newH };
+                setBrowserFloatPos((p) => ({ ...p, y: newY }));
+                setBrowserFloatSize((s) => ({ ...s, h: newH }));
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+            <div className="absolute inset-x-2 bottom-0 h-1.5 z-[65] cursor-ns-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startY = e.clientY; const startH = browserFloatSizeRef.current.h; const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                const dy = ev.clientY - startY;
+                const maxH = container ? container.offsetHeight - browserFloatPosRef.current.y - 4 : 800;
+                const newH = Math.max(160, Math.min(maxH, startH + dy));
+                browserFloatSizeRef.current = { ...browserFloatSizeRef.current, h: newH };
+                setBrowserFloatSize((s) => ({ ...s, h: newH }));
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+            <div className="absolute inset-y-2 left-0 w-1.5 z-[65] cursor-col-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX; const startLeft = browserFloatPosRef.current.x; const startW = browserFloatSizeRef.current.w;
+              const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                if (!container) return;
+                const dx = ev.clientX - startX;
+                const newW = Math.max(220, startW - dx);
+                const newX = Math.max(0, Math.min(startLeft + dx, container.offsetWidth - 220));
+                browserFloatPosRef.current = { ...browserFloatPosRef.current, x: newX };
+                browserFloatSizeRef.current = { ...browserFloatSizeRef.current, w: newW };
+                setBrowserFloatPos((p) => ({ ...p, x: newX }));
+                setBrowserFloatSize((s) => ({ ...s, w: newW }));
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+            <div className="absolute inset-y-2 right-0 w-1.5 z-[65] cursor-col-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX; const startW = browserFloatSizeRef.current.w; const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                const dx = ev.clientX - startX;
+                const maxW = container ? container.offsetWidth - browserFloatPosRef.current.x - 4 : 1200;
+                const newW = Math.max(220, Math.min(maxW, startW + dx));
+                browserFloatSizeRef.current = { ...browserFloatSizeRef.current, w: newW };
+                setBrowserFloatSize((s) => ({ ...s, w: newW }));
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+
+            {/* ── Corner resize handles (8×8, sit above edge handles) ── */}
+            {/* Top-left */}
+            <div className="absolute top-0 left-0 w-3 h-3 z-[70] cursor-nwse-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX; const startY = e.clientY;
+              const startLeft = browserFloatPosRef.current.x; const startTop = browserFloatPosRef.current.y;
+              const startW = browserFloatSizeRef.current.w; const startH = browserFloatSizeRef.current.h;
+              const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                if (!container) return;
+                const dx = ev.clientX - startX; const dy = ev.clientY - startY;
+                const newW = Math.max(220, startW - dx);
+                const newH = Math.max(160, startH - dy);
+                const newX = Math.max(0, Math.min(startLeft + dx, container.offsetWidth - 220));
+                const newY = Math.max(0, Math.min(startTop + dy, container.offsetHeight - 160));
+                browserFloatPosRef.current = { x: newX, y: newY };
+                browserFloatSizeRef.current = { w: newW, h: newH };
+                setBrowserFloatPos({ x: newX, y: newY });
+                setBrowserFloatSize({ w: newW, h: newH });
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+            {/* Top-right */}
+            <div className="absolute top-0 right-0 w-3 h-3 z-[70] cursor-nesw-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX; const startY = e.clientY;
+              const startTop = browserFloatPosRef.current.y;
+              const startW = browserFloatSizeRef.current.w; const startH = browserFloatSizeRef.current.h;
+              const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                if (!container) return;
+                const dx = ev.clientX - startX; const dy = ev.clientY - startY;
+                const maxW = container.offsetWidth - browserFloatPosRef.current.x - 4;
+                const newW = Math.max(220, Math.min(maxW, startW + dx));
+                const newH = Math.max(160, startH - dy);
+                const newY = Math.max(0, Math.min(startTop + dy, container.offsetHeight - 160));
+                browserFloatPosRef.current = { ...browserFloatPosRef.current, y: newY };
+                browserFloatSizeRef.current = { w: newW, h: newH };
+                setBrowserFloatPos((p) => ({ ...p, y: newY }));
+                setBrowserFloatSize({ w: newW, h: newH });
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+            {/* Bottom-left */}
+            <div className="absolute bottom-0 left-0 w-3 h-3 z-[70] cursor-nesw-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX; const startY = e.clientY;
+              const startLeft = browserFloatPosRef.current.x;
+              const startW = browserFloatSizeRef.current.w; const startH = browserFloatSizeRef.current.h;
+              const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                if (!container) return;
+                const dx = ev.clientX - startX; const dy = ev.clientY - startY;
+                const newW = Math.max(220, startW - dx);
+                const newX = Math.max(0, Math.min(startLeft + dx, container.offsetWidth - 220));
+                const maxH = container.offsetHeight - browserFloatPosRef.current.y - 4;
+                const newH = Math.max(160, Math.min(maxH, startH + dy));
+                browserFloatPosRef.current = { ...browserFloatPosRef.current, x: newX };
+                browserFloatSizeRef.current = { w: newW, h: newH };
+                setBrowserFloatPos((p) => ({ ...p, x: newX }));
+                setBrowserFloatSize({ w: newW, h: newH });
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+            {/* Bottom-right */}
+            <div className="absolute bottom-0 right-0 w-3 h-3 z-[70] cursor-nwse-resize" onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX; const startY = e.clientY;
+              const startW = browserFloatSizeRef.current.w; const startH = browserFloatSizeRef.current.h;
+              const container = browserBodyRef.current;
+              const onMove = (ev: MouseEvent) => {
+                const dx = ev.clientX - startX; const dy = ev.clientY - startY;
+                const maxW = container ? container.offsetWidth - browserFloatPosRef.current.x - 4 : 1200;
+                const maxH = container ? container.offsetHeight - browserFloatPosRef.current.y - 4 : 800;
+                const newW = Math.max(220, Math.min(maxW, startW + dx));
+                const newH = Math.max(160, Math.min(maxH, startH + dy));
+                browserFloatSizeRef.current = { w: newW, h: newH };
+                setBrowserFloatSize({ w: newW, h: newH });
+              };
+              const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+              document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+            }} />
+
+            <BrowserPanel
+              url={browseUrl}
+              onClose={() => { setBrowseUrl(null); setBrowserMinimized(false); prevBrowseUrlRef.current = null; }}
+              onNavigate={(url) => { setBrowseUrl(url); setBrowserMinimized(false); }}
+              onMinimize={() => setBrowserMinimized((prev) => !prev)}
+              minimized={browserMinimized}
+              onTitleBarDragStart={(e) => {
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startPosX = browserFloatPosRef.current.x;
+                const startPosY = browserFloatPosRef.current.y;
+                const container = browserBodyRef.current;
+                const onMove = (ev: MouseEvent) => {
+                  if (!container) return;
+                  const dx = ev.clientX - startX;
+                  const dy = ev.clientY - startY;
+                  const newX = Math.max(0, Math.min(container.offsetWidth - browserFloatSizeRef.current.w, startPosX + dx));
+                  const newY = Math.max(0, Math.min(container.offsetHeight - 32, startPosY + dy));
+                  browserFloatPosRef.current = { x: newX, y: newY };
+                  setBrowserFloatPos({ x: newX, y: newY });
+                };
+                const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+                document.addEventListener("mousemove", onMove);
+                document.addEventListener("mouseup", onUp);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Input bar */}
@@ -5565,6 +6216,28 @@ export default function TerminalExperience() {
         @keyframes crtInputHintPulse {
           0%, 100% { opacity: 0.16; }
           50% { opacity: 0.42; }
+        }
+
+        @keyframes browserScanScroll {
+          0%   { background-position: 0 0; }
+          100% { background-position: 0 9px; }
+        }
+
+        @keyframes browserBeamSweep {
+          0%   { top: -4px; }
+          100% { top: 100%; }
+        }
+
+        @keyframes browserFlicker {
+          0%, 100% { background: rgba(0,0,0,0); }
+          50%       { background: rgba(0,0,0,0.016); }
+        }
+
+        @keyframes browserLoadStatic {
+          0%   { opacity: 0.92; }
+          40%  { opacity: 0.58; }
+          75%  { opacity: 0.22; }
+          100% { opacity: 0;    }
         }
       `}</style>
     </div>
