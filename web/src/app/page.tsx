@@ -40,7 +40,9 @@ export default async function HomePage() {
 
   // Use admin-ordered lists if configured, otherwise fall back to featured flag
   const featuredProjects = siteContent.featuredProjectIds.length
-    ? siteContent.featuredProjectIds.map((id) => allProjects.find((p) => p.id === id)).filter(Boolean) as typeof allProjects
+    ? siteContent.featuredProjectIds
+        .map((id) => allProjects.find((p) => p.id === id))
+        .filter((p): p is typeof allProjects[number] => !!p && !!p.featured)
     : allProjects.filter((p) => p.featured);
 
   const featuredClients = siteContent.featuredClientIds.length
