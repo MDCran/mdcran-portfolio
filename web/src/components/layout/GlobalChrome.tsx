@@ -5,7 +5,7 @@ import ResumeButton from "@/components/shared/ResumeButton";
 import KeyboardShortcuts from "@/components/shared/KeyboardShortcuts";
 import TerminalExperience from "@/components/terminal/TerminalExperience";
 
-const CHROMELESS_PREFIXES = ["/admin", "/githubprofile"];
+const CHROMELESS_PREFIXES = ["/admin", "/githubprofile", "/visitor"];
 
 export default function GlobalChrome() {
   const pathname = usePathname();

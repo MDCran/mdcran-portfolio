@@ -1251,6 +1251,77 @@ export async function saveRizzSubmissions(data: RizzSubmission[]): Promise<void>
   }
 }
 
+// ─── Visitor tracking ───────────────────────────────────────────────────────
+
+export type VisitorCountByCountry = {
+  country: string;
+  countryName: string;
+  lat: number;
+  lng: number;
+  count: number;
+};
+
+export async function logVisitorSession(data: {
+  ipHash: string;
+  country: string;
+  countryName: string;
+  lat: number;
+  lng: number;
+  city?: string;
+}): Promise<void> {
+  const db = await getDb();
+  await db.collection("visitors").updateOne(
+    { ipHash: data.ipHash },
+    {
+      $set: {
+        country: data.country,
+        countryName: data.countryName,
+        lat: data.lat,
+        lng: data.lng,
+        city: data.city,
+        lastSeen: new Date(),
+      },
+      $setOnInsert: { firstSeen: new Date() },
+    },
+    { upsert: true }
+  );
+}
+
+export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry[]> {
+  const db = await getDb();
+  const results = await db
+    .collection("visitors")
+    .aggregate([
+      {
+        $group: {
+          _id: "$country",
+          countryName: { $first: "$countryName" },
+          lat: { $avg: "$lat" },
+          lng: { $avg: "$lng" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+      {
+        $project: {
+          _id: 0,
+          country: "$_id",
+          countryName: 1,
+          lat: 1,
+          lng: 1,
+          count: 1,
+        },
+      },
+    ])
+    .toArray();
+  return results as VisitorCountByCountry[];
+}
+
+export async function getTotalVisitorCount(): Promise<number> {
+  const db = await getDb();
+  return db.collection("visitors").countDocuments();
+}
+
 export async function updateR2AssetReferences(oldUrl: string, newUrl: string): Promise<number> {
   function deepReplace(obj: unknown): unknown {
     if (typeof obj === "string") return obj === oldUrl ? newUrl : obj;
