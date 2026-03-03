@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import GlobalChrome from "@/components/layout/GlobalChrome";
+import VisitorTracker from "@/components/visitor/VisitorTracker";
 import { getSiteContent } from "@/lib/db";
 import { assetUrl } from "@/lib/utils";
 import {
@@ -81,6 +82,7 @@ export default function RootLayout({
         <div className="relative z-[1] w-full min-h-screen flex flex-col">
           {children}
           <GlobalChrome />
+          <VisitorTracker />
         </div>
       </body>
     </html>
