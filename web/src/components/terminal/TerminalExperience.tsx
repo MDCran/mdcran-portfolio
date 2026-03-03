@@ -45,6 +45,7 @@ type LogEntry = {
   text?: string;
   tone?: LogTone;
   links?: Array<{ label: string; href: string }>;
+  typeDurationMs?: number; // if set, play typewriter reveal animation
 };
 
 type PreviewState = {
@@ -158,6 +159,7 @@ const COMMANDS = [
   "unsubscribe",
   "spotify",
   "browse",
+  "togglebackground",
   "terms",
   "privacy",
   "exit",
@@ -201,6 +203,10 @@ const POWER_BUTTON_HOVER_MS = 40;
 const TERMINAL_APPEAR_MS = 1500;
 // Delay (ms) after terminal opens before the boot text starts printing.
 const TERMINAL_TEXT_DELAY_MS = 1000;
+// Characters per second for the boot text typewriter animation.
+const TERMINAL_PRINT_SPEED_CPS = 40;
+// Maximum total ms the entire boot typewriter may take (auto-speeds up for longer text).
+const TERMINAL_PRINT_MAX_MS = 1400;
 // Delay (ms) after terminal opens before the retro GIF background starts showing.
 const TERMINAL_GIF_DELAY_MS = 500;
 // Delay (ms) after the close command before the shell DISAPPEARS from screen.
@@ -230,6 +236,16 @@ function promptLabel(path: string[]) {
 
 function logText(text: string, tone: LogTone = "default"): LogEntry {
   return { id: mkId(), text, tone };
+}
+
+// Compute typewriter animation duration for a given text using the top-of-file constants.
+// For multi-line text, speed is based on the longest line (all rows reveal in sync via clip-path).
+function typedDuration(text: string): number {
+  const lines = text.split("\n");
+  const effectiveLen = lines.length > 1
+    ? Math.max(...lines.map((l) => l.length))
+    : text.length;
+  return Math.min(effectiveLen * (1000 / TERMINAL_PRINT_SPEED_CPS), TERMINAL_PRINT_MAX_MS);
 }
 
 // Box header: always perfectly aligned regardless of title length.
@@ -687,6 +703,25 @@ function LogLine({ entry }: { entry: LogEntry }) {
       : "text-[#d9fbe3]/85";
   const weightClass = entry.tone === "accent" ? "font-semibold" : "";
 
+  if (entry.typeDurationMs) {
+    const lines = (entry.text ?? "").split("\n");
+    const steps = Math.max(
+      lines.length > 1 ? Math.max(...lines.map((l) => l.length)) : (entry.text?.length ?? 1),
+      1,
+    );
+    return (
+      <div
+        className={`whitespace-pre leading-[0.875rem] overflow-hidden ${toneClass} ${weightClass}`}
+        style={{
+          textShadow: "0 0 6px rgba(74, 222, 128, 0.14)",
+          animation: `crtTyping ${entry.typeDurationMs}ms steps(${steps}, end) both`,
+        }}
+      >
+        {entry.text}
+      </div>
+    );
+  }
+
   return (
     <div
       className={`whitespace-pre-wrap leading-[0.875rem] ${toneClass} ${weightClass}`}
@@ -924,6 +959,7 @@ export default function TerminalExperience() {
   const [browseUrl, setBrowseUrl] = React.useState<string | null>(null);
   const [retroGifIdx, setRetroGifIdx] = React.useState(1);
   const [gifVisible, setGifVisible] = React.useState(false);
+  const [gifEnabled, setGifEnabled] = React.useState(true);
 
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -1127,27 +1163,26 @@ export default function TerminalExperience() {
     return [...all].sort((a, b) => a.localeCompare(b));
   }, []);
 
-  // Context-aware cd completions: what can you cd into from the current cwd?
+  // Context-aware cd completions: mirrors exactly what `ls` shows at the current path.
   const cdContextCompletions = React.useMemo(() => {
     const all = new Set<string>();
-    all.add("/");
     all.add("..");
-    const key = pathLabel(cwd);
-    if (key === "/") {
-      for (const root of ROOTS) all.add(root);
-      for (const alias of Object.keys(ROUTES)) all.add(alias);
-    } else if (key === "/arts-and-entertainment") {
-      all.add("minecraft-maps");
-      all.add("events");
-    } else if (key === "/motion-and-graphics") {
-      all.add("thumbnail-design");
-      all.add("video-editing");
-      all.add("web-dev-design");
+    all.add("/");
+    if (data) {
+      const items = directoryItems(cwd, data);
+      for (const item of items) {
+        // Directory entries are formatted as "  ▸  {name}/"
+        const m = item.match(/▸\s+(.+?)\/\s*$/);
+        if (m) all.add(m[1]);
+      }
+    } else {
+      // Fallback before data loads: root-level dirs
+      if (pathLabel(cwd) === "/") {
+        for (const root of ROOTS) all.add(root);
+      }
     }
-    // Always allow absolute path navigation too
-    for (const dir of VALID_DIRS) all.add(dir);
     return [...all].sort((a, b) => a.localeCompare(b));
-  }, [cwd]);
+  }, [cwd, data]);
 
   const showInputHint =
     powerState !== "off" &&
@@ -1289,7 +1324,12 @@ export default function TerminalExperience() {
 
   // ── append helper ──────────────────────────────────────────────────────────
   const append = React.useCallback((entries: LogEntry[]) => {
-    setLogs((prev) => [...prev, ...entries]);
+    const animated = entries.map((e) => {
+      // Only animate plain text entries (not prompts, links, empty lines, or already-timed entries)
+      if (e.typeDurationMs !== undefined || e.prompt != null || e.links || !e.text) return e;
+      return { ...e, typeDurationMs: typedDuration(e.text) };
+    });
+    setLogs((prev) => [...prev, ...animated]);
   }, []);
 
   const clearPreview = React.useCallback(() => {
@@ -1596,24 +1636,34 @@ export default function TerminalExperience() {
     setFormState(EMPTY_FORM);
     historyIdxRef.current = -1;
     setLogs([]);
-    const t = TERMINAL_TEXT_DELAY_MS > 0
-      ? window.setTimeout(() => {
-          setLogs([
-            logText(ASCII, "accent"),
-            logText(""),
-            logText("  MDCRAN CLI", "accent"),
-            logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"),
-            logText(""),
-          ]);
-        }, TERMINAL_TEXT_DELAY_MS)
-      : (setLogs([
-          logText(ASCII, "accent"),
-          logText(""),
-          logText("  MDCRAN CLI", "accent"),
-          logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"),
-          logText(""),
-        ]), undefined);
-    return () => { if (t !== undefined) window.clearTimeout(t); };
+
+    // Boot lines: typed entries get the typewriter animation; blank lines appear instantly.
+    const bootLines: Array<{ entry: LogEntry; typed: boolean }> = [
+      { entry: logText(ASCII, "accent"),                                                    typed: true  },
+      { entry: logText(""),                                                                  typed: false },
+      { entry: logText("  MDCRAN CLI (Release Version 1.0)", "accent"),                    typed: true  },
+      { entry: logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"), typed: true  },
+      { entry: logText(""),                                                                  typed: false },
+    ];
+
+    const timers: number[] = [];
+    let cursor = TERMINAL_TEXT_DELAY_MS;
+
+    for (const { entry, typed } of bootLines) {
+      const duration = typed && entry.text ? typedDuration(entry.text) : 0;
+      const t = window.setTimeout(
+        (e: LogEntry, d: number) => {
+          setLogs((prev) => [...prev, d > 0 ? { ...e, typeDurationMs: d } : e]);
+        },
+        cursor,
+        entry,
+        duration,
+      );
+      timers.push(t);
+      cursor += duration + 40;
+    }
+
+    return () => { timers.forEach((t) => window.clearTimeout(t)); };
   }, [active]);
 
   React.useEffect(() => {
@@ -1841,7 +1891,7 @@ export default function TerminalExperience() {
       return;
     }
 
-    if (!["open", "nano", "select", "browse"].includes(cmd)) {
+    if (!["open", "nano", "select", "browse", "browser"].includes(cmd)) {
       clearPreview();
     }
     if (cmd !== "spotify") {
@@ -1931,7 +1981,11 @@ export default function TerminalExperience() {
         void doSpotify();
         break;
       case "browse":
+      case "browser":
         doBrowse(rest);
+        break;
+      case "togglebackground":
+        doToggleBackground();
         break;
       case "terms":
         doTerms();
@@ -1950,6 +2004,16 @@ export default function TerminalExperience() {
           ),
         ]);
     }
+  }
+
+  // ── /togglebackground ─────────────────────────────────────────────────────
+
+  function doToggleBackground() {
+    setGifEnabled((prev) => {
+      const next = !prev;
+      append([logText(`  Background GIFs ${next ? "enabled" : "disabled"}.`, "muted")]);
+      return next;
+    });
   }
 
   // ── /browse ────────────────────────────────────────────────────────────────
@@ -2037,6 +2101,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  ▸ OTHER", "muted"),
       logText(`  ${bar}`, "muted"),
+      logText("    togglebackground    Toggle retro GIF background on/off"),
       logText('    exit                 Type "exit" to close'),
       logText("    help                 Show this screen"),
       logText(""),
@@ -2060,7 +2125,7 @@ export default function TerminalExperience() {
     setLogs([
       logText(ASCII, "accent"),
       logText(""),
-      logText("  MDCRAN CLI", "accent"),
+      logText("  MDCRAN CLI (Release Version 1.0)", "accent"),
       logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
       logText(""),
     ]);
@@ -2499,7 +2564,6 @@ export default function TerminalExperience() {
     setPreview({
       title: a.title,
       subtitle: `${a.category}  ·  ${formatDate(a.publishDate)}`,
-      ...(coverImg ? { imageUrl: coverImg, imageAlt: a.title } : {}),
       images: articlePreviewImages,
       details: previewDetails,
       quote: a.excerpt ? summarizeText(a.excerpt, 140) : undefined,
@@ -3754,7 +3818,7 @@ export default function TerminalExperience() {
         onKeyDownCapture={handleTerminalSurfaceKeyDown}
       >
       {/* Retro GIF cycling background — behind all effect layers; adjust RETRO_GIF_INSET to control bleed */}
-      {gifVisible && (
+      {gifVisible && gifEnabled && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           key={retroGifIdx}
@@ -5139,6 +5203,11 @@ export default function TerminalExperience() {
         @keyframes crtVignetteShift {
           0%, 100% { opacity: 0.24; }
           50% { opacity: 0.36; }
+        }
+
+        @keyframes crtTyping {
+          from { clip-path: inset(0 100% 0 0); }
+          to   { clip-path: inset(0 0%   0 0); }
         }
 
         @keyframes crtStartupBloom {
