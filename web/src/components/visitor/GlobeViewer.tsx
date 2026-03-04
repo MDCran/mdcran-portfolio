@@ -35,8 +35,9 @@ function latLngToVec3(lat: number, lng: number, r = 1): THREE.Vector3 {
   );
 }
 
-// ── Textured globe mesh ───────────────────────────────────────────────────────
-function buildGlobeMesh(): THREE.Mesh {
+// ── Textured globe mesh — progressive loading ─────────────────────────────────
+// onStage(n): called with 1 (low), 2 (mid), 3 (full) as each quality tier loads
+function buildGlobeMesh(onStage: (stage: number) => void): THREE.Mesh {
   const geo = new THREE.SphereGeometry(1, 80, 80);
   const mat = new THREE.MeshPhongMaterial({
     color: new THREE.Color(0x112233),
@@ -44,46 +45,70 @@ function buildGlobeMesh(): THREE.Mesh {
     shininess: 6,
   });
 
-  new THREE.TextureLoader().load("/world.jpg", (raw) => {
-    const img = raw.image as HTMLImageElement;
-    const w = img.naturalWidth  || img.width;
-    const h = img.naturalHeight || img.height;
-
-    // Pass 1 — contrast / saturation / brightness
-    const c = document.createElement("canvas");
-    c.width = w; c.height = h;
-    const ctx = c.getContext("2d")!;
-    ctx.filter = `contrast(${GLOBE_CONTRAST}%) saturate(${GLOBE_SATURATION}%) brightness(${GLOBE_BRIGHTNESS})`;
-    ctx.drawImage(img, 0, 0);
-
-    // Pass 2 — unsharp mask for sharpness
-    if (GLOBE_SHARPNESS > 0) {
-      const blurRadius = Math.max(1, Math.ceil(GLOBE_SHARPNESS * 2));
-      const blurC = document.createElement("canvas");
-      blurC.width = w; blurC.height = h;
-      const blurCtx = blurC.getContext("2d")!;
-      blurCtx.filter = `blur(${blurRadius}px)`;
-      blurCtx.drawImage(c, 0, 0);
-      const orig    = ctx.getImageData(0, 0, w, h);
-      const blurred = blurCtx.getImageData(0, 0, w, h);
-      const out     = new ImageData(w, h);
-      const s       = GLOBE_SHARPNESS;
-      for (let i = 0; i < orig.data.length; i += 4) {
-        out.data[i]   = Math.max(0, Math.min(255, orig.data[i]   + s * (orig.data[i]   - blurred.data[i])));
-        out.data[i+1] = Math.max(0, Math.min(255, orig.data[i+1] + s * (orig.data[i+1] - blurred.data[i+1])));
-        out.data[i+2] = Math.max(0, Math.min(255, orig.data[i+2] + s * (orig.data[i+2] - blurred.data[i+2])));
-        out.data[i+3] = orig.data[i+3];
-      }
-      ctx.putImageData(out, 0, 0);
-    }
-
-    const processed = new THREE.CanvasTexture(c);
-    processed.colorSpace = THREE.SRGBColorSpace;
-    mat.map = processed;
+  const applyCanvas = (c: HTMLCanvasElement) => {
+    const prev = mat.map;
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    mat.map = tex;
     mat.color.set(0xffffff);
     mat.needsUpdate = true;
-    raw.dispose();
-  });
+    prev?.dispose();
+  };
+
+  const drawAtScale = (img: HTMLImageElement, w: number, h: number, scale: number): HTMLCanvasElement => {
+    const cw = Math.max(1, Math.floor(w / scale));
+    const ch = Math.max(1, Math.floor(h / scale));
+    const c = document.createElement("canvas");
+    c.width = cw; c.height = ch;
+    const ctx = c.getContext("2d")!;
+    ctx.filter = `contrast(${GLOBE_CONTRAST}%) saturate(${GLOBE_SATURATION}%) brightness(${GLOBE_BRIGHTNESS})`;
+    ctx.drawImage(img, 0, 0, cw, ch);
+    return c;
+  };
+
+  const img = new Image();
+  img.onload = () => {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+
+    // Stage 1 — 1/8 resolution (blurry but instant once downloaded)
+    applyCanvas(drawAtScale(img, w, h, 8));
+    onStage(1);
+
+    // Stage 2 — 1/2 resolution (crisp enough to read continents)
+    requestAnimationFrame(() => {
+      applyCanvas(drawAtScale(img, w, h, 2));
+      onStage(2);
+
+      // Stage 3 — full resolution with unsharp mask
+      requestAnimationFrame(() => {
+        const c = drawAtScale(img, w, h, 1);
+        if (GLOBE_SHARPNESS > 0) {
+          const ctx = c.getContext("2d")!;
+          const blurRadius = Math.max(1, Math.ceil(GLOBE_SHARPNESS * 2));
+          const blurC = document.createElement("canvas");
+          blurC.width = w; blurC.height = h;
+          const blurCtx = blurC.getContext("2d")!;
+          blurCtx.filter = `blur(${blurRadius}px)`;
+          blurCtx.drawImage(c, 0, 0);
+          const orig    = ctx.getImageData(0, 0, w, h);
+          const blurred = blurCtx.getImageData(0, 0, w, h);
+          const out     = new ImageData(w, h);
+          const s       = GLOBE_SHARPNESS;
+          for (let i = 0; i < orig.data.length; i += 4) {
+            out.data[i]   = Math.max(0, Math.min(255, orig.data[i]   + s * (orig.data[i]   - blurred.data[i])));
+            out.data[i+1] = Math.max(0, Math.min(255, orig.data[i+1] + s * (orig.data[i+1] - blurred.data[i+1])));
+            out.data[i+2] = Math.max(0, Math.min(255, orig.data[i+2] + s * (orig.data[i+2] - blurred.data[i+2])));
+            out.data[i+3] = orig.data[i+3];
+          }
+          ctx.putImageData(out, 0, 0);
+        }
+        applyCanvas(c);
+        onStage(3);
+      });
+    });
+  };
+  img.src = "/world.jpg";
 
   return new THREE.Mesh(geo, mat);
 }
@@ -198,6 +223,7 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
 
   const [stats, setStats] = React.useState<CountryStat[]>(initialStats);
   const [total, setTotal] = React.useState(initialTotal);
+  const [loadStage, setLoadStage] = React.useState(0); // 0=downloading, 1=low, 2=mid, 3=full
 
   // Refs so the render loop always reads the latest values without re-running useEffect
   const statsRef         = React.useRef(stats);
@@ -271,7 +297,7 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
     scene.add(dir);
 
     scene.add(buildStarField());
-    scene.add(buildGlobeMesh());
+    scene.add(buildGlobeMesh(setLoadStage));
     scene.add(buildGridLines());
 
     // Initial markers
@@ -433,6 +459,41 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
           </div>
         )}
       </div>
+
+      {/* Map load progress — bottom-right */}
+      {loadStage < 3 && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 24,
+            right: 24,
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10,
+            color: "rgba(255,255,255,0.35)",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "#ef4242",
+              animation: "pulse 1s ease-in-out infinite",
+            }}
+          />
+          {loadStage === 0 ? "Loading map…" : loadStage === 1 ? "Enhancing…" : "Sharpening…"}
+          <span style={{ color: "rgba(255,255,255,0.18)" }}>
+            {loadStage}/3
+          </span>
+        </div>
+      )}
 
       {/* Stats panel — bottom-left */}
       <div
