@@ -519,6 +519,22 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
         <div style={{ fontSize: 30, fontWeight: 700, color: "#ef4242", lineHeight: 1, marginBottom: 12 }}>
           {total.toLocaleString()}
         </div>
+        /*
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: 4 }}>
+          Top Countries
+        </div>
+        {topCountries.length === 0 && (
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>No data yet</div>
+        )}
+        {topCountries.map((s, i) => (
+          <div key={s.country} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
+            <span style={{ color: "rgba(255,255,255,0.25)", width: 16, textAlign: "right" }}>{i + 1}</span>
+            <span style={{ color: "rgba(255,255,255,0.65)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {s.countryName}
+            </span>
+            <span style={{ color: "#ef4242", fontWeight: 600 }}>{s.count.toLocaleString()}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
