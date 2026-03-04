@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { isAdminAuthenticated } from "@/lib/auth";
 import { getVisitorCountsByCountry, getTotalVisitorCount } from "@/lib/db";
 import GlobeViewer from "@/components/visitor/GlobeViewer";
 import type { Metadata } from "next";
@@ -12,10 +10,6 @@ export const metadata: Metadata = {
 };
 
 export default async function VisitorPage() {
-  if (!(await isAdminAuthenticated())) {
-    redirect("/admin");
-  }
-
   const [countries, total] = await Promise.all([
     getVisitorCountsByCountry(),
     getTotalVisitorCount(),

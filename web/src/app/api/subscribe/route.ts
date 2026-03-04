@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getDb } from "@/lib/mongodb";
-import { enforcePublicFormRateLimit } from "@/lib/rate-limit";
 import {
   isValidEmail,
   isValidPhoneNumber,
@@ -31,11 +30,6 @@ export async function POST(req: NextRequest) {
   }
   if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
     return NextResponse.json({ error: "Enter a valid phone number" }, { status: 400 });
-  }
-
-  const rateLimit = await enforcePublicFormRateLimit(req, "subscribe-form");
-  if (!rateLimit.allowed) {
-    return NextResponse.json({ error: rateLimit.error }, { status: rateLimit.status });
   }
 
   try {
@@ -79,16 +73,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to save subscription" }, { status: 500 });
   }
 
-  const response = NextResponse.json({
-    success: true,
-    message: "Saved subscription",
-  });
-  response.cookies.set(rateLimit.cookieName, "1", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
-    path: "/",
-  });
-  return response;
+  return NextResponse.json({ success: true, message: "Saved subscription" });
 }
