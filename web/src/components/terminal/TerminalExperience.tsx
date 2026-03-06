@@ -1824,6 +1824,12 @@ export default function TerminalExperience() {
     return ctx.resume().then(() => ctx).catch(() => null) as Promise<AudioContext>;
   }, []);
 
+  const unlockAudioCtx = React.useCallback(() => {
+    const ctxP = getAudioCtx();
+    if (!ctxP) return;
+    void ctxP.then(() => {});
+  }, [getAudioCtx]);
+
   // Subtle keyboard click for each character typed
   const playTypeSfx = React.useCallback(() => {
     const ctxP = getAudioCtx();
@@ -1944,10 +1950,11 @@ export default function TerminalExperience() {
   // "Turn On TV" button handler — must be in a click event for audio gesture context.
   // Animation starts immediately; content reveals after TERMINAL_APPEAR_MS.
   const handleTurnOn = React.useCallback(() => {
+    unlockAudioCtx();
     const audio = getOrCreateCrtThemeAudio();
     void audio.play().catch(() => {});
     startTerminalShell();
-  }, [getOrCreateCrtThemeAudio, startTerminalShell]);
+  }, [getOrCreateCrtThemeAudio, startTerminalShell, unlockAudioCtx]);
 
   const startTerminal = React.useCallback(() => {
     if (!isTerminalRoute) {
@@ -1992,9 +1999,7 @@ export default function TerminalExperience() {
     }
     if (!isThreeStage) return;
     // Show GIF after TERMINAL_GIF_DELAY_MS once terminal is on
-    let appearTimer: number | undefined;
-    let cycleTimer: number;
-    appearTimer = window.setTimeout(() => {
+    const appearTimer = window.setTimeout(() => {
       setGifVisible(true);
       function schedule() {
         const delay = 2000 + Math.random() * 2000;
@@ -2009,6 +2014,7 @@ export default function TerminalExperience() {
       }
       schedule();
     }, TERMINAL_GIF_DELAY_MS);
+    let cycleTimer: number;
     return () => {
       window.clearTimeout(appearTimer);
       window.clearTimeout(cycleTimer);
@@ -2257,7 +2263,7 @@ export default function TerminalExperience() {
     return () => {
       window.removeEventListener("keydown", onWindowKeyDown, true);
     };
-  }, [active, busy, focusCommandInput, powerState]);
+  }, [active, busy, focusCommandInput, playTypeSfx, powerState]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -4112,6 +4118,17 @@ export default function TerminalExperience() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (handleCommandControlKey(e.key)) {
       e.preventDefault();
+      return;
+    }
+
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      return;
+    }
+
+    if (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete") {
+      dismissStartupInputHint();
+      setCrtPulseTick((current) => current + 1);
+      playTypeSfx();
     }
   }
 
@@ -4441,8 +4458,6 @@ export default function TerminalExperience() {
           });
           dismissStartupInputHint();
           setInput(e.target.value);
-          setCrtPulseTick((current) => current + 1);
-          playTypeSfx();
         }}
         onInput={(e) => {
           const target = e.currentTarget;
