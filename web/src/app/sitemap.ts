@@ -7,6 +7,7 @@ const BASE_URL = "https://mdcran.com";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = [
     { url: BASE_URL, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 1 },
+    { url: `${BASE_URL}/about`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.95 },
     { url: `${BASE_URL}/work`, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 0.9 },
     { url: `${BASE_URL}/resume`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.8 },
     { url: `${BASE_URL}/contact`, lastModified: new Date(), changeFrequency: "yearly" as const, priority: 0.7 },
@@ -14,9 +15,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/arts-and-entertainment/minecraft-maps`, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 0.9 },
     { url: `${BASE_URL}/arts-and-entertainment/events`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.8 },
     { url: `${BASE_URL}/motion-and-graphics`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.8 },
-    { url: `${BASE_URL}/motion-and-graphics/thumbnail-design`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.8 },
+    { url: `${BASE_URL}/motion-and-graphics/thumbnail-design`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.78 },
+    { url: `${BASE_URL}/motion-and-graphics/video-editing`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.78 },
+    { url: `${BASE_URL}/motion-and-graphics/web-dev-design`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.78 },
     { url: `${BASE_URL}/code`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.8 },
     { url: `${BASE_URL}/articles`, lastModified: new Date(), changeFrequency: "weekly" as const, priority: 0.8 },
+    { url: `${BASE_URL}/publications`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.65 },
+    { url: `${BASE_URL}/privacy`, lastModified: new Date(), changeFrequency: "yearly" as const, priority: 0.3 },
+    { url: `${BASE_URL}/terms`, lastModified: new Date(), changeFrequency: "yearly" as const, priority: 0.3 },
   ];
 
   let clients = [] as Awaited<ReturnType<typeof getClients>>;

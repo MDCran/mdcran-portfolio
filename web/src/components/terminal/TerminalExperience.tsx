@@ -1830,42 +1830,44 @@ export default function TerminalExperience() {
     void ctxP.then(() => {});
   }, [getAudioCtx]);
 
-  // Subtle keyboard click for each character typed
+  // Keyboard click for each character typed
   const playTypeSfx = React.useCallback(() => {
     const ctxP = getAudioCtx();
     if (!ctxP) return;
     void ctxP.then((ctx) => {
       if (!ctx) return;
       const now = ctx.currentTime;
-      const bufLen = Math.floor(ctx.sampleRate * 0.014);
+
+      // Short noise burst — mechanical key click
+      const bufLen = Math.floor(ctx.sampleRate * 0.028);
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
       const ch = buf.getChannelData(0);
-      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.2);
       const noise = ctx.createBufferSource();
       noise.buffer = buf;
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = 2600 + Math.random() * 800;
-      filter.Q.value = 1.4;
+      filter.frequency.value = 2400 + Math.random() * 1000;
+      filter.Q.value = 1.2;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.045 + Math.random() * 0.012, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
+      gain.gain.setValueAtTime(0.18 + Math.random() * 0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
       noise.connect(filter);
       filter.connect(gain);
       gain.connect(ctx.destination);
       noise.start(now);
-      noise.stop(now + 0.015);
+      noise.stop(now + 0.03);
     });
   }, [getAudioCtx]);
 
-  // Soft teletype tick for boot animation character printing
+  // Teletype tick for boot animation character printing
   const playPrintSfx = React.useCallback(() => {
     const ctxP = getAudioCtx();
     if (!ctxP) return;
     void ctxP.then((ctx) => {
       if (!ctx) return;
       const now = ctx.currentTime;
-      const bufLen = Math.floor(ctx.sampleRate * 0.007);
+      const bufLen = Math.floor(ctx.sampleRate * 0.012);
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
       const ch = buf.getChannelData(0);
       for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
@@ -1873,16 +1875,16 @@ export default function TerminalExperience() {
       noise.buffer = buf;
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = 3800 + Math.random() * 500;
-      filter.Q.value = 2.2;
+      filter.frequency.value = 3600 + Math.random() * 600;
+      filter.Q.value = 1.8;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.018 + Math.random() * 0.006, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.006);
+      gain.gain.setValueAtTime(0.06 + Math.random() * 0.015, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.01);
       noise.connect(filter);
       filter.connect(gain);
       gain.connect(ctx.destination);
       noise.start(now);
-      noise.stop(now + 0.008);
+      noise.stop(now + 0.014);
     });
   }, [getAudioCtx]);
 
@@ -1893,34 +1895,34 @@ export default function TerminalExperience() {
     void ctxP.then((ctx) => {
       if (!ctx) return;
       const now = ctx.currentTime;
-      const bufLen = Math.floor(ctx.sampleRate * 0.07);
+      const bufLen = Math.floor(ctx.sampleRate * 0.09);
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
       const ch = buf.getChannelData(0);
-      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.8);
+      for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.6);
       const noise = ctx.createBufferSource();
       noise.buffer = buf;
       const lpf = ctx.createBiquadFilter();
       lpf.type = "lowpass";
-      lpf.frequency.value = 650;
+      lpf.frequency.value = 700;
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.13, now);
-      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+      master.gain.setValueAtTime(0.32, now);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
       noise.connect(lpf);
       lpf.connect(master);
       master.connect(ctx.destination);
       const osc = ctx.createOscillator();
       osc.type = "sine";
-      osc.frequency.setValueAtTime(210, now);
-      osc.frequency.exponentialRampToValueAtTime(60, now + 0.04);
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.exponentialRampToValueAtTime(55, now + 0.05);
       const oscGain = ctx.createGain();
-      oscGain.gain.setValueAtTime(0.055, now);
-      oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+      oscGain.gain.setValueAtTime(0.14, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
       osc.connect(oscGain);
       oscGain.connect(ctx.destination);
       noise.start(now);
-      noise.stop(now + 0.07);
+      noise.stop(now + 0.09);
       osc.start(now);
-      osc.stop(now + 0.045);
+      osc.stop(now + 0.055);
     });
   }, [getAudioCtx]);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSWRConfig } from "swr";
@@ -477,19 +478,22 @@ function Modal({
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-4">
-      <div
-        className={`bg-[#0d0d0d] border border-white/10 rounded-sm ${wide ? "max-w-3xl" : "max-w-2xl"} w-full max-h-[90vh] overflow-y-auto`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
-          <h2 className="font-nord text-base text-white">{title}</h2>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-lg leading-none">✕</button>
+  return createPortal(
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center px-4 py-6">
+        <div
+          className={`bg-[#0d0d0d] border border-white/10 rounded-sm ${wide ? "max-w-3xl" : "max-w-2xl"} w-full max-h-[calc(100dvh-3rem)] overflow-y-auto`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+            <h2 className="font-nord text-base text-white">{title}</h2>
+            <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-lg leading-none">✕</button>
+          </div>
+          {children}
         </div>
-        {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -855,18 +859,21 @@ function R2ImagePickerModal({
 
 /* ─── Delete confirm dialog ──────────────────────────────── */
 function DeleteDialog({ label, onCancel, onConfirm }: { label: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-4">
-      <div className="bg-[#0d0d0d] border border-white/10 rounded-sm max-w-sm w-full p-6 space-y-4">
-        <p className="text-sm text-white/80">
-          Delete <span className="text-white font-medium">&quot;{label}&quot;</span>? This cannot be undone.
-        </p>
-        <div className="flex gap-3 justify-end">
-          <button className={btnGhost} onClick={onCancel}>Cancel</button>
-          <button className={btnRed} onClick={onConfirm}>Delete</button>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/80 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center px-4 py-6">
+        <div className="w-full max-w-sm rounded-sm border border-white/10 bg-[#0d0d0d] p-6 space-y-4">
+          <p className="text-sm text-white/80">
+            Delete <span className="text-white font-medium">&quot;{label}&quot;</span>? This cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button className={btnGhost} onClick={onCancel}>Cancel</button>
+            <button className={btnRed} onClick={onConfirm}>Delete</button>
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -6902,7 +6909,8 @@ export default function AdminDashboard() {
       )}
 
       {r2RenameTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm">
+          <div className="flex min-h-full items-center justify-center px-4 py-6">
           <div className="w-full max-w-sm space-y-4 rounded-sm border border-white/10 bg-[#0d0d0d] p-6">
             <p className="font-nord text-sm text-white">Rename File</p>
             <p className="truncate text-[11px] text-white/35">Current: {r2RenameTarget.name}</p>
@@ -6936,6 +6944,7 @@ export default function AdminDashboard() {
                 {r2Renaming ? "Renaming…" : "Rename"}
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}

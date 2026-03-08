@@ -30,6 +30,9 @@ export default function Footer() {
   }, []);
 
   const footer = siteContent.footer;
+  const bottomLinks = footer.bottomLinks.some((link) => link.href === "/about")
+    ? footer.bottomLinks
+    : [...footer.bottomLinks, { label: "About", href: "/about" }];
 
   return (
     <footer className="border-t border-white/7">
@@ -113,7 +116,7 @@ export default function Footer() {
             © {new Date().getFullYear()} {footer.copyrightText}
           </span>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            {footer.bottomLinks.map((link) => (
+            {bottomLinks.map((link) => (
               <Link
                 key={`${link.href}-${link.label}`}
                 href={link.href}
