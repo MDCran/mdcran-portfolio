@@ -8,6 +8,7 @@ import SpotifyWidget from "./SpotifyWidget";
 import BibleWidget from "./BibleWidget";
 import MapWidget from "./MapWidget";
 import type { SiteContentHero } from "@/lib/types";
+import { PERSON_FULL_NAME, PERSON_NAME } from "@/lib/seo";
 
 const defaultServices = [
   { label: "Minecraft Maps", href: "/arts-and-entertainment/minecraft-maps" },
@@ -155,6 +156,19 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             <span className="block text-white/25">
               {content?.supportingText ?? "B.S. in Computer Science @UCF"}
             </span>
+          </motion.p>
+
+          <motion.p
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.46 }}
+            className="mx-auto mb-6 max-w-2xl text-[11px] uppercase tracking-[0.22em] text-white/30"
+          >
+            Official website of {PERSON_FULL_NAME}, commonly known as {PERSON_NAME} and MDCran.
+            {" "}
+            <Link href="/about" className="text-[#ef4242] hover:text-white transition-colors">
+              About Michael Cran
+            </Link>
           </motion.p>
 
           <motion.div
