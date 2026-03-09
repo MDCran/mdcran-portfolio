@@ -152,6 +152,7 @@ export default function ArticlesPage() {
                           src={imageAssetSrc(featured.coverImage)!}
                           alt={imageAssetAlt(featured.coverImage, featured.title)}
                           fill
+                          sizes="(max-width: 1024px) 100vw, 40vw"
                           className="object-cover group-hover:scale-105 transition-transform duration-700"
                         />
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#0a0a0a]/80 lg:bg-gradient-to-r" />
@@ -247,6 +248,7 @@ export default function ArticlesPage() {
                                 src={imageAssetSrc(article.coverImage)!}
                                 alt={imageAssetAlt(article.coverImage, article.title)}
                                 fill
+                                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                                 className="object-cover group-hover:scale-105 transition-transform duration-700"
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/80 to-transparent" />

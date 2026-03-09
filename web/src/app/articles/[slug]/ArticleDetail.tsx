@@ -538,6 +538,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
               src={imageAssetSrc(article.coverImage)!}
               alt={imageAssetAlt(article.coverImage, article.title)}
               fill
+              sizes="100vw"
               className="object-cover"
               priority
             />

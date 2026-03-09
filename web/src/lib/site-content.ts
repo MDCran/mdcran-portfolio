@@ -238,7 +238,7 @@ export const defaultSiteContent: SiteContent = {
     statusLabel: "Open for work",
     emailHref: "/contact",
     githubHref: "https://github.com/mdcran",
-    blurb: "Independent software, design, and digital experience work for creators and teams.",
+    blurb: "Designing and building digital projects for creators, companies, and secure enterprise platforms.",
     linkGroups: [
       {
         title: "Arts & Entertainment",
