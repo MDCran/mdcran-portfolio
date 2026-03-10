@@ -107,7 +107,6 @@ const ROOTS = [
   "articles",
   "clients",
   "featured-work",
-  "about",
   "resume",
   "contact",
   "subscribe",
@@ -117,8 +116,6 @@ const ROOTS = [
 ] as const;
 
 const ROUTES: Record<string, string[]> = {
-  about: ["about"],
-  "about-me": ["about"],
   clients: ["clients"],
   featured: ["featured-work"],
   "featured-work": ["featured-work"],
@@ -150,7 +147,6 @@ const COMMANDS = [
   "nano",
   "search",
   "select",
-  "about",
   "clients",
   "featured",
   "projects",
@@ -180,7 +176,6 @@ const VALID_DIRS = new Set([
   "/articles",
   "/clients",
   "/featured-work",
-  "/about",
   "/resume",
   "/contact",
   "/subscribe",
@@ -580,7 +575,6 @@ function directoryItems(path: string[], data: TerminalData): string[] {
 
   // Virtual leaf dirs — run the corresponding command
   const virtualHints: Record<string, string> = {
-    "/about":       "  →  run: about",
     "/resume":      "  →  run: resume",
     "/contact":     "  →  run: contact <name> <email> <subject> <message>",
     "/subscribe":   "  →  run: subscribe <name> <email-or-phone>",
@@ -2449,9 +2443,6 @@ export default function TerminalExperience() {
       case "select":
         doSelect(args[0]);
         break;
-      case "about":
-        doAbout();
-        break;
       case "clients":
         doClients();
         break;
@@ -2597,7 +2588,6 @@ export default function TerminalExperience() {
       logText(""),
       logText("  ▸ CONTENT", "muted"),
       logText(`  ${bar}`, "muted"),
-      logText("    about                Profile & background info"),
       logText("    clients              Browse all clients"),
       logText("    featured             Featured portfolio work"),
       logText("    projects             All projects"),
@@ -3193,6 +3183,7 @@ export default function TerminalExperience() {
 
   // ── /about ────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function doAbout() {
     if (!data) {
       append([logText("  Data loading, please wait...", "muted")]);

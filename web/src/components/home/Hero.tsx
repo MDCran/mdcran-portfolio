@@ -165,10 +165,6 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             className="mx-auto mb-6 max-w-2xl text-[11px] uppercase tracking-[0.22em] text-white/30"
           >
             Official website of {PERSON_FULL_NAME}, commonly known as {PERSON_NAME} and MDCran.
-            {" "}
-            <Link href="/about" className="text-[#ef4242] hover:text-white transition-colors">
-              About Michael Cran
-            </Link>
           </motion.p>
 
           <motion.div

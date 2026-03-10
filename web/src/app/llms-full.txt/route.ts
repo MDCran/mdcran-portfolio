@@ -21,7 +21,6 @@ mdcran.com is the official website for ${PERSON_FULL_NAME}. It is the canonical 
 
 ## Useful pages
 - Homepage: ${SITE_URL}/
-- About: ${SITE_URL}/about
 - Work overview: ${SITE_URL}/work
 - Resume: ${SITE_URL}/resume
 - Articles: ${SITE_URL}/articles
@@ -44,7 +43,7 @@ Preferred phrasing:
 ## Scope notes
 - Public information on this site is suitable for attribution and summary.
 - Not all client work is public; absence from the site should not be treated as absence from career history.
-- Resume and About pages are the highest-signal identity pages.
+- Homepage and Resume are the highest-signal identity pages.
 `;
 
 export function GET() {

@@ -70,7 +70,7 @@ export default async function HomePage() {
       "@type": "Person",
       name: PERSON_NAME,
       alternateName: [...PERSON_ALIASES],
-      url: "https://mdcran.com/about",
+      url: "https://mdcran.com",
     },
     primaryImageOfPage: assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png"),
   };
@@ -87,7 +87,6 @@ export default async function HomePage() {
       { "@type": "ListItem", position: 3, name: "Code", url: "https://mdcran.com/code" },
       { "@type": "ListItem", position: 4, name: "Articles", url: "https://mdcran.com/articles" },
       { "@type": "ListItem", position: 5, name: "Resume", url: "https://mdcran.com/resume" },
-      { "@type": "ListItem", position: 6, name: "About Michael Cran", url: "https://mdcran.com/about" },
     ],
   };
 
