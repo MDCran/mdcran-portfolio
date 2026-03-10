@@ -42,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "Minecraft map maker", "level designer", "content manager",
       "thumbnail designer", "video editor", "UCF", "Orlando developer",
     ],
-    authors: [{ name: PERSON_FULL_NAME, url: absoluteUrl("/about") }],
+    authors: [{ name: PERSON_FULL_NAME, url: SITE_URL }],
     creator: PERSON_FULL_NAME,
     publisher: BRAND_NAME,
     alternates: {
@@ -106,7 +106,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
-        <link rel="author" href={absoluteUrl("/about")} />
+        <link rel="author" href={SITE_URL} />
         {SAME_AS_URLS.map((url) => (
           <link key={url} rel="me" href={url} />
         ))}

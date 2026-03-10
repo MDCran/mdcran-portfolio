@@ -30,9 +30,7 @@ export default function Footer() {
   }, []);
 
   const footer = siteContent.footer;
-  const bottomLinks = footer.bottomLinks.some((link) => link.href === "/about")
-    ? footer.bottomLinks
-    : [...footer.bottomLinks, { label: "About", href: "/about" }];
+  const bottomLinks = footer.bottomLinks.filter((link) => link.href !== "/about");
 
   return (
     <footer className="border-t border-white/7">

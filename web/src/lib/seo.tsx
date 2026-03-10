@@ -57,7 +57,7 @@ export function buildWebsiteJsonLd() {
       "@type": "Person",
       name: PERSON_NAME,
       alternateName: [...PERSON_ALIASES],
-      url: absoluteUrl("/about"),
+      url: SITE_URL,
     },
   };
 }
@@ -71,7 +71,7 @@ export function buildPersonJsonLd() {
     additionalName: "David",
     familyName: "Cran",
     alternateName: [...PERSON_ALIASES],
-    url: absoluteUrl("/about"),
+    url: SITE_URL,
     image: absoluteUrl(DEFAULT_SITE_ICON),
     description:
       "Software engineer, web developer, digital designer, motion graphics creator, and Minecraft experience builder based in Orlando, Florida.",
@@ -127,7 +127,7 @@ export function buildProfessionalServiceJsonLd(reviewCount = 0) {
     founder: {
       "@type": "Person",
       name: PERSON_NAME,
-      url: absoluteUrl("/about"),
+      url: SITE_URL,
     },
     email: CONTACT_EMAIL,
     address: {
@@ -172,7 +172,7 @@ export function buildSeoMetadata({
     publisher: BRAND_NAME,
     authors: authors?.length
       ? authors.map((name) => ({ name }))
-      : [{ name: PERSON_FULL_NAME, url: absoluteUrl("/about") }],
+      : [{ name: PERSON_FULL_NAME, url: SITE_URL }],
     category: "Portfolio",
     alternates: {
       canonical,
