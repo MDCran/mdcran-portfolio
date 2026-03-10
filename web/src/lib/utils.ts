@@ -51,6 +51,16 @@ export function imageAssetSrc(image?: string | ImageAsset | null): string | unde
   return assetUrl(typeof image === "string" ? image : image.src);
 }
 
+export function shouldBypassImageOptimization(src?: string | null): boolean {
+  if (!src) return false;
+
+  try {
+    return new URL(src).hostname === "cdn.mdcran.com";
+  } catch {
+    return false;
+  }
+}
+
 export function imageAssetAlt(image: string | ImageAsset | null | undefined, fallback: string): string {
   if (!image) return fallback;
   if (typeof image === "string") return fallback;

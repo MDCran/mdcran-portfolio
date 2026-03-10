@@ -9,7 +9,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import type { Article, ArticleCategory, SiteContent } from "@/lib/types";
-import { imageAssetAlt, imageAssetSrc } from "@/lib/utils";
+import { imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -92,6 +92,8 @@ export default function ArticlesPage() {
   }, [activeCategory, allArticles, search]);
 
   const featured = allArticles.find((article) => article.featured);
+  const featuredCoverSrc = featured ? imageAssetSrc(featured.coverImage) : undefined;
+  const featuredCoverUnoptimized = shouldBypassImageOptimization(featuredCoverSrc);
 
   return (
     <>
@@ -146,19 +148,20 @@ export default function ArticlesPage() {
                   className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl overflow-hidden hover:border-[#ef4242]/30 transition-all duration-300"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-5">
-                    {imageAssetSrc(featured.coverImage) && (
+                    {featuredCoverSrc && (
                       <div className="lg:col-span-2 relative h-56 lg:h-auto overflow-hidden">
                         <Image
-                          src={imageAssetSrc(featured.coverImage)!}
+                          src={featuredCoverSrc}
                           alt={imageAssetAlt(featured.coverImage, featured.title)}
                           fill
                           sizes="(max-width: 1024px) 100vw, 40vw"
                           className="object-cover group-hover:scale-105 transition-transform duration-700"
+                          unoptimized={featuredCoverUnoptimized}
                         />
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#0a0a0a]/80 lg:bg-gradient-to-r" />
                       </div>
                     )}
-                    <div className={`p-6 sm:p-8 flex flex-col justify-center ${imageAssetSrc(featured.coverImage) ? "lg:col-span-3" : "lg:col-span-5"}`}>
+                    <div className={`p-6 sm:p-8 flex flex-col justify-center ${featuredCoverSrc ? "lg:col-span-3" : "lg:col-span-5"}`}>
                       <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase mb-4 self-start ${CATEGORY_COLORS[featured.category]}`}>
                         {featured.category}
                       </div>
@@ -231,74 +234,80 @@ export default function ArticlesPage() {
                 </motion.div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filtered.map((article, i) => (
-                    <motion.div
-                      key={article.id}
-                      layout
-                      initial={{ opacity: 0, y: 24 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.96 }}
-                      transition={{ duration: 0.4, delay: i * 0.05 }}
-                    >
-                      <Link href={`/articles/${article.slug}`} className="group block h-full">
-                        <div className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl overflow-hidden hover:border-[#ef4242]/30 hover:bg-white/5 transition-all duration-300 h-full flex flex-col">
-                          {imageAssetSrc(article.coverImage) ? (
-                            <div className="relative h-44 overflow-hidden">
-                              <Image
-                                src={imageAssetSrc(article.coverImage)!}
-                                alt={imageAssetAlt(article.coverImage, article.title)}
-                                fill
-                                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                className="object-cover group-hover:scale-105 transition-transform duration-700"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/80 to-transparent" />
-                            </div>
-                          ) : (
-                            <div className="h-32 bg-gradient-to-br from-[#ef4242]/10 to-transparent flex items-center px-6">
-                              <div className={`text-[9px] tracking-widest uppercase px-2 py-0.5 rounded-sm border ${CATEGORY_COLORS[article.category]}`}>
-                                {article.category}
-                              </div>
-                            </div>
-                          )}
+                  {filtered.map((article, i) => {
+                    const coverSrc = imageAssetSrc(article.coverImage);
+                    const coverUnoptimized = shouldBypassImageOptimization(coverSrc);
 
-                          <div className="p-6 flex flex-col flex-1">
-                            {imageAssetSrc(article.coverImage) && (
-                              <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase mb-3 self-start ${CATEGORY_COLORS[article.category]}`}>
-                                {article.category}
+                    return (
+                      <motion.div
+                        key={article.id}
+                        layout
+                        initial={{ opacity: 0, y: 24 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{ duration: 0.4, delay: i * 0.05 }}
+                      >
+                        <Link href={`/articles/${article.slug}`} className="group block h-full">
+                          <div className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl overflow-hidden hover:border-[#ef4242]/30 hover:bg-white/5 transition-all duration-300 h-full flex flex-col">
+                            {coverSrc ? (
+                              <div className="relative h-44 overflow-hidden">
+                                <Image
+                                  src={coverSrc}
+                                  alt={imageAssetAlt(article.coverImage, article.title)}
+                                  fill
+                                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                                  unoptimized={coverUnoptimized}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/80 to-transparent" />
+                              </div>
+                            ) : (
+                              <div className="h-32 bg-gradient-to-br from-[#ef4242]/10 to-transparent flex items-center px-6">
+                                <div className={`text-[9px] tracking-widest uppercase px-2 py-0.5 rounded-sm border ${CATEGORY_COLORS[article.category]}`}>
+                                  {article.category}
+                                </div>
                               </div>
                             )}
 
-                            <h3 className="font-nord text-base text-white tracking-wider mb-2 group-hover:text-[#ef4242] transition-colors duration-300 leading-snug">
-                              {article.title}
-                            </h3>
+                            <div className="p-6 flex flex-col flex-1">
+                              {coverSrc && (
+                                <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase mb-3 self-start ${CATEGORY_COLORS[article.category]}`}>
+                                  {article.category}
+                                </div>
+                              )}
 
-                            <p className="text-xs text-white/40 leading-relaxed mb-4 flex-1 line-clamp-3">
-                              {article.excerpt}
-                            </p>
+                              <h3 className="font-nord text-base text-white tracking-wider mb-2 group-hover:text-[#ef4242] transition-colors duration-300 leading-snug">
+                                {article.title}
+                              </h3>
 
-                            <div className="flex items-center justify-between border-t border-white/6 pt-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[9px] text-white/25">{formatDate(article.publishDate)}</span>
-                              </div>
-                              <span className="inline-flex items-center justify-center h-8 min-w-[72px] px-3 border border-white/12 text-[11px] tracking-wider rounded-sm opacity-0 group-hover:opacity-100 group-hover:border-[rgba(239,66,66,0.35)] group-hover:text-[#ef4242] text-white/40 transition-all duration-200">
-                                Read
-                              </span>
-                            </div>
+                              <p className="text-xs text-white/40 leading-relaxed mb-4 flex-1 line-clamp-3">
+                                {article.excerpt}
+                              </p>
 
-                            <div className="flex flex-wrap gap-1.5 mt-3">
-                              {article.tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="text-[9px] text-white/20 bg-white/4 px-1.5 py-0.5 rounded-sm">
-                                  #{tag}
+                              <div className="flex items-center justify-between border-t border-white/6 pt-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] text-white/25">{formatDate(article.publishDate)}</span>
+                                </div>
+                                <span className="inline-flex items-center justify-center h-8 min-w-[72px] px-3 border border-white/12 text-[11px] tracking-wider rounded-sm opacity-0 group-hover:opacity-100 group-hover:border-[rgba(239,66,66,0.35)] group-hover:text-[#ef4242] text-white/40 transition-all duration-200">
+                                  Read
                                 </span>
-                              ))}
-                            </div>
-                          </div>
+                              </div>
 
-                          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[#ef4242] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        </div>
-                      </Link>
-                    </motion.div>
-                  ))}
+                              <div className="flex flex-wrap gap-1.5 mt-3">
+                                {article.tags.slice(0, 3).map((tag) => (
+                                  <span key={tag} className="text-[9px] text-white/20 bg-white/4 px-1.5 py-0.5 rounded-sm">
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[#ef4242] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          </div>
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
             </AnimatePresence>

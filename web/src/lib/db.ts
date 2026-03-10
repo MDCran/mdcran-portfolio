@@ -36,6 +36,10 @@ async function readCollection<T>(collName: string): Promise<T[]> {
   return rows.map((row) => normalizeAssetPaths(row) as T);
 }
 
+async function getProjectsRaw(): Promise<Project[]> {
+  return readCollection<Project>("projects");
+}
+
 function normalizeAssetPaths<T>(value: T): T {
   if (typeof value === "string") {
     if (
@@ -61,8 +65,12 @@ function normalizeAssetPaths<T>(value: T): T {
   return value;
 }
 
-export async function getProjects(): Promise<Project[]> {
-  return readCollection<Project>("projects");
+export async function getProjects(options?: { refreshVideoViews?: boolean }): Promise<Project[]> {
+  if (options?.refreshVideoViews !== false) {
+    await refreshProjectVideoViewsIfStale();
+  }
+
+  return getProjectsRaw();
 }
 
 export async function getSiteContent(): Promise<SiteContent> {
@@ -707,7 +715,7 @@ async function runProjectVideoRefresh(force: boolean, includeLogs: boolean): Pro
     key: PROJECT_VIDEO_REFRESH_KEY,
   });
   const lastRefreshedAt = refreshDoc?.value ? new Date(refreshDoc.value).getTime() : 0;
-  const projects = await getProjects();
+  const projects = await getProjectsRaw();
 
   if (!force && lastRefreshedAt && Date.now() - lastRefreshedAt < PROJECT_VIDEO_REFRESH_MS) {
     const totalProjectViews = projects.reduce(

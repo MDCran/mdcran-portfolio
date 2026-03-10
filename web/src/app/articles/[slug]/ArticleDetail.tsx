@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { cn, imageAssetAlt, imageAssetSrc } from "@/lib/utils";
+import { cn, imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -504,6 +504,8 @@ function ShareButtons() {
 /* ── Main Component ─────────────────────────────────────── */
 export default function ArticleDetail({ article }: { article: Article }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const coverSrc = imageAssetSrc(article.coverImage);
+  const coverUnoptimized = shouldBypassImageOptimization(coverSrc);
 
   // Collect ALL images across sections into one flat array for the shared Lightbox.
   // Track each section's starting offset so clicking any image resolves to a global index.
@@ -532,15 +534,16 @@ export default function ArticleDetail({ article }: { article: Article }) {
 
       {/* ── Hero ── */}
       <section className="pt-24 pb-0 relative overflow-hidden">
-        {imageAssetSrc(article.coverImage) ? (
+        {coverSrc ? (
           <div className="relative h-[50vh] md:h-[60vh] overflow-hidden">
             <Image
-              src={imageAssetSrc(article.coverImage)!}
+              src={coverSrc}
               alt={imageAssetAlt(article.coverImage, article.title)}
               fill
               sizes="100vw"
               className="object-cover"
               priority
+              unoptimized={coverUnoptimized}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent" />
           </div>
@@ -548,7 +551,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
           <div className="h-32 bg-gradient-to-b from-[#ef4242]/4 to-transparent" />
         )}
 
-        <div className={cn("max-w-3xl mx-auto px-4 sm:px-8 relative z-10", imageAssetSrc(article.coverImage) ? "-mt-24" : "mt-8")}>
+        <div className={cn("max-w-3xl mx-auto px-4 sm:px-8 relative z-10", coverSrc ? "-mt-24" : "mt-8")}>
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -674,4 +677,3 @@ export default function ArticleDetail({ article }: { article: Article }) {
     </main>
   );
 }
-
