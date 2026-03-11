@@ -235,11 +235,11 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal, 
 
   React.useEffect(() => { statsRef.current = stats; }, [stats]);
 
-  // ── Poll /api/visitors every 30 s ─────────────────────────────────────────
+  // ── Poll /api/data/visitors every 30 s ────────────────────────────────────
   React.useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch("/api/visitors");
+        const res = await fetch("/api/data/visitors");
         if (!res.ok) return;
         const data = await res.json() as { countries: CountryStat[]; total: number };
         setStats(data.countries);

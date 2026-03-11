@@ -4,6 +4,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { ChevronRight, Home } from "lucide-react";
 import Link from "next/link";
+import { useTheme } from "@/lib/ThemeContext";
 
 interface Breadcrumb {
   label: string;
@@ -25,6 +26,13 @@ export default function PageHeader({
   breadcrumbs,
   actions,
 }: PageHeaderProps) {
+  const { themeInfo } = useTheme();
+  const isLight = themeInfo.id === "light";
+  const crumbBase = isLight ? 'rgba(0,0,0,0.45)' : 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)';
+  const crumbHover = isLight ? 'rgba(0,0,0,0.7)' : 'color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)';
+  const crumbActive = isLight ? 'rgba(0,0,0,0.6)' : 'color-mix(in srgb, var(--theme-text, #fff) 50%, transparent)';
+  const crumbChevron = isLight ? 'rgba(0,0,0,0.3)' : 'color-mix(in srgb, var(--theme-text, #fff) 20%, transparent)';
+
   return (
     <div className="pt-28 sm:pt-32 pb-12 sm:pb-14 border-b" style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}>
       <div className="content-container">
@@ -35,32 +43,32 @@ export default function PageHeader({
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
             className="flex flex-wrap items-center gap-2 mb-7 sm:mb-8 text-[11px]"
-            style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
+            style={{ color: crumbBase }}
           >
             <Link
               href="/"
               className="transition-colors flex items-center gap-1"
-              style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)'; }}
+              style={{ color: crumbBase }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = crumbHover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = crumbBase; }}
             >
               <Home size={11} />
             </Link>
             {breadcrumbs.map((crumb, i) => (
               <React.Fragment key={crumb.label}>
-                <ChevronRight size={10} style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 20%, transparent)' }} />
+                <ChevronRight size={10} style={{ color: crumbChevron }} />
                 {crumb.href ? (
                   <Link
                     href={crumb.href}
                     className="transition-colors tracking-wider uppercase break-words"
-                    style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)'; }}
+                    style={{ color: crumbBase }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = crumbHover; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = crumbBase; }}
                   >
                     {crumb.label}
                   </Link>
                 ) : (
-                  <span className="tracking-wider uppercase break-words" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 50%, transparent)' }}>{crumb.label}</span>
+                  <span className="tracking-wider uppercase break-words" style={{ color: crumbActive }}>{crumb.label}</span>
                 )}
               </React.Fragment>
             ))}

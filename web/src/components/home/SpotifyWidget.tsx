@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { type CSSProperties } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Music2, ExternalLink, Heart, Pause, X, ArrowLeft } from "lucide-react";
@@ -438,9 +438,13 @@ export default function SpotifyWidget() {
   const lastHeard = !data?.isPlaying ? formatLastHeard(data?.playedAt, nowMs) : "";
   const historyTracks = data?.history ?? [];
   const isClickable = Boolean(data?.songUrl);
-  const cardClassName = `relative overflow-hidden rounded-sm border border-white/8 bg-white/3 px-4 pb-4 pt-4 backdrop-blur-xl group transition-all duration-300 ${
-    isClickable ? "hover:border-white/15 cursor-pointer" : "hover:border-white/15"
+  const cardClassName = `relative overflow-hidden rounded-sm px-4 pb-4 pt-4 backdrop-blur-xl group transition-all duration-300 ${
+    isClickable ? "cursor-pointer" : ""
   }`;
+  const cardStyle: CSSProperties = {
+    border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)',
+    backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 3%, transparent)',
+  };
   const openCurrentTrack = () => {
     if (!data?.songUrl || !data?.title || !data?.artist) return;
 
@@ -514,7 +518,7 @@ export default function SpotifyWidget() {
   const favoritesOverlay =
     isMounted && showFavorites && favoriteData?.sections?.length
       ? createPortal(
-          <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="fixed inset-0 z-50 pointer-events-none" data-force-dark>
             <button
               type="button"
               className="absolute inset-0 bg-black/45 backdrop-blur-[2px] pointer-events-auto"
@@ -1197,7 +1201,7 @@ export default function SpotifyWidget() {
 
       <div className="relative z-10 flex items-center gap-2 mb-3">
         <Music2 size={12} className="text-[#1db954]" />
-        <span className="text-[10px] tracking-widest uppercase text-white/30">
+        <span className="text-[10px] tracking-widest uppercase" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>
           {isLoading ? "Loading..." : data?.isPlaying ? "Now Playing" : "Last Played"}
         </span>
         <div className="ml-auto relative">
@@ -1231,36 +1235,36 @@ export default function SpotifyWidget() {
 
       {isLoading ? (
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-14 h-14 rounded-sm bg-white/8 animate-pulse shrink-0" />
+          <div className="w-14 h-14 rounded-sm animate-pulse shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
           <div className="flex-1 space-y-2">
-            <div className="h-4 bg-white/8 rounded animate-pulse w-3/4" />
-            <div className="h-3 bg-white/6 rounded animate-pulse w-1/2" />
+            <div className="h-4 rounded animate-pulse w-3/4" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
+            <div className="h-3 rounded animate-pulse w-1/2" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }} />
           </div>
         </div>
       ) : data?.title ? (
         <div className="relative z-10 flex items-center gap-3.5">
           {data.albumArt && (
-            <div className="relative w-14 h-14 rounded-sm overflow-hidden shrink-0 border border-white/8">
+            <div className="relative w-14 h-14 rounded-sm overflow-hidden shrink-0" style={{ border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }}>
               <Image src={data.albumArt} alt={data.albumName ?? ""} fill className="object-cover" />
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-white font-medium truncate">{data.title}</div>
-            <div className="text-[13px] text-white/40 truncate">{data.artist}</div>
+            <div className="text-sm font-medium truncate" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 90%, transparent)' }}>{data.title}</div>
+            <div className="text-[13px] truncate" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}>{data.artist}</div>
             {lastHeard && (
-              <div className="text-[10px] text-white/25 mt-1 uppercase tracking-[0.18em]">
+              <div className="text-[10px] mt-1 uppercase tracking-[0.18em]" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}>
                 {lastHeard}
               </div>
             )}
           </div>
           {data.songUrl && (
-            <div className="shrink-0 text-white/20 group-hover:text-[#1db954] transition-colors">
+            <div className="shrink-0 group-hover:text-[#1db954] transition-colors" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 20%, transparent)' }}>
               <ExternalLink size={14} />
             </div>
           )}
         </div>
       ) : (
-        <div className="relative z-10 flex items-center gap-2 text-xs text-white/25">
+        <div className="relative z-10 flex items-center gap-2 text-xs" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}>
           <Pause size={12} />
           <span>Not playing</span>
         </div>
@@ -1268,7 +1272,7 @@ export default function SpotifyWidget() {
 
       {data?.isPlaying && data?.durationMs && (
         <div className="relative z-10 mt-3 space-y-1.5">
-          <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+          <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }}>
             <motion.div
               className="h-full bg-[#1db954] rounded-full"
               initial={false}
@@ -1276,7 +1280,7 @@ export default function SpotifyWidget() {
               transition={{ ease: "linear", duration: 0.2 }}
             />
           </div>
-          <div className="flex items-center justify-between text-[10px] text-white/25 tabular-nums">
+          <div className="flex items-center justify-between text-[10px] tabular-nums" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}>
             <span>{formatMs(clampedProgressMs)}</span>
             <span>{formatMs(data.durationMs)}</span>
           </div>
@@ -1303,6 +1307,7 @@ export default function SpotifyWidget() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className={cardClassName}
+        style={cardStyle}
         role={isClickable ? "link" : undefined}
         tabIndex={isClickable ? 0 : undefined}
         onClick={isClickable ? openCurrentTrack : undefined}

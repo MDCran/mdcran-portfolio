@@ -8,16 +8,13 @@ import { useTheme } from "@/lib/ThemeContext";
 
 const TOGGLE_EVENT = "mdcran:toggle-chat";
 const MAX_MESSAGES = 20;
-const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const INACTIVITY_CHECK_MS = 15_000; // check every 15s
 
-const AGENT_NAMES = [
-  "Cosmo", "Nova", "Pixel", "Echo", "Byte",
-  "Luna", "Spark", "Orbit", "Neon", "Dash",
-];
+const AGENT_NAME = "Cosmo";
 
 function pickAgentName(): string {
-  return AGENT_NAMES[Math.floor(Math.random() * AGENT_NAMES.length)];
+  return AGENT_NAME;
 }
 
 /** Render basic markdown: **bold**, *italic*, [text](url) */
@@ -172,7 +169,7 @@ export default function ChatPanel() {
   const [disconnected, setDisconnected] = useState(false);
   /* reconnectStep: 0=idle, 1=connecting, 2=connected */
   const [reconnectStep, setReconnectStep] = useState(0);
-  const lastActivityRef = useRef(Date.now());
+  const lastAgentMessageRef = useRef(Date.now());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -217,6 +214,7 @@ export default function ChatPanel() {
       setMessages([{ role: "assistant", content: "__WELCOME__" }]);
       setWelcomeStep(4);
       welcomeCompletedRef.current = true;
+      lastAgentMessageRef.current = Date.now();
     }, messageDelay));
 
     /* Safety: if stuck at connecting for 8s, show error then retry */
@@ -233,6 +231,7 @@ export default function ChatPanel() {
               setMessages([{ role: "assistant", content: "__WELCOME__" }]);
               setWelcomeStep(4);
               welcomeCompletedRef.current = true;
+              lastAgentMessageRef.current = Date.now();
             }, 2000));
           }, 1500));
           return 5;
@@ -253,13 +252,35 @@ export default function ChatPanel() {
     if (!open || disconnected || streaming || welcomeStep < 4) return;
     const currentAgent = agentName;
     const check = setInterval(() => {
-      if (Date.now() - lastActivityRef.current >= INACTIVITY_TIMEOUT_MS) {
+      if (Date.now() - lastAgentMessageRef.current >= INACTIVITY_TIMEOUT_MS) {
         setDisconnected(true);
         setMessages((prev) => [...prev, { role: "assistant", content: `__DISCONNECT__:${currentAgent}` }]);
       }
     }, INACTIVITY_CHECK_MS);
     return () => clearInterval(check);
   }, [open, disconnected, streaming, welcomeStep, agentName]);
+
+  /* Reset chat state when panel closes — each open is a fresh session */
+  useEffect(() => {
+    if (open) return;
+    // Small delay so exit animation finishes before state resets
+    const t = setTimeout(() => {
+      setMessages([]);
+      setWelcomeStep(0);
+      setWelcomeTyped(false);
+      setInput("");
+      setStreaming(false);
+      setDisconnected(false);
+      setReconnectStep(0);
+      setAgentName(pickAgentName());
+      welcomeCompletedRef.current = false;
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [open]);
 
   /* Listen for toggle events from ChatBubble */
   useEffect(() => {
@@ -314,12 +335,10 @@ export default function ChatPanel() {
       setReconnectStep(0);
       setDisconnected(false);
       setMessages((prev) => [...prev, { role: "assistant", content: `__RECONNECT__:${newName}` }]);
-      lastActivityRef.current = Date.now();
+      lastAgentMessageRef.current = Date.now();
       await new Promise((r) => setTimeout(r, 400));
       // Now proceed with the message using the new agent name below
     }
-
-    lastActivityRef.current = Date.now();
 
     const userMsg: Message = { role: "user", content: text };
     // Filter out system-type messages before sending to API
@@ -327,7 +346,8 @@ export default function ChatPanel() {
       m.content !== "__INACTIVITY__" &&
       m.content !== "__WELCOME__" &&
       !m.content.startsWith("__DISCONNECT__:") &&
-      !m.content.startsWith("__RECONNECT__:")
+      !m.content.startsWith("__RECONNECT__:") &&
+      !m.content.startsWith("__BEHAVIOR__:")
     );
     const nextMessages = [...cleanMessages, userMsg].slice(-MAX_MESSAGES);
 
@@ -438,6 +458,18 @@ export default function ChatPanel() {
           continue;
         }
 
+        /* Behavior flag — disconnect immediately */
+        if (accumulated.trim().startsWith("__BEHAVIOR__")) {
+          const currentAgent = agentName;
+          setMessages((prev) => {
+            // Remove the streaming assistant message, add behavior marker
+            const withoutLast = prev.slice(0, -1);
+            return [...withoutLast, { role: "assistant", content: `__BEHAVIOR__:${currentAgent}` }];
+          });
+          setDisconnected(true);
+          return;
+        }
+
         /* Got a real response */
         if (accumulated.trim()) break;
 
@@ -462,7 +494,7 @@ export default function ChatPanel() {
     } finally {
       abortRef.current = null;
       setStreaming(false);
-      lastActivityRef.current = Date.now();
+      lastAgentMessageRef.current = Date.now();
     }
   }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName]);
 
@@ -623,6 +655,36 @@ export default function ChatPanel() {
                           style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
                         >
                           Chat ended due to inactivity
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 py-1">
+                        <div className="flex-1 h-px" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-block w-[5px] h-[5px] rounded-full" style={{ backgroundColor: '#ef4444', boxShadow: '0 0 6px #ef4444' }} />
+                          <span
+                            className="text-[9px] uppercase tracking-[0.2em]"
+                            style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}
+                          >
+                            Disconnected from {name}
+                          </span>
+                        </div>
+                        <div className="flex-1 h-px" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
+                      </div>
+                    </React.Fragment>
+                  );
+                }
+
+                // Behavior disconnect marker → status text + divider
+                if (msg.content.startsWith("__BEHAVIOR__:")) {
+                  const name = msg.content.slice("__BEHAVIOR__:".length);
+                  return (
+                    <React.Fragment key={i}>
+                      <div className="flex items-center justify-center py-1">
+                        <span
+                          className="text-[10px] uppercase tracking-[0.15em] font-jb"
+                          style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
+                        >
+                          Chat ended due to User Behavior
                         </span>
                       </div>
                       <div className="flex items-center gap-2 py-1">

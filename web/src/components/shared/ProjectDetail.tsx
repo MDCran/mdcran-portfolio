@@ -234,11 +234,11 @@ export default function ProjectDetail({
             <section className="border-t border-white/8 pt-5">
               <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-[10px] tracking-widest uppercase text-white/30 mb-3">Appreciate this project</p>
+                  <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Appreciate this project</p>
                   <ProjectTapsButton projectId={project.id} />
                 </div>
                 <div>
-                  <p className="text-[10px] tracking-widest uppercase text-white/30 mb-3">Share</p>
+                  <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Share</p>
                   <ProjectShareButtons />
                 </div>
               </div>
@@ -538,6 +538,7 @@ function ProjectTapsButton({ projectId }: { projectId: string }) {
         onClick={handleTap}
         disabled={!canTap}
         whileTap={{ scale: 0.92 }}
+        data-taps-btn
         className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[var(--cranberry)]/30 hover:bg-[var(--cranberry)]/5 hover:text-[var(--cranberry)] disabled:cursor-not-allowed disabled:opacity-60 overflow-visible"
         title={loading ? "Loading taps" : "Tap to appreciate this project"}
       >
@@ -602,7 +603,7 @@ function ProjectTapsButton({ projectId }: { projectId: string }) {
         </AnimatePresence>
       </motion.button>
       {!loading && !canTap && (
-        <span className="text-[10px] text-white/30 tracking-wider">
+        <span className="text-[10px] tracking-wider" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>
           Daily limit reached. Resets tomorrow.
         </span>
       )}
@@ -676,7 +677,10 @@ function BackLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-2 text-xs text-white/40 hover:text-white/70 transition-colors mb-4"
+      className="inline-flex items-center gap-2 text-xs transition-colors mb-4"
+      style={{ color: 'rgba(255,255,255,0.4)' }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
     >
       <ArrowLeft size={13} />
       {label}

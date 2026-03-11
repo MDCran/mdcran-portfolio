@@ -51,7 +51,14 @@ function isTypingTarget(target: EventTarget | null) {
 
 function KeyPill({ value }: { value: string }) {
   return (
-    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-sm border border-white/10 bg-white/[0.04] px-2 text-center text-[10px] uppercase tracking-[0.08em] text-white/70 leading-none">
+    <span
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-sm px-2 text-center text-[10px] uppercase tracking-[0.08em] leading-none"
+      style={{
+        border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
+        backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 4%, transparent)',
+        color: 'color-mix(in srgb, var(--theme-text, #fff) 70%, transparent)',
+      }}
+    >
       {value}
     </span>
   );
@@ -244,30 +251,48 @@ export default function KeyboardShortcuts() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-6 top-6 z-[9999] w-[min(332px,calc(100vw-3rem))] rounded-sm border border-white/10 bg-[#0d0d0d]/92 p-4 shadow-[0_8px_36px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+            className="fixed left-6 top-6 z-[9999] w-[min(332px,calc(100vw-3rem))] rounded-sm p-4 backdrop-blur-xl"
+            style={{
+              border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
+              backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)',
+              boxShadow: '0 8px 36px color-mix(in srgb, var(--theme-text, #fff) 12%, transparent)',
+            }}
           >
-            <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-white/55">
+            <div
+              className="mb-3 text-[11px] uppercase tracking-[0.22em]"
+              style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 55%, transparent)' }}
+            >
               Keyboard Shortcuts
             </div>
             <div className="grid grid-cols-1 gap-2">
               {DISPLAY_SHORTCUTS.map((shortcut) => (
                 <div
                   key={`${shortcut.label}-${shortcut.keys.join("-")}`}
-                  className="flex items-center justify-between gap-4 rounded-sm border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                  className="flex items-center justify-between gap-4 rounded-sm px-3 py-2"
+                  style={{
+                    border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)',
+                    backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 2%, transparent)',
+                  }}
                 >
                   <div className="flex items-center gap-1.5">
                     {shortcut.keys.map((keyValue, index) => (
                       <React.Fragment key={`${shortcut.label}-${keyValue}`}>
                         <KeyPill value={keyValue} />
                         {index < shortcut.keys.length - 1 ? (
-                          <span className="text-[10px] uppercase tracking-[0.14em] text-white/28">
+                          <span
+                            className="text-[10px] uppercase tracking-[0.14em]"
+                            style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 28%, transparent)' }}
+                          >
                             +
                           </span>
                         ) : null}
                       </React.Fragment>
                     ))}
                   </div>
-                  <span className="whitespace-nowrap text-[10px] uppercase tracking-[0.15em] text-white/35 text-right">
+                  <span
+                    className="whitespace-nowrap text-[10px] uppercase tracking-[0.15em] text-right"
+                    style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 35%, transparent)' }}
+                  >
                     {shortcut.label}
                   </span>
                 </div>
@@ -284,15 +309,26 @@ export default function KeyboardShortcuts() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-6 top-6 z-[9999] hidden max-w-[calc(100vw-3rem)] overflow-hidden rounded-sm border border-white/10 bg-[#0d0d0d]/88 px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl md:block"
+            className="fixed left-6 top-6 z-[9999] hidden max-w-[calc(100vw-3rem)] overflow-hidden rounded-sm px-3 py-2 backdrop-blur-xl md:block"
+            style={{
+              border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
+              backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 5%, transparent)',
+              boxShadow: '0 8px 30px color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
+            }}
           >
             <div className="flex items-center gap-2">
-              <Info size={13} className="shrink-0 text-white/45" />
-              <span className="text-[10px] uppercase tracking-[0.14em] text-white/40">
+              <Info size={13} className="shrink-0" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }} />
+              <span
+                className="text-[10px] uppercase tracking-[0.14em]"
+                style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}
+              >
                 Hold
               </span>
               <KeyPill value="CTRL" />
-              <span className="text-[10px] uppercase tracking-[0.14em] text-white/40">
+              <span
+                className="text-[10px] uppercase tracking-[0.14em]"
+                style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}
+              >
                 to view Keyboard Shortcuts
               </span>
             </div>

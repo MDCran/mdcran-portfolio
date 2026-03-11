@@ -138,6 +138,7 @@ export default function Lightbox({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          data-force-dark
           className={`fixed inset-0 z-[9999] flex justify-center pb-6 ${
             fullScreen || isMobileViewport || isLandscapeMobile ? "items-center px-0" : "items-start px-4"
           }`}

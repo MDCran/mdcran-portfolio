@@ -1,10 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import ExperienceCard from "@/components/resume/ExperienceCard";
-import RecruiterToggle from "@/components/resume/RecruiterToggle";
 import PageHeader from "@/components/shared/PageHeader";
 import type { Experience, Education, Skill, Certification, Award, ClubMembership, Client } from "@/lib/types";
 import {
@@ -19,10 +15,8 @@ import {
   ExternalLink,
   Linkedin,
   Star,
-  Mail,
 } from "lucide-react";
 
-const STORAGE_KEY = "mdcran_recruiter_mode";
 
 const skillCategoryMeta: Record<string, { label: string; icon: typeof Code2 }> = {
   technology: { label: "Technology", icon: Code2 },
@@ -72,24 +66,6 @@ export default function ResumeContent({
   clubs,
   clientsById,
 }: ResumeContentProps) {
-  const searchParams = useSearchParams();
-  const [recruiterMode, setRecruiterMode] = useState(false);
-
-  useEffect(() => {
-    const urlParam = searchParams.get("recruiter");
-    if (urlParam === "1") {
-      setRecruiterMode(true);
-      return;
-    }
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "1") setRecruiterMode(true);
-  }, [searchParams]);
-
-  const toggleRecruiter = () => {
-    const next = !recruiterMode;
-    setRecruiterMode(next);
-    localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
-  };
 
   return (
     <>
@@ -100,7 +76,6 @@ export default function ResumeContent({
         breadcrumbs={[{ label: "Resume" }]}
         actions={
           <div className="flex items-center gap-3">
-            <RecruiterToggle enabled={recruiterMode} onToggle={toggleRecruiter} />
             <a
               href="https://www.linkedin.com/in/mdcran/"
               target="_blank"
@@ -123,36 +98,6 @@ export default function ResumeContent({
       />
 
       <main className="content-container py-14 md:py-16">
-        {/* Recruiter contact card */}
-        <AnimatePresence>
-          {recruiterMode && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mb-10 overflow-hidden"
-            >
-              <div className="p-6 rounded-sm border border-[#2563eb]/30 bg-[#2563eb]/5">
-                <h3 className="font-nord text-lg text-white tracking-wider mb-3">Contact Information</h3>
-                <div className="flex flex-wrap gap-4 text-sm text-white/70">
-                  <a href="mailto:michael@mdcran.com" className="flex items-center gap-2 hover:text-white transition-colors">
-                    <Mail size={14} className="text-[#2563eb]" />
-                    michael@mdcran.com
-                  </a>
-                  <a
-                    href="https://www.linkedin.com/in/mdcran/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 hover:text-white transition-colors"
-                  >
-                    <Linkedin size={14} className="text-[#2563eb]" />
-                    linkedin.com/in/mdcran
-                  </a>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12 items-start">
           <div className="lg:col-span-2 space-y-14 pt-0">
@@ -230,32 +175,26 @@ export default function ResumeContent({
               </section>
             )}
 
-            {/* Volunteer - hidden in recruiter mode */}
-            <AnimatePresence>
-              {!recruiterMode && volunteerWork.length > 0 && (
-                <motion.section
-                  initial={{ opacity: 1 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <div className="flex items-center gap-3 mb-9">
-                    <Heart size={16} className="text-[#ef4242]" />
-                    <h2 className="font-nord text-xl text-white tracking-wider">Volunteer</h2>
-                  </div>
-                  <div className="space-y-0">
-                    {volunteerWork.map((experience, index) => (
-                      <ExperienceCard
-                        key={experience.id}
-                        exp={experience}
-                        clientsById={clientsById}
-                        isFirstInSection={index === 0}
-                        isLastInSection={index === volunteerWork.length - 1}
-                      />
-                    ))}
-                  </div>
-                </motion.section>
-              )}
-            </AnimatePresence>
+            {/* Volunteer */}
+            {volunteerWork.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-9">
+                  <Heart size={16} className="text-[#ef4242]" />
+                  <h2 className="font-nord text-xl text-white tracking-wider">Volunteer</h2>
+                </div>
+                <div className="space-y-0">
+                  {volunteerWork.map((experience, index) => (
+                    <ExperienceCard
+                      key={experience.id}
+                      exp={experience}
+                      clientsById={clientsById}
+                      isFirstInSection={index === 0}
+                      isLastInSection={index === volunteerWork.length - 1}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
 
           <div className="space-y-10 pt-0 lg:pt-[56px]">
@@ -351,40 +290,33 @@ export default function ResumeContent({
               </div>
             )}
 
-            {/* Organizations - hidden in recruiter mode */}
-            <AnimatePresence>
-              {!recruiterMode && clubs.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 1 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-6 rounded-sm border border-white/7 bg-white/2"
-                >
-                  <div className="flex items-center gap-2 mb-5">
-                    <Users size={14} className="text-[#ef4242]" />
-                    <h2 className="font-nord text-base text-white tracking-wider">Organizations</h2>
-                  </div>
-                  <div className="space-y-4">
-                    {clubs.map((club) => (
-                      <div key={club.id}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs text-white/80 leading-snug">{club.name}</div>
-                          {club.url && (
-                            <a href={club.url} target="_blank" rel="noopener noreferrer" className="text-white/20 hover:text-[#ef4242] transition-colors">
-                              <ExternalLink size={11} />
-                            </a>
-                          )}
-                        </div>
-                        {club.role && <div className="text-[11px] text-[#ef4242]">{club.role}</div>}
-                        {club.description && (
-                          <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{club.description}</div>
+            {/* Organizations */}
+            {clubs.length > 0 && (
+              <div className="p-6 rounded-sm border border-white/7 bg-white/2">
+                <div className="flex items-center gap-2 mb-5">
+                  <Users size={14} className="text-[#ef4242]" />
+                  <h2 className="font-nord text-base text-white tracking-wider">Organizations</h2>
+                </div>
+                <div className="space-y-4">
+                  {clubs.map((club) => (
+                    <div key={club.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs text-white/80 leading-snug">{club.name}</div>
+                        {club.url && (
+                          <a href={club.url} target="_blank" rel="noopener noreferrer" className="text-white/20 hover:text-[#ef4242] transition-colors">
+                            <ExternalLink size={11} />
+                          </a>
                         )}
                       </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      {club.role && <div className="text-[11px] text-[#ef4242]">{club.role}</div>}
+                      {club.description && (
+                        <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{club.description}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
