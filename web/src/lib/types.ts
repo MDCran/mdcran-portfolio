@@ -451,6 +451,7 @@ export interface StatusService {
   group?: string;
   sortOrder: number;
   pingUrl?: string;
+  defunct?: boolean;
   createdAt: string;
 }
 

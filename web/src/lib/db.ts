@@ -1402,7 +1402,12 @@ export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry
 
 export async function getTotalVisitorCount(): Promise<number> {
   const db = await getDb();
-  return db.collection("visitors").countDocuments();
+  const [realCount, adjustments] = await Promise.all([
+    db.collection("visitors").countDocuments(),
+    db.collection("visitorAdjustments").find({}, { projection: { addedCount: 1 } }).toArray(),
+  ]);
+  const adjustedTotal = adjustments.reduce((sum, a) => sum + ((a as unknown as { addedCount: number }).addedCount || 0), 0);
+  return realCount + adjustedTotal;
 }
 
 // ─── Visitor Adjustments ─────────────────────────────────────────────────────
@@ -1428,8 +1433,8 @@ export async function deleteVisitorAdjustment(id: string): Promise<void> {
 const DEFAULT_SERVICES: Omit<StatusService, "createdAt">[] = [
   { id: "mdcran-api", name: "MDCran API", group: "MDCran", sortOrder: 1, pingUrl: "https://mdcran.com/api/status" },
   { id: "mdcran-cdn", name: "MDCran CDN", group: "MDCran", sortOrder: 2, pingUrl: "https://cdn.mdcran.com" },
-  { id: "lbc-website", name: "LuckyBlockCreator Website", group: "LuckyBlockCreator", sortOrder: 3 },
-  { id: "lbc-api", name: "LuckyBlockCreator API", group: "LuckyBlockCreator", sortOrder: 4 },
+  { id: "lbc-website", name: "LuckyBlockCreator Website", group: "LuckyBlockCreator", sortOrder: 3, defunct: true },
+  { id: "lbc-api", name: "LuckyBlockCreator API", group: "LuckyBlockCreator", sortOrder: 4, defunct: true },
 ];
 
 const DEPRECATED_SERVICE_IDS = ["mdcran-db", "lbc-db"];
@@ -1444,6 +1449,16 @@ async function seedServicesIfEmpty(): Promise<void> {
     await db.collection("statusServices").insertMany(
       DEFAULT_SERVICES.map((s) => ({ ...s, createdAt: now })) as unknown as Record<string, unknown>[]
     );
+  } else {
+    // Sync defunct flag from defaults to existing records
+    for (const def of DEFAULT_SERVICES) {
+      if (def.defunct) {
+        await db.collection("statusServices").updateOne(
+          { id: def.id },
+          { $set: { defunct: true } }
+        );
+      }
+    }
   }
 }
 
@@ -1504,6 +1519,17 @@ export async function computeServiceHealth(): Promise<StatusServiceWithHealth[]>
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
   return services.map((service) => {
+    // Defunct services are permanently offline
+    if (service.defunct) {
+      const dailyStatus: DailyStatus[] = [];
+      for (let d = 0; d < 90; d++) {
+        const date = new Date(now.getTime() - (89 - d) * 24 * 60 * 60 * 1000);
+        const dateStr = date.toISOString().split("T")[0];
+        dailyStatus.push({ date: dateStr, status: "major_outage", incidents: 1 });
+      }
+      return { ...service, currentStatus: "major_outage" as ServiceStatus, uptimePercent90d: 0, dailyStatus };
+    }
+
     const serviceIncidents = incidents.filter((i) => i.serviceId === service.id);
     const recentIncidents = serviceIncidents.filter((i) => new Date(i.startedAt) >= ninetyDaysAgo);
 
@@ -1584,4 +1610,32 @@ export async function updateR2AssetReferences(oldUrl: string, newUrl: string): P
   }
 
   return updatedCount;
+}
+
+// ─── Chat Config ──────────────────────────────────────────────────────────────
+
+export interface ChatConfig {
+  rateLimit: number;
+  rateWindowHours: number;
+}
+
+const DEFAULT_CHAT_CONFIG: ChatConfig = { rateLimit: 10, rateWindowHours: 24 };
+
+export async function getChatConfig(): Promise<ChatConfig> {
+  const db = await getDb();
+  const doc = await db.collection("chatConfig").findOne({});
+  if (!doc) return DEFAULT_CHAT_CONFIG;
+  return {
+    rateLimit: typeof doc.rateLimit === "number" ? doc.rateLimit : DEFAULT_CHAT_CONFIG.rateLimit,
+    rateWindowHours: typeof doc.rateWindowHours === "number" ? doc.rateWindowHours : DEFAULT_CHAT_CONFIG.rateWindowHours,
+  };
+}
+
+export async function saveChatConfig(config: ChatConfig): Promise<void> {
+  const db = await getDb();
+  await db.collection("chatConfig").updateOne(
+    {},
+    { $set: config },
+    { upsert: true }
+  );
 }
