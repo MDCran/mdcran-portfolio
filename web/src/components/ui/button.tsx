@@ -6,20 +6,20 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ef4242] disabled:pointer-events-none disabled:opacity-40 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cranberry)] disabled:pointer-events-none disabled:opacity-40 cursor-pointer",
   {
     variants: {
       variant: {
         default:
-          "bg-[#ef4242] text-white hover:bg-[#dd3030] shadow-[0_0_20px_rgba(239,66,66,0.35)] hover:shadow-[0_0_30px_rgba(239,66,66,0.55)]",
+          "bg-[var(--cranberry)] text-white hover:brightness-90 shadow-[0_0_20px_var(--cranberry-dim)] hover:shadow-[0_0_30px_var(--cranberry-glow)]",
         outline:
-          "border border-[rgba(239,66,66,0.4)] text-[#ef4242] bg-transparent hover:bg-[rgba(239,66,66,0.08)] hover:border-[#ef4242]",
+          "border border-[var(--cranberry-dim)] text-[var(--cranberry)] bg-transparent hover:bg-[var(--cranberry-dim)] hover:border-[var(--cranberry)]",
         ghost:
           "text-white/70 hover:text-white hover:bg-white/5",
         glass:
           "bg-white/5 border border-white/10 text-white hover:bg-white/10 backdrop-blur-sm",
         link:
-          "text-[#ef4242] underline-offset-4 hover:underline p-0 h-auto",
+          "text-[var(--cranberry)] underline-offset-4 hover:underline p-0 h-auto",
         destructive:
           "bg-red-900/40 text-red-400 border border-red-900/60 hover:bg-red-900/60",
       },

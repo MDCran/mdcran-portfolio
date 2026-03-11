@@ -3,18 +3,36 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileText, Mail } from "lucide-react";
+import { FileText, Mail, Palette, Star, TerminalSquare } from "lucide-react";
+import { useTheme } from "@/lib/ThemeContext";
 
 export default function ResumeButton() {
   const pathname = usePathname();
+  const { themeInfo } = useTheme();
   if (pathname.startsWith("/admin") || pathname.startsWith("/rizz")) return null;
+
   const showResume = pathname !== "/resume";
   const showContact = pathname !== "/contact";
+  const showTerminal = !pathname.startsWith("/terminal");
+  const isLight = themeInfo.id === "light";
 
-  if (!showResume && !showContact) return null;
+  const btnBase =
+    "flex h-10 items-center justify-center rounded-sm transition-all duration-200 backdrop-blur-sm text-[11px] tracking-widest uppercase";
+  const btnTheme = isLight
+    ? "bg-white/90 border border-black/12 hover:border-[var(--cranberry)]/50 text-black/60 hover:text-black shadow-[0_2px_16px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_24px_rgba(217,54,54,0.12)]"
+    : "bg-[#0d0d0d] border border-white/12 hover:border-[var(--cranberry)]/50 text-white/60 hover:text-white shadow-[0_4px_24px_rgba(0,0,0,0.5)] hover:shadow-[0_4px_24px_rgba(239,66,66,0.15)]";
 
-  const buttonClassName =
-    "flex h-10 w-10 items-center justify-center bg-[#0d0d0d] border border-white/12 hover:border-[#ef4242]/50 text-white/60 hover:text-white text-[11px] tracking-widest uppercase rounded-sm transition-all duration-200 shadow-[0_4px_24px_rgba(0,0,0,0.5)] hover:shadow-[0_4px_24px_rgba(239,66,66,0.15)] backdrop-blur-sm md:h-10 md:w-auto md:justify-start md:gap-2 md:px-4";
+  const buttonClassName = `${btnBase} ${btnTheme} w-10 md:h-10 md:w-[7.5rem] md:justify-start md:gap-2 md:px-4`;
+
+  const iconBase =
+    "flex h-10 w-10 items-center justify-center rounded-sm transition-all duration-200 backdrop-blur-sm cursor-pointer";
+  const iconTheme = isLight
+    ? "bg-white/90 border border-black/12 shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
+    : "bg-[#0d0d0d] border border-white/12 shadow-[0_4px_24px_rgba(0,0,0,0.5)]";
+  const iconOnlyClassName = `${iconBase} ${iconTheme}`;
+
+  const tooltipClassName =
+    "pointer-events-none absolute left-0 bottom-full mb-2 whitespace-nowrap rounded bg-[#111]/95 border border-white/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity duration-150 backdrop-blur-md";
 
   return (
     <motion.div
@@ -24,17 +42,65 @@ export default function ResumeButton() {
       className="fixed bottom-6 left-6 z-50 flex flex-col gap-3"
     >
       {showResume && (
-        <Link href="/resume" className={buttonClassName}>
-          <FileText size={12} className="text-[#ef4242]" />
-          <span className="hidden md:inline">Resume</span>
-        </Link>
+        <div className="flex flex-row gap-3 items-center">
+          <div className="group relative hidden md:block">
+            <button
+              type="button"
+              aria-label="Open Project Mercury prompt"
+              onClick={() => window.dispatchEvent(new Event("mercury:expand"))}
+              className={`${iconOnlyClassName} hover:border-[#f4c542]/45 hover:shadow-[0_4px_24px_rgba(244,197,66,0.14)]`}
+            >
+              <Star size={14} className="text-[#f4c542]" fill="currentColor" />
+            </button>
+            <span className={tooltipClassName}>
+              Army Reserve Mercury
+            </span>
+          </div>
+          <Link href="/resume" className={buttonClassName}>
+            <FileText size={12} className="text-[var(--cranberry)]" />
+            <span className="hidden md:inline">Resume</span>
+          </Link>
+        </div>
       )}
       {showContact && (
-        <Link href="/contact" className={buttonClassName}>
-          <Mail size={12} className="text-[#ef4242]" />
-          <span className="hidden md:inline">Contact</span>
-        </Link>
+        <div className="flex flex-row gap-3 items-center">
+          {showTerminal && (
+            <div className="group relative hidden md:block">
+              <Link
+                href="/terminal"
+                className={`${iconOnlyClassName} ${
+                  isLight
+                    ? "hover:border-black/25 hover:shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
+                    : "hover:border-white/30 hover:shadow-[0_4px_24px_rgba(255,255,255,0.08)]"
+                }`}
+              >
+                <TerminalSquare size={14} className={isLight ? "text-black/70" : "text-white/70"} />
+              </Link>
+              <span className={tooltipClassName}>
+                Terminal Mode
+              </span>
+            </div>
+          )}
+          <Link href="/contact" className={buttonClassName}>
+            <Mail size={12} className="text-[var(--cranberry)]" />
+            <span className="hidden md:inline">Contact</span>
+          </Link>
+        </div>
       )}
+
+      {/* Theme toggle */}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event("mdcran:toggle-theme"))}
+        className={`${btnBase} ${btnTheme} w-10 md:w-full cursor-pointer`}
+        aria-label="Change theme"
+      >
+        <Palette size={14} className="md:hidden" style={{ color: themeInfo.primary }} />
+        <span className="hidden md:flex items-center gap-2">
+          <Palette size={12} style={{ color: themeInfo.primary }} />
+          Theme: {themeInfo.shortName}
+        </span>
+      </button>
     </motion.div>
   );
 }

@@ -12,6 +12,7 @@ type ShortcutItem = {
 
 const DISPLAY_SHORTCUTS: ShortcutItem[] = [
   { keys: ["Ctrl", "Alt", "T"], label: "Terminal" },
+  { keys: ["Shift", "Alt"], label: "Themes" },
   { keys: ["G", "H"], label: "Home" },
   { keys: ["G", "E"], label: "Arts & Entertainment" },
   { keys: ["G", "M"], label: "Motion & Graphics" },

@@ -398,37 +398,68 @@ function TapsButton({ articleId }: { articleId: string }) {
         onClick={handleTap}
         disabled={!canTap}
         whileTap={{ scale: 0.92 }}
-        className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[#ef4242]/30 hover:bg-[#ef4242]/5 hover:text-[#ef4242] disabled:cursor-not-allowed disabled:opacity-60"
+        className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[#ef4242]/30 hover:bg-[#ef4242]/5 hover:text-[#ef4242] disabled:cursor-not-allowed disabled:opacity-60 overflow-visible"
         title={loading ? "Loading taps" : "Tap to appreciate this article"}
       >
+        {/* Sparkle stars */}
         <AnimatePresence>
           {burst &&
-            [0, 60, 120, 180, 240, 300].map((angle) => (
-              <motion.div
-                key={angle}
-                className="absolute w-1 h-1 rounded-full bg-[#ef4242]"
-                initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                animate={{
-                  scale: [0, 1, 0],
-                  x: Math.cos((angle * Math.PI) / 180) * 20,
-                  y: Math.sin((angle * Math.PI) / 180) * 20,
-                  opacity: [1, 1, 0],
-                }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-              />
-            ))}
+            Array.from({ length: 8 }, (_, i) => {
+              const angle = (i / 8) * 360;
+              const dist = 20 + Math.random() * 12;
+              return (
+                <motion.div
+                  key={`star-${i}`}
+                  className="absolute pointer-events-none"
+                  style={{ color: i % 2 === 0 ? "#ef4242" : "#fbbf24" }}
+                  initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                  animate={{
+                    scale: [0, 1.3, 0],
+                    x: Math.cos((angle * Math.PI) / 180) * dist,
+                    y: Math.sin((angle * Math.PI) / 180) * dist,
+                    opacity: [1, 1, 0],
+                  }}
+                  transition={{ duration: 0.5, delay: i * 0.03, ease: "easeOut" }}
+                >
+                  <svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8Z" fill="currentColor"/></svg>
+                </motion.div>
+              );
+            })}
+        </AnimatePresence>
+
+        {/* Glow pulse */}
+        <AnimatePresence>
+          {burst && (
+            <motion.div
+              className="absolute inset-0 rounded-sm"
+              style={{ boxShadow: "0 0 16px #ef4242" }}
+              initial={{ opacity: 0.8 }}
+              animate={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            />
+          )}
         </AnimatePresence>
 
         <motion.span
-          animate={burst ? { scale: [1, 1.4, 1] } : {}}
-          transition={{ duration: 0.3 }}
+          animate={burst ? { scale: [1, 1.4, 0.9, 1.1, 1] } : {}}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="leading-none"
+          style={{ color: burst ? "#ef4242" : undefined }}
         >
           <Heart size={12} className={burst ? 'fill-current' : ''} />
         </motion.span>
-        <span className="text-xs tracking-wider">
-          {loading ? "-" : `${count} ${count === 1 ? "tap" : "taps"}`}
-        </span>
+        <AnimatePresence mode="popLayout">
+          <motion.span
+            key={count}
+            initial={{ y: -8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 8, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-xs tracking-wider"
+          >
+            {loading ? "-" : `${count} ${count === 1 ? "tap" : "taps"}`}
+          </motion.span>
+        </AnimatePresence>
       </motion.button>
       {!loading && !canTap && (
         <span className="text-[10px] text-white/30 tracking-wider">
@@ -545,7 +576,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
               priority
               unoptimized={coverUnoptimized}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--theme-bg,#0a0a0a)] via-[var(--theme-bg,#0a0a0a)]/50 to-transparent" />
           </div>
         ) : (
           <div className="h-32 bg-gradient-to-b from-[#ef4242]/4 to-transparent" />

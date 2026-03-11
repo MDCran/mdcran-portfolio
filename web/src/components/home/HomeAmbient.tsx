@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useTheme } from "@/lib/ThemeContext";
 
 const starField = [
   { top: "6%", left: "8%", size: 2, delay: 0.1, duration: 5.4 },
@@ -177,6 +178,9 @@ function formatPercent(value: number, decimals = 2) {
 }
 
 export default function HomeAmbient() {
+  const { themeInfo } = useTheme();
+  const isLight = themeInfo.id === "light";
+
   const extraStars = useMemo(
     () =>
       Array.from({ length: 36 }, (_, index) => ({
@@ -236,6 +240,7 @@ export default function HomeAmbient() {
   // Track how many times each badge has been clicked — changing the key
   // forces framer-motion to remount the click-burst particles fresh each time.
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
+  const [dismissedBadges, setDismissedBadges] = useState<Set<string>>(new Set());
   const dismissTimersRef = useRef<Record<string, ReturnType<typeof globalThis.setTimeout>>>({});
 
   useEffect(() => {
@@ -252,15 +257,23 @@ export default function HomeAmbient() {
     }
 
     setClickCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+    // Dismiss the badge on click
+    setDismissedBadges((prev) => new Set(prev).add(key));
 
+    // Respawn after 5 seconds
     dismissTimersRef.current[key] = globalThis.setTimeout(() => {
+      setDismissedBadges((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
       delete dismissTimersRef.current[key];
-    }, 850);
+    }, 5000);
   }, []);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-      {lensFlares.map((flare, index) => (
+      {!isLight && lensFlares.map((flare, index) => (
         <motion.div
           key={`flare-${index}`}
           className="absolute rounded-full blur-3xl"
@@ -280,7 +293,7 @@ export default function HomeAmbient() {
         />
       ))}
 
-      {starField.map((star, index) => (
+      {!isLight && starField.map((star, index) => (
         <motion.span
           key={`star-${index}`}
           className="absolute rounded-full bg-white/70"
@@ -304,7 +317,7 @@ export default function HomeAmbient() {
         />
       ))}
 
-      {extraStars.map((star, index) => (
+      {!isLight && extraStars.map((star, index) => (
         <motion.span
           key={`extra-star-${index}`}
           className="absolute rounded-full bg-white/80"
@@ -358,11 +371,11 @@ export default function HomeAmbient() {
             <div className="relative">
               {/* Badge pill — pointer-events-auto so it receives clicks */}
               <motion.div
-                className="relative inline-flex h-[14px] min-w-[22px] items-center justify-center rounded-full border px-[6px] cursor-pointer pointer-events-auto"
+                className={`relative inline-flex h-[14px] min-w-[22px] items-center justify-center rounded-full border px-[6px] cursor-pointer pointer-events-auto ${dismissedBadges.has(entry.key) ? "!opacity-0 !scale-0 !pointer-events-none" : ""}`}
                 style={{
-                  borderColor: style.border,
-                  background: style.background,
-                  boxShadow: style.glow,
+                  borderColor: isLight ? style.text + "44" : style.border,
+                  background: isLight ? style.text + "0d" : style.background,
+                  boxShadow: isLight ? "none" : style.glow,
                 }}
                 onClick={() => handleBadgeClick(entry.key)}
                 animate={{
@@ -431,42 +444,70 @@ export default function HomeAmbient() {
                 );
               })}
 
-              {/* Click-triggered burst — remounts on every click via key, fires once */}
-              {clickCounts[entry.key] !== undefined &&
-                BURST_PARTICLES.map((particle, pi) => {
-                  const useAlt = pi % 3 === 2;
-                  const color = useAlt ? style.particleB : style.particle;
-                  const { h, w, rounded } = particle.shape;
-                  return (
-                    <motion.span
-                      key={`${entry.key}-click-${clickCounts[entry.key]}-${pi}`}
-                      style={{
-                        position: "absolute",
-                        left: "50%",
-                        top: "50%",
-                        width: `${w}px`,
-                        height: `${h}px`,
-                        marginLeft: `${-w / 2}px`,
-                        marginTop: `${-h / 2}px`,
-                        borderRadius: rounded ? "50%" : "1px",
-                        background: color,
-                        boxShadow: `0 0 4px ${color}`,
-                      }}
-                      initial={{ opacity: 0, x: 0, y: 0, scale: 1, rotate: 0 }}
-                      animate={{
-                        opacity: [0, 1, 0.9, 0.4, 0],
-                        x: [0, particle.x * 0.5, particle.x * 0.88, particle.x * 1.1],
-                        y: [0, particle.y * 0.5, particle.y * 0.88, particle.y * 1.1],
-                        rotate: [0, particle.rotate * 0.55, particle.rotate * 0.9, particle.rotate],
-                        scale: [1.4, 1.2, 0.7, 0.05],
-                      }}
-                      transition={{
-                        duration: 0.42,
-                        ease: [0.01, 0.9, 0.1, 1],
-                      }}
-                    />
-                  );
-                })}
+              {/* Click-triggered explosion — dramatic scale-up → collapse with double particles + flash ring */}
+              {clickCounts[entry.key] !== undefined && (
+                <>
+                  {/* White flash ring */}
+                  <motion.div
+                    key={`${entry.key}-flash-${clickCounts[entry.key]}`}
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: "50%",
+                      width: 0,
+                      height: 0,
+                      borderRadius: "50%",
+                      border: "2px solid rgba(255,255,255,0.8)",
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    initial={{ width: 0, height: 0, opacity: 1 }}
+                    animate={{
+                      width: [0, 60, 80],
+                      height: [0, 60, 80],
+                      opacity: [1, 0.6, 0],
+                    }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                  {/* Double particles — 72 particles with 2x travel distance */}
+                  {BURST_PARTICLES.concat(BURST_PARTICLES).map((particle, pi) => {
+                    const useAlt = pi % 3 === 2;
+                    const color = useAlt ? style.particleB : style.particle;
+                    const { h, w, rounded } = particle.shape;
+                    const multiplier = pi >= 36 ? 2.2 : 1.4;
+                    return (
+                      <motion.span
+                        key={`${entry.key}-click-${clickCounts[entry.key]}-${pi}`}
+                        style={{
+                          position: "absolute",
+                          left: "50%",
+                          top: "50%",
+                          width: `${w}px`,
+                          height: `${h}px`,
+                          marginLeft: `${-w / 2}px`,
+                          marginTop: `${-h / 2}px`,
+                          borderRadius: rounded ? "50%" : "1px",
+                          background: color,
+                          boxShadow: `0 0 5px ${color}`,
+                        }}
+                        initial={{ opacity: 0, x: 0, y: 0, scale: 1.8, rotate: 0 }}
+                        animate={{
+                          opacity: [0, 1, 0.9, 0.3, 0],
+                          x: [0, particle.x * 0.6 * multiplier, particle.x * multiplier, particle.x * multiplier * 1.1],
+                          y: [0, particle.y * 0.6 * multiplier, particle.y * multiplier, particle.y * multiplier * 1.1],
+                          rotate: [0, particle.rotate * 0.5, particle.rotate],
+                          scale: [1.8, 1.2, 0.5, 0],
+                          filter: ["blur(0px)", "blur(0px)", "blur(1px)", "blur(3px)"],
+                        }}
+                        transition={{
+                          duration: 0.55,
+                          ease: [0.01, 0.9, 0.1, 1],
+                          delay: pi >= 36 ? 0.04 : 0,
+                        }}
+                      />
+                    );
+                  })}
+                </>
+              )}
             </div>
           </motion.div>
         );

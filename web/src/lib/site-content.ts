@@ -11,6 +11,7 @@ export const defaultSiteContent: SiteContent = {
     "services",
     "featured",
     "clients",
+    "visitor-map",
     "cta",
   ],
   featuredProjectIds: [],
@@ -87,6 +88,11 @@ export const defaultSiteContent: SiteContent = {
     title: "Clients",
     description:
       "Collaborating with top content creators, companies, and production teams to deliver premium-quality digital experiences.",
+  },
+  homeVisitorMap: {
+    eyebrow: "Global Reach",
+    title: "Visitor Map",
+    description: "See where visitors are tuning in from around the world.",
   },
   homeCta: {
     eyebrow: "Open for work",

@@ -16,6 +16,7 @@ export type CountryStat = {
 type Props = {
   stats: CountryStat[];
   total: number;
+  hideStats?: boolean;
 };
 
 // ── Texture tuning — adjust these to taste ───────────────────────────────────
@@ -215,7 +216,7 @@ function labelPositionsFor(stats: CountryStat[]): THREE.Vector3[] {
 const raycaster = new THREE.Raycaster();
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function GlobeViewer({ stats: initialStats, total: initialTotal }: Props) {
+export default function GlobeViewer({ stats: initialStats, total: initialTotal, hideStats }: Props) {
   const wrapRef    = React.useRef<HTMLDivElement>(null);
   const overlayRef = React.useRef<HTMLCanvasElement>(null);
   const hoveredRef = React.useRef<CountryStat | null>(null);
@@ -496,14 +497,17 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
       )}
 
       {/* Stats panel — bottom-left */}
+      {!hideStats && (
       <div
         style={{
           position: "absolute",
           bottom: 24,
           left: 24,
           zIndex: 20,
-          background: "rgba(4,10,18,0.88)",
-          border: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(4,10,18,0.55)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          border: "1px solid rgba(255,255,255,0.12)",
           borderRadius: 10,
           padding: "16px 20px",
           minWidth: 210,
@@ -519,7 +523,6 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
         <div style={{ fontSize: 30, fontWeight: 700, color: "#ef4242", lineHeight: 1, marginBottom: 12 }}>
           {total.toLocaleString()}
         </div>
-        /*
         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: 4 }}>
           Top Countries
         </div>
@@ -536,6 +539,7 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal }
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

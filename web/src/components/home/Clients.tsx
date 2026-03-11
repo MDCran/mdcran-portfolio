@@ -25,8 +25,8 @@ export default function Clients({ clients, projects = [], content }: ClientsProp
             viewport={{ once: true, amount: 0 }}
             className="flex items-center gap-3 mb-4"
           >
-            <div className="h-px w-8 bg-[#ef4242]" />
-            <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
+            <div className="h-px w-8 bg-[var(--cranberry)]" />
+            <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">
               {content?.eyebrow ?? "Who I've worked with"}
             </span>
           </motion.div>

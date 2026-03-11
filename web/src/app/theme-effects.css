@@ -1,0 +1,617 @@
+/* ─── Theme Variable Overrides ─────────────────────────────────────────────── */
+
+:root,
+html[data-theme="dark"] {
+  --theme-primary: #ef4242;
+  --theme-bg: #0a0a0a;
+  --theme-text: #ffffff;
+  --theme-text-muted: rgba(255, 255, 255, 0.5);
+  --grid-line-color: rgba(239, 66, 66, 0.03);
+  --glow-color: rgba(239, 66, 66, 0.06);
+  --scrollbar-thumb: #ef4242;
+  --selection-bg: rgba(239, 66, 66, 0.3);
+  --on-accent: #ffffff;
+  color-scheme: dark;
+}
+
+html[data-theme="hacker"] {
+  --theme-primary: #00ff41;
+  --theme-bg: #050a05;
+  --theme-text: #00ff41;
+  --theme-text-muted: rgba(0, 255, 65, 0.5);
+  --grid-line-color: rgba(0, 255, 65, 0.04);
+  --glow-color: rgba(0, 255, 65, 0.08);
+  --scrollbar-thumb: #00ff41;
+  --selection-bg: rgba(0, 255, 65, 0.3);
+  --on-accent: #000000;
+  color-scheme: dark;
+}
+
+html[data-theme="hacker"] body {
+  background: #050a05;
+  color: #00ff41;
+}
+
+html[data-theme="hacker"] h1,
+html[data-theme="hacker"] h2,
+html[data-theme="hacker"] h3,
+html[data-theme="hacker"] h4 {
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
+}
+
+html[data-theme="cyberpunk"] {
+  --theme-primary: #ff00cc;
+  --theme-bg: #0a0510;
+  --theme-text: #ffffff;
+  --theme-text-muted: rgba(255, 255, 255, 0.5);
+  --grid-line-color: rgba(255, 0, 204, 0.04);
+  --glow-color: rgba(255, 0, 204, 0.08);
+  --scrollbar-thumb: #ff00cc;
+  --selection-bg: rgba(255, 0, 204, 0.3);
+  --on-accent: #ffffff;
+  color-scheme: dark;
+}
+
+html[data-theme="cyberpunk"] body {
+  background: #0a0510;
+}
+
+html[data-theme="cyberpunk"] h1,
+html[data-theme="cyberpunk"] h2,
+html[data-theme="cyberpunk"] h3,
+html[data-theme="cyberpunk"] h4 {
+  text-shadow: 0 0 10px rgba(255, 0, 204, 0.4), 0 0 20px rgba(0, 255, 255, 0.2);
+}
+
+/* Cyberpunk scanlines + CRT interference */
+html[data-theme="cyberpunk"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 0, 204, 0.015) 2px,
+    rgba(255, 0, 204, 0.015) 4px
+  );
+  animation: cyberpunk-flicker 8s infinite;
+}
+
+/* ─── Cyberpunk + Hacker: Glitch & CRT effects ────────────────────────────── */
+
+/* Screen glitch — random horizontal shift + color split */
+@keyframes glitch-shift {
+  0%, 93%, 100% { transform: translate(0); filter: none; }
+  93.5% { transform: translate(-3px, 1px); filter: hue-rotate(90deg); }
+  94% { transform: translate(4px, -1px); filter: hue-rotate(-90deg) saturate(2); }
+  94.5% { transform: translate(-2px, 0); filter: none; }
+  95% { transform: translate(0); }
+  97% { transform: translate(0); filter: none; }
+  97.3% { transform: translate(5px, 0); filter: hue-rotate(180deg); }
+  97.6% { transform: translate(-3px, 1px); }
+  97.9% { transform: translate(0); filter: none; }
+}
+
+/* Signal interference — horizontal bar sweep */
+@keyframes signal-bar {
+  0%, 100% { clip-path: inset(100% 0 0 0); opacity: 0; }
+  40% { clip-path: inset(100% 0 0 0); opacity: 0; }
+  42% { clip-path: inset(30% 0 65% 0); opacity: 1; }
+  44% { clip-path: inset(60% 0 35% 0); opacity: 0.7; }
+  46% { clip-path: inset(100% 0 0 0); opacity: 0; }
+  80% { clip-path: inset(100% 0 0 0); opacity: 0; }
+  82% { clip-path: inset(10% 0 85% 0); opacity: 0.8; }
+  84% { clip-path: inset(75% 0 20% 0); opacity: 0.5; }
+  86% { clip-path: inset(100% 0 0 0); opacity: 0; }
+}
+
+/* CRT flicker */
+@keyframes cyberpunk-flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96% { opacity: 0.92; }
+  97% { opacity: 1; }
+  98% { opacity: 0.88; }
+  99% { opacity: 1; }
+}
+
+/* Neon lens flare pulse */
+@keyframes neon-flare {
+  0%, 85%, 100% { opacity: 0; }
+  88% { opacity: 0.15; }
+  91% { opacity: 0; }
+  93% { opacity: 0.08; }
+  95% { opacity: 0; }
+}
+
+/* Text data corruption */
+@keyframes text-glitch {
+  0%, 92%, 100% { text-shadow: none; clip-path: none; }
+  93% { text-shadow: 2px 0 #ff00cc, -2px 0 #00ffff; clip-path: inset(20% 0 60% 0); }
+  94% { text-shadow: -3px 0 #ff00cc, 3px 0 #00ffff; clip-path: inset(60% 0 10% 0); }
+  95% { text-shadow: none; clip-path: none; }
+}
+
+@keyframes text-glitch-green {
+  0%, 92%, 100% { text-shadow: none; clip-path: none; }
+  93% { text-shadow: 2px 0 #00ff41, -2px 0 #00aa20; clip-path: inset(25% 0 55% 0); }
+  94% { text-shadow: -3px 0 #00ff41, 3px 0 #003300; clip-path: inset(55% 0 15% 0); }
+  95% { text-shadow: none; clip-path: none; }
+}
+
+/* ── Cyberpunk theme effects ── */
+html[data-theme="cyberpunk"] main {
+  animation: glitch-shift 12s infinite;
+}
+
+/* Signal interference bar overlay */
+html[data-theme="cyberpunk"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: linear-gradient(
+    0deg,
+    transparent 0%,
+    rgba(255, 0, 204, 0.06) 50%,
+    transparent 100%
+  );
+  animation: signal-bar 15s infinite;
+}
+
+/* Neon lens flare */
+html[data-theme="cyberpunk"] nav::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 30%;
+  width: 40%;
+  height: 100%;
+  pointer-events: none;
+  background: radial-gradient(ellipse, rgba(255, 0, 204, 0.3) 0%, transparent 70%);
+  animation: neon-flare 10s infinite;
+}
+
+/* Headings glitch */
+html[data-theme="cyberpunk"] h1,
+html[data-theme="cyberpunk"] h2 {
+  animation: text-glitch 8s infinite;
+}
+
+/* ── Hacker theme effects ── */
+html[data-theme="hacker"] main {
+  animation: glitch-shift 18s infinite;
+}
+
+/* CRT scanline + interference */
+html[data-theme="hacker"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(0, 255, 65, 0.02) 1px,
+    rgba(0, 255, 65, 0.02) 2px
+  );
+  animation: cyberpunk-flicker 6s infinite;
+}
+
+/* Signal bar */
+html[data-theme="hacker"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: linear-gradient(
+    0deg,
+    transparent 0%,
+    rgba(0, 255, 65, 0.04) 50%,
+    transparent 100%
+  );
+  animation: signal-bar 20s infinite;
+}
+
+/* Headings glitch — green variant */
+html[data-theme="hacker"] h1,
+html[data-theme="hacker"] h2 {
+  animation: text-glitch-green 10s infinite;
+}
+
+html[data-theme="grayscale"] {
+  --theme-primary: #888888;
+  --theme-bg: #111111;
+  --theme-text: #cccccc;
+  --theme-text-muted: rgba(204, 204, 204, 0.5);
+  --grid-line-color: rgba(150, 150, 150, 0.04);
+  --glow-color: rgba(150, 150, 150, 0.04);
+  --scrollbar-thumb: #666666;
+  --selection-bg: rgba(150, 150, 150, 0.25);
+  --on-accent: #ffffff;
+  color-scheme: dark;
+}
+
+html[data-theme="grayscale"] {
+  filter: grayscale(100%);
+}
+
+html[data-theme="grayscale"] body {
+  background: #111111;
+  color: #cccccc;
+}
+
+html[data-theme="high-contrast"] {
+  --theme-primary: #ffff00;
+  --theme-bg: #000000;
+  --theme-text: #ffffff;
+  --theme-text-muted: rgba(255, 255, 255, 0.7);
+  --grid-line-color: rgba(255, 255, 0, 0.06);
+  --glow-color: rgba(255, 255, 0, 0.08);
+  --scrollbar-thumb: #ffff00;
+  --selection-bg: rgba(255, 255, 0, 0.35);
+  --on-accent: #000000;
+  color-scheme: dark;
+}
+
+html[data-theme="high-contrast"] body {
+  background: #000000;
+  color: #ffffff;
+}
+
+html[data-theme="high-contrast"] h1,
+html[data-theme="high-contrast"] h2,
+html[data-theme="high-contrast"] h3,
+html[data-theme="high-contrast"] h4 {
+  color: #ffff00;
+  text-shadow: 0 0 6px rgba(255, 255, 0, 0.4);
+}
+
+html[data-theme="high-contrast"] a {
+  color: #00ffff;
+}
+
+html[data-theme="high-contrast"] a:hover {
+  color: #ffffff;
+}
+
+/* (high-contrast accent bg text moved to global rule below) */
+
+html[data-theme="high-contrast"] [class*="border-white"] {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html[data-theme="light"] {
+  --theme-primary: #d93636;
+  --theme-bg: #f8f8f8;
+  --theme-text: #1a1a1a;
+  --theme-text-muted: rgba(0, 0, 0, 0.5);
+  --grid-line-color: transparent;
+  --glow-color: transparent;
+  --scrollbar-thumb: #d93636;
+  --selection-bg: rgba(217, 54, 54, 0.2);
+  --on-accent: #ffffff;
+  color-scheme: light;
+}
+
+html[data-theme="light"] body {
+  background: #f8f8f8;
+  color: #1a1a1a;
+}
+
+/* Light: hide grid and glow overlays */
+html[data-theme="light"] body::before,
+html[data-theme="light"] body::after {
+  display: none !important;
+}
+
+/* ─── Hacker / Cyberpunk overlay animations ─────────────────────────────── */
+
+/* Security scan line — sweeps from top to bottom */
+@keyframes security-scan {
+  0% { top: -2px; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { top: 100vh; opacity: 0; }
+}
+
+/* Data corruption flash — brief screen distortion */
+@keyframes corruption-flash {
+  0%, 88%, 100% { opacity: 0; background: none; }
+  89% {
+    opacity: 0.15;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(255, 255, 255, 0.03) 2px,
+        rgba(255, 255, 255, 0.03) 4px
+      );
+  }
+  89.5% {
+    opacity: 0.3;
+    background:
+      linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 0, 204, 0.1) 20%,
+        transparent 25%,
+        rgba(0, 255, 255, 0.08) 60%,
+        transparent 65%
+      );
+  }
+  90% { opacity: 0; background: none; }
+  95% { opacity: 0; background: none; }
+  95.5% {
+    opacity: 0.2;
+    background:
+      linear-gradient(
+        180deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.04) 42%,
+        transparent 44%
+      );
+  }
+  96% { opacity: 0; background: none; }
+}
+
+/* Neon lens flare drift */
+@keyframes neon-lens-drift {
+  0% { transform: translateX(-15%); opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { transform: translateX(15%); opacity: 0.6; }
+}
+
+/* Enhanced screen interference — random horizontal shifts (hacker/cyberpunk only) */
+@keyframes screen-tear {
+  0%, 100% { clip-path: none; transform: none; }
+  85% { clip-path: none; transform: none; }
+  85.5% { clip-path: inset(33% 0 60% 0); transform: translateX(6px); }
+  86% { clip-path: inset(70% 0 15% 0); transform: translateX(-4px); }
+  86.5% { clip-path: none; transform: none; }
+  92% { clip-path: none; transform: none; }
+  92.3% { clip-path: inset(10% 0 82% 0); transform: translateX(-8px); }
+  92.6% { clip-path: inset(85% 0 5% 0); transform: translateX(5px); }
+  93% { clip-path: none; transform: none; }
+}
+
+/* ─── All non-dark themes: remap accent color (#ef4242 → theme primary) ──── */
+/* Uses ~= (exact word match) so opacity variants like bg-[#ef4242]/6 and
+   hover variants like hover:text-[#ef4242] don't get their opacity stripped
+   or forced on at rest. */
+html:not([data-theme="dark"]):not(:where(:not([data-theme]))) {
+  /* Exact-match overrides (no opacity modifier) */
+  & [class~="text-\[\#ef4242\]"],
+  & [class~="text-cranberry-"] {
+    color: var(--theme-primary) !important;
+  }
+
+  & [class~="bg-\[\#ef4242\]"] {
+    background-color: var(--theme-primary) !important;
+  }
+
+  & [class~="border-\[\#ef4242\]"] {
+    border-color: var(--theme-primary) !important;
+  }
+
+  & [class~="ring-\[\#ef4242\]"] {
+    --tw-ring-color: var(--theme-primary) !important;
+  }
+
+  /* var(--cranberry) equivalents */
+  & [class~="text-\[var\(--cranberry\)\]"] {
+    color: var(--theme-primary) !important;
+  }
+
+  & [class~="bg-\[var\(--cranberry\)\]"] {
+    background-color: var(--theme-primary) !important;
+  }
+
+  & [class~="border-\[var\(--cranberry\)\]"] {
+    border-color: var(--theme-primary) !important;
+  }
+
+  /* Hover state overrides (use *=, scoped with :hover) */
+  & [class*="hover\:text-\[\#ef4242\]"]:hover,
+  & [class*="hover\:text-\[var\(--cranberry\)\]"]:hover {
+    color: var(--theme-primary) !important;
+  }
+
+  & [class*="hover\:border-\[\#ef4242\]"]:hover,
+  & [class*="hover\:border-\[rgba(239"]:hover,
+  & [class*="hover\:border-\[var\(--cranberry\)\]"]:hover {
+    border-color: color-mix(in srgb, var(--theme-primary) 50%, transparent) !important;
+  }
+
+  & [class*="hover\:bg-\[\#ef4242\]"]:hover,
+  & [class*="hover\:bg-\[rgba(239"]:hover,
+  & [class*="hover\:bg-\[var\(--cranberry\)\]"]:hover {
+    background-color: color-mix(in srgb, var(--theme-primary) 10%, transparent) !important;
+  }
+
+  /* Dark bg overrides */
+  & .bg-\[\#0a0a0a\] { background-color: var(--theme-bg) !important; }
+  & .bg-\[\#0d0d0d\] { background-color: color-mix(in srgb, var(--theme-bg) 95%, var(--theme-text) 5%) !important; }
+  & .bg-\[\#080808\] { background-color: var(--theme-bg) !important; }
+  & .bg-\[\#111111\] { background-color: color-mix(in srgb, var(--theme-bg) 90%, var(--theme-text) 10%) !important; }
+}
+
+/* ─── Light mode: full color inversion for readable UI ──────────────────── */
+html[data-theme="light"] {
+  /* Navbar — transparent until scrolled so hero corner brackets are visible */
+  & nav[data-scrolled] {
+    background-color: rgba(248, 248, 248, 0.95) !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Dark backgrounds → white/light */
+  & [class*="bg-\[\#0d0d0d\]"],
+  & [class*="bg-\[\#080808\]"],
+  & [class*="bg-\[\#0a0a0a\]"],
+  & [class*="bg-\[\#111\]"],
+  & [class*="bg-\[\#111111\]"] {
+    background-color: #ffffff !important;
+  }
+
+  /* White opacity backgrounds → dark opacity */
+  & .bg-white\/2 { background-color: rgba(0, 0, 0, 0.02) !important; }
+  & .bg-white\/3 { background-color: rgba(0, 0, 0, 0.04) !important; }
+  & .bg-white\/4 { background-color: rgba(0, 0, 0, 0.04) !important; }
+  & .bg-white\/5 { background-color: rgba(0, 0, 0, 0.05) !important; }
+  & .bg-white\/6 { background-color: rgba(0, 0, 0, 0.05) !important; }
+  & .bg-white\/8 { background-color: rgba(0, 0, 0, 0.06) !important; }
+  & .bg-white\/10 { background-color: rgba(0, 0, 0, 0.07) !important; }
+
+  /* White opacity borders → dark opacity */
+  & .border-white\/5 { border-color: rgba(0, 0, 0, 0.06) !important; }
+  & .border-white\/6 { border-color: rgba(0, 0, 0, 0.07) !important; }
+  & .border-white\/7 { border-color: rgba(0, 0, 0, 0.08) !important; }
+  & .border-white\/8 { border-color: rgba(0, 0, 0, 0.10) !important; }
+  & .border-white\/10 { border-color: rgba(0, 0, 0, 0.12) !important; }
+  & .border-white\/12 { border-color: rgba(0, 0, 0, 0.14) !important; }
+  & .border-white\/15 { border-color: rgba(0, 0, 0, 0.16) !important; }
+
+  /* White text → dark text
+     EXCEPT inside accent-bg containers (buttons) and overlays (z-[9999]) */
+  & :where(main, nav, footer, [class*="fixed"]:not([class*="z-[9999"])):not([class*="z-[9999]"] *) {
+    & .text-white { color: #1a1a1a !important; }
+    & .text-white\/90 { color: rgba(0, 0, 0, 0.9) !important; }
+    & .text-white\/85 { color: rgba(0, 0, 0, 0.85) !important; }
+    & .text-white\/80 { color: rgba(0, 0, 0, 0.8) !important; }
+    & .text-white\/75 { color: rgba(0, 0, 0, 0.75) !important; }
+    & .text-white\/70 { color: rgba(0, 0, 0, 0.7) !important; }
+    & .text-white\/65 { color: rgba(0, 0, 0, 0.65) !important; }
+    & .text-white\/60 { color: rgba(0, 0, 0, 0.6) !important; }
+    & .text-white\/55 { color: rgba(0, 0, 0, 0.55) !important; }
+    & .text-white\/50 { color: rgba(0, 0, 0, 0.5) !important; }
+    & .text-white\/45 { color: rgba(0, 0, 0, 0.45) !important; }
+    & .text-white\/40 { color: rgba(0, 0, 0, 0.4) !important; }
+    & .text-white\/35 { color: rgba(0, 0, 0, 0.35) !important; }
+    & .text-white\/30 { color: rgba(0, 0, 0, 0.3) !important; }
+    & .text-white\/25 { color: rgba(0, 0, 0, 0.25) !important; }
+    & .text-white\/22 { color: rgba(0, 0, 0, 0.22) !important; }
+    & .text-white\/20 { color: rgba(0, 0, 0, 0.2) !important; }
+  }
+
+  /* (accent bg text moved to global rule below) */
+
+  /* Placeholders */
+  & input::placeholder,
+  & textarea::placeholder {
+    color: rgba(0, 0, 0, 0.35) !important;
+  }
+
+  /* Soften glow animations */
+  & .animate-glow-pulse {
+    animation: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Hover text */
+  & [class*="hover\:text-white"]:hover {
+    color: #1a1a1a !important;
+  }
+
+  /* Navbar dropdowns — keep dark bg + light text in light mode */
+  & nav .bg-black\/80 {
+    background-color: rgba(0, 0, 0, 0.88) !important;
+  }
+  & nav .bg-black\/80 .text-white\/55 { color: rgba(255, 255, 255, 0.55) !important; }
+  & nav .bg-black\/80 [class*="hover\:text-white"]:hover { color: #ffffff !important; }
+  & nav .bg-black\/80 .text-white { color: #ffffff !important; }
+  & nav .bg-black\/80 [class*="text-\[var(--cranberry)\]"] { color: var(--theme-primary) !important; }
+  & nav .bg-black\/80 .border-white\/7 { border-color: rgba(255, 255, 255, 0.07) !important; }
+
+  /* Search overlay in navbar — keep dark */
+  & nav [class*="bg-\[\#0d0d0d\]"] {
+    background-color: #0d0d0d !important;
+  }
+  & nav [class*="bg-\[\#0d0d0d\]"] .text-white,
+  & nav [class*="bg-\[\#0d0d0d\]"] .text-white\/70,
+  & nav [class*="bg-\[\#0d0d0d\]"] .text-white\/60,
+  & nav [class*="bg-\[\#0d0d0d\]"] .text-white\/50,
+  & nav [class*="bg-\[\#0d0d0d\]"] .text-white\/55 {
+    color: inherit !important;
+  }
+
+  /* Lighten dark image gradients on cards */
+  & [class*="from-black\/80"] {
+    --tw-gradient-from: rgb(248 248 248 / 0.6) !important;
+  }
+
+  /* Soften heavy glow shadows on buttons */
+  & [class*="shadow-\[0_0_20px"],
+  & [class*="shadow-\[0_0_30px"] {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  /* Hide blur glow div behind CTA buttons */
+  & .blur-md[class*="bg-\[var(--cranberry)\]"],
+  & .blur-md[class*="bg-\[\#ef4242\]"] {
+    display: none !important;
+  }
+
+  /* Resume expand/collapse button — convert dark bg */
+  & [class*="bg-\[\#0b0b0b\]"] {
+    background-color: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.12) !important;
+  }
+
+  /* ── Force-dark containers (map widget, chat panel, MercuryPrompt) ── */
+  /* These elements intentionally keep dark styling in light mode */
+  & [data-force-dark] .text-white { color: #fff !important; }
+  & [data-force-dark] .text-white\/90 { color: rgba(255,255,255,0.9) !important; }
+  & [data-force-dark] .text-white\/85 { color: rgba(255,255,255,0.85) !important; }
+  & [data-force-dark] .text-white\/80 { color: rgba(255,255,255,0.8) !important; }
+  & [data-force-dark] .text-white\/78 { color: rgba(255,255,255,0.78) !important; }
+  & [data-force-dark] .text-white\/75 { color: rgba(255,255,255,0.75) !important; }
+  & [data-force-dark] .text-white\/70 { color: rgba(255,255,255,0.7) !important; }
+  & [data-force-dark] .text-white\/60 { color: rgba(255,255,255,0.6) !important; }
+  & [data-force-dark] .text-white\/55 { color: rgba(255,255,255,0.55) !important; }
+  & [data-force-dark] .text-white\/50 { color: rgba(255,255,255,0.5) !important; }
+  & [data-force-dark] .text-white\/45 { color: rgba(255,255,255,0.45) !important; }
+  & [data-force-dark] .text-white\/42 { color: rgba(255,255,255,0.42) !important; }
+  & [data-force-dark] .text-white\/40 { color: rgba(255,255,255,0.4) !important; }
+  & [data-force-dark] .text-white\/35 { color: rgba(255,255,255,0.35) !important; }
+  & [data-force-dark] .text-white\/30 { color: rgba(255,255,255,0.3) !important; }
+  & [data-force-dark] .text-white\/25 { color: rgba(255,255,255,0.25) !important; }
+  & [data-force-dark] .text-white\/24 { color: rgba(255,255,255,0.24) !important; }
+  & [data-force-dark] .text-white\/22 { color: rgba(255,255,255,0.22) !important; }
+  & [data-force-dark] .text-white\/20 { color: rgba(255,255,255,0.2) !important; }
+  & [data-force-dark] .bg-white\/2 { background-color: rgba(255,255,255,0.02) !important; }
+  & [data-force-dark] .bg-white\/3 { background-color: rgba(255,255,255,0.03) !important; }
+  & [data-force-dark] .bg-white\/4 { background-color: rgba(255,255,255,0.04) !important; }
+  & [data-force-dark] .bg-white\/5 { background-color: rgba(255,255,255,0.05) !important; }
+  & [data-force-dark] .bg-white\/6 { background-color: rgba(255,255,255,0.06) !important; }
+  & [data-force-dark] .bg-white\/8 { background-color: rgba(255,255,255,0.08) !important; }
+  & [data-force-dark] .bg-white\/10 { background-color: rgba(255,255,255,0.1) !important; }
+  & [data-force-dark] .bg-black\/30 { background-color: rgba(0,0,0,0.3) !important; }
+  & [data-force-dark] .border-white\/6 { border-color: rgba(255,255,255,0.06) !important; }
+  & [data-force-dark] .border-white\/7 { border-color: rgba(255,255,255,0.07) !important; }
+  & [data-force-dark] .border-white\/8 { border-color: rgba(255,255,255,0.08) !important; }
+  & [data-force-dark] .border-white\/10 { border-color: rgba(255,255,255,0.1) !important; }
+  & [data-force-dark] .border-white\/12 { border-color: rgba(255,255,255,0.12) !important; }
+  & [data-force-dark] .border-white\/15 { border-color: rgba(255,255,255,0.15) !important; }
+  & [data-force-dark] input::placeholder { color: rgba(255,255,255,0.25) !important; }
+  & [data-force-dark] [class*="hover\:text-white"]:hover { color: #fff !important; }
+  & [data-force-dark] [class*="bg-\[\#080808\]"] { background-color: rgba(8,8,8,0.95) !important; }
+  & [data-force-dark] [class*="bg-\[\#0a0a0a\]"] { background-color: #0a0a0a !important; }
+  & [data-force-dark] [class*="bg-\[\#0d0d0d\]"] { background-color: #0d0d0d !important; }
+}
+
+/* ─── Global: readable text on accent-colored backgrounds ──────────────────── */
+/* Uses var(--on-accent): white for most themes, black for hacker/high-contrast.
+   Specificity boosted with :not(#_) to beat light mode text-white override. */
+html[data-theme]:not(#_) [class*="bg-\[var(--cranberry)\]"],
+html[data-theme]:not(#_) [class*="bg-\[var(--cranberry)\]"] *,
+html[data-theme]:not(#_) [class*="bg-\[\#ef4242\]"],
+html[data-theme]:not(#_) [class*="bg-\[\#ef4242\]"] * {
+  color: var(--on-accent, #ffffff) !important;
+}

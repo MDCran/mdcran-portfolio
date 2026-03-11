@@ -11,7 +11,8 @@ import Clients from "@/components/home/Clients";
 import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import MercuryPrompt from "@/components/home/MercuryPrompt";
-import { getClients, getProjects, getSiteContent } from "@/lib/db";
+import VisitorMap from "@/components/home/VisitorMap";
+import { getClients, getProjects, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
 import {
   PERSON_ALIASES,
   PERSON_FULL_NAME,
@@ -38,10 +39,11 @@ export const metadata: Metadata = buildSeoMetadata({
 });
 
 export default async function HomePage() {
-  const [allProjects, allClients, siteContent] = await Promise.all([
+  const [allProjects, allClients, siteContent, visitorCountries] = await Promise.all([
     getProjects(),
     getClients(),
     getSiteContent(),
+    getVisitorCountsByCountry().catch(() => []),
   ]);
 
   // Use admin-ordered lists if configured, otherwise fall back to featured flag
@@ -115,6 +117,11 @@ export default async function HomePage() {
     clients: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
         <Clients clients={featuredClients} projects={allProjects} content={siteContent.homeClients} />
+      </div>
+    ),
+    "visitor-map": (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "600px" }}>
+        <VisitorMap countries={visitorCountries} content={siteContent.homeVisitorMap} />
       </div>
     ),
     cta: (

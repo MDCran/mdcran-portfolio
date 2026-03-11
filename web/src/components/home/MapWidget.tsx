@@ -11,8 +11,14 @@ export default function MapWidget() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="relative overflow-hidden rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl group hover:border-white/15 transition-all duration-300"
-      style={{ minHeight: "160px" }}
+      className="relative overflow-hidden rounded-sm border group transition-all duration-300"
+      style={{
+        borderColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: '#0a0a0a',
+        minHeight: '160px',
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'; }}
     >
       {/* Top accent */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[#ef4242] via-[#ef4242]/50 to-transparent z-10" />
@@ -27,7 +33,10 @@ export default function MapWidget() {
       />
 
       {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-[#0a0a0a]/30 to-transparent" />
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(to top, rgba(10,10,10,0.9), rgba(10,10,10,0.3) 50%, transparent)' }}
+      />
 
       {/* Content */}
       <div className="relative z-10 p-4 flex flex-col h-full justify-end" style={{ minHeight: "160px" }}>
@@ -46,8 +55,8 @@ export default function MapWidget() {
         <div className="flex items-center gap-2 mt-auto">
           <MapPin size={13} className="text-[#ef4242] shrink-0" />
           <div>
-            <div className="text-xs text-white font-medium">Orlando, FL</div>
-            <div className="text-[10px] text-white/40">OPEN FOR WORK</div>
+            <div className="text-xs font-medium" style={{ color: '#fff' }}>Orlando, FL</div>
+            <div className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>OPEN FOR WORK</div>
           </div>
         </div>
       </div>

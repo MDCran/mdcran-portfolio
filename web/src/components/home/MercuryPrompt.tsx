@@ -4,11 +4,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Star, X } from "lucide-react";
-import ChromaKeyVideo from "./ChromaKeyVideo";
 
 const REVEAL_DELAY_MS = 2000;
 const COUNTDOWN_SECONDS = 15;
-const VIDEO_REVEAL_DELAY_MS = 520;
 const COLLAPSE_DELAY_MS = 220;
 const REDACTION_TRIGGER_SECONDS = 1;
 const REDACTION_DURATION_MS = 900;
@@ -21,10 +19,8 @@ export default function MercuryPrompt() {
   const [showCollapsedTrigger, setShowCollapsedTrigger] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isRedacting, setIsRedacting] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(COUNTDOWN_SECONDS);
   const closeTimerRef = useRef<number | null>(null);
-  const videoTimerRef = useRef<number | null>(null);
   const redactTimerRef = useRef<number | null>(null);
 
   const startExpand = useCallback(() => {
@@ -32,8 +28,11 @@ export default function MercuryPrompt() {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
+    if (redactTimerRef.current !== null) {
+      window.clearTimeout(redactTimerRef.current);
+      redactTimerRef.current = null;
+    }
     setSecondsLeft(COUNTDOWN_SECONDS);
-    setShowVideo(false);
     setIsClosing(false);
     setIsRedacting(false);
     setIsCollapsed(false);
@@ -44,13 +43,7 @@ export default function MercuryPrompt() {
   const startCollapse = useCallback(() => {
     if (isClosing || isRedacting) return;
 
-    if (videoTimerRef.current !== null) {
-      window.clearTimeout(videoTimerRef.current);
-      videoTimerRef.current = null;
-    }
-
     setIsClosing(true);
-    setShowVideo(false);
 
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
@@ -65,16 +58,24 @@ export default function MercuryPrompt() {
     }, COLLAPSE_DELAY_MS);
   }, [isClosing, isRedacting]);
 
+  const doCollapse = useCallback(() => {
+    setIsRedacting(false);
+    setIsClosing(true);
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsVisible(false);
+      setIsCollapsed(true);
+      setIsClosing(false);
+      closeTimerRef.current = null;
+    }, COLLAPSE_DELAY_MS);
+  }, []);
+
   const startRedaction = useCallback(() => {
     if (isClosing || isRedacting) return;
 
-    if (videoTimerRef.current !== null) {
-      window.clearTimeout(videoTimerRef.current);
-      videoTimerRef.current = null;
-    }
-
     setIsRedacting(true);
-    setShowVideo(false);
     setSecondsLeft(0);
 
     if (redactTimerRef.current !== null) {
@@ -82,11 +83,22 @@ export default function MercuryPrompt() {
     }
 
     redactTimerRef.current = window.setTimeout(() => {
-      setIsRedacting(false);
-      startCollapse();
+      doCollapse();
       redactTimerRef.current = null;
     }, REDACTION_DURATION_MS);
-  }, [isClosing, isRedacting, startCollapse]);
+  }, [isClosing, isRedacting, doCollapse]);
+
+  // Stable refs so the mercury:expand listener never re-registers and never kills timers
+  const startExpandRef = useRef(startExpand);
+  startExpandRef.current = startExpand;
+  const startRedactionRef = useRef(startRedaction);
+  startRedactionRef.current = startRedaction;
+  const isVisibleRef = useRef(isVisible);
+  isVisibleRef.current = isVisible;
+  const isRedactingRef = useRef(isRedacting);
+  isRedactingRef.current = isRedacting;
+  const isClosingRef = useRef(isClosing);
+  isClosingRef.current = isClosing;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
@@ -145,33 +157,42 @@ export default function MercuryPrompt() {
     return () => window.clearInterval(interval);
   }, [isVisible, isClosing, isRedacting, startRedaction]);
 
+  // mercury:expand event — uses refs so effect never re-runs and never kills pending timers
   useEffect(() => {
-    if (!isVisible || isClosing || isRedacting) return;
-
-    videoTimerRef.current = window.setTimeout(() => {
-      setShowVideo(true);
-      videoTimerRef.current = null;
-    }, VIDEO_REVEAL_DELAY_MS);
-
-    return () => {
-      if (videoTimerRef.current !== null) {
-        window.clearTimeout(videoTimerRef.current);
-        videoTimerRef.current = null;
+    const handleExpandEvent = () => {
+      if (isVisibleRef.current) {
+        // If already redacting or closing, force immediate close
+        if (isRedactingRef.current || isClosingRef.current) {
+          if (redactTimerRef.current !== null) {
+            window.clearTimeout(redactTimerRef.current);
+            redactTimerRef.current = null;
+          }
+          if (closeTimerRef.current !== null) {
+            window.clearTimeout(closeTimerRef.current);
+            closeTimerRef.current = null;
+          }
+          setIsVisible(false);
+          setIsCollapsed(true);
+          setIsClosing(false);
+          setIsRedacting(false);
+        } else {
+          startRedactionRef.current();
+        }
+      } else {
+        startExpandRef.current();
       }
     };
-  }, [isVisible, isClosing, isRedacting]);
+    window.addEventListener("mercury:expand", handleExpandEvent);
+    return () => {
+      window.removeEventListener("mercury:expand", handleExpandEvent);
+    };
+  }, []);
 
+  // Cleanup timers on unmount only
   useEffect(() => {
     return () => {
-      if (closeTimerRef.current !== null) {
-        window.clearTimeout(closeTimerRef.current);
-      }
-      if (videoTimerRef.current !== null) {
-        window.clearTimeout(videoTimerRef.current);
-      }
-      if (redactTimerRef.current !== null) {
-        window.clearTimeout(redactTimerRef.current);
-      }
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+      if (redactTimerRef.current !== null) window.clearTimeout(redactTimerRef.current);
     };
   }, []);
 
@@ -202,34 +223,9 @@ export default function MercuryPrompt() {
             filter: ["blur(0px)", "blur(1px)", "blur(0px)", "blur(7px)"],
           }}
           transition={{ duration: 0.48, times: [0, 0.42, 0.7, 1], ease: "easeOut" }}
-          className="fixed bottom-5 right-5 z-50 w-[min(calc(100vw-2rem),22rem)]"
+          className="fixed left-6 bottom-36 z-50 w-[min(calc(100vw-2rem),22rem)]"
         >
-          <AnimatePresence>
-            {showVideo && (
-              <motion.div
-                initial={{ opacity: 0, y: 12, scale: 0.94, filter: "blur(6px)" }}
-                animate={{
-                  opacity: [0.2, 1, 0.88, 1],
-                  y: [10, -2, 1, 0],
-                  x: [6, -3, 1, 0],
-                  scale: [0.96, 1.02, 0.99, 1],
-                  filter: ["blur(5px)", "blur(0px)", "blur(1px)", "blur(0px)"],
-                }}
-                exit={{
-                  opacity: [1, 0.7, 0.96, 0],
-                  y: [0, 2, -2, 10],
-                  x: [0, 4, -3, 6],
-                  filter: ["blur(0px)", "blur(1px)", "blur(0px)", "blur(5px)"],
-                }}
-                transition={{ duration: 0.34, times: [0, 0.45, 0.75, 1], ease: "easeOut" }}
-                className="pointer-events-none absolute -top-44 left-0 z-0 w-56 sm:-top-48 sm:left-1 sm:w-64"
-              >
-                <ChromaKeyVideo src="/cropped.mp4" className="w-full opacity-95" />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="relative z-10 min-h-[30rem] overflow-hidden rounded-sm border border-[#f4c542]/25 bg-[#080808]/95 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.55),0_0_30px_rgba(244,197,66,0.08)] backdrop-blur-xl">
+          <div data-force-dark="" className="relative z-10 min-h-[30rem] overflow-hidden rounded-sm border border-[#f4c542]/25 bg-[#080808]/95 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.55),0_0_30px_rgba(244,197,66,0.08)] backdrop-blur-xl">
             <div
               className="absolute inset-0 opacity-80 pointer-events-none"
               style={{
@@ -339,7 +335,7 @@ export default function MercuryPrompt() {
               type="button"
               aria-label="Dismiss Project Mercury prompt"
               onClick={startRedaction}
-              className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-sm border border-white/10 bg-black/30 text-white/35 transition-colors hover:border-[#f4c542]/35 hover:text-[#f4c542]"
+              className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-sm border border-white/10 bg-black/30 text-white/35 transition-colors cursor-pointer hover:border-[#f4c542]/35 hover:text-[#f4c542]"
             >
               <X size={14} />
             </button>
@@ -389,7 +385,7 @@ export default function MercuryPrompt() {
 
               <Link
                 href="/code/army-reserve-mercury"
-                className="group mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-5 text-xs uppercase tracking-[0.2em] text-white/78 transition-all duration-200 hover:border-[#f4c542]/30 hover:bg-[#f4c542]/8 hover:text-white"
+                className="group mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-5 text-xs uppercase tracking-[0.2em] text-white/78 transition-all duration-200 cursor-pointer hover:border-[#f4c542]/30 hover:bg-[#f4c542]/8 hover:text-white"
               >
                 Learn More
                 <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-1" />
@@ -408,26 +404,6 @@ export default function MercuryPrompt() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showCollapsedTrigger && isCollapsed && !isVisible && (
-          <>
-            <motion.button
-              type="button"
-              aria-label="Reopen Project Mercury prompt"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              onClick={() => {
-                startExpand();
-              }}
-              className="fixed bottom-6 right-6 z-50 flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-[#0d0d0d] text-[#f4c542] shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all duration-200 hover:border-[#f4c542]/45 hover:bg-[#f4c542]/8 hover:shadow-[0_4px_24px_rgba(244,197,66,0.14)]"
-            >
-              <Star size={14} fill="currentColor" />
-            </motion.button>
-          </>
-        )}
-      </AnimatePresence>
     </>
   );
 }

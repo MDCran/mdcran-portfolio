@@ -229,7 +229,8 @@ export default function Lightbox({
                   initial={{ width: "0%" }}
                   animate={{ width: "100%" }}
                   transition={{ duration: AUTO_CYCLE_MS / 1000, ease: "linear" }}
-                  className="h-full bg-[#ef4242]"
+                  className="h-full"
+                  style={{ backgroundColor: 'var(--theme-primary, #ef4242)' }}
                 />
               </div>
             )}
@@ -262,9 +263,14 @@ export default function Lightbox({
                       isLandscapeMobile ? "h-9 min-w-[150px] px-3" : "h-11 min-w-[170px] px-5"
                     } ${
                       autoCycle
-                        ? "border-[#ef4242]/30 bg-[#ef4242]/10 text-white shadow-[0_0_18px_rgba(239,66,66,0.08)]"
+                        ? "text-white"
                         : "border-white/12 bg-black/45 text-white/55"
                     }`}
+                    style={autoCycle ? {
+                      borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)',
+                      backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 10%, transparent)',
+                      boxShadow: '0 0 18px color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent)',
+                    } : undefined}
                     aria-pressed={autoCycle}
                     aria-label={`Auto-cycle ${autoCycle ? "on" : "off"}`}
                   >
@@ -275,14 +281,17 @@ export default function Lightbox({
                           : { opacity: 0 }
                       }
                       transition={autoCycle ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ef4242]/12 to-transparent"
+                      className="absolute inset-0"
+                      style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent), transparent)' }}
                     />
                     <span
                       className={`mr-2 h-2 w-2 rounded-full transition-all duration-300 ${
-                        autoCycle
-                          ? "bg-[#ef4242] shadow-[0_0_12px_rgba(239,66,66,0.45)]"
-                          : "bg-white/25"
+                        autoCycle ? "" : "bg-white/25"
                       }`}
+                      style={autoCycle ? {
+                        backgroundColor: 'var(--theme-primary, #ef4242)',
+                        boxShadow: '0 0 12px color-mix(in srgb, var(--theme-primary, #ef4242) 45%, transparent)',
+                      } : undefined}
                     />
                     <span className="relative z-10">Auto-Cycle {autoCycle ? "On" : "Off"}</span>
                   </button>
@@ -371,9 +380,13 @@ export default function Lightbox({
                         aria-label={`Go to image ${i + 1}`}
                         className={`group relative shrink-0 overflow-hidden rounded-sm border transition-all duration-200 ${
                           i === currentIndex
-                            ? "border-[#ef4242] shadow-[0_0_0_1px_rgba(239,66,66,0.25)]"
+                            ? ""
                             : "border-white/10 hover:border-white/25"
                         }`}
+                        style={i === currentIndex ? {
+                          borderColor: 'var(--theme-primary, #ef4242)',
+                          boxShadow: '0 0 0 1px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)',
+                        } : undefined}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -385,10 +398,13 @@ export default function Lightbox({
                         />
                         <div
                           className={`absolute inset-0 transition-colors duration-200 ${
-                            i === currentIndex
-                              ? "bg-[#ef4242]/10"
-                              : "bg-black/20 group-hover:bg-black/5"
+                            i !== currentIndex
+                              ? "bg-black/20 group-hover:bg-black/5"
+                              : ""
                           }`}
+                          style={i === currentIndex ? {
+                            backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 10%, transparent)',
+                          } : undefined}
                         />
                       </button>
                     ))}

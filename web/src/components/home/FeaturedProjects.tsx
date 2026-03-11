@@ -28,8 +28,8 @@ export default function FeaturedProjects({
               viewport={{ once: true, amount: 0 }}
               className="flex items-center gap-3 mb-4"
             >
-              <div className="h-px w-8 bg-[#ef4242]" />
-              <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
+              <div className="h-px w-8 bg-[var(--cranberry)]" />
+              <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">
                 {content?.eyebrow ?? "Portfolio"}
               </span>
             </motion.div>
@@ -59,7 +59,7 @@ export default function FeaturedProjects({
           >
             <Link
               href={content?.ctaHref ?? "/work"}
-              className="flex items-center gap-2 text-xs tracking-wider text-white/40 hover:text-[#ef4242] uppercase transition-colors duration-200 group"
+              className="flex items-center gap-2 text-xs tracking-wider text-white/40 hover:text-[var(--cranberry)] uppercase transition-colors duration-200 group"
             >
               {content?.ctaLabel ?? "View all projects"}
               <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform duration-200" />

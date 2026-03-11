@@ -26,7 +26,7 @@ export default function PageHeader({
   actions,
 }: PageHeaderProps) {
   return (
-    <div className="pt-28 sm:pt-32 pb-12 sm:pb-14 border-b border-white/6">
+    <div className="pt-28 sm:pt-32 pb-12 sm:pb-14 border-b" style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}>
       <div className="content-container">
         {/* Breadcrumbs */}
         {breadcrumbs && (
@@ -34,23 +34,33 @@ export default function PageHeader({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
-            className="flex flex-wrap items-center gap-2 mb-7 sm:mb-8 text-[11px] text-white/30"
+            className="flex flex-wrap items-center gap-2 mb-7 sm:mb-8 text-[11px]"
+            style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
           >
-            <Link href="/" className="hover:text-white/60 transition-colors flex items-center gap-1">
+            <Link
+              href="/"
+              className="transition-colors flex items-center gap-1"
+              style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)'; }}
+            >
               <Home size={11} />
             </Link>
             {breadcrumbs.map((crumb, i) => (
               <React.Fragment key={crumb.label}>
-                <ChevronRight size={10} className="text-white/20" />
+                <ChevronRight size={10} style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 20%, transparent)' }} />
                 {crumb.href ? (
                   <Link
                     href={crumb.href}
-                    className="hover:text-white/60 transition-colors tracking-wider uppercase break-words"
+                    className="transition-colors tracking-wider uppercase break-words"
+                    style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)'; }}
                   >
                     {crumb.label}
                   </Link>
                 ) : (
-                  <span className="text-white/50 tracking-wider uppercase break-words">{crumb.label}</span>
+                  <span className="tracking-wider uppercase break-words" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 50%, transparent)' }}>{crumb.label}</span>
                 )}
               </React.Fragment>
             ))}
@@ -66,8 +76,8 @@ export default function PageHeader({
                 transition={{ duration: 0.4, delay: 0.05 }}
                 className="flex items-center gap-3 mb-4"
               >
-                <div className="h-px w-8 bg-[#ef4242]" />
-                <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
+                <div className="h-px w-8 bg-[var(--cranberry)]" />
+                <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">
                   {eyebrow}
                 </span>
               </motion.div>
@@ -76,7 +86,8 @@ export default function PageHeader({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="font-nord text-3xl sm:text-4xl md:text-5xl text-white tracking-wider"
+              className="font-nord text-3xl sm:text-4xl md:text-5xl tracking-wider"
+              style={{ color: 'var(--theme-text, #fff)' }}
             >
               {title}
             </motion.h1>
@@ -85,7 +96,8 @@ export default function PageHeader({
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="mt-4 text-sm md:text-[15px] text-white/40 max-w-2xl leading-relaxed"
+                className="mt-4 text-sm md:text-[15px] max-w-2xl leading-relaxed"
+                style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}
               >
                 {description}
               </motion.p>

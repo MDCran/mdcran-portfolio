@@ -79,7 +79,7 @@ export default async function ClientPage({ params }: Props) {
       />
       <Navbar />
 
-      <div className="relative h-52 md:h-72 w-full mt-[var(--navbar-height)] overflow-hidden bg-gradient-to-br from-[rgba(239,66,66,0.15)] to-[#0a0a0a]">
+      <div className="relative h-52 md:h-72 w-full mt-[var(--navbar-height)] overflow-hidden" style={{ background: 'linear-gradient(to bottom right, color-mix(in srgb, var(--theme-primary, #ef4242) 15%, transparent), var(--theme-bg, #0a0a0a))' }}>
         {client.bannerUrl && (
           <Image
             src={client.bannerUrl}
@@ -88,12 +88,12 @@ export default async function ClientPage({ params }: Props) {
             className="object-cover opacity-40"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, var(--theme-bg, #0a0a0a), transparent, transparent)' }} />
         <div
           className="absolute inset-0 opacity-20"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(239,66,66,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(239,66,66,0.1) 1px, transparent 1px)",
+              "linear-gradient(color-mix(in srgb, var(--theme-primary, #ef4242) 10%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--theme-primary, #ef4242) 10%, transparent) 1px, transparent 1px)",
             backgroundSize: "40px 40px",
           }}
         />
@@ -103,12 +103,12 @@ export default async function ClientPage({ params }: Props) {
         <div className="relative -mt-20 mb-12 flex flex-col items-start gap-6 md:flex-row md:items-start">
           <div className="relative shrink-0">
             {client.avatarUrl ? (
-              <div className="relative w-32 h-32 rounded-sm overflow-hidden border-2 border-[rgba(239,66,66,0.4)] shadow-[0_0_30px_rgba(239,66,66,0.2)]">
+              <div className="relative w-32 h-32 rounded-sm overflow-hidden border-2" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)', boxShadow: '0 0 30px color-mix(in srgb, var(--theme-primary, #ef4242) 20%, transparent)' }}>
                 <Image src={client.avatarUrl} alt={client.name} fill className="object-cover" />
               </div>
             ) : (
-              <div className="w-32 h-32 rounded-sm bg-[rgba(239,66,66,0.1)] border-2 border-[rgba(239,66,66,0.4)] shadow-[0_0_30px_rgba(239,66,66,0.2)] flex items-center justify-center">
-                <span className="font-nord text-[#ef4242] text-4xl">
+              <div className="w-32 h-32 rounded-sm border-2 flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)', boxShadow: '0 0 30px color-mix(in srgb, var(--theme-primary, #ef4242) 20%, transparent)' }}>
+                <span className="font-nord text-[var(--cranberry)] text-4xl">
                   {client.name.slice(0, 2).toUpperCase()}
                 </span>
               </div>
@@ -135,9 +135,9 @@ export default async function ClientPage({ params }: Props) {
           <div className="shrink-0 w-full md:w-[172px]">
             {clientProjects.length > 0 ? (
               <div className="grid gap-3">
-                <div className="px-4 py-2 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
+                <div className="px-4 py-2 rounded-sm" style={{ border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)', backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent)' }}>
                   <div className="font-nord text-2xl text-white">{clientProjects.length}</div>
-                  <div className="text-[10px] text-[#ef4242] tracking-widest uppercase">Projects</div>
+                  <div className="text-[10px] text-[var(--cranberry)] tracking-widest uppercase">Projects</div>
                 </div>
                 <div className="px-4 py-2 rounded-sm border border-white/10 bg-white/4">
                   <div className="font-nord text-2xl text-white">{totalVideoViews.toLocaleString()}</div>
@@ -191,15 +191,15 @@ export default async function ClientPage({ params }: Props) {
         </div>
 
         {client.quote && (
-          <div className="relative mb-14 p-6 md:p-8 rounded-sm border border-[rgba(239,66,66,0.2)] bg-[rgba(239,66,66,0.04)] backdrop-blur-sm overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#ef4242] to-transparent" />
-            <div className="absolute -top-4 -left-2 text-[120px] font-nord text-[rgba(239,66,66,0.08)] leading-none select-none">
+          <div className="relative mb-14 p-6 md:p-8 rounded-sm backdrop-blur-sm overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 20%, transparent)', backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 4%, transparent)' }}>
+            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[var(--cranberry)] to-transparent" />
+            <div className="absolute -top-4 -left-2 text-[120px] font-nord leading-none select-none" style={{ color: 'color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent)' }}>
               &ldquo;
             </div>
             <p className="relative text-white/80 text-base md:text-lg leading-relaxed italic mb-3">
               {client.quote.text}
             </p>
-            <div className="text-[11px] text-[#ef4242] tracking-widest uppercase">
+            <div className="text-[11px] text-[var(--cranberry)] tracking-widest uppercase">
               - {client.name}
               {client.quote.context && (
                 <span className="text-white/30 ml-2 normal-case tracking-normal">

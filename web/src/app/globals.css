@@ -138,10 +138,10 @@
   --input:              0 0% 10%;
   --ring:               0 83% 59%;
 
-  /* Direct brand values */
-  --cranberry:       #ef4242;
-  --cranberry-dim:   rgba(239, 66, 66, 0.15);
-  --cranberry-glow:  rgba(239, 66, 66, 0.40);
+  /* Direct brand values — theme-aware */
+  --cranberry:       var(--theme-primary, #ef4242);
+  --cranberry-dim:   color-mix(in srgb, var(--theme-primary, #ef4242) 15%, transparent);
+  --cranberry-glow:  color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent);
 
   /* Layout */
   --navbar-height:       4.5rem;
@@ -159,8 +159,8 @@ html {
 }
 
 body {
-  background-color: #0a0a0a;
-  color: #f2f2f2;
+  background-color: var(--theme-bg, #0a0a0a);
+  color: var(--theme-text, #f2f2f2);
   font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
   font-size: 15px;
   line-height: 1.65;
@@ -195,8 +195,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(239,66,66,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(239,66,66,0.04) 1px, transparent 1px);
+    linear-gradient(var(--grid-line-color, rgba(239,66,66,0.04)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-color, rgba(239,66,66,0.04)) 1px, transparent 1px);
   background-size: 44px 44px;
 }
 
@@ -208,7 +208,7 @@ body::after {
   transform: translateX(-50%);
   width: 80vw;
   height: 60vh;
-  background: radial-gradient(ellipse at center, rgba(239,66,66,0.06) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, var(--glow-color, rgba(239,66,66,0.06)) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -240,13 +240,13 @@ body::after {
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar        { width: 4px; height: 4px; }
-::-webkit-scrollbar-track  { background: #0a0a0a; }
-::-webkit-scrollbar-thumb  { background: #ef4242; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #ff5555; }
+::-webkit-scrollbar-track  { background: var(--theme-bg, #0a0a0a); }
+::-webkit-scrollbar-thumb  { background: var(--scrollbar-thumb, #ef4242); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb, #ff5555); }
 
 /* ─── Selection ──────────────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(239, 66, 66, 0.3);
+  background: var(--selection-bg, rgba(239, 66, 66, 0.3));
   color: #fff;
 }
 
@@ -269,11 +269,11 @@ body::after {
 
 /* ─── Text / Border Glow ─────────────────────────────────────────────────── */
 @utility text-glow {
-  text-shadow: 0 0 20px rgba(239,66,66,0.4), 0 0 40px rgba(239,66,66,0.2);
+  text-shadow: 0 0 20px var(--cranberry-glow), 0 0 40px var(--cranberry-dim);
 }
 
 @utility border-glow {
-  box-shadow: 0 0 15px rgba(239,66,66,0.15), inset 0 0 15px rgba(239,66,66,0.02);
+  box-shadow: 0 0 15px var(--cranberry-dim), inset 0 0 15px color-mix(in srgb, var(--theme-primary, #ef4242) 2%, transparent);
 }
 
 /* ─── Hover Lift ─────────────────────────────────────────────────────────── */
@@ -281,7 +281,7 @@ body::after {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(239,66,66,0.15);
+    box-shadow: 0 12px 40px var(--cranberry-dim);
   }
 }
 
@@ -294,10 +294,10 @@ body::after {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #ef4242;
-  border: 1px solid rgba(239,66,66,0.3);
+  color: var(--cranberry);
+  border: 1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent);
   border-radius: 2px;
-  background: rgba(239,66,66,0.08);
+  background: color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent);
   font-family: "JetBrains Mono", monospace;
 }
 
@@ -305,7 +305,7 @@ body::after {
 @utility stat-value {
   font-family: "Nord", system-ui, sans-serif;
   font-size: clamp(1rem, 3vw, 2rem);
-  color: #fff;
+  color: var(--theme-text, #fff);
   letter-spacing: 0.02em;
   line-height: 1;
 }

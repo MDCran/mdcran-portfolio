@@ -70,8 +70,8 @@ export default function Services({
               viewport={{ once: true, amount: 0 }}
               className="flex items-center gap-3 mb-4"
             >
-              <div className="h-px w-8 bg-[#ef4242]" />
-              <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">
+              <div className="h-px w-8 bg-[var(--cranberry)]" />
+              <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">
                 {content?.eyebrow ?? "What I do"}
               </span>
             </motion.div>
@@ -117,11 +117,11 @@ export default function Services({
 
                     {/* Icon */}
                     <div className="relative w-10 h-10 rounded-sm bg-[rgba(239,66,66,0.08)] border border-[rgba(239,66,66,0.15)] flex items-center justify-center mb-4 group-hover:bg-[rgba(239,66,66,0.15)] transition-colors duration-300">
-                      <Icon size={18} className="text-[#ef4242]" />
+                      <Icon size={18} className="text-[var(--cranberry)]" />
                     </div>
 
                     {/* Title */}
-                    <h3 className="font-nord text-lg tracking-wide text-white mb-2 group-hover:text-[#ef4242] transition-colors duration-200">
+                    <h3 className="font-nord text-lg tracking-wide text-white mb-2 group-hover:text-[var(--cranberry)] transition-colors duration-200">
                       {service.title}
                     </h3>
 
@@ -143,7 +143,7 @@ export default function Services({
                     </div>
 
                     {/* CTA */}
-                    <div className="pointer-events-none absolute bottom-7 right-7 flex items-center gap-2 text-[#ef4242] text-xs tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="pointer-events-none absolute bottom-7 right-7 flex items-center gap-2 text-[var(--cranberry)] text-xs tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <span>Explore</span>
                       <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform duration-200" />
                     </div>
