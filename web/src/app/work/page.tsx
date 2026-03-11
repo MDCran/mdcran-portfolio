@@ -12,7 +12,7 @@ export async function generateMetadata() {
   const header = siteContent.workPage;
 
   return buildSeoMetadata({
-    title: header.title || "Work",
+    title: header.title || "Portfolio & Projects",
     description: header.description || "Browse all work categories across portfolio projects, code, and articles.",
     path: "/work",
   });

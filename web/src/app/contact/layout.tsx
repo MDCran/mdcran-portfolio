@@ -1,7 +1,7 @@
 import { buildSeoMetadata } from "@/lib/seo";
 
 export const metadata = buildSeoMetadata({
-  title: "Contact",
+  title: "Contact Michael Cran — Hire a Developer",
   description:
     "Get in touch with Michael Cran to discuss projects, timelines, collaborations, and custom work. Based in Orlando, Florida.",
   path: "/contact",

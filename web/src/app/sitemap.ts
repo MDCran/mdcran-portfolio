@@ -1,8 +1,9 @@
 import { MetadataRoute } from "next";
 import { getArticles, getClients, getProjects } from "@/lib/db";
 import { projectUrl } from "@/lib/utils";
+import { SITE_URL } from "@/lib/seo";
 
-const BASE_URL = "https://mdcran.com";
+const BASE_URL = SITE_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
