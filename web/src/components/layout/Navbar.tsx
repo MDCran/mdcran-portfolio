@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Menu, ChevronDown } from "lucide-react";
 import { cn, projectUrl, imageAssetSrc } from "@/lib/utils";
+import { useTheme } from "@/lib/ThemeContext";
 import type { Project, Client, Article, SiteContent } from "@/lib/types";
 
 const navLinks = [
@@ -57,6 +58,8 @@ interface SearchResults {
 
 export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
   const pathname = usePathname();
+  const { themeInfo } = useTheme();
+  const isLight = themeInfo.id === "light";
   const [brandLogoUrl, setBrandLogoUrl] = useState("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -186,6 +189,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         data-scrolled={scrolled || mobileOpen || opaque ? "" : undefined}
+        {...(opaque ? { "data-force-dark": "" } : {})}
         className={cn(
           "fixed top-0 left-0 right-0 z-[60] transition-all duration-300 border-b",
           mobileOpen
@@ -193,7 +197,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
             : scrolled
             ? "bg-black/85 backdrop-blur-xl border-white/10"
             : opaque
-            ? "bg-black/40 backdrop-blur-md border-white/5"
+            ? "bg-black/85 backdrop-blur-xl border-white/10"
             : "bg-transparent border-transparent"
         )}
       >
@@ -254,17 +258,27 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute top-full left-0 mt-1 w-56 bg-black/80 border border-white/15 backdrop-blur-xl rounded-sm overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+                        className={cn(
+                          "absolute top-full left-0 mt-1 w-56 border backdrop-blur-xl rounded-sm overflow-hidden",
+                          isLight
+                            ? "bg-white/95 border-black/12 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+                            : "bg-black/80 border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+                        )}
                       >
                         {link.children.map((child) => (
                           <Link
                             key={child.href}
                             href={child.href}
                             className={cn(
-                              "block px-5 py-3 text-[11px] tracking-widest uppercase transition-all duration-150 border-b border-white/7 last:border-0",
+                              "block px-5 py-3 text-[11px] tracking-widest uppercase transition-all duration-150 border-b last:border-0",
+                              isLight ? "border-black/6" : "border-white/7",
                               isChildNavActive(child.href)
-                                ? "text-[var(--cranberry)] bg-white/6"
-                                : "text-white/55 hover:text-white hover:bg-white/6"
+                                ? isLight
+                                  ? "text-[var(--cranberry)] bg-black/4"
+                                  : "text-[var(--cranberry)] bg-white/6"
+                                : isLight
+                                  ? "text-black/50 hover:text-black hover:bg-black/4"
+                                  : "text-white/55 hover:text-white hover:bg-white/6"
                             )}
                           >
                             {child.label}
@@ -309,7 +323,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
 
             <button
               onClick={() => setSearchOpen(true)}
-              className="w-9 h-9 flex items-center justify-center rounded-sm text-white/45 hover:text-white hover:bg-white/6 transition-all duration-200"
+              className="w-9 h-9 cursor-pointer flex items-center justify-center rounded-sm text-white/45 hover:text-white hover:bg-white/6 transition-all duration-200"
               aria-label="Search"
             >
               <Search size={15} />
@@ -396,7 +410,9 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[80] bg-black/85 backdrop-blur-md flex items-start justify-center px-3 pt-3 pb-4 sm:px-4 sm:pt-28 overflow-y-auto"
+            className={`fixed inset-0 z-[80] backdrop-blur-md flex items-start justify-center px-3 pt-3 pb-4 sm:px-4 sm:pt-28 overflow-y-auto ${
+              isLight ? "bg-white/80" : "bg-black/85"
+            }`}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setSearchOpen(false);
@@ -412,9 +428,13 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
               className="w-full max-w-3xl max-h-[calc(100dvh-1rem)] sm:max-h-none flex flex-col"
             >
               {/* Input */}
-              <div className="sticky top-0 z-10 pb-3 bg-gradient-to-b from-black/95 via-black/85 to-transparent">
+              <div className={`sticky top-0 z-10 pb-3 bg-gradient-to-b ${
+                isLight
+                  ? "from-white/95 via-white/85 to-transparent"
+                  : "from-black/95 via-black/85 to-transparent"
+              }`}>
                 <div className="relative h-14 sm:h-16">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-4 text-white/30">
+                  <div className={`absolute inset-y-0 left-0 flex items-center pl-4 ${isLight ? "text-black/30" : "text-white/30"}`}>
                     <Search size={15} />
                   </div>
                   <input
@@ -422,7 +442,11 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search projects, articles, clients..."
-                    className="h-full w-full rounded-sm border border-white/12 bg-[#0d0d0d] pl-11 pr-11 text-sm tracking-wide text-white outline-none transition-colors placeholder:text-white/25 shadow-[0_8px_32px_rgba(0,0,0,0.5)] focus:border-[var(--cranberry)] sm:pl-12 sm:pr-12 sm:text-base"
+                    className={`h-full w-full rounded-sm border pl-11 pr-11 text-sm tracking-wide outline-none transition-colors focus:border-[var(--cranberry)] sm:pl-12 sm:pr-12 sm:text-base ${
+                      isLight
+                        ? "border-black/12 bg-white text-black placeholder:text-black/30 shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+                        : "border-white/12 bg-[#0d0d0d] text-white placeholder:text-white/25 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+                    }`}
                     onKeyDown={(e) => {
                       if (e.key === "Escape") {
                         setSearchOpen(false);
@@ -435,7 +459,9 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                       setSearchOpen(false);
                       setQuery("");
                     }}
-                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-white/25 transition-colors hover:text-white"
+                    className={`absolute inset-y-0 right-0 flex items-center pr-4 transition-colors ${
+                      isLight ? "text-black/25 hover:text-black" : "text-white/25 hover:text-white"
+                    }`}
                   >
                     <X size={15} />
                   </button>
@@ -449,17 +475,21 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="mt-2 bg-[#0d0d0d]/98 border border-white/10 rounded-sm overflow-hidden max-h-[calc(100dvh-8.5rem)] sm:max-h-[60vh] overflow-y-auto shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+                    className={`mt-2 border rounded-sm overflow-hidden max-h-[calc(100dvh-8.5rem)] sm:max-h-[60vh] overflow-y-auto ${
+                      isLight
+                        ? "bg-white/98 border-black/10 shadow-[0_16px_48px_rgba(0,0,0,0.1)]"
+                        : "bg-[#0d0d0d]/98 border-white/10 shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+                    }`}
                   >
                     {totalResults === 0 ? (
-                      <div className="px-6 py-8 text-center text-white/30 text-sm">
+                      <div className={`px-6 py-8 text-center text-sm ${isLight ? "text-black/30" : "text-white/30"}`}>
                         No results for &quot;{query}&quot;
                       </div>
                     ) : (
                       <>
                         {results.projects.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
+                            <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Projects
                             </div>
                             {results.projects.map((p) => {
@@ -469,7 +499,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                   key={p.id}
                                   href={projectUrl(p.category, p.slug, p.subcategory)}
                                   onClick={() => { setSearchOpen(false); setQuery(""); }}
-                                  className="flex items-center gap-3.5 px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors group"
+                                  className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                                 >
                                   {/* Thumbnail */}
                                   <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5">
@@ -484,8 +514,8 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                     <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/40" />
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{p.title}</div>
-                                    <div className="text-xs text-white/35 capitalize mt-0.5">{p.category.replace(/-/g, " ")}</div>
+                                    <div className={`text-sm group-hover:text-[var(--cranberry)] transition-colors truncate ${isLight ? "text-black" : "text-white"}`}>{p.title}</div>
+                                    <div className={`text-xs capitalize mt-0.5 ${isLight ? "text-black/35" : "text-white/35"}`}>{p.category.replace(/-/g, " ")}</div>
                                   </div>
                                 </Link>
                               );
@@ -494,7 +524,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                         )}
                         {results.clients.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
+                            <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Clients
                             </div>
                             {results.clients.map((c) => (
@@ -503,22 +533,22 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                 href={`/clients/${c.id}`}
                                 title={c.name}
                                 onClick={() => { setSearchOpen(false); setQuery(""); }}
-                                className="flex items-center gap-3.5 px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors group"
+                                className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                               >
                                 {/* Avatar */}
-                                <div className="relative w-11 h-11 shrink-0 rounded-full overflow-hidden bg-white/8 border border-white/10 group-hover:scale-110 transition-transform duration-200">
+                                <div className={`relative w-11 h-11 shrink-0 rounded-full overflow-hidden group-hover:scale-110 transition-transform duration-200 ${isLight ? "bg-black/6 border border-black/10" : "bg-white/8 border border-white/10"}`}>
                                   {c.avatarUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={c.avatarUrl} alt={c.name} className="w-full h-full object-cover" />
                                   ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-white/40 text-sm font-medium">
+                                    <div className={`w-full h-full flex items-center justify-center text-sm font-medium ${isLight ? "text-black/40" : "text-white/40"}`}>
                                       {c.name.charAt(0).toUpperCase()}
                                     </div>
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{c.name}</div>
-                                  <div className="text-xs text-white/35 mt-0.5 truncate">{c.roles.join(", ")}</div>
+                                  <div className={`text-sm group-hover:text-[var(--cranberry)] transition-colors truncate ${isLight ? "text-black" : "text-white"}`}>{c.name}</div>
+                                  <div className={`text-xs mt-0.5 truncate ${isLight ? "text-black/35" : "text-white/35"}`}>{c.roles.join(", ")}</div>
                                 </div>
                               </Link>
                             ))}
@@ -526,7 +556,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                         )}
                         {results.articles.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
+                            <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Articles
                             </div>
                             {results.articles.map((a) => (
@@ -534,7 +564,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                 key={a.id}
                                 href={`/articles/${a.slug}`}
                                 onClick={() => { setSearchOpen(false); setQuery(""); }}
-                                className="flex items-center gap-3.5 px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors group"
+                                className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                               >
                                 {/* Cover thumbnail */}
                                 <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5">
@@ -549,8 +579,8 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                   <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/40" />
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{a.title}</div>
-                                  <div className="text-xs text-white/35 capitalize mt-0.5">{a.category}</div>
+                                  <div className={`text-sm group-hover:text-[var(--cranberry)] transition-colors truncate ${isLight ? "text-black" : "text-white"}`}>{a.title}</div>
+                                  <div className={`text-xs capitalize mt-0.5 ${isLight ? "text-black/35" : "text-white/35"}`}>{a.category}</div>
                                 </div>
                               </Link>
                             ))}
@@ -558,7 +588,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                         )}
                         {results.pages.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
+                            <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Pages
                             </div>
                             {results.pages.map((page) => (
@@ -566,14 +596,14 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                 key={page.href}
                                 href={page.href}
                                 onClick={() => { setSearchOpen(false); setQuery(""); }}
-                                className="flex items-center gap-3.5 px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors group"
+                                className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                               >
                                 <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5 flex items-center justify-center">
                                   <div className="w-3 h-3 bg-[var(--cranberry)] rotate-45 opacity-40" />
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{page.title}</div>
-                                  <div className="text-xs text-white/35 mt-0.5">{page.href}</div>
+                                  <div className={`text-sm group-hover:text-[var(--cranberry)] transition-colors truncate ${isLight ? "text-black" : "text-white"}`}>{page.title}</div>
+                                  <div className={`text-xs mt-0.5 ${isLight ? "text-black/35" : "text-white/35"}`}>{page.href}</div>
                                 </div>
                               </Link>
                             ))}
@@ -585,7 +615,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                 )}
               </AnimatePresence>
 
-              <div className="mt-4 flex items-center justify-center gap-5 text-[11px] text-white/20 tracking-wider text-center pb-[max(env(safe-area-inset-bottom),0px)] sm:justify-start sm:text-left">
+              <div className={`mt-4 flex items-center justify-center gap-5 text-[11px] tracking-wider text-center pb-[max(env(safe-area-inset-bottom),0px)] sm:justify-start sm:text-left ${isLight ? "text-black/20" : "text-white/20"}`}>
                 <span>ESC to close</span>
                 <span>↵ to navigate</span>
                 <span className="hidden sm:ml-auto sm:inline">{totalResults > 0 ? `${totalResults} result${totalResults !== 1 ? "s" : ""}` : ""}</span>

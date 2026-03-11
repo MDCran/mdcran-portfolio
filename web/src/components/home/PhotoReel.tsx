@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import Lightbox from "@/components/shared/Lightbox";
 import { imageAssetSrc, imageAssetAlt } from "@/lib/utils";
+import { useTheme } from "@/lib/ThemeContext";
 import type { SiteContentAbout } from "@/lib/types";
 
 const defaultPhotos = [
@@ -22,6 +23,8 @@ const gradients = [
 export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
   const ref = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const { themeInfo } = useTheme();
+  const isLight = themeInfo.id === "light";
   const photos = content?.images?.length ? content.images : defaultPhotos;
   const lightboxPhotos = photos
     .map((photo) => {
@@ -45,7 +48,7 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
 
   return (
     <>
-      <section ref={ref} className="py-28 border-t border-white/6 overflow-hidden">
+      <section ref={ref} className="py-28 border-t overflow-hidden" style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}>
         <div className="content-container">
           <div className="flex items-center gap-3 mb-12">
             <div className="h-px w-8 bg-[#ef4242]" />
@@ -83,10 +86,10 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                 <div
                   key={`${photo.src}-mobile`}
                   onClick={() => setExpanded(i)}
-                  className="relative aspect-[3/4] overflow-hidden rounded-sm border border-white/12 bg-white/5 cursor-pointer"
+                  className={`relative aspect-[3/4] overflow-hidden rounded-sm border border-white/12 cursor-pointer ${isLight ? '' : 'bg-white/5'}`}
                 >
                   <Image src={photo.src} alt={photo.alt} fill className="object-cover object-top" sizes="50vw" />
-                  <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />
+                  {!isLight && <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />}
                 </div>
               ))}
             </div>
@@ -119,10 +122,10 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                     right: i % 2 !== 0 ? `${2 + (i - 1) * 5}%` : undefined,
                     zIndex: i + 1,
                   }}
-                  className="overflow-hidden rounded-sm border border-white/12 cursor-pointer shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+                  className={`overflow-hidden rounded-sm border border-white/12 cursor-pointer ${isLight ? '' : 'shadow-[0_20px_60px_rgba(0,0,0,0.5)]'}`}
                 >
-                  <div className="relative w-full h-full bg-white/5">
-                    <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />
+                  <div className={`relative w-full h-full ${isLight ? '' : 'bg-white/5'}`}>
+                    {!isLight && <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />}
                     <Image
                       src={photo.src}
                       alt={photo.alt}
@@ -134,12 +137,14 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                 </motion.div>
               ))}
 
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: "radial-gradient(ellipse at center, rgba(239,66,66,0.08) 0%, transparent 70%)",
-                }}
-              />
+              {!isLight && (
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: "radial-gradient(ellipse at center, rgba(239,66,66,0.08) 0%, transparent 70%)",
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>

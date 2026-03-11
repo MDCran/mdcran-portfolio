@@ -223,7 +223,7 @@ export default function MercuryPrompt() {
             filter: ["blur(0px)", "blur(1px)", "blur(0px)", "blur(7px)"],
           }}
           transition={{ duration: 0.48, times: [0, 0.42, 0.7, 1], ease: "easeOut" }}
-          className="fixed left-6 bottom-36 z-50 w-[min(calc(100vw-2rem),22rem)]"
+          className="fixed left-6 bottom-44 z-50 w-[min(calc(100vw-2rem),22rem)]"
         >
           <div data-force-dark="" className="relative z-10 min-h-[30rem] overflow-hidden rounded-sm border border-[#f4c542]/25 bg-[#080808]/95 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.55),0_0_30px_rgba(244,197,66,0.08)] backdrop-blur-xl">
             <div

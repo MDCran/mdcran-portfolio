@@ -119,7 +119,13 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
       transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.3), ease: [0.22, 1, 0.36, 1] }}
       className={cn("group h-full", className)}
     >
-      <div className="relative flex flex-col h-full rounded-sm border border-white/7 bg-white/2 overflow-hidden transition-all duration-300 hover:border-[rgba(239,66,66,0.25)] hover:bg-white/4 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(239,66,66,0.1)] cursor-pointer">
+      <div
+        className="relative flex flex-col h-full rounded-sm border overflow-hidden transition-all duration-300 hover:border-[rgba(239,66,66,0.25)] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(239,66,66,0.1)] cursor-pointer"
+        style={{
+          borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 7%, transparent)',
+          backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 2%, transparent)',
+        }}
+      >
 
         {/* Full-card link overlay — sits above content, below action buttons */}
         <Link href={href} className="absolute inset-0 z-[1]" aria-label={project.title} />
@@ -154,12 +160,15 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
 
         {/* Content */}
         <div className="px-4 pt-4 min-w-0 flex flex-col flex-1 relative z-0">
-          <h3 className="font-nord text-sm tracking-wide text-white group-hover:text-[var(--cranberry)] transition-colors duration-200 leading-snug mb-2">
+          <h3
+            className="font-nord text-sm tracking-wide group-hover:text-[var(--cranberry)] transition-colors duration-200 leading-snug mb-2"
+            style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 90%, transparent)' }}
+          >
             {project.title}
           </h3>
 
           {project.description && (
-            <p className="text-xs text-white/40 leading-relaxed mb-3">
+            <p className="text-xs leading-relaxed mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}>
               {project.description}
             </p>
           )}
@@ -170,7 +179,13 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
               {project.tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] px-2 py-0.5 rounded-sm bg-white/4 border border-white/[0.06] text-white/30 tracking-wider"
+                  className="text-[10px] px-2 py-0.5 rounded-sm tracking-wider"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 4%, transparent)',
+                    borderWidth: '1px',
+                    borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)',
+                    color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)',
+                  }}
                 >
                   {tag}
                 </span>
@@ -179,8 +194,14 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
           )}
 
           {/* Action row */}
-          <div className="flex items-center justify-between py-2 border-t border-white/6 mt-auto">
-            <span className="text-[10px] text-white/25 tracking-wider uppercase">
+          <div
+            className="flex items-center justify-between py-2 border-t mt-auto"
+            style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}
+          >
+            <span
+              className="text-[10px] tracking-wider uppercase"
+              style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}
+            >
               {project.subcategory?.replace(/-/g, " ") ?? project.category.replace(/-/g, " ")}
             </span>
             <PricingAction project={project} />

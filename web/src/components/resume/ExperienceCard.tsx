@@ -205,7 +205,7 @@ export default function ExperienceCard({
             <button
               type="button"
               onClick={() => setExpanded((current) => !current)}
-              className="inline-flex h-8 items-center justify-center gap-2 rounded-sm border border-white/10 bg-[#0b0b0b]/95 px-5 text-[10px] tracking-widest uppercase text-white/35 transition-colors hover:text-white/70 hover:border-white/20"
+              className="inline-flex h-8 cursor-pointer items-center justify-center gap-2 rounded-sm border border-white/10 bg-[#0b0b0b]/95 px-5 text-[10px] tracking-widest uppercase text-white/35 transition-colors hover:text-white/70 hover:border-white/20"
             >
               <span>{expanded ? "Hide Details" : "Read More"}</span>
               <ChevronDown
