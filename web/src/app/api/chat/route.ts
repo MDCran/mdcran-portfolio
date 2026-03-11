@@ -147,7 +147,7 @@ RULES:
     body: JSON.stringify({
       model,
       stream: true,
-      max_tokens: 256,
+      max_tokens: 512,
       messages: [
         { role: "system", content: systemPrompt },
         ...messages.map((m) => ({
