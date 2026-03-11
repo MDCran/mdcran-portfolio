@@ -2814,6 +2814,8 @@ export default function AdminDashboard() {
   const r2FileInputRef = useRef<HTMLInputElement | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
+  const [chatRateLimitConfig, setChatRateLimitConfig] = useState({ rateLimit: 10, rateWindowHours: 24 });
+  const [chatRateLimitEntries, setChatRateLimitEntries] = useState<{ ip: string; count: number; resetAt: string }[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rizzEntries, setRizzEntries] = useState<RizzEntry[]>([]);
   const [tapCounts, setTapCounts] = useState<Record<string, number>>({});
@@ -2893,7 +2895,7 @@ export default function AdminDashboard() {
       } catch {}
 
       try {
-        const [pRes, aRes, cRes, siteContentRes, contactsRes, rateLimitsRes, campaignsRes, rizzRes, tapsRes] = await Promise.all([
+        const [pRes, aRes, cRes, siteContentRes, contactsRes, rateLimitsRes, campaignsRes, rizzRes, tapsRes, chatRlRes] = await Promise.all([
           fetch("/api/admin/projects"),
           fetch("/api/admin/articles"),
           fetch("/api/admin/clients"),
@@ -2903,6 +2905,7 @@ export default function AdminDashboard() {
           fetch("/api/admin/campaigns"),
           fetch("/api/admin/rizz"),
           fetch("/api/admin/taps"),
+          fetch("/api/chat"),
         ]);
         if (pRes.ok) setProjects(await pRes.json());
         else setProjects([]);
@@ -2918,6 +2921,11 @@ export default function AdminDashboard() {
         else setRateLimits([]);
         if (campaignsRes.ok) setCampaigns(await campaignsRes.json());
         else setCampaigns([]);
+        if (chatRlRes.ok) {
+          const chatData = await chatRlRes.json();
+          setChatRateLimitConfig(chatData.config);
+          setChatRateLimitEntries(chatData.entries);
+        }
         if (rizzRes.ok) setRizzEntries(await rizzRes.json());
         else setRizzEntries([]);
         if (tapsRes.ok) {
@@ -4919,6 +4927,94 @@ export default function AdminDashboard() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Chat AI Rate Limits */}
+              <div className="rounded-sm border border-white/8 bg-white/[0.02] p-4 mt-6">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between mb-4">
+                  <div>
+                    <p className="font-nord text-sm text-white">Chat AI Rate Limits</p>
+                    <p className="text-xs text-white/35">
+                      In-memory rate limits for the AI chat assistant. Changes take effect immediately.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] tracking-widest uppercase text-white/35">Limit per IP:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-16 h-8 rounded-sm border border-white/10 bg-white/4 px-2 text-xs text-white text-center focus:outline-none focus:border-white/30"
+                      value={chatRateLimitConfig.rateLimit}
+                      onChange={(e) => setChatRateLimitConfig((prev) => ({ ...prev, rateLimit: Math.max(1, Number(e.target.value) || 1) }))}
+                    />
+                    <label className="text-[10px] tracking-widest uppercase text-white/35">per</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-16 h-8 rounded-sm border border-white/10 bg-white/4 px-2 text-xs text-white text-center focus:outline-none focus:border-white/30"
+                      value={chatRateLimitConfig.rateWindowHours}
+                      onChange={(e) => setChatRateLimitConfig((prev) => ({ ...prev, rateWindowHours: Math.max(1, Number(e.target.value) || 1) }))}
+                    />
+                    <span className="text-[10px] tracking-widest uppercase text-white/35">hrs</span>
+                    <button
+                      className={btnOutline}
+                      onClick={async () => {
+                        await fetch("/api/chat", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(chatRateLimitConfig),
+                        });
+                      }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      className={btnOutlineRed}
+                      onClick={async () => {
+                        await fetch("/api/chat", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                        setChatRateLimitEntries([]);
+                      }}
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+                {chatRateLimitEntries.length > 0 ? (
+                  <div className="border border-white/8 rounded-sm overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-white/2 border-b border-white/8">
+                        <tr>
+                          <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">IP Address</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Usage</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Resets At</th>
+                          <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {chatRateLimitEntries.map((entry) => (
+                          <tr key={entry.ip} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
+                            <td className="px-3 py-2.5 text-white/60">{entry.ip}</td>
+                            <td className="px-3 py-2.5 text-white/60">{entry.count} / {chatRateLimitConfig.rateLimit}</td>
+                            <td className="px-3 py-2.5 text-white/35">{new Date(entry.resetAt).toLocaleString()}</td>
+                            <td className="px-3 py-2.5 text-right">
+                              <button
+                                className={btnOutlineRed}
+                                onClick={async () => {
+                                  await fetch("/api/chat", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ip: entry.ip }) });
+                                  setChatRateLimitEntries((prev) => prev.filter((e) => e.ip !== entry.ip));
+                                }}
+                              >
+                                Clear
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/25 text-center py-4">No active chat rate limit entries.</p>
+                )}
               </div>
             </div>
           )}

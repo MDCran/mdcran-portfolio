@@ -648,12 +648,16 @@ export default function ArticleDetail({ article }: { article: Article }) {
         className="max-w-3xl mx-auto px-4 sm:px-8 py-16"
       >
         {article.sections.map((section, i) => (
-          <Section
+          <div
             key={i}
+            data-highlight-id={`${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
+          >
+          <Section
             section={section}
             imageOffset={sectionImageOffsets[i]}
             onImageClick={setLightboxIndex}
           />
+          </div>
         ))}
       </article>
 

@@ -118,6 +118,7 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.3), ease: [0.22, 1, 0.36, 1] }}
       className={cn("group h-full", className)}
+      data-highlight-id={project.id}
     >
       <div
         className="relative flex flex-col h-full rounded-sm border overflow-hidden transition-all duration-300 hover:border-[rgba(239,66,66,0.25)] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(239,66,66,0.1)] cursor-pointer"

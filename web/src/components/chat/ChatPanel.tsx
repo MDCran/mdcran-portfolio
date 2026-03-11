@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, MessageCircle } from "lucide-react";
-import { usePathname } from "next/navigation";
-import { useTheme } from "@/lib/ThemeContext";
+import { usePathname, useRouter } from "next/navigation";
+import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 
 const TOGGLE_EVENT = "mdcran:toggle-chat";
 const MAX_MESSAGES = 20;
@@ -18,7 +18,7 @@ function pickAgentName(): string {
 }
 
 /** Render basic markdown: **bold**, *italic*, [text](url) */
-function renderChatMarkdown(text: string): React.ReactNode[] {
+function renderChatMarkdown(text: string, onNavigate?: (href: string) => void, showTakeMeThere: boolean = true): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(\[([^\]]+)\]\(([^)]+)\))/g;
   let lastIndex = 0;
@@ -34,10 +34,40 @@ function renderChatMarkdown(text: string): React.ReactNode[] {
     } else if (match[3]) {
       parts.push(<em key={match.index}>{match[4]}</em>);
     } else if (match[5]) {
+      const href = match[7];
+      const isInternal = href.startsWith("/");
       parts.push(
-        <a key={match.index} href={match[7]} className="underline underline-offset-2" style={{ color: 'var(--theme-primary, #ef4242)' }}>
-          {match[6]}
-        </a>
+        <span key={match.index} className="inline">
+          <a
+            href={href}
+            className="underline underline-offset-2 cursor-pointer"
+            style={{ color: 'var(--theme-primary, #ef4242)' }}
+            {...(isInternal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+            onClick={isInternal && onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
+          >
+            {match[6]}
+          </a>
+          {isInternal && onNavigate && showTakeMeThere && (
+            <button
+              type="button"
+              className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] tracking-wide uppercase cursor-pointer transition-all duration-200 align-middle"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)',
+                backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)',
+                color: 'var(--theme-primary, #ef4242)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)';
+              }}
+              onClick={(e) => { e.preventDefault(); onNavigate(href); }}
+            >
+              Take me there →
+            </button>
+          )}
+        </span>
       );
     }
 
@@ -54,6 +84,7 @@ function renderChatMarkdown(text: string): React.ReactNode[] {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  autoNavigated?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -154,7 +185,8 @@ function TypewriterText({ text, speed = 28, onComplete }: { text: string; speed?
 
 export default function ChatPanel() {
   const pathname = usePathname();
-  const { themeInfo } = useTheme();
+  const router = useRouter();
+  const { themeInfo, setTheme } = useTheme();
   const isLight = themeInfo.id === "light";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -247,12 +279,22 @@ export default function ChatPanel() {
     };
   }, [open]);
 
-  /* Inactivity timeout — ends chat after 3 min idle */
+  /* Inactivity timeout — sends farewell then disconnects */
   useEffect(() => {
     if (!open || disconnected || streaming || welcomeStep < 4) return;
     const currentAgent = agentName;
+    let farewellSent = false;
     const check = setInterval(() => {
-      if (Date.now() - lastAgentMessageRef.current >= INACTIVITY_TIMEOUT_MS) {
+      const idleMs = Date.now() - lastAgentMessageRef.current;
+      // Send farewell message 15s before disconnect
+      if (!farewellSent && idleMs >= INACTIVITY_TIMEOUT_MS - 15_000) {
+        farewellSent = true;
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: "Looks like you may have stepped away. I'll be ending this chat shortly. Feel free to reach back out anytime!",
+        }]);
+      }
+      if (idleMs >= INACTIVITY_TIMEOUT_MS) {
         setDisconnected(true);
         setMessages((prev) => [...prev, { role: "assistant", content: `__DISCONNECT__:${currentAgent}` }]);
       }
@@ -378,11 +420,14 @@ export default function ChatPanel() {
           });
 
           if (!res.ok) {
+            const errorMsg = res.status === 429
+              ? "You've reached the message limit for today. Check back in a bit!"
+              : "Sorry, something went wrong. Please try again.";
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {
                 role: "assistant",
-                content: "Sorry, something went wrong. Please try again.",
+                content: errorMsg,
               };
               return updated;
             });
@@ -419,19 +464,28 @@ export default function ChatPanel() {
                         await new Promise((r) => setTimeout(r, 1000 - elapsed));
                       }
                     }
-                    /* Slow reveal: render one character at a time */
+                    /* Slow reveal: render one character at a time, hiding action markers */
                     for (const char of parsed.text) {
                       accumulated += char;
-                      const snap = accumulated;
+                      // Strip any complete or in-progress action markers from display
+                      const display = accumulated
+                        .replace(/__[A-Z]+:.+?__/g, "")   // complete markers
+                        .replace(/__[A-Z]+:[^\n]*$/g, "")  // partial marker at end (still streaming)
+                        .replace(/__[A-Z]*$/g, "")          // partial opening __
+                        .trim();
                       setMessages((prev) => {
                         const updated = [...prev];
                         updated[updated.length - 1] = {
                           role: "assistant",
-                          content: snap,
+                          content: display,
                         };
                         return updated.slice(-MAX_MESSAGES);
                       });
-                      await new Promise((r) => setTimeout(r, 22));
+                      // Don't delay rendering if we're inside a marker (invisible chars)
+                      const inMarker = /__[A-Z]/.test(accumulated) && !/__[A-Z]+:.+?__\s*$/.test(accumulated);
+                      if (!inMarker) {
+                        await new Promise((r) => setTimeout(r, 22));
+                      }
                     }
                   }
                 } catch {
@@ -470,8 +524,95 @@ export default function ChatPanel() {
           return;
         }
 
+        /* Process action markers + auto-navigation from markdown links */
+        {
+          let cleaned = accumulated;
+          let hasMarkers = false;
+          let didNavigate = false;
+
+          // Theme change marker
+          const themeMatch = cleaned.match(/__THEME:([\w-]+)__/);
+          if (themeMatch) {
+            hasMarkers = true;
+            const themeId = themeMatch[1] as ThemeName;
+            if (THEMES.some((t) => t.id === themeId)) {
+              setTheme(themeId);
+            }
+            cleaned = cleaned.replace(/__THEME:[\w-]+__/g, "");
+          }
+
+          // Navigation marker (explicit)
+          const navMatch = cleaned.match(/__NAV:(\/.+?)__/);
+          if (navMatch) {
+            hasMarkers = true;
+            const navPath = navMatch[1];
+            cleaned = cleaned.replace(/__NAV:\/.+?__/g, "");
+            didNavigate = true;
+            setTimeout(() => {
+              const base = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
+              router.push(base);
+              if (navPath.includes("#")) {
+                const hash = navPath.split("#")[1];
+                setTimeout(() => {
+                  const el = document.getElementById(hash) || document.querySelector(`[data-highlight-id="${hash}"]`);
+                  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 800);
+              }
+            }, 600);
+          }
+
+          // Fallback: auto-navigate from internal markdown links
+          // If the bot included an internal link in its response and no __NAV__ marker was used
+          if (!didNavigate) {
+            const linkRegex = /\[([^\]]+)\]\((\/[^)]+)\)/g;
+            const internalLinks: string[] = [];
+            let linkExec: RegExpExecArray | null;
+            while ((linkExec = linkRegex.exec(cleaned)) !== null) {
+              internalLinks.push(linkExec[2]);
+            }
+            // Auto-navigate if there's exactly one internal link
+            if (internalLinks.length === 1) {
+              const linkPath = internalLinks[0];
+              didNavigate = true;
+              setTimeout(() => {
+                const base = linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath;
+                router.push(base);
+                if (linkPath.includes("#")) {
+                  const hash = linkPath.split("#")[1];
+                  setTimeout(() => {
+                    const el = document.getElementById(hash) || document.querySelector(`[data-highlight-id="${hash}"]`);
+                    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 800);
+                }
+              }, 600);
+            }
+          }
+
+          // Highlight marker
+          const highlightMatch = cleaned.match(/__HIGHLIGHT:(.+?)__/);
+          if (highlightMatch) {
+            hasMarkers = true;
+            const highlightTarget = highlightMatch[1];
+            cleaned = cleaned.replace(/__HIGHLIGHT:.+?__/g, "");
+            const delay = didNavigate ? 1600 : 300;
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: highlightTarget }));
+            }, delay);
+          }
+
+          // Update the displayed message with markers stripped + auto-nav flag
+          if (hasMarkers || didNavigate) {
+            cleaned = cleaned.trim();
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = { role: "assistant", content: cleaned, autoNavigated: didNavigate };
+              return updated;
+            });
+          }
+        }
+
         /* Got a real response */
-        if (accumulated.trim()) break;
+        if (accumulated.replace(/__[A-Z]+:.+?__/g, "").trim()) break;
 
         /* Blank response — retry if attempts remain */
         if (attempt < MAX_RETRIES - 1) {
@@ -756,7 +897,7 @@ export default function ChatPanel() {
                       {msg.role === "assistant" && isWelcome && i === 0 ? (
                         <TypewriterText text={welcomeText} onComplete={() => setWelcomeTyped(true)} />
                       ) : msg.role === "assistant" ? (
-                        renderChatMarkdown(msg.content === "__WELCOME__" ? welcomeText : msg.content)
+                        renderChatMarkdown(msg.content === "__WELCOME__" ? welcomeText : msg.content, (href) => router.push(href), !msg.autoNavigated)
                       ) : (
                         msg.content
                       )}

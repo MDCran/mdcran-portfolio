@@ -139,7 +139,7 @@ export default function ProjectDetail({
         )}
       </section>
 
-      <main className="content-container py-12 sm:py-16">
+      <main className="content-container py-12 sm:py-16" data-highlight-id={project.id}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12">
           <div className="lg:col-span-2 space-y-12">
             {project.description && (
@@ -417,7 +417,7 @@ export default function ProjectDetail({
             )}
 
             {clients.length > 0 && (
-              <div className="p-5 rounded-sm border border-white/7 bg-white/2">
+              <div className="p-5 rounded-sm border border-white/7 bg-white/2" data-highlight-id="project-clients">
                 <div className="flex items-center gap-2 mb-4">
                   <Users size={12} className="text-white/40" />
                   <span className="text-[10px] tracking-widest uppercase text-white/40">Clients</span>
@@ -429,6 +429,7 @@ export default function ProjectDetail({
                       href={`/clients/${client.id}`}
                       title={client.name}
                       className="group flex items-center gap-3"
+                      data-highlight-id={`client-${client.id}`}
                     >
                       <div className="relative w-8 h-8 rounded-sm bg-white/5 border border-white/8 overflow-hidden shrink-0 group-hover:border-[rgba(239,66,66,0.3)] group-hover:scale-110 transition-all duration-200 flex items-center justify-center text-[10px] text-white/40 font-bold">
                         {client.avatarUrl ? (

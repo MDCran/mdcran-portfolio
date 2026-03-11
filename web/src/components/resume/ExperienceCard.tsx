@@ -119,7 +119,7 @@ export default function ExperienceCard({
   const endLabel = exp.current ? "Present" : formatTimelineDate(exp.endDate);
 
   return (
-    <div className="relative pl-6 pb-12 last:pb-0">
+    <div className="relative pl-6 pb-12 last:pb-0" data-highlight-id={exp.id}>
       <div
         className="absolute left-0 top-0 bottom-0 w-px"
         style={{
@@ -132,7 +132,7 @@ export default function ExperienceCard({
         style={{
           top: isFirstInSection ? "14px" : "0",
           bottom: isLastInSection ? "12px" : "0",
-          background: "linear-gradient(to bottom, transparent, #ef4242, transparent)",
+          background: "linear-gradient(to bottom, transparent, var(--theme-primary, #ef4242), transparent)",
           backgroundSize: "100% 120px",
           maskImage: isLastInSection
             ? "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 72%, rgba(0,0,0,0) 100%)"
@@ -143,8 +143,8 @@ export default function ExperienceCard({
         }}
       />
       <div className="absolute left-0 top-1.5 -translate-x-1/2">
-        <div className="w-2.5 h-2.5 rounded-full bg-[#ef4242] shadow-[0_0_12px_rgba(239,66,66,0.8)]" />
-        <div className="absolute inset-0 rounded-full bg-[#ef4242] animate-ping opacity-40" />
+        <div className="w-2.5 h-2.5 rounded-full bg-[var(--theme-primary,#ef4242)] shadow-[0_0_12px_var(--theme-primary,rgba(239,66,66,0.8))]" />
+        <div className="absolute inset-0 rounded-full bg-[var(--theme-primary,#ef4242)] animate-ping opacity-40" />
       </div>
 
       <div className="group relative rounded-sm border border-white/7 bg-white/2 hover:border-[rgba(239,66,66,0.2)] hover:bg-white/4 transition-all duration-300">

@@ -102,7 +102,7 @@ export default function ResumeContent({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12 items-start">
           <div className="lg:col-span-2 space-y-14 pt-0">
             {/* Work Experience - always shown */}
-            <section>
+            <section id="experience" data-highlight-id="experience">
               <div className="flex items-center gap-3 mb-9">
                 <Briefcase size={16} className="text-[#ef4242]" />
                 <h2 className="font-nord text-xl text-white tracking-wider">Work Experience</h2>
@@ -122,7 +122,7 @@ export default function ResumeContent({
 
             {/* Renowned Projects - always shown */}
             {renownedProjects.length > 0 && (
-              <section>
+              <section id="renowned-projects" data-highlight-id="renowned-projects">
                 <div className="flex items-center gap-3 mb-9">
                   <Star size={16} className="text-[#ef4242]" />
                   <h2 className="font-nord text-xl text-white tracking-wider">Renowned Projects</h2>
@@ -143,7 +143,7 @@ export default function ResumeContent({
 
             {/* Education - always shown */}
             {derivedEducations.length > 0 && (
-              <section>
+              <section id="education" data-highlight-id="education">
                 <div className="flex items-center gap-3 mb-9">
                   <GraduationCap size={16} className="text-[#ef4242]" />
                   <h2 className="font-nord text-xl text-white tracking-wider">Education</h2>
@@ -177,7 +177,7 @@ export default function ResumeContent({
 
             {/* Volunteer */}
             {volunteerWork.length > 0 && (
-              <section>
+              <section id="volunteer" data-highlight-id="volunteer">
                 <div className="flex items-center gap-3 mb-9">
                   <Heart size={16} className="text-[#ef4242]" />
                   <h2 className="font-nord text-xl text-white tracking-wider">Volunteer</h2>
@@ -199,7 +199,7 @@ export default function ResumeContent({
 
           <div className="space-y-10 pt-0 lg:pt-[56px]">
             {/* Skills - always shown */}
-            <div className="p-6 rounded-sm border border-white/7 bg-white/2">
+            <div id="skills" data-highlight-id="skills" className="p-6 rounded-sm border border-white/7 bg-white/2">
               <div className="flex items-center gap-2 mb-4">
                 <Code2 size={14} className="text-[#ef4242]" />
                 <h2 className="font-nord text-base text-white tracking-wider">Skills</h2>
@@ -235,7 +235,7 @@ export default function ResumeContent({
 
             {/* Certifications - always shown */}
             {certifications.length > 0 && (
-              <div className="p-6 rounded-sm border border-white/7 bg-white/2">
+              <div id="certifications" data-highlight-id="certifications" className="p-6 rounded-sm border border-white/7 bg-white/2">
                 <div className="flex items-center gap-2 mb-5">
                   <GraduationCap size={14} className="text-[#ef4242]" />
                   <h2 className="font-nord text-base text-white tracking-wider">Certifications</h2>
@@ -270,7 +270,7 @@ export default function ResumeContent({
 
             {/* Awards - always shown */}
             {awards.length > 0 && (
-              <div className="p-6 rounded-sm border border-white/7 bg-white/2">
+              <div id="awards" data-highlight-id="awards" className="p-6 rounded-sm border border-white/7 bg-white/2">
                 <div className="flex items-center gap-2 mb-5">
                   <AwardIcon size={14} className="text-[#ef4242]" />
                   <h2 className="font-nord text-base text-white tracking-wider">Awards</h2>
@@ -292,7 +292,7 @@ export default function ResumeContent({
 
             {/* Organizations */}
             {clubs.length > 0 && (
-              <div className="p-6 rounded-sm border border-white/7 bg-white/2">
+              <div id="organizations" data-highlight-id="organizations" className="p-6 rounded-sm border border-white/7 bg-white/2">
                 <div className="flex items-center gap-2 mb-5">
                   <Users size={14} className="text-[#ef4242]" />
                   <h2 className="font-nord text-base text-white tracking-wider">Organizations</h2>
