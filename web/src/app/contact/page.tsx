@@ -140,10 +140,11 @@ export default function ContactPage() {
             {/* Name + Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
+                <label htmlFor="contact-name" className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
                   Name <span className="text-[#ef4242]">*</span>
                 </label>
                 <input
+                  id="contact-name"
                   type="text"
                   required
                   value={form.name}
@@ -153,10 +154,11 @@ export default function ContactPage() {
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
+                <label htmlFor="contact-email" className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
                   Email
                 </label>
                 <input
+                  id="contact-email"
                   type="email"
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
@@ -169,10 +171,11 @@ export default function ContactPage() {
             {/* Phone + Subject */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
+                <label htmlFor="contact-phone" className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
                   Phone
                 </label>
                 <input
+                  id="contact-phone"
                   type="tel"
                   value={form.phone}
                   onChange={(e) => set("phone", e.target.value)}
@@ -181,10 +184,11 @@ export default function ContactPage() {
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
+                <label htmlFor="contact-subject" className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
                   Subject
                 </label>
                 <input
+                  id="contact-subject"
                   type="text"
                   value={form.subject}
                   onChange={(e) => set("subject", e.target.value)}
@@ -196,10 +200,11 @@ export default function ContactPage() {
 
             {/* Message */}
             <div>
-              <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
+              <label htmlFor="contact-message" className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
                 Message <span className="text-[#ef4242]">*</span>
               </label>
               <textarea
+                id="contact-message"
                 required
                 rows={6}
                 value={form.message}

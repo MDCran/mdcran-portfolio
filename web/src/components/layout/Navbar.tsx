@@ -339,6 +339,8 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="lg:hidden w-9 h-9 flex items-center justify-center rounded-sm text-white/45 hover:text-white hover:bg-white/6 transition-all duration-200"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X size={15} /> : <Menu size={15} />}
             </button>
@@ -459,6 +461,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                       setSearchOpen(false);
                       setQuery("");
                     }}
+                    aria-label="Close search"
                     className={`absolute inset-y-0 right-0 flex items-center pr-4 transition-colors ${
                       isLight ? "text-black/25 hover:text-black" : "text-white/25 hover:text-white"
                     }`}

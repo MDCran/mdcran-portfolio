@@ -1,15 +1,24 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import ResumeButton from "@/components/shared/ResumeButton";
 import KeyboardShortcuts from "@/components/shared/KeyboardShortcuts";
-import TerminalExperience from "@/components/terminal/TerminalExperience";
 import ChatBubble from "@/components/chat/ChatBubble";
-import ChatPanel from "@/components/chat/ChatPanel";
 import ThemeOverlay from "@/components/shared/ThemeOverlay";
 import ThemeEffectsOverlay from "@/components/shared/ThemeEffectsOverlay";
 import StatusBanner from "@/components/status/StatusBanner";
+
+const TerminalExperience = dynamic(
+  () => import("@/components/terminal/TerminalExperience"),
+  { ssr: false },
+);
+
+const ChatPanel = dynamic(
+  () => import("@/components/chat/ChatPanel"),
+  { ssr: false },
+);
 
 const CHROMELESS_PREFIXES = ["/admin", "/githubprofile"];
 const MINIMAL_CHROME_PREFIXES = ["/visitor-map"];
