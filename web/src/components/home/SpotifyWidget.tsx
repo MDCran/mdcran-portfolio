@@ -610,6 +610,7 @@ export default function SpotifyWidget() {
                                   src={data.albumArt}
                                   alt={data.title}
                                   fill
+                                  unoptimized
                                   className="object-cover"
                                 />
                               ) : (
@@ -687,7 +688,7 @@ export default function SpotifyWidget() {
                             >
                               <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/8 bg-white/5">
                                 {track.albumArt ? (
-                                  <Image src={track.albumArt} alt={track.title ?? "Spotify track"} fill className="object-cover" />
+                                  <Image src={track.albumArt} alt={track.title ?? "Spotify track"} fill unoptimized className="object-cover" />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-[#ef4242]/60">
                                     <Music2 size={14} />
@@ -744,7 +745,7 @@ export default function SpotifyWidget() {
                           >
                             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/8 bg-white/5">
                               {track.albumArt ? (
-                                <Image src={track.albumArt} alt={track.title ?? "Spotify track"} fill className="object-cover" />
+                                <Image src={track.albumArt} alt={track.title ?? "Spotify track"} fill unoptimized className="object-cover" />
                               ) : (
                                   <div className="flex h-full w-full items-center justify-center text-[#ef4242]/60">
                                     <Music2 size={14} />
@@ -1006,6 +1007,7 @@ export default function SpotifyWidget() {
                               src={selectedFavorite.albumArt}
                               alt={selectedFavorite.title}
                               fill
+                              unoptimized
                               className="object-cover"
                             />
                           ) : (
@@ -1133,7 +1135,7 @@ export default function SpotifyWidget() {
                                   >
                                     <div className="relative mx-auto h-20 w-20 overflow-hidden rounded-sm border border-white/8 bg-white/5 sm:h-24 sm:w-24">
                                       {track.albumArt ? (
-                                        <Image src={track.albumArt} alt={track.title} fill className="object-cover" />
+                                        <Image src={track.albumArt} alt={track.title} fill unoptimized className="object-cover" />
                                       ) : (
                                         <div className="flex h-full w-full items-center justify-center text-[#1db954]/60">
                                           <Music2 size={16} />
@@ -1245,7 +1247,7 @@ export default function SpotifyWidget() {
         <div className="relative z-10 flex items-center gap-3.5">
           {data.albumArt && (
             <div className="relative w-14 h-14 rounded-sm overflow-hidden shrink-0" style={{ border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }}>
-              <Image src={data.albumArt} alt={data.albumName ?? ""} fill className="object-cover" />
+              <Image src={data.albumArt} alt={data.albumName ?? ""} fill unoptimized className="object-cover" />
             </div>
           )}
           <div className="flex-1 min-w-0">
