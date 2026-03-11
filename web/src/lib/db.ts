@@ -18,6 +18,12 @@ import type {
   Platform,
   SocialLink,
   SiteContent,
+  VisitorAdjustment,
+  StatusService,
+  StatusIncident,
+  StatusServiceWithHealth,
+  ServiceStatus,
+  DailyStatus,
 } from "./types";
 import { defaultSiteContent } from "./site-content";
 import { assetUrl } from "./utils";
@@ -99,9 +105,22 @@ export async function getSiteContent(): Promise<SiteContent> {
     ...content,
     brandLogoUrl: content?.brandLogoUrl || defaultSiteContent.brandLogoUrl,
     faviconUrl: content?.faviconUrl || defaultSiteContent.faviconUrl,
-    homeSectionOrder: content?.homeSectionOrder?.length
-      ? content.homeSectionOrder
-      : defaultSiteContent.homeSectionOrder,
+    homeSectionOrder: (() => {
+      const order = content?.homeSectionOrder?.length
+        ? content.homeSectionOrder
+        : defaultSiteContent.homeSectionOrder;
+      // Ensure visitor-map is present (may be missing from older saved configs)
+      if (!order.includes("visitor-map")) {
+        const ctaIdx = order.indexOf("cta");
+        if (ctaIdx >= 0) {
+          const copy = [...order];
+          copy.splice(ctaIdx, 0, "visitor-map");
+          return copy;
+        }
+        return [...order, "visitor-map"];
+      }
+      return order;
+    })(),
     featuredProjectIds: content?.featuredProjectIds ?? defaultSiteContent.featuredProjectIds,
     featuredClientIds: content?.featuredClientIds ?? defaultSiteContent.featuredClientIds,
     homeHero: {
@@ -136,6 +155,7 @@ export async function getSiteContent(): Promise<SiteContent> {
     homeServices: mergePageBlock(defaultSiteContent.homeServices, content?.homeServices),
     homeFeaturedWork: mergeSectionIntro(defaultSiteContent.homeFeaturedWork, content?.homeFeaturedWork),
     homeClients: mergeSectionIntro(defaultSiteContent.homeClients, content?.homeClients),
+    homeVisitorMap: mergeSectionIntro(defaultSiteContent.homeVisitorMap, content?.homeVisitorMap),
     homeCta: mergeSectionIntro(defaultSiteContent.homeCta, content?.homeCta),
     artsAndEntertainment: mergePageBlock(defaultSiteContent.artsAndEntertainment, content?.artsAndEntertainment),
     motionAndGraphics: mergePageBlock(defaultSiteContent.motionAndGraphics, content?.motionAndGraphics),
@@ -337,10 +357,14 @@ async function fetchYouTubeSubscriberCount(link: SocialLink): Promise<number | u
       return undefined;
     }
 
+    const subController = new AbortController();
+    const subTimer = setTimeout(() => subController.abort(), 5000);
     const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params.toString()}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
-    });
+      next: { revalidate: 0 },
+      signal: subController.signal,
+    } as RequestInit);
+    clearTimeout(subTimer);
 
     if (!response.ok) {
       return undefined;
@@ -688,14 +712,20 @@ function parseYouTubeViewCountFromHtml(html: string): number | undefined {
 
 async function fetchYouTubeViewCountFromHtml(videoId: string): Promise<number | undefined> {
   try {
+    // Use AbortController for timeout since AbortSignal.timeout can interact
+    // badly with Next.js fetch cache layer
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
     const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
         "user-agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
-    });
+      next: { revalidate: 0 },
+      signal: controller.signal,
+    } as RequestInit);
+    clearTimeout(timer);
 
     if (!response.ok) return undefined;
 
@@ -762,14 +792,22 @@ async function runProjectVideoRefresh(force: boolean, includeLogs: boolean): Pro
   }
 
   const fetchedCounts = new Map<string, number>();
-  await Promise.all(
-    videoIds.map(async (videoId) => {
-      const count = await fetchYouTubeViewCountFromHtml(videoId);
-      if (count !== undefined) {
-        fetchedCounts.set(videoId, count);
-      }
-    })
-  );
+  try {
+    await Promise.all(
+      videoIds.map(async (videoId) => {
+        try {
+          const count = await fetchYouTubeViewCountFromHtml(videoId);
+          if (count !== undefined) {
+            fetchedCounts.set(videoId, count);
+          }
+        } catch {
+          // Individual video fetch failed — skip it
+        }
+      })
+    );
+  } catch {
+    // Entire batch failed — continue with whatever counts we got
+  }
 
   const updates = projects
     .map((project) => {
@@ -850,16 +888,21 @@ async function runProjectVideoRefresh(force: boolean, includeLogs: boolean): Pro
 }
 
 export async function refreshProjectVideoViewsIfStale(): Promise<void> {
-  if (projectVideoRefreshPromise) {
+  try {
+    if (projectVideoRefreshPromise) {
+      await projectVideoRefreshPromise;
+      return;
+    }
+
+    projectVideoRefreshPromise = runProjectVideoRefresh(false, false).finally(() => {
+      projectVideoRefreshPromise = null;
+    });
+
     await projectVideoRefreshPromise;
-    return;
-  }
-
-  projectVideoRefreshPromise = runProjectVideoRefresh(false, false).finally(() => {
+  } catch (err) {
+    console.warn("[projects] Video refresh failed (non-fatal):", err instanceof Error ? err.message : err);
     projectVideoRefreshPromise = null;
-  });
-
-  await projectVideoRefreshPromise;
+  }
 }
 
 export async function refreshProjectVideoViewsWithReport(): Promise<ProjectVideoRefreshReport> {
@@ -913,10 +956,13 @@ type VideoStats = {
 
 async function fetchYouTubeOEmbedStats(videoId: string): Promise<VideoStats | undefined> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
     const res = await fetch(
       `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`,
-      { cache: "no-store" }
+      { cache: "no-store", next: { revalidate: 0 }, signal: controller.signal } as RequestInit
     );
+    clearTimeout(timer);
     if (!res.ok) return undefined;
 
     const data = (await res.json()) as {
@@ -942,14 +988,18 @@ function extractMetaContent(html: string, pattern: RegExp): string | undefined {
 
 async function fetchYouTubeWatchPageStats(videoId: string): Promise<VideoStats | undefined> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
     const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
         "user-agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
-    });
+      next: { revalidate: 0 },
+      signal: controller.signal,
+    } as RequestInit);
+    clearTimeout(timer);
 
     if (!res.ok) {
       return undefined;
@@ -998,10 +1048,13 @@ export async function hydrateProjectVideos(project: Project): Promise<Project> {
     const statsMap = new Map<string, VideoStats>();
 
     if (apiKey) {
+      const ytController = new AbortController();
+      const ytTimer = setTimeout(() => ytController.abort(), 5000);
       const res = await fetch(
         `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${ids.join(",")}&key=${apiKey}`,
-        { cache: "no-store" }
+        { cache: "no-store", next: { revalidate: 0 }, signal: ytController.signal } as RequestInit
       );
+      clearTimeout(ytTimer);
       if (res.ok) {
         const data = (await res.json()) as {
           items?: Array<{
@@ -1297,37 +1350,192 @@ export async function logVisitorSession(data: {
 
 export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry[]> {
   const db = await getDb();
-  const results = await db
-    .collection("visitors")
-    .aggregate([
-      {
-        $group: {
-          _id: "$country",
-          countryName: { $first: "$countryName" },
-          lat: { $avg: "$lat" },
-          lng: { $avg: "$lng" },
-          count: { $sum: 1 },
+  const [realResults, adjustments] = await Promise.all([
+    db.collection("visitors")
+      .aggregate([
+        {
+          $group: {
+            _id: "$country",
+            countryName: { $first: "$countryName" },
+            lat: { $avg: "$lat" },
+            lng: { $avg: "$lng" },
+            count: { $sum: 1 },
+          },
         },
-      },
-      { $sort: { count: -1 } },
-      {
-        $project: {
-          _id: 0,
-          country: "$_id",
-          countryName: 1,
-          lat: 1,
-          lng: 1,
-          count: 1,
+        { $sort: { count: -1 } },
+        {
+          $project: {
+            _id: 0,
+            country: "$_id",
+            countryName: 1,
+            lat: 1,
+            lng: 1,
+            count: 1,
+          },
         },
-      },
-    ])
-    .toArray();
-  return results as VisitorCountByCountry[];
+      ])
+      .toArray(),
+    db.collection("visitorAdjustments").find({}, { projection: { _id: 0 } }).toArray(),
+  ]);
+
+  const countryMap = new Map<string, VisitorCountByCountry>();
+  for (const r of realResults as VisitorCountByCountry[]) {
+    countryMap.set(r.country, { ...r });
+  }
+  for (const adj of adjustments as unknown as VisitorAdjustment[]) {
+    const existing = countryMap.get(adj.country);
+    if (existing) {
+      existing.count += adj.addedCount;
+    } else {
+      // Adjustment for a country with no real visitors — use centroid defaults
+      countryMap.set(adj.country, {
+        country: adj.country,
+        countryName: adj.countryName,
+        lat: 0,
+        lng: 0,
+        count: adj.addedCount,
+      });
+    }
+  }
+  return Array.from(countryMap.values()).sort((a, b) => b.count - a.count);
 }
 
 export async function getTotalVisitorCount(): Promise<number> {
   const db = await getDb();
   return db.collection("visitors").countDocuments();
+}
+
+// ─── Visitor Adjustments ─────────────────────────────────────────────────────
+
+export async function getVisitorAdjustments(): Promise<VisitorAdjustment[]> {
+  const db = await getDb();
+  const rows = await db.collection("visitorAdjustments").find({}, { projection: { _id: 0 } }).toArray();
+  return rows as unknown as VisitorAdjustment[];
+}
+
+export async function addVisitorAdjustment(adj: VisitorAdjustment): Promise<void> {
+  const db = await getDb();
+  await db.collection("visitorAdjustments").insertOne(adj as unknown as Record<string, unknown>);
+}
+
+export async function deleteVisitorAdjustment(id: string): Promise<void> {
+  const db = await getDb();
+  await db.collection("visitorAdjustments").deleteOne({ id });
+}
+
+// ─── Status Page ─────────────────────────────────────────────────────────────
+
+const DEFAULT_SERVICES: Omit<StatusService, "createdAt">[] = [
+  { id: "mdcran-api", name: "MDCran API", group: "MDCran", sortOrder: 1, pingUrl: "https://mdcran.com/api/status" },
+  { id: "mdcran-cdn", name: "MDCran CDN", group: "MDCran", sortOrder: 2, pingUrl: "https://cdn.mdcran.com" },
+  { id: "lbc-website", name: "LuckyBlockCreator Website", group: "LuckyBlockCreator", sortOrder: 3 },
+  { id: "lbc-api", name: "LuckyBlockCreator API", group: "LuckyBlockCreator", sortOrder: 4 },
+];
+
+const DEPRECATED_SERVICE_IDS = ["mdcran-db", "lbc-db"];
+
+async function seedServicesIfEmpty(): Promise<void> {
+  const db = await getDb();
+  // Remove deprecated services
+  await db.collection("statusServices").deleteMany({ id: { $in: DEPRECATED_SERVICE_IDS } });
+  const count = await db.collection("statusServices").countDocuments();
+  if (count === 0) {
+    const now = new Date().toISOString();
+    await db.collection("statusServices").insertMany(
+      DEFAULT_SERVICES.map((s) => ({ ...s, createdAt: now })) as unknown as Record<string, unknown>[]
+    );
+  }
+}
+
+export async function getStatusServices(): Promise<StatusService[]> {
+  await seedServicesIfEmpty();
+  const db = await getDb();
+  const rows = await db.collection("statusServices").find({}, { projection: { _id: 0 } }).sort({ sortOrder: 1 }).toArray();
+  return rows as unknown as StatusService[];
+}
+
+export async function saveStatusService(service: StatusService): Promise<void> {
+  const db = await getDb();
+  await db.collection("statusServices").updateOne(
+    { id: service.id },
+    { $set: service as unknown as Record<string, unknown> },
+    { upsert: true }
+  );
+}
+
+export async function deleteStatusService(id: string): Promise<void> {
+  const db = await getDb();
+  await db.collection("statusServices").deleteOne({ id });
+  await db.collection("statusIncidents").deleteMany({ serviceId: id });
+}
+
+export async function getStatusIncidents(): Promise<StatusIncident[]> {
+  const db = await getDb();
+  const rows = await db.collection("statusIncidents").find({}, { projection: { _id: 0 } }).sort({ startedAt: -1 }).toArray();
+  return rows as unknown as StatusIncident[];
+}
+
+export async function getActiveIncidents(): Promise<StatusIncident[]> {
+  const db = await getDb();
+  const rows = await db.collection("statusIncidents").find(
+    { status: { $ne: "resolved" } },
+    { projection: { _id: 0 } }
+  ).sort({ startedAt: -1 }).toArray();
+  return rows as unknown as StatusIncident[];
+}
+
+export async function saveStatusIncident(incident: StatusIncident): Promise<void> {
+  const db = await getDb();
+  await db.collection("statusIncidents").updateOne(
+    { id: incident.id },
+    { $set: incident as unknown as Record<string, unknown> },
+    { upsert: true }
+  );
+}
+
+export async function deleteStatusIncident(id: string): Promise<void> {
+  const db = await getDb();
+  await db.collection("statusIncidents").deleteOne({ id });
+}
+
+export async function computeServiceHealth(): Promise<StatusServiceWithHealth[]> {
+  const [services, incidents] = await Promise.all([getStatusServices(), getStatusIncidents()]);
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  return services.map((service) => {
+    const serviceIncidents = incidents.filter((i) => i.serviceId === service.id);
+    const recentIncidents = serviceIncidents.filter((i) => new Date(i.startedAt) >= ninetyDaysAgo);
+
+    // Current status
+    const activeIncident = serviceIncidents.find((i) => i.status !== "resolved");
+    let currentStatus: ServiceStatus = "operational";
+    if (activeIncident) {
+      currentStatus = activeIncident.severity === "critical" ? "major_outage" : "partial_outage";
+    }
+
+    // Daily status for 90 days
+    const dailyStatus: DailyStatus[] = [];
+    for (let d = 0; d < 90; d++) {
+      const date = new Date(now.getTime() - (89 - d) * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split("T")[0];
+      const dayIncidents = recentIncidents.filter((i) => {
+        const start = i.startedAt.split("T")[0];
+        const end = i.resolvedAt ? i.resolvedAt.split("T")[0] : dateStr;
+        return start <= dateStr && end >= dateStr;
+      });
+      let status: ServiceStatus = "operational";
+      if (dayIncidents.some((i) => i.severity === "critical")) status = "major_outage";
+      else if (dayIncidents.length > 0) status = "partial_outage";
+      dailyStatus.push({ date: dateStr, status, incidents: dayIncidents.length });
+    }
+
+    // Uptime percentage
+    const operationalDays = dailyStatus.filter((d) => d.status === "operational").length;
+    const uptimePercent90d = Math.round((operationalDays / 90) * 10000) / 100;
+
+    return { ...service, currentStatus, uptimePercent90d, dailyStatus };
+  });
 }
 
 export async function updateR2AssetReferences(oldUrl: string, newUrl: string): Promise<number> {

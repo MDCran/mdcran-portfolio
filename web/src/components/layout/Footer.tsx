@@ -53,7 +53,7 @@ export default function Footer() {
                 />
                 <span className="font-nord text-sm tracking-[0.18em] text-white/85 group-hover:text-white transition-colors duration-200">
                   <span>MD</span>
-                  <span className="text-[#ef4242]">CRAN</span>
+                  <span className="text-[var(--cranberry)]">CRAN</span>
                 </span>
               </Link>
             </div>
@@ -64,13 +64,13 @@ export default function Footer() {
               {footer.blurb}
             </p>
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center h-7 px-3 rounded-sm border border-[rgba(239,66,66,0.5)] bg-[rgba(239,66,66,0.08)] text-[#ef4242] text-[9px] tracking-widest uppercase whitespace-nowrap">
+              <span className="inline-flex items-center h-7 px-3 rounded-sm border border-[rgba(239,66,66,0.5)] bg-[rgba(239,66,66,0.08)] text-[var(--cranberry)] text-[9px] tracking-widest uppercase whitespace-nowrap">
                 {footer.statusLabel}
               </span>
               <Link
                 href={footer.emailHref}
                 aria-label="Email"
-                className="w-7 h-7 rounded-sm border border-white/10 bg-white/4 flex items-center justify-center text-white/40 hover:text-[#ef4242] hover:border-[rgba(239,66,66,0.3)] hover:bg-[rgba(239,66,66,0.06)] transition-all duration-200"
+                className="w-7 h-7 rounded-sm border border-white/10 bg-white/4 flex items-center justify-center text-white/40 hover:text-[var(--cranberry)] hover:border-[rgba(239,66,66,0.3)] hover:bg-[rgba(239,66,66,0.06)] transition-all duration-200"
               >
                 <Mail size={13} />
               </Link>
@@ -79,7 +79,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="GitHub"
-                className="w-7 h-7 rounded-sm border border-white/10 bg-white/4 flex items-center justify-center text-white/40 hover:text-[#ef4242] hover:border-[rgba(239,66,66,0.3)] hover:bg-[rgba(239,66,66,0.06)] transition-all duration-200"
+                className="w-7 h-7 rounded-sm border border-white/10 bg-white/4 flex items-center justify-center text-white/40 hover:text-[var(--cranberry)] hover:border-[rgba(239,66,66,0.3)] hover:bg-[rgba(239,66,66,0.06)] transition-all duration-200"
               >
                 <Github size={13} />
               </a>

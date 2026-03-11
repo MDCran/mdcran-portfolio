@@ -91,7 +91,9 @@ type NavSection =
   | "rate-limits"
   | "contact-form-entries"
   | "campaigns"
-  | "rizz";
+  | "rizz"
+  | "visitors"
+  | "status";
 
 const SKILL_CATEGORY_OPTIONS = ["technology", "creative", "languages", "other"] as const;
 const PROJECT_VIEWS_AUDIT_CACHE_KEY = "mdcran-admin-project-views-audit";
@@ -3947,6 +3949,8 @@ export default function AdminDashboard() {
     { key: "contact-form-entries", label: "Messages", unreadCount: unreadMessages },
     { key: "campaigns", label: "Compose" },
     { key: "rizz", label: "Rizz" },
+    { key: "visitors", label: "Visitors" },
+    { key: "status", label: "Status" },
   ];
 
   const adminSearchQuery = adminSearch.trim().toLowerCase();
@@ -4110,6 +4114,8 @@ export default function AdminDashboard() {
     "contact-form-entries": "Messages",
     campaigns: "Compose",
     rizz: "Rizz",
+    visitors: "Visitors",
+    status: "Status",
   };
 
   if (!hydrated) {
@@ -6844,6 +6850,14 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeSection === "visitors" && (
+            <AdminVisitorsSection />
+          )}
+
+          {activeSection === "status" && (
+            <AdminStatusSection />
+          )}
+
         </div>
       </main>
 
@@ -7002,6 +7016,249 @@ export default function AdminDashboard() {
             setSiteContentImageTarget(null);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+/* ─── Admin Visitors Section ────────────────────────────────────────────── */
+function AdminVisitorsSection() {
+  const [data, setData] = useState<{
+    counts: { country: string; countryName: string; count: number }[];
+    adjustments: { id: string; country: string; countryName: string; addedCount: number; createdAt: string }[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ country: "", countryName: "", addedCount: "" });
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/visitors");
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAdd = async () => {
+    if (!form.country || !form.countryName || !form.addedCount) return;
+    setSaving(true);
+    await fetch("/api/admin/visitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ country: form.country, countryName: form.countryName, addedCount: Number(form.addedCount) }),
+    });
+    setForm({ country: "", countryName: "", addedCount: "" });
+    setSaving(false);
+    fetchData();
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/admin/visitors?id=${id}`, { method: "DELETE" });
+    fetchData();
+  };
+
+  if (loading) return <p className="text-white/30 text-xs">Loading visitor data...</p>;
+
+  const inputCls = "h-9 rounded-sm border border-white/10 bg-white/4 px-3 text-xs text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors";
+
+  return (
+    <div className="space-y-6">
+      <div className="border border-white/8 rounded-sm overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-white/2 border-b border-white/8">
+            <tr>
+              <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Country</th>
+              <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Code</th>
+              <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data?.counts ?? []).map((c) => (
+              <tr key={c.country} className="border-b border-white/5 last:border-0 hover:bg-white/3">
+                <td className="px-3 py-2 text-white/75">{c.countryName}</td>
+                <td className="px-3 py-2 text-white/40">{c.country}</td>
+                <td className="px-3 py-2 text-right text-white/60">{c.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+        <p className="font-nord text-sm text-white">Visitor Adjustments</p>
+        <p className="text-xs text-white/35">Add inflated visitor counts per country.</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <input className={inputCls} placeholder="Code (e.g. US)" value={form.country} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value.toUpperCase() }))} />
+          <input className={inputCls} placeholder="Country name" value={form.countryName} onChange={(e) => setForm((f) => ({ ...f, countryName: e.target.value }))} />
+          <input className={`${inputCls} w-24`} placeholder="Count" type="number" min="1" value={form.addedCount} onChange={(e) => setForm((f) => ({ ...f, addedCount: e.target.value }))} />
+          <button onClick={handleAdd} disabled={saving} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
+            {saving ? "..." : "Add"}
+          </button>
+        </div>
+        {(data?.adjustments ?? []).length > 0 && (
+          <div className="border border-white/8 rounded-sm overflow-hidden mt-3">
+            <table className="w-full text-xs">
+              <thead className="bg-white/2 border-b border-white/8">
+                <tr>
+                  <th className="px-3 py-2 text-left text-[10px] tracking-widest uppercase text-white/35">Country</th>
+                  <th className="px-3 py-2 text-right text-[10px] tracking-widest uppercase text-white/35">Added</th>
+                  <th className="px-3 py-2 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.adjustments ?? []).map((adj) => (
+                  <tr key={adj.id} className="border-b border-white/5 last:border-0 hover:bg-white/3">
+                    <td className="px-3 py-2 text-white/75">{adj.countryName} ({adj.country})</td>
+                    <td className="px-3 py-2 text-right text-white/60">+{adj.addedCount}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button onClick={() => handleDelete(adj.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Admin Status Section ──────────────────────────────────────────────── */
+function AdminStatusSection() {
+  const [services, setServices] = useState<{ id: string; name: string; group?: string; sortOrder: number; pingUrl?: string; createdAt: string }[]>([]);
+  const [incidents, setIncidents] = useState<{ id: string; serviceId: string; title: string; message: string; severity: string; status: string; startedAt: string; resolvedAt?: string; createdAt: string; updatedAt?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [incForm, setIncForm] = useState({ title: "", message: "", severity: "minor", serviceId: "" });
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/status");
+      if (res.ok) {
+        const d = await res.json();
+        setServices(d.services);
+        setIncidents(d.incidents);
+      }
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleCreateIncident = async () => {
+    if (!incForm.title || !incForm.serviceId) return;
+    setSaving(true);
+    await fetch("/api/admin/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "incident", ...incForm }),
+    });
+    setIncForm({ title: "", message: "", severity: "minor", serviceId: "" });
+    setSaving(false);
+    fetchData();
+  };
+
+  const handleResolve = async (inc: typeof incidents[0]) => {
+    await fetch("/api/admin/status", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "incident", ...inc, status: "resolved", resolvedAt: new Date().toISOString() }),
+    });
+    fetchData();
+  };
+
+  const handleDeleteIncident = async (id: string) => {
+    await fetch(`/api/admin/status?type=incident&id=${id}`, { method: "DELETE" });
+    fetchData();
+  };
+
+  if (loading) return <p className="text-white/30 text-xs">Loading status data...</p>;
+
+  const inputCls = "h-9 rounded-sm border border-white/10 bg-white/4 px-3 text-xs text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors";
+  const activeIncidents = incidents.filter((i) => i.status !== "resolved");
+  const resolvedIncidents = incidents.filter((i) => i.status === "resolved").slice(0, 20);
+
+  return (
+    <div className="space-y-6">
+      <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
+        <p className="font-nord text-sm text-white">Services ({services.length})</p>
+        <div className="space-y-1">
+          {services.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/5">
+              <div>
+                <span className="text-xs text-white/80">{s.name}</span>
+                {s.group && <span className="text-[10px] text-white/30 ml-2">{s.group}</span>}
+              </div>
+              {activeIncidents.some((i) => i.serviceId === s.id) ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-sm bg-red-500/20 text-red-400 border border-red-500/20">Incident</span>
+              ) : (
+                <span className="text-[10px] px-2 py-0.5 rounded-sm bg-green-500/20 text-green-400 border border-green-500/20">Operational</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+        <p className="font-nord text-sm text-white">Create Incident</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <select className={`${inputCls} w-48`} value={incForm.serviceId} onChange={(e) => setIncForm((f) => ({ ...f, serviceId: e.target.value }))}>
+            <option value="">Select service...</option>
+            {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <input className={`${inputCls} flex-1`} placeholder="Title" value={incForm.title} onChange={(e) => setIncForm((f) => ({ ...f, title: e.target.value }))} />
+          <select className={`${inputCls} w-28`} value={incForm.severity} onChange={(e) => setIncForm((f) => ({ ...f, severity: e.target.value }))}>
+            <option value="minor">Minor</option>
+            <option value="major">Major</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <textarea
+          className="w-full min-h-[60px] rounded-sm border border-white/10 bg-white/4 px-3 py-2 text-xs text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors resize-y"
+          placeholder="Incident message..."
+          value={incForm.message}
+          onChange={(e) => setIncForm((f) => ({ ...f, message: e.target.value }))}
+        />
+        <button onClick={handleCreateIncident} disabled={saving} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
+          {saving ? "..." : "Create Incident"}
+        </button>
+      </div>
+
+      {activeIncidents.length > 0 && (
+        <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
+          <p className="font-nord text-sm text-white">Active Incidents ({activeIncidents.length})</p>
+          {activeIncidents.map((inc) => (
+            <div key={inc.id} className="flex items-start justify-between gap-3 px-3 py-3 rounded-sm bg-white/2 border border-white/5">
+              <div>
+                <div className="text-xs text-white/80 mb-1">{inc.title}</div>
+                <div className="text-[11px] text-white/40">{inc.message}</div>
+                <div className="text-[10px] text-white/25 mt-1">{services.find((s) => s.id === inc.serviceId)?.name} — {inc.severity} — {inc.status}</div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={() => handleResolve(inc)} className="text-[10px] text-green-400 hover:text-green-300">Resolve</button>
+                <button onClick={() => handleDeleteIncident(inc.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {resolvedIncidents.length > 0 && (
+        <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
+          <p className="font-nord text-sm text-white">Resolved ({resolvedIncidents.length})</p>
+          {resolvedIncidents.map((inc) => (
+            <div key={inc.id} className="flex items-start justify-between gap-3 px-3 py-2 rounded-sm bg-white/1 border border-white/3">
+              <div>
+                <div className="text-xs text-white/50">{inc.title}</div>
+                <div className="text-[10px] text-white/25 mt-0.5">{services.find((s) => s.id === inc.serviceId)?.name} — {inc.resolvedAt ? new Date(inc.resolvedAt).toLocaleDateString() : ""}</div>
+              </div>
+              <button onClick={() => handleDeleteIncident(inc.id)} className="text-[10px] text-red-400/50 hover:text-red-300 shrink-0">Delete</button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

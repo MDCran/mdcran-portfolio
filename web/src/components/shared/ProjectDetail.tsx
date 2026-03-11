@@ -207,7 +207,7 @@ export default function ProjectDetail({
                       <div className="bg-white/2 px-4 py-3">
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0 flex flex-1 items-center gap-2 text-xs text-white/55">
-                            <Play size={11} className="text-[#ef4242] shrink-0" />
+                            <Play size={11} className="text-[var(--cranberry)] shrink-0" />
                             <p className="truncate">{video.title}</p>
                           </div>
                           <span className="shrink-0 inline-flex items-center gap-1.5 text-white/35 text-xs">
@@ -225,7 +225,7 @@ export default function ProjectDetail({
             {project.publishDate && (
               <section>
                 <div className="flex items-center gap-2 text-xs text-white/45 border-t border-white/8 pt-5">
-                  <Calendar size={12} className="text-[#ef4242]" />
+                  <Calendar size={12} className="text-[var(--cranberry)]" />
                   <span>Published {formatProjectDate(project.publishDate)}</span>
                 </div>
               </section>
@@ -353,7 +353,7 @@ export default function ProjectDetail({
                         rel="noopener noreferrer"
                         className="flex min-w-0 flex-1 items-center gap-2 hover:text-white/80 transition-colors"
                       >
-                        <Play size={11} className="text-[#ef4242] shrink-0" />
+                        <Play size={11} className="text-[var(--cranberry)] shrink-0" />
                         <span className="min-w-0 flex-1 overflow-hidden">
                           <span
                             className="block min-w-max whitespace-nowrap will-change-transform animate-[sidebar-title-marquee_var(--sidebar-title-duration)_ease-in-out_infinite_alternate]"
@@ -406,7 +406,7 @@ export default function ProjectDetail({
                 <div className="space-y-3">
                   {project.credits.map((credit, i) => (
                     <div key={i}>
-                      <div className={`text-xs leading-snug ${credit.isMe ? "text-[#ef4242]" : "text-white/70"}`}>
+                      <div className={`text-xs leading-snug ${credit.isMe ? "text-[var(--cranberry)]" : "text-white/70"}`}>
                         {credit.name}
                       </div>
                       <div className="text-[11px] text-white/30">{credit.role}</div>
@@ -438,7 +438,7 @@ export default function ProjectDetail({
                         )}
                       </div>
                       <div>
-                        <div className="text-xs text-white/70 group-hover:text-[#ef4242] transition-colors leading-snug">
+                        <div className="text-xs text-white/70 group-hover:text-[var(--cranberry)] transition-colors leading-snug">
                           {client.name}
                         </div>
                         {client.roles[0] && (
@@ -538,37 +538,68 @@ function ProjectTapsButton({ projectId }: { projectId: string }) {
         onClick={handleTap}
         disabled={!canTap}
         whileTap={{ scale: 0.92 }}
-        className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[#ef4242]/30 hover:bg-[#ef4242]/5 hover:text-[#ef4242] disabled:cursor-not-allowed disabled:opacity-60"
+        className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[var(--cranberry)]/30 hover:bg-[var(--cranberry)]/5 hover:text-[var(--cranberry)] disabled:cursor-not-allowed disabled:opacity-60 overflow-visible"
         title={loading ? "Loading taps" : "Tap to appreciate this project"}
       >
+        {/* Sparkle stars */}
         <AnimatePresence>
           {burst &&
-            [0, 60, 120, 180, 240, 300].map((angle) => (
-              <motion.div
-                key={angle}
-                className="absolute w-1 h-1 rounded-full bg-[#ef4242]"
-                initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                animate={{
-                  scale: [0, 1, 0],
-                  x: Math.cos((angle * Math.PI) / 180) * 20,
-                  y: Math.sin((angle * Math.PI) / 180) * 20,
-                  opacity: [1, 1, 0],
-                }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              />
-            ))}
+            Array.from({ length: 8 }, (_, i) => {
+              const angle = (i / 8) * 360;
+              const dist = 20 + Math.random() * 12;
+              return (
+                <motion.div
+                  key={`star-${i}`}
+                  className="absolute pointer-events-none"
+                  style={{ color: i % 2 === 0 ? "var(--theme-primary, #ef4242)" : "#fbbf24" }}
+                  initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                  animate={{
+                    scale: [0, 1.3, 0],
+                    x: Math.cos((angle * Math.PI) / 180) * dist,
+                    y: Math.sin((angle * Math.PI) / 180) * dist,
+                    opacity: [1, 1, 0],
+                  }}
+                  transition={{ duration: 0.5, delay: i * 0.03, ease: "easeOut" }}
+                >
+                  <svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8Z" fill="currentColor"/></svg>
+                </motion.div>
+              );
+            })}
+        </AnimatePresence>
+
+        {/* Glow pulse */}
+        <AnimatePresence>
+          {burst && (
+            <motion.div
+              className="absolute inset-0 rounded-sm"
+              style={{ boxShadow: "0 0 16px var(--theme-primary, #ef4242)" }}
+              initial={{ opacity: 0.8 }}
+              animate={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            />
+          )}
         </AnimatePresence>
 
         <motion.span
-          animate={burst ? { scale: [1, 1.4, 1] } : {}}
-          transition={{ duration: 0.3 }}
+          animate={burst ? { scale: [1, 1.4, 0.9, 1.1, 1] } : {}}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="leading-none"
+          style={{ color: burst ? "var(--theme-primary, #ef4242)" : undefined }}
         >
           <Heart size={12} className={burst ? "fill-current" : ""} />
         </motion.span>
-        <span className="text-xs tracking-wider">
-          {loading ? "-" : `${count} ${count === 1 ? "tap" : "taps"}`}
-        </span>
+        <AnimatePresence mode="popLayout">
+          <motion.span
+            key={count}
+            initial={{ y: -8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 8, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-xs tracking-wider"
+          >
+            {loading ? "-" : `${count} ${count === 1 ? "tap" : "taps"}`}
+          </motion.span>
+        </AnimatePresence>
       </motion.button>
       {!loading && !canTap && (
         <span className="text-[10px] text-white/30 tracking-wider">
@@ -725,7 +756,7 @@ function renderMarkdown(text: string) {
         <ul key={blockIdx} className="space-y-2 my-4 pl-4">
           {items.map((item, i) => (
             <li key={i} className="text-[15px] text-white/65 leading-relaxed flex items-start gap-2">
-              <span className="text-[#ef4242] mt-1 text-xs shrink-0">◆</span>
+              <span className="text-[var(--cranberry)] mt-1 text-xs shrink-0">◆</span>
               <span dangerouslySetInnerHTML={{ __html: boldify(item.slice(2)) }} />
             </li>
           ))}
@@ -760,8 +791,8 @@ function ProjectSection({
       return <div className="prose-section">{renderMarkdown(section.content ?? "")}</div>;
     case "quote":
       return (
-        <blockquote className="my-8 pl-6 border-l-2 border-[#ef4242] relative">
-          <div className="absolute top-0 left-0 w-full h-full bg-[#ef4242]/3 -z-10 rounded-sm" />
+        <blockquote className="my-8 pl-6 border-l-2 border-[var(--cranberry)] relative">
+          <div className="absolute top-0 left-0 w-full h-full bg-[var(--cranberry)]/3 -z-10 rounded-sm" />
           <p className="text-base text-white/80 italic leading-relaxed font-nord">
             &ldquo;{section.content}&rdquo;
           </p>
@@ -849,7 +880,7 @@ function ProjectSection({
       return (
         <div className="my-10 flex items-center gap-4">
           <div className="flex-1 h-px bg-white/8" />
-          <div className="w-1.5 h-1.5 rounded-full bg-[#ef4242]" />
+          <div className="w-1.5 h-1.5 rounded-full bg-[var(--cranberry)]" />
           <div className="flex-1 h-px bg-white/8" />
         </div>
       );

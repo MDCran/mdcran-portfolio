@@ -136,7 +136,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
           className="relative rounded-sm border border-[rgba(239,66,66,0.2)] bg-[rgba(239,66,66,0.04)] p-10 md:p-14 overflow-hidden"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-[rgba(239,66,66,0.08)] via-transparent to-transparent pointer-events-none" />
-          <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-[#ef4242] opacity-[0.07] rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-[var(--cranberry)] opacity-[0.07] rounded-full blur-3xl pointer-events-none" />
           <div className="absolute top-0 left-0 w-10 h-10 border-l border-t border-[rgba(239,66,66,0.5)]" />
           <div className="absolute top-0 right-0 w-10 h-10 border-r border-t border-[rgba(239,66,66,0.5)]" />
           <div className="absolute bottom-0 left-0 w-10 h-10 border-l border-b border-[rgba(239,66,66,0.5)]" />
@@ -145,7 +145,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
           <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
               <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.08)]">
-                <span className="text-[#ef4242] text-[10px] tracking-widest uppercase">
+                <span className="text-[var(--cranberry)] text-[10px] tracking-widest uppercase">
                   {content?.eyebrow ?? "Open for work"}
                 </span>
               </div>
@@ -154,7 +154,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                 {topLine}
               </h2>
               {bottomLine && (
-                <h2 className="font-nord text-3xl md:text-4xl text-[#ef4242] tracking-wider mb-6">
+                <h2 className="font-nord text-3xl md:text-4xl text-[var(--cranberry)] tracking-wider mb-6">
                   {bottomLine}
                 </h2>
               )}
@@ -230,7 +230,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                     }}
                   >
                     <div
-                      className={`pointer-events-none absolute inset-y-1 rounded-sm bg-[#ef4242] shadow-[0_0_12px_rgba(239,66,66,0.3)] transition-all duration-300 ease-out ${
+                      className={`pointer-events-none absolute inset-y-1 rounded-sm bg-[var(--cranberry)] shadow-[0_0_12px_rgba(239,66,66,0.3)] transition-all duration-300 ease-out ${
                         modeHighlight.ready ? "opacity-100" : "opacity-0"
                       }`}
                       style={{
@@ -248,9 +248,12 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                         }}
                         type="button"
                         onClick={() => setMode(m)}
-                        className={`relative z-10 px-3 py-1.5 rounded-sm text-[11px] tracking-wider uppercase transition-colors duration-200 ${
-                          mode === m ? "text-white" : "text-white/40 hover:text-white/70"
-                        }`}
+                        className="relative z-10 px-3 py-1.5 rounded-sm text-[11px] tracking-wider uppercase transition-colors duration-200"
+                        style={{
+                          color: mode === m
+                            ? '#fff'
+                            : 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)',
+                        }}
                       >
                         {m === "both" ? "Email + SMS" : m === "email" ? "Email" : "SMS"}
                       </button>
@@ -263,7 +266,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your name"
-                    className="w-full h-10 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm px-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
+                    className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm px-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                   />
 
                   {(mode === "email" || mode === "both") && (
@@ -275,7 +278,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="your@email.com"
-                        className="w-full h-10 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
+                        className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                       />
                     </div>
                   )}
@@ -289,7 +292,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+1 (555) 000-0000"
-                        className="w-full h-10 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
+                        className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                       />
                     </div>
                   )}
@@ -306,7 +309,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                       <div
                         className={`w-4 h-4 rounded-sm border transition-all duration-150 flex items-center justify-center ${
                           consent
-                            ? "bg-[#ef4242] border-[#ef4242]"
+                            ? "bg-[var(--cranberry)] border-[var(--cranberry)]"
                             : "bg-white/4 border-white/15 group-hover:border-white/30"
                         }`}
                       >
@@ -348,7 +351,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                   <button
                     type="submit"
                     disabled={status === "sending" || !consent}
-                    className="w-full h-10 flex items-center justify-center gap-2 bg-[#ef4242] text-white text-xs tracking-widest uppercase rounded-sm hover:bg-[#dd3030] transition-all shadow-[0_0_16px_rgba(239,66,66,0.25)] hover:shadow-[0_0_24px_rgba(239,66,66,0.4)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                    className="w-full h-10 flex items-center justify-center gap-2 bg-[var(--cranberry)] text-white text-xs tracking-widest uppercase rounded-sm hover:bg-[#dd3030] transition-all shadow-[0_0_16px_rgba(239,66,66,0.25)] hover:shadow-[0_0_24px_rgba(239,66,66,0.4)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                   >
                     {status === "sending" ? "Subscribing..." : "Subscribe"}
                   </button>

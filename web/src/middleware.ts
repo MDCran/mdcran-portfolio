@@ -3,10 +3,7 @@ import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (
-    pathname.startsWith("/admin/dashboard") ||
-    pathname.startsWith("/visitor")
-  ) {
+  if (pathname.startsWith("/admin/dashboard")) {
     const token = req.cookies.get("mdcran_admin_token")?.value;
     if (!token || token.split(".").length !== 3) {
       return NextResponse.redirect(new URL("/admin", req.url));
@@ -16,5 +13,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/dashboard/:path*", "/visitor/:path*", "/visitor"],
+  matcher: ["/admin/dashboard/:path*"],
 };

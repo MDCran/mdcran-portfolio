@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./theme-effects.css";
 import GlobalChrome from "@/components/layout/GlobalChrome";
+import { ThemeProvider } from "@/lib/ThemeContext";
 import VisitorTracker from "@/components/visitor/VisitorTracker";
 import { getSiteContent } from "@/lib/db";
 import { assetUrl } from "@/lib/utils";
@@ -104,8 +106,13 @@ export default function RootLayout({
   const serviceJsonLd = buildProfessionalServiceJsonLd();
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-theme="dark" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("mdcran_theme");if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.setAttribute("data-theme","dark")}catch(e){}})()`,
+          }}
+        />
         <link rel="author" href={SITE_URL} />
         {SAME_AS_URLS.map((url) => (
           <link key={url} rel="me" href={url} />
@@ -124,11 +131,13 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
         />
-        <div className="relative z-[1] w-full min-h-screen flex flex-col">
-          {children}
-          <GlobalChrome />
-          <VisitorTracker />
-        </div>
+        <ThemeProvider>
+          <div className="relative z-[1] w-full min-h-screen flex flex-col">
+            {children}
+            <GlobalChrome />
+            <VisitorTracker />
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

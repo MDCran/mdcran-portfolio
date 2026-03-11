@@ -18,6 +18,8 @@ import type {
 } from "@/lib/types";
 import { assetUrl, imageAssetSrc, projectUrl } from "@/lib/utils";
 import CRTThreeCanvas from "./CRTThreeCanvas";
+import SnakeGame from "./games/SnakeGame";
+import PacmanGame from "./games/PacmanGame";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -160,6 +162,9 @@ const COMMANDS = [
   "togglebackground",
   "terms",
   "privacy",
+  "visitors",
+  "snake",
+  "pacman",
   "exit",
 ] as const;
 
@@ -1363,6 +1368,7 @@ export default function TerminalExperience() {
   const [retroGifIdx, setRetroGifIdx] = React.useState(1);
   const [gifVisible, setGifVisible] = React.useState(false);
   const [gifEnabled, setGifEnabled] = React.useState(true);
+  const [gameMode, setGameMode] = React.useState<"snake" | "pacman" | null>(null);
 
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -2504,6 +2510,17 @@ export default function TerminalExperience() {
       case "privacy":
         doPrivacy();
         break;
+      case "visitors":
+        doVisitors();
+        break;
+      case "snake":
+        setGameMode("snake");
+        append([logText("  Starting Snake... ESC to exit", "success")]);
+        break;
+      case "pacman":
+        setGameMode("pacman");
+        append([logText("  Starting Pac-Man... ESC to exit", "success")]);
+        break;
       case "exit":
         closeTerminal();
         break;
@@ -2514,6 +2531,43 @@ export default function TerminalExperience() {
             "error"
           ),
         ]);
+    }
+  }
+
+  // ── /visitors ──────────────────────────────────────────────────────────────
+
+  async function doVisitors() {
+    append([logText("  Fetching visitor data...", "muted")]);
+    try {
+      const res = await fetch("/api/data/visitors");
+      const data = await res.json();
+      const { countries, total } = data as {
+        countries: { countryName: string; count: number }[];
+        total: number;
+      };
+      if (!countries.length) {
+        append([logText("  No visitor data available.", "muted")]);
+        return;
+      }
+      const lines: LogEntry[] = [
+        logText(""),
+        logText("  ┌────────────────────────────────┬──────────┐", "accent"),
+        logText("  │ Country                        │  Visits  │", "accent"),
+        logText("  ├────────────────────────────────┼──────────┤", "accent"),
+      ];
+      for (const c of countries.slice(0, 20)) {
+        const name = (" " + c.countryName).padEnd(31).slice(0, 31) + " ";
+        const cnt = String(c.count).padStart(6);
+        lines.push(logText(`  │${name}│  ${cnt}  │`));
+      }
+      lines.push(logText("  └────────────────────────────────┴──────────┘", "accent"));
+      lines.push(logText(`  Total unique visitors: ${total}`, "success"));
+      if (countries.length > 20) {
+        lines.push(logText(`  (showing top 20 of ${countries.length} countries)`, "muted"));
+      }
+      append(lines);
+    } catch {
+      append([logText("  Failed to fetch visitor data.", "error")]);
     }
   }
 
@@ -2610,6 +2664,15 @@ export default function TerminalExperience() {
       logText(`  ${bar}`, "muted"),
       logText("    browse <url>         Embed a website in the terminal panel"),
       logText("    browse               Close the embedded browser"),
+      logText(""),
+      logText("  ▸ DATA", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText("    visitors             View visitor traffic by country"),
+      logText(""),
+      logText("  ▸ GAMES", "muted"),
+      logText(`  ${bar}`, "muted"),
+      logText("    snake                Play Snake (arrow keys, ESC to exit)"),
+      logText("    pacman               Play Pac-Man (arrow keys, ESC to exit)"),
       logText(""),
       logText("  ▸ OTHER", "muted"),
       logText(`  ${bar}`, "muted"),
@@ -4597,7 +4660,7 @@ export default function TerminalExperience() {
         className="crt-content-layer relative z-10 flex flex-1 min-h-0"
         style={isThreeStage ? { background: "rgba(3, 12, 7, 0.08)" } : undefined}
       >
-        {/* Transcript — always full width; browser floats as overlay */}
+        {/* Transcript — always visible */}
         <div
           ref={transcriptRef}
           className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
@@ -4616,6 +4679,49 @@ export default function TerminalExperience() {
           ))}
           <div className="h-3" />
         </div>
+
+        {/* Game floating window — overlays the transcript like the browser */}
+        {gameMode && (
+          <div
+            className="absolute z-50 rounded-sm border border-[#4ade80]/20 bg-[#020b05] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_0_1px_rgba(74,222,128,0.06)] flex flex-col overflow-hidden"
+            style={{
+              left: "6%",
+              top: "4%",
+              width: "88%",
+              height: "92%",
+              animation: "none",
+              transform: "none",
+            }}
+          >
+            {/* Title bar */}
+            <div className="flex shrink-0 items-center gap-2 border-b border-[#4ade80]/10 bg-[#020b05]/95 px-2.5 py-1.5 select-none">
+              <div className="flex shrink-0 items-center gap-[5px]">
+                <button
+                  onClick={() => setGameMode(null)}
+                  title="Close"
+                  className="h-[10px] w-[10px] rounded-full transition-opacity hover:opacity-80"
+                  style={{ background: "#ff5f57", boxShadow: "0 0 4px rgba(255,95,87,0.5)" }}
+                />
+                <span
+                  className="block h-[10px] w-[10px] rounded-full"
+                  style={{ background: "#ffbd2e", boxShadow: "0 0 4px rgba(255,189,46,0.4)" }}
+                />
+                <span
+                  className="block h-[10px] w-[10px] rounded-full"
+                  style={{ background: "#28c840", boxShadow: "0 0 4px rgba(40,200,64,0.5)" }}
+                />
+              </div>
+              <span className="text-[0.525rem] text-[#86efac]/50 tracking-wider uppercase ml-1">
+                {gameMode === "snake" ? "Snake Game" : "Pac-Man"}
+              </span>
+            </div>
+            {/* Game content */}
+            <div className="flex-1 min-h-0 bg-black">
+              {gameMode === "snake" && <SnakeGame onExit={() => setGameMode(null)} />}
+              {gameMode === "pacman" && <PacmanGame onExit={() => setGameMode(null)} />}
+            </div>
+          </div>
+        )}
 
         {/* Preview panel (sidebar) — only shown when no browser and preview is active */}
         {!browseUrl && activePreview && (

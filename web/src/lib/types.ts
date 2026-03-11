@@ -440,6 +440,54 @@ export interface RizzSubmission {
   createdAt: string;
 }
 
+// ─── Status Page ─────────────────────────────────────────
+export type ServiceStatus = "operational" | "partial_outage" | "major_outage";
+export type IncidentStatus = "investigating" | "identified" | "monitoring" | "resolved";
+export type IncidentSeverity = "minor" | "major" | "critical";
+
+export interface StatusService {
+  id: string;
+  name: string;
+  group?: string;
+  sortOrder: number;
+  pingUrl?: string;
+  createdAt: string;
+}
+
+export interface StatusIncident {
+  id: string;
+  serviceId: string;
+  title: string;
+  message: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  startedAt: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface DailyStatus {
+  date: string;
+  status: ServiceStatus;
+  incidents: number;
+}
+
+export interface StatusServiceWithHealth extends StatusService {
+  currentStatus: ServiceStatus;
+  uptimePercent90d: number;
+  dailyStatus: DailyStatus[];
+}
+
+// ─── Visitor Adjustments ──────────────────────────────────
+export interface VisitorAdjustment {
+  id: string;
+  country: string;
+  countryName: string;
+  addedCount: number;
+  createdAt: string;
+}
+
 // ─── Tracking ─────────────────────────────────────────────
 export interface TapRecord {
   id: string;       // project or article id
@@ -577,6 +625,7 @@ export interface SiteContent {
   homeServices: SiteContentPageBlock;
   homeFeaturedWork: SiteContentSectionIntro;
   homeClients: SiteContentSectionIntro;
+  homeVisitorMap: SiteContentSectionIntro;
   homeCta: SiteContentSectionIntro;
   artsAndEntertainment: SiteContentPageBlock;
   motionAndGraphics: SiteContentPageBlock;

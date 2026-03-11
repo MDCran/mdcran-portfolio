@@ -59,7 +59,7 @@ const METRICS: Metric[] = [
     format: (n) => String(n),
     render: (display) => (
       <>
-        {display} <span className="text-[#ef4242]">YRS+</span>
+        {display} <span className="text-[var(--cranberry)]">YRS+</span>
       </>
     ),
   },
@@ -227,7 +227,7 @@ function AnimatedNumber({
   return (
     <span ref={ref} className="stat-value text-white tracking-tight leading-none">
       {render ? render(display) : display}
-      {!format && <span className="text-[#ef4242]">{suffix}</span>}
+      {!format && <span className="text-[var(--cranberry)]">{suffix}</span>}
     </span>
   );
 }
@@ -509,8 +509,8 @@ export default function Stats() {
           viewport={{ once: true, amount: 0 }}
           className="flex items-center gap-3 mb-14"
         >
-          <div className="h-px w-8 bg-[#ef4242]" />
-          <span className="text-[#ef4242] text-[11px] tracking-[0.25em] uppercase">By the Numbers</span>
+          <div className="h-px w-8 bg-[var(--cranberry)]" />
+          <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">By the Numbers</span>
         </motion.div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -534,7 +534,7 @@ export default function Stats() {
                 transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
                 className="group h-full"
               >
-                <div className="relative h-full min-h-[138px] md:min-h-[148px] p-5 md:p-6 rounded-sm border border-white/7 bg-white/2 overflow-hidden transition-all duration-500 hover:border-[rgba(239,66,66,0.25)] hover:bg-white/4 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(239,66,66,0.08)]">
+                <div className="relative h-full min-h-[138px] md:min-h-[148px] p-5 md:p-6 rounded-sm border border-white/7 bg-white/2 overflow-hidden transition-all duration-500 hover:border-[color-mix(in_srgb,var(--theme-primary,#ef4242)_25%,transparent)] hover:bg-white/4 hover:-translate-y-1 hover:shadow-[0_20px_60px_color-mix(in_srgb,var(--theme-primary,#ef4242)_8%,transparent)]">
                   {isFollowers && (
                     <LiveMetricBackground
                       data={followersTrend}
@@ -550,8 +550,8 @@ export default function Stats() {
                       forceUpward
                     />
                   )}
-                  <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full bg-[#ef4242] opacity-0 group-hover:opacity-[0.08] blur-xl transition-opacity duration-500" />
-                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[#ef4242] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full bg-[var(--cranberry)] opacity-0 group-hover:opacity-[0.08] blur-xl transition-opacity duration-500" />
+                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[var(--cranberry)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   {isLiveMetric && (
                     <span className="absolute right-5 top-5 z-10 flex h-3 w-3">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />

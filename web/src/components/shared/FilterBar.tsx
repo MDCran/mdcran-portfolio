@@ -198,7 +198,7 @@ export default function FilterBar({
         <div className="relative flex items-center gap-1">
           <div
             className={cn(
-              "absolute top-0 left-0 h-full rounded-sm bg-[#ef4242] shadow-[0_0_14px_rgba(239,66,66,0.22)] transition-all duration-300 ease-out",
+              "absolute top-0 left-0 h-full rounded-sm bg-[var(--cranberry)] shadow-[0_0_14px_rgba(239,66,66,0.22)] transition-all duration-300 ease-out",
               statusHighlight.ready ? "opacity-100" : "opacity-0"
             )}
             style={{
@@ -218,9 +218,10 @@ export default function FilterBar({
               className={cn(
                 "relative z-10 px-3 py-1.5 text-[11px] tracking-wider uppercase rounded-sm transition-all duration-200",
                 active === opt.value
-                  ? "text-white"
+                  ? ""
                   : "text-white/40 hover:text-white hover:bg-white/5"
               )}
+              style={active === opt.value ? { color: 'var(--on-accent, #fff)' } : undefined}
             >
               {opt.label}
               {counts && counts[opt.value] !== undefined && (
@@ -248,7 +249,7 @@ export default function FilterBar({
             <LayoutGrid size={11} className="text-white/25 ml-1 mr-0.5" />
             <div className="relative flex items-center gap-1">
               <div
-                className="absolute top-0 left-0 rounded-sm bg-[#ef4242] shadow-[0_0_14px_rgba(239,66,66,0.22)] transition-transform duration-300 ease-out"
+                className="absolute top-0 left-0 rounded-sm bg-[var(--cranberry)] shadow-[0_0_14px_rgba(239,66,66,0.22)] transition-transform duration-300 ease-out"
                 style={{
                   width: `${GRID_BUTTON_SIZE}px`,
                   height: `${GRID_BUTTON_SIZE}px`,
@@ -265,9 +266,10 @@ export default function FilterBar({
                   className={cn(
                     "relative z-10 w-6 h-6 flex items-center justify-center text-[10px] rounded-sm transition-all duration-200",
                     cols === n
-                      ? "text-white"
+                      ? ""
                       : "text-white/35 hover:text-white"
                   )}
+                  style={cols === n ? { color: 'var(--on-accent, #fff)' } : undefined}
                 >
                   {n}
                 </button>
@@ -283,7 +285,7 @@ export default function FilterBar({
             value={query}
             onChange={handleSearch}
             placeholder="Search..."
-            className="w-full h-10 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm pl-9 pr-3 text-xs text-white placeholder:text-white/25 outline-none transition-colors"
+            className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3 text-xs text-white placeholder:text-white/25 outline-none transition-colors"
           />
         </div>
       </div>

@@ -31,13 +31,31 @@ const navLinks = [
   { label: "Articles", href: "/articles" },
 ];
 
+interface SearchablePage {
+  title: string;
+  href: string;
+  keywords: string[];
+}
+
+const SEARCHABLE_PAGES: SearchablePage[] = [
+  { title: "Visitor Map", href: "/visitor-map", keywords: ["visitor", "map", "globe", "traffic", "analytics"] },
+  { title: "Status", href: "/status", keywords: ["status", "uptime", "incident", "outage", "health"] },
+  { title: "Resume", href: "/resume", keywords: ["resume", "cv", "experience", "work", "education", "skills"] },
+  { title: "Contact", href: "/contact", keywords: ["contact", "email", "message", "hire"] },
+  { title: "Terminal", href: "/terminal", keywords: ["terminal", "cli", "command", "shell", "crt"] },
+  { title: "CoreTV", href: "/coretv", keywords: ["coretv", "investor", "core", "tv", "streaming"] },
+  { title: "Terms of Service", href: "/terms", keywords: ["terms", "tos", "legal", "service"] },
+  { title: "Privacy Policy", href: "/privacy", keywords: ["privacy", "policy", "data", "legal"] },
+  { title: "Unsubscribe", href: "/unsubscribe", keywords: ["unsubscribe", "opt-out", "email", "sms", "notifications"] },
+];
+
 interface SearchResults {
   projects: Project[];
   clients: Client[];
   articles: Article[];
 }
 
-export default function Navbar() {
+export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
   const pathname = usePathname();
   const [brandLogoUrl, setBrandLogoUrl] = useState("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
   const [scrolled, setScrolled] = useState(false);
@@ -123,7 +141,7 @@ export default function Navbar() {
 
   const results = useMemo(() => {
     if (query.trim().length <= 1) {
-      return { projects: [], clients: [], articles: [] };
+      return { projects: [], clients: [], articles: [], pages: [] as SearchablePage[] };
     }
 
     const q = query.toLowerCase();
@@ -147,27 +165,35 @@ export default function Navbar() {
         article.tags.some((tag) => tag.toLowerCase().includes(q)) ||
         article.category.includes(q)
     );
+    const pages = SEARCHABLE_PAGES.filter(
+      (page) =>
+        page.title.toLowerCase().includes(q) ||
+        page.keywords.some((kw) => kw.includes(q))
+    );
 
-    return { projects, clients, articles };
+    return { projects, clients, articles, pages };
   }, [catalog, query]);
 
-  const totalResults = results.projects.length + results.clients.length + results.articles.length;
+  const totalResults = results.projects.length + results.clients.length + results.articles.length + results.pages.length;
 
   return (
     <>
       {/* Scan line decoration */}
-      <div className="fixed top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#ef4242] to-transparent z-[70] opacity-60" />
+      <div className="fixed top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--cranberry)] to-transparent z-[70] opacity-60" />
 
       <motion.nav
         initial={{ y: -80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        data-scrolled={scrolled || mobileOpen || opaque ? "" : undefined}
         className={cn(
           "fixed top-0 left-0 right-0 z-[60] transition-all duration-300 border-b",
           mobileOpen
             ? "bg-black/92 backdrop-blur-xl border-transparent"
             : scrolled
             ? "bg-black/85 backdrop-blur-xl border-white/10"
+            : opaque
+            ? "bg-black/40 backdrop-blur-md border-white/5"
             : "bg-transparent border-transparent"
         )}
       >
@@ -189,7 +215,7 @@ export default function Navbar() {
             />
             <span className="font-nord text-sm tracking-[0.18em] text-white/85 group-hover:text-white transition-colors duration-200">
               <span>MD</span>
-              <span className="text-[#ef4242]">CRAN</span>
+              <span className="text-[var(--cranberry)]">CRAN</span>
             </span>
           </Link>
 
@@ -207,7 +233,7 @@ export default function Navbar() {
                     className={cn(
                       "flex items-center gap-1 px-4 py-2 text-[11px] tracking-widest uppercase whitespace-nowrap transition-colors duration-200 rounded-sm",
                       isNavActive(link.href)
-                        ? "text-[#ef4242]"
+                        ? "text-[var(--cranberry)]"
                         : "text-white/55 hover:text-white"
                     )}
                   >
@@ -237,7 +263,7 @@ export default function Navbar() {
                             className={cn(
                               "block px-5 py-3 text-[11px] tracking-widest uppercase transition-all duration-150 border-b border-white/7 last:border-0",
                               isChildNavActive(child.href)
-                                ? "text-[#ef4242] bg-white/6"
+                                ? "text-[var(--cranberry)] bg-white/6"
                                 : "text-white/55 hover:text-white hover:bg-white/6"
                             )}
                           >
@@ -255,7 +281,7 @@ export default function Navbar() {
                   className={cn(
                     "px-4 py-2 text-[11px] tracking-widest uppercase whitespace-nowrap transition-colors duration-200 rounded-sm",
                     isNavActive(link.href)
-                      ? "text-[#ef4242]"
+                      ? "text-[var(--cranberry)]"
                       : "text-white/55 hover:text-white"
                   )}
                 >
@@ -291,7 +317,7 @@ export default function Navbar() {
 
             <Link
               href="/contact"
-              className="hidden sm:flex h-10 px-6 items-center text-[11px] tracking-widest uppercase font-medium bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)] hover:shadow-[0_0_30px_rgba(239,66,66,0.45)]"
+              className="hidden sm:flex h-10 px-6 items-center text-[11px] tracking-widest uppercase font-medium bg-[var(--cranberry)] text-white rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)] hover:shadow-[0_0_30px_rgba(239,66,66,0.45)]"
             >
               Contact Me
             </Link>
@@ -324,7 +350,7 @@ export default function Navbar() {
                       className={cn(
                         "px-4 py-3 text-[11px] tracking-widest uppercase rounded-sm transition-all",
                         isNavActive(link.href)
-                          ? "text-[#ef4242] bg-white/5"
+                          ? "text-[var(--cranberry)] bg-white/5"
                           : "text-white/65 hover:text-white hover:bg-white/5"
                       )}
                     >
@@ -338,7 +364,7 @@ export default function Navbar() {
                         className={cn(
                           "pl-8 pr-4 py-2.5 text-[10px] tracking-widest uppercase rounded-sm transition-all",
                           isChildNavActive(child.href)
-                            ? "text-[#ef4242] bg-white/5"
+                            ? "text-[var(--cranberry)] bg-white/5"
                             : "text-white/35 hover:text-white/65 hover:bg-white/5"
                         )}
                       >
@@ -351,7 +377,7 @@ export default function Navbar() {
                   <Link
                     href="/contact"
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center justify-center h-11 bg-[#ef4242] text-white text-[11px] tracking-widest uppercase font-medium rounded-sm shadow-[0_0_20px_rgba(239,66,66,0.3)]"
+                    className="flex items-center justify-center h-11 bg-[var(--cranberry)] text-white text-[11px] tracking-widest uppercase font-medium rounded-sm shadow-[0_0_20px_rgba(239,66,66,0.3)]"
                   >
                     Contact Me
                   </Link>
@@ -396,7 +422,7 @@ export default function Navbar() {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search projects, articles, clients..."
-                    className="h-full w-full rounded-sm border border-white/12 bg-[#0d0d0d] pl-11 pr-11 text-sm tracking-wide text-white outline-none transition-colors placeholder:text-white/25 shadow-[0_8px_32px_rgba(0,0,0,0.5)] focus:border-[#ef4242] sm:pl-12 sm:pr-12 sm:text-base"
+                    className="h-full w-full rounded-sm border border-white/12 bg-[#0d0d0d] pl-11 pr-11 text-sm tracking-wide text-white outline-none transition-colors placeholder:text-white/25 shadow-[0_8px_32px_rgba(0,0,0,0.5)] focus:border-[var(--cranberry)] sm:pl-12 sm:pr-12 sm:text-base"
                     onKeyDown={(e) => {
                       if (e.key === "Escape") {
                         setSearchOpen(false);
@@ -433,7 +459,7 @@ export default function Navbar() {
                       <>
                         {results.projects.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[#ef4242] border-b border-white/6 bg-white/2">
+                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
                               Projects
                             </div>
                             {results.projects.map((p) => {
@@ -452,13 +478,13 @@ export default function Navbar() {
                                       <img src={thumb} alt={p.title} className="w-full h-full object-cover" />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
-                                        <div className="w-3 h-3 bg-[#ef4242] rotate-45 opacity-40" />
+                                        <div className="w-3 h-3 bg-[var(--cranberry)] rotate-45 opacity-40" />
                                       </div>
                                     )}
                                     <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/40" />
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="text-sm text-white group-hover:text-[#ef4242] transition-colors truncate">{p.title}</div>
+                                    <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{p.title}</div>
                                     <div className="text-xs text-white/35 capitalize mt-0.5">{p.category.replace(/-/g, " ")}</div>
                                   </div>
                                 </Link>
@@ -468,7 +494,7 @@ export default function Navbar() {
                         )}
                         {results.clients.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[#ef4242] border-b border-white/6 bg-white/2">
+                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
                               Clients
                             </div>
                             {results.clients.map((c) => (
@@ -491,7 +517,7 @@ export default function Navbar() {
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-sm text-white group-hover:text-[#ef4242] transition-colors truncate">{c.name}</div>
+                                  <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{c.name}</div>
                                   <div className="text-xs text-white/35 mt-0.5 truncate">{c.roles.join(", ")}</div>
                                 </div>
                               </Link>
@@ -500,7 +526,7 @@ export default function Navbar() {
                         )}
                         {results.articles.length > 0 && (
                           <div>
-                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[#ef4242] border-b border-white/6 bg-white/2">
+                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
                               Articles
                             </div>
                             {results.articles.map((a) => (
@@ -523,8 +549,31 @@ export default function Navbar() {
                                   <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/40" />
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-sm text-white group-hover:text-[#ef4242] transition-colors truncate">{a.title}</div>
+                                  <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{a.title}</div>
                                   <div className="text-xs text-white/35 capitalize mt-0.5">{a.category}</div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                        {results.pages.length > 0 && (
+                          <div>
+                            <div className="px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b border-white/6 bg-white/2">
+                              Pages
+                            </div>
+                            {results.pages.map((page) => (
+                              <Link
+                                key={page.href}
+                                href={page.href}
+                                onClick={() => { setSearchOpen(false); setQuery(""); }}
+                                className="flex items-center gap-3.5 px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors group"
+                              >
+                                <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5 flex items-center justify-center">
+                                  <div className="w-3 h-3 bg-[var(--cranberry)] rotate-45 opacity-40" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm text-white group-hover:text-[var(--cranberry)] transition-colors truncate">{page.title}</div>
+                                  <div className="text-xs text-white/35 mt-0.5">{page.href}</div>
                                 </div>
                               </Link>
                             ))}

@@ -20,7 +20,7 @@ const defaultServices = [
 
 const ambientParticles = Array.from({ length: 6 }, (_, i) => ({
   key: `hero-particle-${i}`,
-  background: i % 2 === 0 ? "#ef4242" : "rgba(255,255,255,0.6)",
+  background: i % 2 === 0 ? "var(--cranberry)" : "color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)",
   top: `${20 + i * 12}%`,
   left: `${10 + i * 15}%`,
   duration: 3 + i * 0.7,
@@ -51,7 +51,7 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
         <div
           className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[70vh]"
           style={{
-            background: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(239,66,66,0.12) 0%, transparent 70%)",
+            background: "radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent) 0%, transparent 70%)",
           }}
         />
       </div>
@@ -59,7 +59,7 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
       <motion.div
         className="absolute top-1/4 -left-32 w-64 h-64 rounded-full pointer-events-none transform-gpu"
         style={{
-          background: "radial-gradient(circle, rgba(239,66,66,0.06) 0%, transparent 70%)",
+          background: "radial-gradient(circle, color-mix(in srgb, var(--theme-primary, #ef4242) 6%, transparent) 0%, transparent 70%)",
           willChange: "transform",
         }}
         animate={{ x: [0, 20, 0], y: [0, -30, 0] }}
@@ -68,17 +68,17 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
       <motion.div
         className="absolute bottom-1/4 -right-32 w-80 h-80 rounded-full pointer-events-none transform-gpu"
         style={{
-          background: "radial-gradient(circle, rgba(239,66,66,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, color-mix(in srgb, var(--theme-primary, #ef4242) 4%, transparent) 0%, transparent 70%)",
           willChange: "transform",
         }}
         animate={{ x: [0, -20, 0], y: [0, 20, 0] }}
         transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
       />
 
-      <div className="absolute top-16 left-6 w-16 h-16 border-l-2 border-t-2 border-[rgba(239,66,66,0.25)] pointer-events-none" />
-      <div className="absolute top-16 right-6 w-16 h-16 border-r-2 border-t-2 border-[rgba(239,66,66,0.25)] pointer-events-none" />
-      <div className="absolute bottom-16 left-6 w-16 h-16 border-l-2 border-b-2 border-[rgba(239,66,66,0.12)] pointer-events-none" />
-      <div className="absolute bottom-16 right-6 w-16 h-16 border-r-2 border-b-2 border-[rgba(239,66,66,0.12)] pointer-events-none" />
+      <div className="absolute top-16 left-6 w-16 h-16 border-l-2 border-t-2 pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)' }} />
+      <div className="absolute top-16 right-6 w-16 h-16 border-r-2 border-t-2 pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)' }} />
+      <div className="absolute bottom-16 left-6 w-16 h-16 border-l-2 border-b-2 pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)' }} />
+      <div className="absolute bottom-16 right-6 w-16 h-16 border-r-2 border-b-2 pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)' }} />
 
       {ambientParticles.map((particle) => (
         <motion.div
@@ -107,19 +107,19 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             className="inline-flex items-center gap-3 mb-8"
           >
             <motion.div
-              className="h-px bg-gradient-to-r from-transparent to-[#ef4242]"
+              className="h-px bg-gradient-to-r from-transparent to-[var(--cranberry)]"
               initial={{ width: 0 }}
               animate={{ width: 40 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             />
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#ef4242] animate-pulse" />
-              <span className="text-[#ef4242] text-[11px] tracking-[0.3em] uppercase">
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--cranberry)] animate-pulse" />
+              <span className="text-[var(--cranberry)] text-[11px] tracking-[0.3em] uppercase">
                 {content?.eyebrow ?? "Software Engineer"}
               </span>
             </div>
             <motion.div
-              className="h-px bg-gradient-to-l from-transparent to-[#ef4242]"
+              className="h-px bg-gradient-to-l from-transparent to-[var(--cranberry)]"
               initial={{ width: 0 }}
               animate={{ width: 40 }}
               transition={{ duration: 0.8, delay: 0.3 }}
@@ -134,9 +134,9 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             >
               <h1 className="font-nord font-[800] text-[clamp(3rem,10vw,7rem)] tracking-[0.06em] leading-[0.9] relative inline-block">
                 <span className="text-white">{titlePrimary}</span>
-                <span className="text-[#ef4242]">{titleAccent}</span>
+                <span className="text-[var(--cranberry)]">{titleAccent}</span>
                 <span
-                  className="absolute inset-0 font-nord font-[800] text-[#ef4242] opacity-20 blur-md select-none pointer-events-none"
+                  className="absolute inset-0 font-nord font-[800] text-[var(--cranberry)] opacity-20 blur-md select-none pointer-events-none"
                   aria-hidden="true"
                 >
                   {titlePrimary}{titleAccent}
@@ -158,22 +158,13 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             </span>
           </motion.p>
 
-          <motion.p
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.46 }}
-            className="mx-auto mb-6 max-w-2xl text-[11px] uppercase tracking-[0.22em] text-white/30"
-          >
-            Official website of {PERSON_FULL_NAME}, commonly known as {PERSON_NAME} and MDCran.
-          </motion.p>
-
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
             className="flex items-center justify-center gap-2 text-[11px] text-white/25 mb-8"
           >
-            <MapPin size={11} className="text-[#ef4242]" />
+            <MapPin size={11} className="text-[var(--cranberry)]" />
             <span>{content?.locationText ?? "Orlando, FL - OPEN FOR WORK"}</span>
           </motion.div>
 
@@ -192,7 +183,7 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
               >
                 <Link
                   href={service.href}
-                  className="inline-block px-4 py-2 text-[11px] tracking-wider text-white/40 border border-white/10 rounded-sm bg-white/3 hover:border-[rgba(239,66,66,0.35)] hover:text-white/75 hover:bg-[rgba(239,66,66,0.06)] transition-all duration-200 cursor-pointer backdrop-blur-sm"
+                  className="inline-block px-4 py-2 text-[11px] tracking-wider text-white/40 border border-white/10 rounded-sm bg-white/3 hover:border-[color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)] hover:text-white/75 hover:bg-[color-mix(in srgb, var(--theme-primary, #ef4242) 6%, transparent)] transition-all duration-200 cursor-pointer backdrop-blur-sm"
                 >
                   {service.label}
                 </Link>
@@ -207,8 +198,8 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             className="flex items-center gap-4 flex-wrap justify-center"
           >
             <Link href={content?.primaryCta.href ?? "/work"} className="group relative">
-              <div className="absolute -inset-1 rounded-sm bg-[#ef4242] opacity-30 blur-md group-hover:opacity-60 transition-opacity duration-500 animate-glow-pulse" />
-              <div className="relative flex items-center gap-2 h-12 px-7 bg-[#ef4242] text-white text-sm tracking-wider uppercase rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_30px_rgba(239,66,66,0.4)]">
+              <div className="absolute -inset-1 rounded-sm bg-[var(--cranberry)] opacity-30 blur-md group-hover:opacity-60 transition-opacity duration-500 animate-glow-pulse" />
+              <div className="relative flex items-center gap-2 h-12 px-7 bg-[var(--cranberry)] text-white text-sm tracking-wider uppercase rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_30px_color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)]">
                 {content?.primaryCta.label ?? "View Work"}
                 <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform duration-200" />
               </div>
@@ -216,7 +207,7 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
 
             <Link
               href={content?.secondaryCta.href ?? "/contact"}
-              className="group flex items-center gap-2 h-12 px-7 text-sm tracking-wider uppercase text-white/60 border border-white/12 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white hover:bg-[rgba(239,66,66,0.05)] transition-all duration-200 backdrop-blur-sm"
+              className="group flex items-center gap-2 h-12 px-7 text-sm tracking-wider uppercase text-white/60 border border-white/12 rounded-sm hover:border-[color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)] hover:text-white hover:bg-[color-mix(in srgb, var(--theme-primary, #ef4242) 5%, transparent)] transition-all duration-200 backdrop-blur-sm"
             >
               {content?.secondaryCta.label ?? "Contact Me"}
             </Link>

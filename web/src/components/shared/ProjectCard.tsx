@@ -34,7 +34,7 @@ function PricingBadge({ project }: { project: Project }) {
     return (
       <Badge
         variant="default"
-        className="gap-1 bg-[#ef4242]/80 text-white border-[#ef4242] shadow-[0_0_0_1px_rgba(0,0,0,0.5)] backdrop-blur-sm"
+        className="gap-1 bg-[var(--cranberry)]/80 text-white border-[var(--cranberry)] shadow-[0_0_0_1px_rgba(0,0,0,0.5)] backdrop-blur-sm"
       >
         <Tag size={8} />
         ${dollars}
@@ -137,14 +137,14 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-16 h-16 rounded-sm bg-[rgba(239,66,66,0.08)] border border-[rgba(239,66,66,0.15)] flex items-center justify-center">
-                <div className="w-6 h-6 bg-[#ef4242] rounded-sm rotate-45 opacity-60" />
+                <div className="w-6 h-6 bg-[var(--cranberry)] rounded-sm rotate-45 opacity-60" />
               </div>
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
           <div className="absolute top-3 right-3 z-[2] flex flex-col items-end gap-1.5">
             {project.featured && (
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-[#ef4242]/90 shadow-[0_0_8px_rgba(239,66,66,0.5)] backdrop-blur-sm">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-[var(--cranberry)]/90 shadow-[0_0_8px_rgba(239,66,66,0.5)] backdrop-blur-sm">
                 <Star size={10} className="text-white fill-white" />
               </span>
             )}
@@ -154,7 +154,7 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
 
         {/* Content */}
         <div className="px-4 pt-4 min-w-0 flex flex-col flex-1 relative z-0">
-          <h3 className="font-nord text-sm tracking-wide text-white group-hover:text-[#ef4242] transition-colors duration-200 leading-snug mb-2">
+          <h3 className="font-nord text-sm tracking-wide text-white group-hover:text-[var(--cranberry)] transition-colors duration-200 leading-snug mb-2">
             {project.title}
           </h3>
 
