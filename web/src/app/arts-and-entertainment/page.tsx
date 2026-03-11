@@ -12,8 +12,8 @@ export async function generateMetadata() {
   const content = siteContent.artsAndEntertainment;
 
   return buildSeoMetadata({
-    title: content.title || "Arts & Entertainment",
-    description: content.description || "Minecraft maps, immersive events, and resource packs.",
+    title: content.title || "Arts & Entertainment — Minecraft Maps & Events",
+    description: content.description || "Minecraft maps, immersive events, and resource packs by Michael Cran.",
     path: "/arts-and-entertainment",
   });
 }

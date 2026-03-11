@@ -17,6 +17,7 @@ import {
   PERSON_ALIASES,
   PERSON_FULL_NAME,
   PERSON_NAME,
+  SITE_URL,
   buildProfessionalServiceJsonLd,
   buildSeoMetadata,
 } from "@/lib/seo";
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = buildSeoMetadata({
   title: "Michael Cran | Software, Design, and Digital Experiences",
   description:
-    "Michael David Cran, also known as Michael Cran and MDCran, builds software, secure web platforms, Minecraft experiences, and creative digital work for creators, companies, and online communities.",
+    "Michael David Cran (MDCran) builds software, web platforms, Minecraft maps, and creative digital work for creators and companies.",
   path: "/",
   keywords: [
     "MDCran", "Michael Cran", "Michael David Cran", "MD Cran",
@@ -61,18 +62,18 @@ export default async function HomePage() {
     "@context": "https://schema.org",
     "@type": "WebPage",
     name: "Michael Cran | MDCran",
-    url: "https://mdcran.com",
+    url: SITE_URL,
     description: typeof metadata.description === "string" ? metadata.description : undefined,
     isPartOf: {
       "@type": "WebSite",
       name: "MDCran",
-      url: "https://mdcran.com",
+      url: SITE_URL,
     },
     about: {
       "@type": "Person",
       name: PERSON_NAME,
       alternateName: [...PERSON_ALIASES],
-      url: "https://mdcran.com",
+      url: SITE_URL,
     },
     primaryImageOfPage: assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png"),
   };
@@ -84,11 +85,11 @@ export default async function HomePage() {
     "@type": "ItemList",
     name: `${PERSON_FULL_NAME} services and portfolio categories`,
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Arts & Entertainment", url: "https://mdcran.com/arts-and-entertainment" },
-      { "@type": "ListItem", position: 2, name: "Motion & Graphics", url: "https://mdcran.com/motion-and-graphics" },
-      { "@type": "ListItem", position: 3, name: "Code", url: "https://mdcran.com/code" },
-      { "@type": "ListItem", position: 4, name: "Articles", url: "https://mdcran.com/articles" },
-      { "@type": "ListItem", position: 5, name: "Resume", url: "https://mdcran.com/resume" },
+      { "@type": "ListItem", position: 1, name: "Arts & Entertainment", url: `${SITE_URL}/arts-and-entertainment` },
+      { "@type": "ListItem", position: 2, name: "Motion & Graphics", url: `${SITE_URL}/motion-and-graphics` },
+      { "@type": "ListItem", position: 3, name: "Code", url: `${SITE_URL}/code` },
+      { "@type": "ListItem", position: 4, name: "Articles", url: `${SITE_URL}/articles` },
+      { "@type": "ListItem", position: 5, name: "Resume", url: `${SITE_URL}/resume` },
     ],
   };
 

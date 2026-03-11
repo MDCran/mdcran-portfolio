@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { assetUrl } from "./utils";
 
-export const SITE_URL = "https://mdcran.com";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mdcran.com";
 export const BRAND_NAME = "MDCran";
 export const PERSON_NAME = "Michael Cran";
 export const PERSON_FULL_NAME = "Michael David Cran";
@@ -21,7 +21,7 @@ export const DEFAULT_SITE_ICON = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.
 export const DEFAULT_OG_IMAGE = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png")!;
 export const DEFAULT_SOCIAL_TITLE = "Michael Cran | MDCran";
 export const DEFAULT_SOCIAL_DESCRIPTION =
-  "Official website of Michael David Cran, also known as Michael Cran and MDCran, featuring software engineering, web design, motion graphics, Minecraft projects, articles, and client work.";
+  "Portfolio of Michael David Cran (MDCran) — software engineering, web design, motion graphics, and Minecraft projects in Orlando, FL.";
 
 type SeoOptions = {
   title: string;

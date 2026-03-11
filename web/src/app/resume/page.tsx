@@ -12,14 +12,14 @@ import {
   getSiteContent,
   getSkills,
 } from "@/lib/db";
-import { buildSeoMetadata } from "@/lib/seo";
+import { buildSeoMetadata, SITE_URL } from "@/lib/seo";
 
 export async function generateMetadata() {
   const siteContent = await getSiteContent();
   const header = siteContent.pageHeaders.resume;
 
   return buildSeoMetadata({
-    title: header.title || "Resume",
+    title: header.title || "Resume — Software Engineer & Developer",
     description: header.description || "Michael Cran's professional experience, skills, certifications, awards, and resume details.",
     path: "/resume",
   });
@@ -74,7 +74,7 @@ export default async function ResumePage() {
     jobTitle: "Independent Contractor & Content Creator",
     description:
       "Minecraft map maker, graphic designer, video editor, and web developer based in Orlando, FL.",
-    url: "https://mdcran.com",
+    url: SITE_URL,
     sameAs: [
       "https://github.com/mdcran",
       "https://www.linkedin.com/in/mdcran/",

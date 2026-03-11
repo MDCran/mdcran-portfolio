@@ -12,8 +12,8 @@ export async function generateMetadata() {
   const content = siteContent.motionAndGraphics;
 
   return buildSeoMetadata({
-    title: content.title || "Motion & Graphics",
-    description: content.description || "Thumbnail design, video editing, and web design.",
+    title: content.title || "Motion & Graphics — Design & Video",
+    description: content.description || "Thumbnail design, video editing, and web development by Michael Cran.",
     path: "/motion-and-graphics",
   });
 }

@@ -4,6 +4,7 @@ import "./theme-effects.css";
 import GlobalChrome from "@/components/layout/GlobalChrome";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import VisitorTracker from "@/components/visitor/VisitorTracker";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import { getSiteContent } from "@/lib/db";
 import { assetUrl } from "@/lib/utils";
 import {
@@ -119,6 +120,7 @@ export default function RootLayout({
         ))}
       </head>
       <body className="w-full min-h-screen">
+        <GoogleAnalytics />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}

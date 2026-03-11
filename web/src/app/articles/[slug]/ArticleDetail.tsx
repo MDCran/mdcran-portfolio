@@ -156,20 +156,23 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
         </blockquote>
       );
 
-    case "image":
+    case "image": {
+      const resolvedSrc = imageAssetSrc(section.src);
+      const unoptimized = shouldBypassImageOptimization(resolvedSrc);
       return (
         <figure className="my-8">
           <div
             className="relative rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
-            onClick={() => section.src && onImageClick(imageOffset)}
+            onClick={() => resolvedSrc && onImageClick(imageOffset)}
           >
             <div className="relative w-full aspect-video">
               <Image
-                src={section.src ?? ""}
+                src={resolvedSrc ?? ""}
                 alt={section.alt ?? ""}
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-500"
                 sizes="(max-width: 768px) 100vw, 672px"
+                unoptimized={unoptimized}
               />
             </div>
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
@@ -185,6 +188,7 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
           )}
         </figure>
       );
+    }
 
     case "gallery":
       return (
@@ -547,7 +551,8 @@ export default function ArticleDetail({ article }: { article: Article }) {
   for (const section of article.sections) {
     sectionImageOffsets.push(allImages.length);
     if (section.type === "image" && section.src) {
-      allImages.push(section.src);
+      const resolved = imageAssetSrc(section.src);
+      if (resolved) allImages.push(resolved);
       allImageCaptions.push(section.alt?.trim() || section.caption?.trim() || article.title);
     } else if (section.type === "gallery") {
       for (const image of section.images ?? []) {
