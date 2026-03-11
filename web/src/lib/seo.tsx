@@ -59,6 +59,29 @@ export function buildWebsiteJsonLd() {
       alternateName: [...PERSON_ALIASES],
       url: SITE_URL,
     },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE_URL}/?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
+}
+
+export function buildBreadcrumbJsonLd(
+  items: { name: string; url: string }[],
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      item: item.url.startsWith("/") ? absoluteUrl(item.url) : item.url,
+    })),
   };
 }
 

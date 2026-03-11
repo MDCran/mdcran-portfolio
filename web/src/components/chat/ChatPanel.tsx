@@ -85,6 +85,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   autoNavigated?: boolean;
+  pendingHighlight?: string;
 }
 
 const SUGGESTIONS = [
@@ -529,6 +530,7 @@ export default function ChatPanel() {
           let cleaned = accumulated;
           let hasMarkers = false;
           let didNavigate = false;
+          let pendingHighlightTarget: string | undefined;
 
           // Theme change marker
           const themeMatch = cleaned.match(/__THEME:([\w-]+)__/);
@@ -561,9 +563,17 @@ export default function ChatPanel() {
             }, 600);
           }
 
+          // Highlight marker — extract before auto-nav fallback so we know if one exists
+          const highlightMatch = cleaned.match(/__HIGHLIGHT:(.+?)__/);
+          if (highlightMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__HIGHLIGHT:.+?__/g, "");
+          }
+          const highlightTarget = highlightMatch?.[1];
+
           // Fallback: auto-navigate from internal markdown links
-          // If the bot included an internal link in its response and no __NAV__ marker was used
-          if (!didNavigate) {
+          // Skip auto-nav if a __HIGHLIGHT__ is present — let the user click "Take me there" instead
+          if (!didNavigate && !highlightTarget) {
             const linkRegex = /\[([^\]]+)\]\((\/[^)]+)\)/g;
             const internalLinks: string[] = [];
             let linkExec: RegExpExecArray | null;
@@ -588,24 +598,39 @@ export default function ChatPanel() {
             }
           }
 
-          // Highlight marker
-          const highlightMatch = cleaned.match(/__HIGHLIGHT:(.+?)__/);
-          if (highlightMatch) {
-            hasMarkers = true;
-            const highlightTarget = highlightMatch[1];
-            cleaned = cleaned.replace(/__HIGHLIGHT:.+?__/g, "");
-            const delay = didNavigate ? 1600 : 300;
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: highlightTarget }));
-            }, delay);
+          // Handle highlight based on context
+          if (highlightTarget) {
+            if (didNavigate) {
+              // Auto-navigating: fire highlight after page loads
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: highlightTarget }));
+              }, 1600);
+            } else {
+              // Check if there are internal links in the response (content on another page)
+              const hasInternalLinks = /\[([^\]]+)\]\((\/[^)]+)\)/.test(cleaned);
+              if (hasInternalLinks) {
+                // Different page: store as pending — "Take me there" button click will trigger it
+                pendingHighlightTarget = highlightTarget;
+              } else {
+                // Current page: fire highlight immediately
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: highlightTarget }));
+                }, 300);
+              }
+            }
           }
 
-          // Update the displayed message with markers stripped + auto-nav flag
-          if (hasMarkers || didNavigate) {
+          // Update the displayed message with markers stripped + flags
+          if (hasMarkers || didNavigate || pendingHighlightTarget) {
             cleaned = cleaned.trim();
             setMessages((prev) => {
               const updated = [...prev];
-              updated[updated.length - 1] = { role: "assistant", content: cleaned, autoNavigated: didNavigate };
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: cleaned,
+                autoNavigated: didNavigate,
+                pendingHighlight: pendingHighlightTarget,
+              };
               return updated;
             });
           }
@@ -897,7 +922,18 @@ export default function ChatPanel() {
                       {msg.role === "assistant" && isWelcome && i === 0 ? (
                         <TypewriterText text={welcomeText} onComplete={() => setWelcomeTyped(true)} />
                       ) : msg.role === "assistant" ? (
-                        renderChatMarkdown(msg.content === "__WELCOME__" ? welcomeText : msg.content, (href) => router.push(href), !msg.autoNavigated)
+                        renderChatMarkdown(
+                          msg.content === "__WELCOME__" ? welcomeText : msg.content,
+                          (href) => {
+                            router.push(href);
+                            if (msg.pendingHighlight) {
+                              setTimeout(() => {
+                                window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: msg.pendingHighlight }));
+                              }, 1200);
+                            }
+                          },
+                          !msg.autoNavigated,
+                        )
                       ) : (
                         msg.content
                       )}
