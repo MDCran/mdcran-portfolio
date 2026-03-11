@@ -85,7 +85,11 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
               {lightboxPhotos.map((photo, i) => (
                 <div
                   key={`${photo.src}-mobile`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View photo: ${photo.alt}`}
                   onClick={() => setExpanded(i)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(i); } }}
                   className={`relative aspect-[3/4] overflow-hidden rounded-sm border border-white/12 cursor-pointer ${isLight ? '' : 'bg-white/5'}`}
                 >
                   <Image src={photo.src} alt={photo.alt} fill className="object-cover object-top" sizes="50vw" />
@@ -111,7 +115,11 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                     zIndex: 20,
                     transition: { duration: 0.25 },
                   }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View photo: ${photo.alt}`}
                   onClick={() => setExpanded(i)}
+                  onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(i); } }}
                   style={{
                     x: i % 2 === 0 ? x1 : x2,
                     position: "absolute",

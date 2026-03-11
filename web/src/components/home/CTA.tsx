@@ -266,6 +266,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your name"
+                    aria-label="Your name"
                     className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm px-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                   />
 
@@ -278,6 +279,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="your@email.com"
+                        aria-label="Email address"
                         className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                       />
                     </div>
@@ -292,6 +294,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+1 (555) 000-0000"
+                        aria-label="Phone number"
                         className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                       />
                     </div>

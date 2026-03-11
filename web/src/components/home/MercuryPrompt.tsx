@@ -385,6 +385,7 @@ export default function MercuryPrompt() {
 
               <Link
                 href="/code/army-reserve-mercury"
+                aria-label="Learn more about Army Reserve Mercury project"
                 className="group mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-5 text-xs uppercase tracking-[0.2em] text-white/78 transition-all duration-200 cursor-pointer hover:border-[#f4c542]/30 hover:bg-[#f4c542]/8 hover:text-white"
               >
                 Learn More
