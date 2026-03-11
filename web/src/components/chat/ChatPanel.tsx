@@ -234,8 +234,8 @@ export default function ChatPanel() {
 
     const push = (t: ReturnType<typeof setTimeout>) => { timers.push(t); };
 
-    // Connecting takes 2-8 seconds randomly
-    const connectDelay = 2000 + Math.random() * 6000;
+    // Connecting takes 1-4 seconds randomly
+    const connectDelay = 1000 + Math.random() * 3000;
     push(setTimeout(() => { if (!cancelled) setWelcomeStep(2); }, connectDelay));
     // Show typing indicator after connecting
     const typingDelay = connectDelay + 800;
