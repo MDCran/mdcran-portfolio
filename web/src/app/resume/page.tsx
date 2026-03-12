@@ -44,8 +44,12 @@ export default async function ResumePage() {
   // Sort experiences newest-first by endDate (current jobs first), then startDate
   function parseExpDate(d?: string): number {
     if (!d) return Infinity; // "current" / no end date → sort first
-    const m = d.match(/^(\d{2})-(\d{4})$/);
-    if (m) return parseInt(m[2], 10) * 100 + parseInt(m[1], 10);
+    // MM-YYYY
+    const mmYyyy = d.match(/^(\d{2})-(\d{4})$/);
+    if (mmYyyy) return parseInt(mmYyyy[2], 10) * 100 + parseInt(mmYyyy[1], 10);
+    // YYYY-MM or YYYY-MM-DD
+    const yyyyMm = d.match(/^(\d{4})-(\d{2})/);
+    if (yyyyMm) return parseInt(yyyyMm[1], 10) * 100 + parseInt(yyyyMm[2], 10);
     return 0;
   }
   function sortNewest(a: typeof experiences[0], b: typeof experiences[0]) {
