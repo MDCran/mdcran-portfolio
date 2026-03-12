@@ -25,7 +25,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Lightbox from "@/components/shared/Lightbox";
 import type { ArticleSection, Client, Project } from "@/lib/types";
-import { imageAssetAlt, imageAssetSrc, projectUrl } from "@/lib/utils";
+import { imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
 
 interface ProjectDetailProps {
   project: Project;
@@ -119,6 +119,7 @@ export default function ProjectDetail({
               className="object-cover"
               priority
               sizes="100vw"
+              unoptimized={shouldBypassImageOptimization(coverSrc)}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[rgba(10,10,10,0.55)] to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[rgba(10,10,10,0.4)] to-transparent" />
@@ -181,6 +182,7 @@ export default function ProjectDetail({
                           fill
                           className="object-cover group-hover:scale-105 transition-transform duration-500"
                           sizes="(max-width: 640px) 50vw, 33vw"
+                          unoptimized={shouldBypassImageOptimization(src)}
                         />
                       </div>
                     );
@@ -262,6 +264,7 @@ export default function ProjectDetail({
                             fill
                             className="object-cover"
                             sizes="64px"
+                            unoptimized={shouldBypassImageOptimization(imageAssetSrc(rel.coverImage))}
                           />
                         </div>
                       )}
@@ -433,7 +436,7 @@ export default function ProjectDetail({
                     >
                       <div className="relative w-8 h-8 rounded-sm bg-white/5 border border-white/8 overflow-hidden shrink-0 group-hover:border-[rgba(239,66,66,0.3)] group-hover:scale-110 transition-all duration-200 flex items-center justify-center text-[10px] text-white/40 font-bold">
                         {client.avatarUrl ? (
-                          <Image src={client.avatarUrl} alt={client.name} fill className="object-cover" sizes="32px" />
+                          <Image src={imageAssetSrc(client.avatarUrl) ?? client.avatarUrl} alt={client.name} fill className="object-cover" sizes="32px" unoptimized={shouldBypassImageOptimization(client.avatarUrl)} />
                         ) : (
                           client.name.charAt(0)
                         )}
@@ -820,6 +823,7 @@ function ProjectSection({
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-500"
                 sizes="(max-width: 768px) 100vw, 672px"
+                unoptimized={shouldBypassImageOptimization(section.src)}
               />
             </div>
           </div>
@@ -848,6 +852,7 @@ function ProjectSection({
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                     sizes="(max-width: 640px) 50vw, 33vw"
+                    unoptimized={shouldBypassImageOptimization(src)}
                   />
                 </div>
               );

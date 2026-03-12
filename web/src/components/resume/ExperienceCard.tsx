@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Client, Experience } from "@/lib/types";
+import { imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 import {
   Calendar,
   CheckCircle2,
@@ -72,10 +73,11 @@ function ClientAvatar({ client }: { client: Client }) {
         className="relative block w-7 h-7 rounded-full overflow-hidden border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110 shrink-0"
       >
         <Image
-          src={client.avatarUrl}
+          src={imageAssetSrc(client.avatarUrl) ?? client.avatarUrl}
           alt={client.name}
           fill
           className="object-cover"
+          unoptimized={shouldBypassImageOptimization(client.avatarUrl)}
         />
       </Link>
     );

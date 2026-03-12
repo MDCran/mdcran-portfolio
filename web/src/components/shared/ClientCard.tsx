@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Youtube, Twitch, Instagram, Twitter, Github, Globe, Facebook, Music2, ExternalLink, ArrowRight, Link2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 import type { Client, Platform } from "@/lib/types";
 
 const platformConfig: Record<Platform, { icon: React.ElementType; color: string; label: string }> = {
@@ -53,7 +53,7 @@ export default function ClientCard({ client, index = 0, className, projectCount 
                 title={client.name}
                 className="relative w-12 h-12 rounded-sm overflow-hidden shrink-0 border border-white/10 transition-transform duration-200 hover:scale-110 hover:border-[rgba(239,66,66,0.3)]"
               >
-                <Image src={client.avatarUrl} alt={client.name} fill className="object-cover" />
+                <Image src={imageAssetSrc(client.avatarUrl) ?? client.avatarUrl} alt={client.name} fill className="object-cover" unoptimized={shouldBypassImageOptimization(client.avatarUrl)} />
               </Link>
             ) : (
               <Link

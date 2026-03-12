@@ -41,8 +41,22 @@ export default async function ResumePage() {
   const header = siteContent.pageHeaders.resume;
   const clientsById = new Map(clients.map((client) => [client.id, client]));
 
-  const jobs = experiences.filter((e) => e.type === "job");
-  const renownedProjects = experiences.filter((e) => e.type === "renowned");
+  // Sort experiences newest-first by endDate (current jobs first), then startDate
+  function parseExpDate(d?: string): number {
+    if (!d) return Infinity; // "current" / no end date → sort first
+    const m = d.match(/^(\d{2})-(\d{4})$/);
+    if (m) return parseInt(m[2], 10) * 100 + parseInt(m[1], 10);
+    return 0;
+  }
+  function sortNewest(a: typeof experiences[0], b: typeof experiences[0]) {
+    const endA = a.current ? Infinity : parseExpDate(a.endDate);
+    const endB = b.current ? Infinity : parseExpDate(b.endDate);
+    if (endB !== endA) return endB - endA;
+    return parseExpDate(b.startDate) - parseExpDate(a.startDate);
+  }
+
+  const jobs = experiences.filter((e) => e.type === "job").sort(sortNewest);
+  const renownedProjects = experiences.filter((e) => e.type === "renowned").sort(sortNewest);
   const derivedEducations =
     educations.length > 0
       ? educations
@@ -63,7 +77,7 @@ export default async function ResumePage() {
           }));
   const volunteerWork = experiences.filter(
     (e) => e.type === "volunteer" && !(educations.length === 0 && e.id === "ucf-cs")
-  );
+  ).sort(sortNewest);
   const skillCategories = Array.from(new Set(skills.map((s) => s.category)));
 
   const jsonLd = {

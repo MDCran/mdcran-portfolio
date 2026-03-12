@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Users,
   ExternalLink,
+  Github,
   Linkedin,
   Star,
 } from "lucide-react";
@@ -30,13 +31,18 @@ function humanizeCategory(category: string) {
   return category.replace(/[-_]+/g, " ").trim().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const MONTH_ABBRS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."];
+
 function formatMonthYear(date?: string) {
   if (!date) return "";
   const m = date.match(/^(\d{2})-(\d{4})$/);
-  if (m) return `${m[1]}-${m[2]}`;
+  if (m) {
+    const monthIdx = parseInt(m[1], 10) - 1;
+    return `${MONTH_ABBRS[monthIdx] ?? m[1]} ${m[2]}`;
+  }
   const p = new Date(date);
   if (Number.isNaN(p.getTime())) return date;
-  return `${String(p.getMonth() + 1).padStart(2, "0")}-${p.getFullYear()}`;
+  return `${MONTH_ABBRS[p.getMonth()]} ${p.getFullYear()}`;
 }
 
 interface ResumeContentProps {
@@ -85,6 +91,16 @@ export default function ResumeContent({
               className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
             >
               <Linkedin size={13} />
+            </a>
+            <a
+              href="https://github.com/mdcran"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open GitHub profile"
+              title="GitHub"
+              className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+            >
+              <Github size={13} />
             </a>
             <a
               href="/Michael_Cran_Resume.pdf"
