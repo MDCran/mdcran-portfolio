@@ -35,14 +35,16 @@ const MONTH_ABBRS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug
 
 function formatMonthYear(date?: string) {
   if (!date) return "";
-  const m = date.match(/^(\d{2})-(\d{4})$/);
-  if (m) {
-    const monthIdx = parseInt(m[1], 10) - 1;
-    return `${MONTH_ABBRS[monthIdx] ?? m[1]} ${m[2]}`;
-  }
-  const p = new Date(date);
-  if (Number.isNaN(p.getTime())) return date;
-  return `${MONTH_ABBRS[p.getMonth()]} ${p.getFullYear()}`;
+
+  // MM-YYYY
+  const mmYyyy = date.match(/^(\d{2})-(\d{4})$/);
+  if (mmYyyy) return `${MONTH_ABBRS[parseInt(mmYyyy[1], 10) - 1] ?? mmYyyy[1]} ${mmYyyy[2]}`;
+
+  // YYYY-MM or YYYY-MM-DD — parse month/year directly to avoid timezone shift
+  const yyyyMm = date.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (yyyyMm) return `${MONTH_ABBRS[parseInt(yyyyMm[2], 10) - 1] ?? yyyyMm[2]} ${yyyyMm[1]}`;
+
+  return date;
 }
 
 interface ResumeContentProps {

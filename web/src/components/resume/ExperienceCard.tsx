@@ -13,55 +13,33 @@ import {
   MapPin,
 } from "lucide-react";
 
+const MONTH_LABELS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."];
+
 function formatTimelineDate(date?: string): string {
   if (!date) return "";
 
-  const directMatch = date.match(/^(\d{2})-(\d{4})$/);
-  if (directMatch) {
-    const monthIndex = Number(directMatch[1]) - 1;
-    const monthLabels = [
-      "Jan.",
-      "Feb.",
-      "Mar.",
-      "Apr.",
-      "May",
-      "Jun.",
-      "Jul.",
-      "Aug.",
-      "Sep.",
-      "Oct.",
-      "Nov.",
-      "Dec.",
-    ];
-    const monthLabel = monthLabels[monthIndex];
-    if (monthLabel) {
-      return `${monthLabel} ${directMatch[2]}`;
-    }
-    return date;
+  // MM-YYYY
+  const mmYyyy = date.match(/^(\d{2})-(\d{4})$/);
+  if (mmYyyy) {
+    const label = MONTH_LABELS[Number(mmYyyy[1]) - 1];
+    if (label) return `${label} ${mmYyyy[2]}`;
   }
 
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) {
-    return date;
+  // YYYY-MM
+  const yyyyMm = date.match(/^(\d{4})-(\d{2})$/);
+  if (yyyyMm) {
+    const label = MONTH_LABELS[Number(yyyyMm[2]) - 1];
+    if (label) return `${label} ${yyyyMm[1]}`;
   }
 
-  const monthLabels = [
-    "Jan.",
-    "Feb.",
-    "Mar.",
-    "Apr.",
-    "May",
-    "Jun.",
-    "Jul.",
-    "Aug.",
-    "Sep.",
-    "Oct.",
-    "Nov.",
-    "Dec.",
-  ];
-  const month = monthLabels[parsed.getMonth()];
-  const year = String(parsed.getFullYear());
-  return month ? `${month} ${year}` : date;
+  // YYYY-MM-DD — parse manually to avoid timezone shift
+  const yyyyMmDd = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (yyyyMmDd) {
+    const label = MONTH_LABELS[Number(yyyyMmDd[2]) - 1];
+    if (label) return `${label} ${yyyyMmDd[1]}`;
+  }
+
+  return date;
 }
 
 function ClientAvatar({ client }: { client: Client }) {
