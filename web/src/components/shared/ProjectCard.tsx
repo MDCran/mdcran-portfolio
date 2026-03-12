@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { Download, ShoppingCart, Star, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, imageAssetAlt, imageAssetSrc, projectUrl } from "@/lib/utils";
+import { cn, imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
 import type { Project } from "@/lib/types";
 
 interface ProjectCardProps {
@@ -140,6 +140,7 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
               fill
               className="object-cover transition-transform duration-500 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              unoptimized={shouldBypassImageOptimization(coverSrc)}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">

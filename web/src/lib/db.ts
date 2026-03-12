@@ -1148,15 +1148,21 @@ export async function getSkills(): Promise<Skill[]> {
 }
 
 export async function getCertifications(): Promise<Certification[]> {
-  return readCollection<Certification>("certifications");
+  const db = await getDb();
+  const rows = await db.collection("certifications").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+  return rows.map((row) => normalizeAssetPaths(row as unknown as Certification) as Certification);
 }
 
 export async function getAwards(): Promise<Award[]> {
-  return readCollection<Award>("awards");
+  const db = await getDb();
+  const rows = await db.collection("awards").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+  return rows.map((row) => normalizeAssetPaths(row as unknown as Award) as Award);
 }
 
 export async function getClubs(): Promise<ClubMembership[]> {
-  return readCollection<ClubMembership>("clubs");
+  const db = await getDb();
+  const rows = await db.collection("clubs").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+  return rows.map((row) => normalizeAssetPaths(row as unknown as ClubMembership) as ClubMembership);
 }
 
 export async function getContactSubmissions(): Promise<ContactSubmission[]> {
@@ -1268,7 +1274,8 @@ export async function saveCertifications(data: Certification[]): Promise<void> {
   const db = await getDb();
   await db.collection("certifications").deleteMany({});
   if (data.length) {
-    await db.collection("certifications").insertMany(data as unknown as Record<string, unknown>[]);
+    const withPosition = data.map((item, i) => ({ ...item, position: i }));
+    await db.collection("certifications").insertMany(withPosition as unknown as Record<string, unknown>[]);
   }
 }
 
@@ -1276,7 +1283,8 @@ export async function saveAwards(data: Award[]): Promise<void> {
   const db = await getDb();
   await db.collection("awards").deleteMany({});
   if (data.length) {
-    await db.collection("awards").insertMany(data as unknown as Record<string, unknown>[]);
+    const withPosition = data.map((item, i) => ({ ...item, position: i }));
+    await db.collection("awards").insertMany(withPosition as unknown as Record<string, unknown>[]);
   }
 }
 
@@ -1284,7 +1292,8 @@ export async function saveClubs(data: ClubMembership[]): Promise<void> {
   const db = await getDb();
   await db.collection("clubs").deleteMany({});
   if (data.length) {
-    await db.collection("clubs").insertMany(data as unknown as Record<string, unknown>[]);
+    const withPosition = data.map((item, i) => ({ ...item, position: i }));
+    await db.collection("clubs").insertMany(withPosition as unknown as Record<string, unknown>[]);
   }
 }
 

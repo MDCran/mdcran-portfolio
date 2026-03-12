@@ -8,6 +8,7 @@ import { getClientById, getProjectsByClientId, hydrateProjectVideos } from "@/li
 import { Youtube, Twitch, Instagram, Twitter, Github, Globe, Facebook, Music2, EyeOff, Link2 } from "lucide-react";
 import type { Platform } from "@/lib/types";
 import { buildSeoMetadata } from "@/lib/seo";
+import { imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 
 const platformConfig: Record<Platform, { icon: typeof Globe; color: string; label: string }> = {
   youtube: { icon: Youtube, color: "#ff0000", label: "YouTube" },
@@ -82,10 +83,11 @@ export default async function ClientPage({ params }: Props) {
       <div className="relative h-52 md:h-72 w-full mt-[var(--navbar-height)] overflow-hidden" style={{ background: 'linear-gradient(to bottom right, color-mix(in srgb, var(--theme-primary, #ef4242) 15%, transparent), var(--theme-bg, #0a0a0a))' }}>
         {client.bannerUrl && (
           <Image
-            src={client.bannerUrl}
+            src={imageAssetSrc(client.bannerUrl) ?? client.bannerUrl}
             alt={`${client.name} banner`}
             fill
             className="object-cover opacity-40"
+            unoptimized={shouldBypassImageOptimization(client.bannerUrl)}
           />
         )}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, var(--theme-bg, #0a0a0a), transparent, transparent)' }} />
@@ -104,7 +106,7 @@ export default async function ClientPage({ params }: Props) {
           <div className="relative shrink-0">
             {client.avatarUrl ? (
               <div className="relative w-32 h-32 rounded-sm overflow-hidden border-2" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)', boxShadow: '0 0 30px color-mix(in srgb, var(--theme-primary, #ef4242) 20%, transparent)' }}>
-                <Image src={client.avatarUrl} alt={client.name} fill className="object-cover" />
+                <Image src={imageAssetSrc(client.avatarUrl) ?? client.avatarUrl} alt={client.name} fill className="object-cover" unoptimized={shouldBypassImageOptimization(client.avatarUrl)} />
               </div>
             ) : (
               <div className="w-32 h-32 rounded-sm border-2 flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)', boxShadow: '0 0 30px color-mix(in srgb, var(--theme-primary, #ef4242) 20%, transparent)' }}>

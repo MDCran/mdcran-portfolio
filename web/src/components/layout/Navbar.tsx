@@ -48,6 +48,8 @@ const SEARCHABLE_PAGES: SearchablePage[] = [
   { title: "Terms of Service", href: "/terms", keywords: ["terms", "tos", "legal", "service"] },
   { title: "Privacy Policy", href: "/privacy", keywords: ["privacy", "policy", "data", "legal"] },
   { title: "Unsubscribe", href: "/unsubscribe", keywords: ["unsubscribe", "opt-out", "email", "sms", "notifications"] },
+  { title: "GitHub", href: "https://github.com/mdcran", keywords: ["github", "code", "repository", "source", "profile", "mdcran"] },
+  { title: "LinkedIn", href: "https://www.linkedin.com/in/mdcran/", keywords: ["linkedin", "professional", "network", "profile", "work", "mdcran"] },
 ];
 
 interface SearchResults {
@@ -307,6 +309,19 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
 
           {/* ── Actions ── */}
           <div className="flex items-center gap-1.5 sm:gap-2 z-10 shrink-0">
+            {/* LinkedIn */}
+            <a
+              href="https://www.linkedin.com/in/mdcran/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:flex w-9 h-9 items-center justify-center rounded-sm text-white/45 hover:text-white hover:bg-white/6 transition-all duration-200"
+              aria-label="LinkedIn @mdcran"
+              title="LinkedIn @mdcran"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+              </svg>
+            </a>
             {/* GitHub */}
             <a
               href="https://github.com/mdcran"
@@ -594,22 +609,28 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Pages
                             </div>
-                            {results.pages.map((page) => (
-                              <Link
-                                key={page.href}
-                                href={page.href}
-                                onClick={() => { setSearchOpen(false); setQuery(""); }}
-                                className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
-                              >
+                            {results.pages.map((page) => {
+                              const isExternal = page.href.startsWith("http");
+                              const linkProps = {
+                                key: page.href,
+                                href: page.href,
+                                onClick: () => { setSearchOpen(false); setQuery(""); },
+                                className: `flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`,
+                                ...(isExternal ? { target: "_blank" as const, rel: "noopener noreferrer" } : {}),
+                              };
+                              const Wrapper = isExternal ? "a" : Link;
+                              return (
+                              <Wrapper {...linkProps}>
                                 <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5 flex items-center justify-center">
                                   <div className="w-3 h-3 bg-[var(--cranberry)] rotate-45 opacity-40" />
                                 </div>
                                 <div className="min-w-0">
                                   <div className={`text-sm group-hover:text-[var(--cranberry)] transition-colors truncate ${isLight ? "text-black" : "text-white"}`}>{page.title}</div>
-                                  <div className={`text-xs mt-0.5 ${isLight ? "text-black/35" : "text-white/35"}`}>{page.href}</div>
+                                  <div className={`text-xs mt-0.5 ${isLight ? "text-black/35" : "text-white/35"}`}>{isExternal ? `/${page.title.toLowerCase()}` : page.href}</div>
                                 </div>
-                              </Link>
-                            ))}
+                              </Wrapper>
+                              );
+                            })}
                           </div>
                         )}
                       </>

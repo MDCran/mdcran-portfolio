@@ -53,6 +53,7 @@ export function imageAssetSrc(image?: string | ImageAsset | null): string | unde
 
 export function shouldBypassImageOptimization(src?: string | null): boolean {
   if (!src) return false;
+  if (src.startsWith("/cdn/") || src.startsWith("cdn/")) return true;
 
   try {
     return new URL(src).hostname === "cdn.mdcran.com";

@@ -4,7 +4,7 @@ import React, { useRef, useState } from "react";
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import Lightbox from "@/components/shared/Lightbox";
-import { imageAssetSrc, imageAssetAlt } from "@/lib/utils";
+import { imageAssetSrc, imageAssetAlt, shouldBypassImageOptimization } from "@/lib/utils";
 import { useTheme } from "@/lib/ThemeContext";
 import type { SiteContentAbout } from "@/lib/types";
 
@@ -92,7 +92,7 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(i); } }}
                   className={`relative aspect-[3/4] overflow-hidden rounded-sm border border-white/12 cursor-pointer ${isLight ? '' : 'bg-white/5'}`}
                 >
-                  <Image src={photo.src} alt={photo.alt} fill className="object-cover object-top" sizes="50vw" />
+                  <Image src={photo.src} alt={photo.alt} fill className="object-cover object-top" sizes="50vw" unoptimized={shouldBypassImageOptimization(photo.src)} />
                   {!isLight && <div className={`absolute inset-0 bg-gradient-to-b ${gradients[i % gradients.length]} z-10`} />}
                 </div>
               ))}
@@ -140,6 +140,7 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                       fill
                       className="object-cover object-top"
                       sizes="40vw"
+                      unoptimized={shouldBypassImageOptimization(photo.src)}
                     />
                   </div>
                 </motion.div>
