@@ -26,8 +26,7 @@ function humanize(id: string): string {
   if (LABEL_MAP[id]) return LABEL_MAP[id];
   return id
     .replace(/[-_]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .slice(0, 12);
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const VISIBLE_COUNT = 7;
