@@ -25,9 +25,15 @@ interface TimelineProps {
 }
 
 export default function Timeline({ experiences }: TimelineProps) {
+  const END_FUTURE = Date.now() + 999999999;
   const jobs = experiences
     .filter((e) => e.type === "job" || e.type === "volunteer")
-    .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
+    .sort((a, b) => {
+      const endA = a.current || !a.endDate ? END_FUTURE : parseDate(a.endDate);
+      const endB = b.current || !b.endDate ? END_FUTURE : parseDate(b.endDate);
+      if (endA !== endB) return endA - endB;
+      return parseDate(a.startDate) - parseDate(b.startDate);
+    });
 
   const ref = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -145,6 +151,7 @@ export default function Timeline({ experiences }: TimelineProps) {
                           endYear={endYear}
                           isCurrent={isCurrent}
                           isVolunteer={job.type === "volunteer"}
+                          tags={job.timelineTags}
                         />
                         {/* Connector line down to dot */}
                         <div className="flex justify-center">
@@ -194,6 +201,7 @@ export default function Timeline({ experiences }: TimelineProps) {
                           endYear={endYear}
                           isCurrent={isCurrent}
                           isVolunteer={job.type === "volunteer"}
+                          tags={job.timelineTags}
                         />
                       </>
                     )}
@@ -244,6 +252,19 @@ export default function Timeline({ experiences }: TimelineProps) {
   );
 }
 
+interface TimelineTag {
+  label: string;
+  color: "red" | "orange" | "green" | "blue" | "purple";
+}
+
+const TAG_COLORS: Record<TimelineTag["color"], string> = {
+  red: "border-[#ef4242]/30 bg-[#ef4242]/8 text-[#ef4242]",
+  orange: "border-orange-400/30 bg-orange-400/8 text-orange-400",
+  green: "border-emerald-400/30 bg-emerald-400/8 text-emerald-400",
+  blue: "border-sky-400/30 bg-sky-400/8 text-sky-400",
+  purple: "border-purple-400/30 bg-purple-400/8 text-purple-400",
+};
+
 function TimelineCard({
   role,
   company,
@@ -251,6 +272,7 @@ function TimelineCard({
   endYear,
   isCurrent,
   isVolunteer = false,
+  tags = [],
 }: {
   role: string;
   company: string;
@@ -258,6 +280,7 @@ function TimelineCard({
   endYear: string;
   isCurrent: boolean;
   isVolunteer?: boolean;
+  tags?: TimelineTag[];
 }) {
   return (
     <div className="rounded-sm border border-white/8 bg-white/[0.02] p-2.5 hover:border-[rgba(239,66,66,0.2)] hover:bg-white/[0.04] transition-all duration-200 group">
@@ -287,11 +310,23 @@ function TimelineCard({
       <p className="text-[10px] text-white/30 leading-snug truncate group-hover:text-white/45 transition-colors">
         {company}
       </p>
-      {/* Volunteer tag */}
-      {isVolunteer && (
-        <span className="inline-block text-[7px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-emerald-400/30 bg-emerald-400/8 text-emerald-400 mt-1.5">
-          Volunteer
-        </span>
+      {/* Tags */}
+      {(isVolunteer || tags.length > 0) && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {isVolunteer && (
+            <span className="inline-block text-[7px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-emerald-400/30 bg-emerald-400/8 text-emerald-400">
+              Volunteer
+            </span>
+          )}
+          {tags.map((tag) => (
+            <span
+              key={tag.label}
+              className={`inline-block text-[7px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${TAG_COLORS[tag.color]}`}
+            >
+              {tag.label}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );

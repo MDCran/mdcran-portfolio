@@ -1460,6 +1460,7 @@ export const experiences: Experience[] = [
     startDate: "2024-03",
     current: true,
     location: "Orlando, FL",
+    timelineTags: [{ label: "Startup", color: "red" }],
     description:
       "Founded and currently developing CoreTV — an all-in-one media and entertainment platform designed to unify content from vlogging, gaming, Hollywood, sports, influencers, and digital creators into a single seamless experience.",
     highlights: [
@@ -1521,6 +1522,7 @@ export const experiences: Experience[] = [
     startDate: "2022-01",
     endDate: "2022-12",
     location: "Boca Raton, FL (Remote)",
+    timelineTags: [{ label: "1Y Contract", color: "orange" }],
     description:
       "Contract QA tester for TubNet, a large-scale Minecraft server created by Tubbo supporting millions of users.",
     highlights: [

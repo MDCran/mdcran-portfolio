@@ -152,6 +152,7 @@ export interface Experience {
   highlights?: string[];
   clientIds?: string[];  // clients worked with during this role (logos shown under description)
   projectIds?: string[]; // projects created during this role
+  timelineTags?: { label: string; color: "red" | "orange" | "green" | "blue" | "purple" }[];
 }
 
 // ─── Skills ───────────────────────────────────────────────
