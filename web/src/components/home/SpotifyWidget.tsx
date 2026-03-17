@@ -1293,16 +1293,6 @@ export default function SpotifyWidget() {
 
   return (
     <>
-      <style jsx global>{`
-        @keyframes spotify-marquee {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-50%);
-          }
-        }
-      `}</style>
       {favoritesOverlay}
       <div className="relative h-full">
         {/* Floating music notes when playing */}

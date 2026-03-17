@@ -259,6 +259,18 @@ body::after {
   font-family: "JetBrains Mono", monospace !important;
 }
 
+/* ─── Spotify Marquee ────────────────────────────────────────────────────── */
+@keyframes spotify-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ─── Scrollbar Hide ────────────────────────────────────────────────────── */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
 /* ─── Surface / Glass ────────────────────────────────────────────────────── */
 @utility glass {
   background: rgba(255, 255, 255, 0.03);

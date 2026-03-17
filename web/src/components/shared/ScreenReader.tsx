@@ -351,7 +351,7 @@ export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, 
   const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
-  const popupTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const popupTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Right-click context menu for selected text (always active, not just when screen reader enabled)
   useEffect(() => {
