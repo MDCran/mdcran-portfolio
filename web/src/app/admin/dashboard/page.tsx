@@ -5786,17 +5786,24 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* ─── Featured Projects Order ─── */}
+              {/* ─── Featured Work Order (Projects + Articles unified) ─── */}
               {(() => {
                 const featuredProjects = projects.filter((p) => p.featured);
-                const savedIds = siteContent.featuredProjectIds.filter((id) => featuredProjects.some((p) => p.id === id));
-                const missingIds = featuredProjects.filter((p) => !savedIds.includes(p.id)).map((p) => p.id);
-                const orderedIds = [...savedIds, ...missingIds];
-                const ordered = orderedIds.map((id) => featuredProjects.find((p) => p.id === id)).filter(Boolean) as typeof featuredProjects;
+                const featuredArticles = articles.filter((a) => a.homeFeatured);
+                type WorkItem = { id: string; title: string; kind: "project" | "article"; label: string };
+                const allItems: WorkItem[] = [
+                  ...featuredProjects.map((p) => ({ id: p.id, title: p.title, kind: "project" as const, label: p.subcategory ?? p.category })),
+                  ...featuredArticles.map((a) => ({ id: a.id, title: a.title, kind: "article" as const, label: a.category })),
+                ];
+                const allItemMap = new Map(allItems.map((item) => [item.id, item]));
+                const savedOrder = (siteContent.featuredWorkOrder ?? []).filter((id: string) => allItemMap.has(id));
+                const unsorted = allItems.filter((item) => !savedOrder.includes(item.id)).map((item) => item.id);
+                const orderedIds = [...savedOrder, ...unsorted];
+                const ordered = orderedIds.map((id: string) => allItemMap.get(id)).filter(Boolean) as WorkItem[];
 
-                function moveFeaturedProject(from: number, to: number) {
+                function moveWork(from: number, to: number) {
                   const newIds = arrayMove(orderedIds, from, to);
-                  const next = { ...siteContent, featuredProjectIds: newIds };
+                  const next = { ...siteContent, featuredWorkOrder: newIds };
                   setSiteContent(next);
                   void fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
                 }
@@ -5804,25 +5811,32 @@ export default function AdminDashboard() {
                 return (
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                     <div>
-                      <p className="font-nord text-sm text-white">Featured Projects — Home Page Order</p>
-                      <p className="text-xs text-white/40 mt-1">Only featured projects are listed. Use arrows to set the display order — saves instantly.</p>
+                      <p className="font-nord text-sm text-white">Featured Work — Home Page Order</p>
+                      <p className="text-xs text-white/40 mt-1">Projects and articles shown in the Featured Work section on the home page. Reorder freely — saves instantly.</p>
                     </div>
                     {ordered.length === 0 ? (
-                      <p className="text-xs text-white/30 italic">No projects are marked as featured. Mark a project as "Featured" in the Projects tab first.</p>
+                      <p className="text-xs text-white/30 italic">No projects or articles are marked as featured. Mark items as featured in their respective tabs.</p>
                     ) : (
                       <div className="space-y-1">
-                        {ordered.map((p, i) => (
-                          <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
+                        {ordered.map((item, i) => (
+                          <div key={item.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
                             <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
-                            <span className="flex-1 text-xs text-white/80 truncate min-w-0">{p.title}</span>
-                            <span className="text-[10px] text-white/25 shrink-0">{p.subcategory ?? p.category}</span>
+                            <span className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border shrink-0 ${
+                              item.kind === "article"
+                                ? "border-sky-400/30 bg-sky-400/8 text-sky-400"
+                                : "border-[#ef4242]/30 bg-[#ef4242]/8 text-[#ef4242]"
+                            }`}>
+                              {item.kind === "article" ? "Article" : "Project"}
+                            </span>
+                            <span className="flex-1 text-xs text-white/80 truncate min-w-0">{item.title}</span>
+                            <span className="text-[10px] text-white/25 shrink-0">{item.label}</span>
                             <div className="flex gap-1 shrink-0">
                               <button type="button" disabled={i === 0}
                                 className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
-                                onClick={() => moveFeaturedProject(i, i - 1)}>↑</button>
+                                onClick={() => moveWork(i, i - 1)}>↑</button>
                               <button type="button" disabled={i === ordered.length - 1}
                                 className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
-                                onClick={() => moveFeaturedProject(i, i + 1)}>↓</button>
+                                onClick={() => moveWork(i, i + 1)}>↓</button>
                             </div>
                           </div>
                         ))}
@@ -5860,6 +5874,11 @@ export default function AdminDashboard() {
                         {ordered.map((c, i) => (
                           <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
                             <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                            {c.isEmployer && (
+                              <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400 shrink-0">
+                                Employer
+                              </span>
+                            )}
                             <span className="flex-1 text-xs text-white/80 truncate min-w-0">{c.name}</span>
                             <div className="flex gap-1 shrink-0">
                               <button type="button" disabled={i === 0}
@@ -5877,51 +5896,6 @@ export default function AdminDashboard() {
                 );
               })()}
 
-              {/* ─── Featured Articles Order ─── */}
-              {(() => {
-                const featuredArticles = articles.filter((a) => a.homeFeatured);
-                const savedIds = (siteContent.featuredArticleIds ?? []).filter((id: string) => featuredArticles.some((a) => a.id === id));
-                const missingIds = featuredArticles.filter((a) => !savedIds.includes(a.id)).map((a) => a.id);
-                const orderedIds = [...savedIds, ...missingIds];
-                const ordered = orderedIds.map((id: string) => featuredArticles.find((a) => a.id === id)).filter(Boolean) as typeof featuredArticles;
-
-                function moveFeaturedArticle(from: number, to: number) {
-                  const newIds = arrayMove(orderedIds, from, to);
-                  const next = { ...siteContent, featuredArticleIds: newIds };
-                  setSiteContent(next);
-                  void fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
-                }
-
-                return (
-                  <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
-                    <div>
-                      <p className="font-nord text-sm text-white">Featured Articles — Home Page Order</p>
-                      <p className="text-xs text-white/40 mt-1">Only featured articles are listed. Use arrows to set the display order — saves instantly.</p>
-                    </div>
-                    {ordered.length === 0 ? (
-                      <p className="text-xs text-white/30 italic">No articles are marked as featured for home. Toggle &quot;Featured on home page&quot; in the Articles tab.</p>
-                    ) : (
-                      <div className="space-y-1">
-                        {ordered.map((a, i) => (
-                          <div key={a.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
-                            <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
-                            <span className="flex-1 text-xs text-white/80 truncate min-w-0">{a.title}</span>
-                            <span className="text-[10px] text-white/25 shrink-0">{a.category}</span>
-                            <div className="flex gap-1 shrink-0">
-                              <button type="button" disabled={i === 0}
-                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
-                                onClick={() => moveFeaturedArticle(i, i - 1)}>↑</button>
-                              <button type="button" disabled={i === ordered.length - 1}
-                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
-                                onClick={() => moveFeaturedArticle(i, i + 1)}>↓</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
 
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Homepage Layout, Hero, and About</p>

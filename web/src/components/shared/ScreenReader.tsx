@@ -208,7 +208,10 @@ export function useScreenReader() {
   const [enabled, setEnabled] = useState(false);
   const [reading, setReading] = useState(false);
   const [volume, setVolume] = useState(0.75);
+  const volumeRef = useRef(0.75);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const currentTextRef = useRef("");
+  const charIndexRef = useRef(0);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   const getVoice = useCallback((): SpeechSynthesisVoice | null => {
@@ -244,13 +247,54 @@ export function useScreenReader() {
     }
   }, [enabled, stop]);
 
+  const restartAtVolume = useCallback((newVol: number) => {
+    if (typeof speechSynthesis === "undefined" || !utteranceRef.current) return;
+    const text = currentTextRef.current;
+    const charIdx = charIndexRef.current;
+    if (!text || charIdx >= text.length) return;
+
+    // Cancel current, restart from where we left off
+    speechSynthesis.cancel();
+    const remaining = text.slice(charIdx);
+    const utterance = new SpeechSynthesisUtterance(remaining);
+    const voice = getVoice();
+    if (voice) utterance.voice = voice;
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = newVol;
+    utterance.onstart = () => setReading(true);
+    utterance.onboundary = (e) => {
+      if (e.name === "word") charIndexRef.current = charIdx + e.charIndex;
+    };
+    utterance.onend = () => {
+      setReading(false);
+      clearHighlight();
+    };
+    utterance.onerror = () => {
+      setReading(false);
+      clearHighlight();
+    };
+    utteranceRef.current = utterance;
+    speechSynthesis.speak(utterance);
+  }, [getVoice, clearHighlight]);
+
   const volumeUp = useCallback(() => {
-    setVolume((v) => Math.min(1, Math.round((v + 0.1) * 10) / 10));
-  }, []);
+    setVolume((v) => {
+      const next = Math.min(1, Math.round((v + 0.1) * 10) / 10);
+      volumeRef.current = next;
+      if (reading) restartAtVolume(next);
+      return next;
+    });
+  }, [reading, restartAtVolume]);
 
   const volumeDown = useCallback(() => {
-    setVolume((v) => Math.max(0.1, Math.round((v - 0.1) * 10) / 10));
-  }, []);
+    setVolume((v) => {
+      const next = Math.max(0.1, Math.round((v - 0.1) * 10) / 10);
+      volumeRef.current = next;
+      if (reading) restartAtVolume(next);
+      return next;
+    });
+  }, [reading, restartAtVolume]);
 
   const wordSpansRef = useRef<HTMLSpanElement[]>([]);
   const activeWordRef = useRef<HTMLSpanElement | null>(null);
@@ -259,6 +303,8 @@ export function useScreenReader() {
     if (!text || typeof speechSynthesis === "undefined") return;
     speechSynthesis.cancel();
     clearHighlight();
+    currentTextRef.current = text;
+    charIndexRef.current = 0;
 
     // Highlight the selected range
     if (range) {
@@ -282,13 +328,14 @@ export function useScreenReader() {
     if (voice) utterance.voice = voice;
     utterance.rate = 1;
     utterance.pitch = 1;
-    utterance.volume = volume;
+    utterance.volume = volumeRef.current;
     utterance.onstart = () => setReading(true);
 
     // Word-by-word tracking via boundary events
     utterance.onboundary = (e) => {
       if (e.name !== "word") return;
       const charIdx = e.charIndex;
+      charIndexRef.current = charIdx;
 
       // Remove previous active
       if (activeWordRef.current) {

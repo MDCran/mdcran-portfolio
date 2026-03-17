@@ -122,12 +122,27 @@ function ArticleCard({ article, index = 0 }: { article: Article; index?: number 
 export default function FeaturedProjects({
   projects,
   articles = [],
+  workOrder = [],
   content,
 }: {
   projects: Project[];
   articles?: Article[];
+  workOrder?: string[];
   content?: SiteContentSectionIntro;
 }) {
+  // Build unified ordered list from workOrder, interleaving projects and articles
+  const projectMap = new Map(projects.map((p) => [p.id, p]));
+  const articleMap = new Map(articles.map((a) => [a.id, a]));
+  const allIds = workOrder.length > 0
+    ? workOrder
+    : [...projects.map((p) => p.id), ...articles.map((a) => a.id)];
+  const orderedItems: ({ type: "project"; item: Project } | { type: "article"; item: Article })[] = [];
+  for (const id of allIds) {
+    const proj = projectMap.get(id);
+    if (proj) { orderedItems.push({ type: "project", item: proj }); continue; }
+    const art = articleMap.get(id);
+    if (art) { orderedItems.push({ type: "article", item: art }); continue; }
+  }
   return (
     <section className="py-24 border-t border-white/6">
       <div className="content-container">
@@ -179,14 +194,15 @@ export default function FeaturedProjects({
           </motion.div>
         </div>
 
-        {/* Combined grid — projects first, then articles */}
+        {/* Combined grid — unified order from admin */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project, i) => (
-            <ProjectCard key={project.id} project={project} index={i} />
-          ))}
-          {articles.map((article, i) => (
-            <ArticleCard key={article.id} article={article} index={projects.length + i} />
-          ))}
+          {orderedItems.map((entry, i) =>
+            entry.type === "project" ? (
+              <ProjectCard key={entry.item.id} project={entry.item} index={i} />
+            ) : (
+              <ArticleCard key={entry.item.id} article={entry.item} index={i} />
+            )
+          )}
         </div>
       </div>
     </section>

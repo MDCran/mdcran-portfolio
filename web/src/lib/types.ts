@@ -628,6 +628,7 @@ export interface SiteContent {
   homeSectionOrder: string[];
   featuredProjectIds: string[];   // ordered list of project IDs shown on home page
   featuredArticleIds: string[];   // ordered list of article IDs shown on home page
+  featuredWorkOrder: string[];    // unified order of project + article IDs for featured work section
   featuredClientIds: string[];    // ordered list of client IDs shown on home page
   homeHero: SiteContentHero;
   homeAbout: SiteContentAbout;
