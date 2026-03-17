@@ -198,9 +198,6 @@ export default function Timeline({ experiences }: TimelineProps) {
         </div>
       </div>
 
-      <style jsx>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-      `}</style>
     </section>
   );
 }
