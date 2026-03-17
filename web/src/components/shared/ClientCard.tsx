@@ -69,19 +69,12 @@ export default function ClientCard({ client, index = 0, className, projectCount 
               </Link>
             )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <Link
-                  href={clientHref}
-                  className="block font-nord text-sm tracking-wide text-white truncate group-hover:text-[#ef4242] transition-colors duration-200"
-                >
-                  {client.name}
-                </Link>
-                {client.isEmployer && (
-                  <span className="shrink-0 text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400">
-                    Employer
-                  </span>
-                )}
-              </div>
+              <Link
+                href={clientHref}
+                className="block font-nord text-sm tracking-wide text-white truncate group-hover:text-[#ef4242] transition-colors duration-200"
+              >
+                {client.name}
+              </Link>
               <p className="text-[11px] text-white/40 truncate mt-0.5">{client.roles[0]}</p>
             </div>
             <Link
