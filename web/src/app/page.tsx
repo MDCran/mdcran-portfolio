@@ -12,7 +12,8 @@ import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import MercuryPrompt from "@/components/home/MercuryPrompt";
 import VisitorMap from "@/components/home/VisitorMap";
-import { getClients, getProjects, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
+import Timeline from "@/components/home/Timeline";
+import { getArticles, getClients, getExperiences, getProjects, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
 import {
   PERSON_ALIASES,
   PERSON_FULL_NAME,
@@ -40,19 +41,30 @@ export const metadata: Metadata = buildSeoMetadata({
 });
 
 export default async function HomePage() {
-  const [allProjects, allClients, siteContent, visitorCountries] = await Promise.all([
+  const [allProjects, allClients, allArticles, siteContent, visitorCountries, experiences] = await Promise.all([
     getProjects(),
     getClients(),
+    getArticles(),
     getSiteContent(),
     getVisitorCountsByCountry().catch(() => []),
+    getExperiences().catch(() => []),
   ]);
 
-  // Use admin-ordered lists if configured, otherwise fall back to featured flag
-  const featuredProjects = siteContent.featuredProjectIds.length
-    ? siteContent.featuredProjectIds
-        .map((id) => allProjects.find((p) => p.id === id))
-        .filter((p): p is typeof allProjects[number] => !!p && !!p.featured)
-    : allProjects.filter((p) => p.featured);
+  // Admin-ordered IDs first (must still be marked featured), then any other featured projects
+  const orderedFeatured = siteContent.featuredProjectIds
+    .map((id) => allProjects.find((p) => p.id === id))
+    .filter((p): p is typeof allProjects[number] => !!p && !!p.featured);
+  const orderedIds = new Set(orderedFeatured.map((p) => p.id));
+  const additionalFeatured = allProjects.filter((p) => p.featured && !orderedIds.has(p.id));
+  const featuredProjects = [...orderedFeatured, ...additionalFeatured];
+
+  // Featured articles for home — uses homeFeatured flag (separate from articles page featured)
+  const orderedFeaturedArticles = siteContent.featuredArticleIds
+    .map((id) => allArticles.find((a) => a.id === id))
+    .filter((a): a is typeof allArticles[number] => !!a && !!a.homeFeatured);
+  const orderedArticleIds = new Set(orderedFeaturedArticles.map((a) => a.id));
+  const additionalFeaturedArticles = allArticles.filter((a) => a.homeFeatured && !orderedArticleIds.has(a.id));
+  const featuredArticles = [...orderedFeaturedArticles, ...additionalFeaturedArticles];
 
   const featuredClients = siteContent.featuredClientIds.length
     ? siteContent.featuredClientIds.map((id) => allClients.find((c) => c.id === id)).filter(Boolean) as typeof allClients
@@ -105,6 +117,11 @@ export default async function HomePage() {
         <PhotoReel content={siteContent.homeAbout} />
       </div>
     ),
+    timeline: (
+      <div style={{ contentVisibility: "auto", containIntrinsicSize: "400px" }}>
+        <Timeline experiences={experiences} />
+      </div>
+    ),
     services: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
         <Services content={siteContent.homeServices} />
@@ -112,12 +129,19 @@ export default async function HomePage() {
     ),
     featured: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
-        <FeaturedProjects projects={featuredProjects} content={siteContent.homeFeaturedWork} />
+        <FeaturedProjects projects={featuredProjects} articles={featuredArticles} content={siteContent.homeFeaturedWork} />
       </div>
     ),
     clients: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
         <Clients clients={featuredClients} projects={allProjects} content={siteContent.homeClients} />
+        <div className="content-container py-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 h-px bg-white/8" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[var(--cranberry)]" />
+            <div className="flex-1 h-px bg-white/8" />
+          </div>
+        </div>
       </div>
     ),
     "visitor-map": (

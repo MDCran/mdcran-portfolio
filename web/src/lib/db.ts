@@ -109,19 +109,30 @@ export async function getSiteContent(): Promise<SiteContent> {
       const order = content?.homeSectionOrder?.length
         ? content.homeSectionOrder
         : defaultSiteContent.homeSectionOrder;
-      // Ensure visitor-map is present (may be missing from older saved configs)
-      if (!order.includes("visitor-map")) {
-        const ctaIdx = order.indexOf("cta");
-        if (ctaIdx >= 0) {
-          const copy = [...order];
-          copy.splice(ctaIdx, 0, "visitor-map");
-          return copy;
+      let result = [...order];
+      // Ensure timeline is present (may be missing from older saved configs)
+      if (!result.includes("timeline")) {
+        const servicesIdx = result.indexOf("services");
+        if (servicesIdx >= 0) {
+          result.splice(servicesIdx, 0, "timeline");
+        } else {
+          const aboutIdx = result.indexOf("about");
+          result.splice(aboutIdx >= 0 ? aboutIdx + 1 : result.length, 0, "timeline");
         }
-        return [...order, "visitor-map"];
       }
-      return order;
+      // Ensure visitor-map is present (may be missing from older saved configs)
+      if (!result.includes("visitor-map")) {
+        const ctaIdx = result.indexOf("cta");
+        if (ctaIdx >= 0) {
+          result.splice(ctaIdx, 0, "visitor-map");
+        } else {
+          result.push("visitor-map");
+        }
+      }
+      return result;
     })(),
     featuredProjectIds: content?.featuredProjectIds ?? defaultSiteContent.featuredProjectIds,
+    featuredArticleIds: content?.featuredArticleIds ?? defaultSiteContent.featuredArticleIds,
     featuredClientIds: content?.featuredClientIds ?? defaultSiteContent.featuredClientIds,
     homeHero: {
       ...defaultSiteContent.homeHero,
@@ -203,6 +214,7 @@ export async function getSiteContent(): Promise<SiteContent> {
         ? content.privacyPage.sections
         : defaultSiteContent.privacyPage.sections,
     },
+    rizzTargetName: content?.rizzTargetName ?? defaultSiteContent.rizzTargetName,
   };
 }
 
@@ -212,6 +224,7 @@ export async function saveSiteContent(content: SiteContent): Promise<void> {
     ...content,
     id: defaultSiteContent.id,
     featuredProjectIds: Array.isArray(content.featuredProjectIds) ? content.featuredProjectIds : [],
+    featuredArticleIds: Array.isArray(content.featuredArticleIds) ? content.featuredArticleIds : [],
     featuredClientIds: Array.isArray(content.featuredClientIds) ? content.featuredClientIds : [],
     homeFeaturedWork: {
       eyebrow: content.homeFeaturedWork.eyebrow,

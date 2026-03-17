@@ -947,6 +947,8 @@ function ProjectModal({
     | { kind: "gallery"; index: number }
     | { kind: "section-image"; sectionIndex: number }
     | { kind: "section-gallery"; sectionIndex: number; imageIndex: number }
+    | { kind: "section-before"; sectionIndex: number }
+    | { kind: "section-after"; sectionIndex: number }
   >(null);
 
   function validate() {
@@ -1016,6 +1018,7 @@ function ProjectModal({
       steps: { type: "steps", items: [], caption: "" },
       "store-checklist": { type: "store-checklist", items: [], caption: "" },
       "info-block": { type: "info-block", content: "", caption: "" },
+      "before-after": { type: "before-after", beforeImage: { src: "", alt: "" }, afterImage: { src: "", alt: "" }, caption: "" },
     };
     setSections((prev) => [...prev, { ...defaults[type] }]);
   }
@@ -1086,6 +1089,14 @@ function ProjectModal({
       updateSection(imagePickerTarget.sectionIndex, { src: url });
     } else if (imagePickerTarget.kind === "section-gallery") {
       updateSectionGalleryImage(imagePickerTarget.sectionIndex, imagePickerTarget.imageIndex, { src: url });
+    } else if (imagePickerTarget.kind === "section-before") {
+      const sec = sections[imagePickerTarget.sectionIndex];
+      const existing = typeof sec?.beforeImage === "object" ? sec.beforeImage : {};
+      updateSection(imagePickerTarget.sectionIndex, { beforeImage: { ...existing, src: url } as ImageAsset });
+    } else if (imagePickerTarget.kind === "section-after") {
+      const sec = sections[imagePickerTarget.sectionIndex];
+      const existing = typeof sec?.afterImage === "object" ? sec.afterImage : {};
+      updateSection(imagePickerTarget.sectionIndex, { afterImage: { ...existing, src: url } as ImageAsset });
     }
 
     setImagePickerTarget(null);
@@ -1491,11 +1502,32 @@ function ProjectModal({
                 {sec.type === "divider" && (
                   <p className="text-[11px] text-white/25 italic">Simple horizontal divider</p>
                 )}
+                {sec.type === "before-after" && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest">Before Image</p>
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input className={inputCls} value={typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.src ?? "" : sec.beforeImage ?? ""} onChange={(e) => updateSection(idx, { beforeImage: { src: e.target.value, alt: typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.alt ?? "" : "" } })} placeholder="Before image URL" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-before", sectionIndex: idx })}>
+                        Select Image
+                      </button>
+                    </div>
+                    <input className={inputCls} value={typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.alt ?? "" : ""} onChange={(e) => updateSection(idx, { beforeImage: { src: typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.src ?? "" : sec.beforeImage ?? "", alt: e.target.value } })} placeholder="Before alt text" />
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest mt-2">After Image</p>
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input className={inputCls} value={typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.src ?? "" : sec.afterImage ?? ""} onChange={(e) => updateSection(idx, { afterImage: { src: e.target.value, alt: typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.alt ?? "" : "" } })} placeholder="After image URL" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-after", sectionIndex: idx })}>
+                        Select Image
+                      </button>
+                    </div>
+                    <input className={inputCls} value={typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.alt ?? "" : ""} onChange={(e) => updateSection(idx, { afterImage: { src: typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.src ?? "" : sec.afterImage ?? "", alt: e.target.value } })} placeholder="After alt text" />
+                    <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["text", "image", "gallery", "video", "quote", "code", "divider"] as ArticleSection["type"][]).map((t) => (
+            {(["text", "image", "gallery", "video", "quote", "code", "divider", "before-after"] as ArticleSection["type"][]).map((t) => (
               <button key={t} type="button" onClick={() => addSection(t)} className={btnOutline}>+ {t}</button>
             ))}
           </div>
@@ -1552,6 +1584,7 @@ function ArticleModal({
   const [category, setCategory] = useState<ArticleCategory>(initial?.category ?? "tech");
   const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
   const [featured, setFeatured] = useState(initial?.featured ?? false);
+  const [homeFeatured, setHomeFeatured] = useState(initial?.homeFeatured ?? false);
   const [coverImage, setCoverImage] = useState<ImageAsset>(() => toEditableImageAsset(initial?.coverImage));
   const [sections, setSections] = useState<ArticleSection[]>(
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
@@ -1562,6 +1595,8 @@ function ArticleModal({
     | { kind: "cover" }
     | { kind: "section-image"; sectionIndex: number }
     | { kind: "section-gallery"; sectionIndex: number; imageIndex: number }
+    | { kind: "section-before"; sectionIndex: number }
+    | { kind: "section-after"; sectionIndex: number }
   >(null);
 
   function applySelectedImage(url: string) {
@@ -1572,6 +1607,14 @@ function ArticleModal({
       updateSection(imagePickerTarget.sectionIndex, { src: url });
     } else if (imagePickerTarget.kind === "section-gallery") {
       updateSectionGalleryImage(imagePickerTarget.sectionIndex, imagePickerTarget.imageIndex, { src: url });
+    } else if (imagePickerTarget.kind === "section-before") {
+      const sec = sections[imagePickerTarget.sectionIndex];
+      const existing = typeof sec?.beforeImage === "object" ? sec.beforeImage : {};
+      updateSection(imagePickerTarget.sectionIndex, { beforeImage: { ...existing, src: url } as ImageAsset });
+    } else if (imagePickerTarget.kind === "section-after") {
+      const sec = sections[imagePickerTarget.sectionIndex];
+      const existing = typeof sec?.afterImage === "object" ? sec.afterImage : {};
+      updateSection(imagePickerTarget.sectionIndex, { afterImage: { ...existing, src: url } as ImageAsset });
     }
     setImagePickerTarget(null);
   }
@@ -1603,6 +1646,7 @@ function ArticleModal({
       category,
       sections: cleanedSections,
       featured,
+      homeFeatured,
       tapCount: initial?.tapCount,
       authorProfilePic: initial?.authorProfilePic,
     };
@@ -1623,6 +1667,7 @@ function ArticleModal({
       steps: { type: "steps", items: [], caption: "" },
       "store-checklist": { type: "store-checklist", items: [], caption: "" },
       "info-block": { type: "info-block", content: "", caption: "" },
+      "before-after": { type: "before-after", beforeImage: { src: "", alt: "" }, afterImage: { src: "", alt: "" }, caption: "" },
     };
     setSections((prev) => [...prev, { ...defaults[type] }]);
   }
@@ -1747,7 +1792,10 @@ function ArticleModal({
 
         <div className="flex items-center gap-2">
           <input id="art-featured" type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="accent-[#ef4242]" />
-          <label htmlFor="art-featured" className="text-xs text-white/60 select-none">Featured article</label>
+          <label htmlFor="art-featured" className="text-xs text-white/60 select-none">Featured on articles page</label>
+          <span className="mx-2" />
+          <input id="art-home-featured" type="checkbox" checked={homeFeatured} onChange={(e) => setHomeFeatured(e.target.checked)} className="accent-[#ef4242]" />
+          <label htmlFor="art-home-featured" className="text-xs text-white/60 select-none">Featured on home page</label>
         </div>
 
         {/* Sections */}
@@ -1884,11 +1932,32 @@ function ArticleModal({
                 {sec.type === "divider" && (
                   <p className="text-[11px] text-white/25 italic">— horizontal divider —</p>
                 )}
+                {sec.type === "before-after" && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest">Before Image</p>
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input className={inputCls} value={typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.src ?? "" : sec.beforeImage ?? ""} onChange={(e) => updateSection(idx, { beforeImage: { src: e.target.value, alt: typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.alt ?? "" : "" } })} placeholder="Before image URL" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-before", sectionIndex: idx })}>
+                        Select Image
+                      </button>
+                    </div>
+                    <input className={inputCls} value={typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.alt ?? "" : ""} onChange={(e) => updateSection(idx, { beforeImage: { src: typeof sec.beforeImage === "object" ? (sec.beforeImage as ImageAsset)?.src ?? "" : sec.beforeImage ?? "", alt: e.target.value } })} placeholder="Before alt text" />
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest mt-2">After Image</p>
+                    <div className="grid grid-cols-[1.6fr_auto] gap-2">
+                      <input className={inputCls} value={typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.src ?? "" : sec.afterImage ?? ""} onChange={(e) => updateSection(idx, { afterImage: { src: e.target.value, alt: typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.alt ?? "" : "" } })} placeholder="After image URL" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-after", sectionIndex: idx })}>
+                        Select Image
+                      </button>
+                    </div>
+                    <input className={inputCls} value={typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.alt ?? "" : ""} onChange={(e) => updateSection(idx, { afterImage: { src: typeof sec.afterImage === "object" ? (sec.afterImage as ImageAsset)?.src ?? "" : sec.afterImage ?? "", alt: e.target.value } })} placeholder="After alt text" />
+                    <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["text", "image", "gallery", "video", "quote", "code", "divider", "checklist", "ingredient-list", "steps", "store-checklist", "info-block"] as ArticleSection["type"][]).map((t) => (
+            {(["text", "image", "gallery", "video", "quote", "code", "divider", "checklist", "ingredient-list", "steps", "store-checklist", "info-block", "before-after"] as ArticleSection["type"][]).map((t) => (
               <button key={t} onClick={() => addSection(t)} className={btnOutline}>+ {t}</button>
             ))}
           </div>
@@ -1936,6 +2005,7 @@ function ClientModal({
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const [roles, setRoles] = useState((initial?.roles ?? []).join(", "));
   const [featured, setFeatured] = useState(initial?.featured ?? false);
+  const [isEmployer, setIsEmployer] = useState(initial?.isEmployer ?? false);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(initial?.socialLinks ?? []);
   const [quoteText, setQuoteText] = useState(initial?.quote?.text ?? "");
   const [quoteContext, setQuoteContext] = useState(initial?.quote?.context ?? "");
@@ -1965,6 +2035,7 @@ function ClientModal({
       avatarUrl: avatarUrl.trim() || undefined,
       roles: roles.split(",").map((r) => r.trim()).filter(Boolean),
       featured,
+      isEmployer,
       followerCount: initial?.followerCount,
       viewCount: initial?.viewCount,
       socialLinks: socialLinks.filter((s) => s.url.trim()),
@@ -2036,9 +2107,15 @@ function ClientModal({
           <input className={inputCls} value={roles} onChange={(e) => setRoles(e.target.value)} placeholder="YouTuber, Content Creator (comma-separated)" />
         </Field>
 
-        <div className="flex items-center gap-2">
-          <input id="cli-featured" type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="accent-[#ef4242]" />
-          <label htmlFor="cli-featured" className="text-xs text-white/60 select-none">Featured client</label>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input id="cli-featured" type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="accent-[#ef4242]" />
+            <label htmlFor="cli-featured" className="text-xs text-white/60 select-none">Featured client</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="cli-employer" type="checkbox" checked={isEmployer} onChange={(e) => setIsEmployer(e.target.checked)} className="accent-sky-400" />
+            <label htmlFor="cli-employer" className="text-xs text-white/60 select-none">Employer</label>
+          </div>
         </div>
         <p className="text-[11px] text-white/25">
           Followers update from linked social platforms. Video views are derived from videos attached to the client&apos;s linked projects.
@@ -5800,6 +5877,52 @@ export default function AdminDashboard() {
                 );
               })()}
 
+              {/* ─── Featured Articles Order ─── */}
+              {(() => {
+                const featuredArticles = articles.filter((a) => a.featured);
+                const savedIds = (siteContent.featuredArticleIds ?? []).filter((id: string) => featuredArticles.some((a) => a.id === id));
+                const missingIds = featuredArticles.filter((a) => !savedIds.includes(a.id)).map((a) => a.id);
+                const orderedIds = [...savedIds, ...missingIds];
+                const ordered = orderedIds.map((id: string) => featuredArticles.find((a) => a.id === id)).filter(Boolean) as typeof featuredArticles;
+
+                function moveFeaturedArticle(from: number, to: number) {
+                  const newIds = arrayMove(orderedIds, from, to);
+                  const next = { ...siteContent, featuredArticleIds: newIds };
+                  setSiteContent(next);
+                  void fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                }
+
+                return (
+                  <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                    <div>
+                      <p className="font-nord text-sm text-white">Featured Articles — Home Page Order</p>
+                      <p className="text-xs text-white/40 mt-1">Only featured articles are listed. Use arrows to set the display order — saves instantly.</p>
+                    </div>
+                    {ordered.length === 0 ? (
+                      <p className="text-xs text-white/30 italic">No articles are marked as featured. Mark an article as "Featured" in the Articles tab first.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {ordered.map((a, i) => (
+                          <div key={a.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
+                            <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                            <span className="flex-1 text-xs text-white/80 truncate min-w-0">{a.title}</span>
+                            <span className="text-[10px] text-white/25 shrink-0">{a.category}</span>
+                            <div className="flex gap-1 shrink-0">
+                              <button type="button" disabled={i === 0}
+                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
+                                onClick={() => moveFeaturedArticle(i, i - 1)}>↑</button>
+                              <button type="button" disabled={i === ordered.length - 1}
+                                className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
+                                onClick={() => moveFeaturedArticle(i, i + 1)}>↓</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Homepage Layout, Hero, and About</p>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -6421,6 +6544,38 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "rizz" && (
             <div className="space-y-4">
+              {/* Rizz personalization name */}
+              <div className="flex items-end gap-3 border border-white/8 rounded-sm p-4 bg-white/2">
+                <div className="flex-1 max-w-xs">
+                  <label className="block text-[10px] tracking-widest uppercase text-white/40 mb-1.5">Personalize Name</label>
+                  <input
+                    className={inputCls}
+                    placeholder="Enter a name to personalize /rizz..."
+                    value={siteContent.rizzTargetName ?? ""}
+                    onChange={(e) => setSiteContent((prev) => ({ ...prev, rizzTargetName: e.target.value }))}
+                  />
+                </div>
+                <button
+                  className={btnOutline}
+                  onClick={() => setSiteContent((prev) => ({ ...prev, rizzTargetName: "" }))}
+                >
+                  Clear
+                </button>
+                <button
+                  className={btnRed}
+                  onClick={async () => {
+                    await fetch("/api/admin/site-content", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(siteContent),
+                    });
+                  }}
+                >
+                  Save
+                </button>
+                <span className="text-[10px] text-white/25">Sets the name on /rizz page title</span>
+              </div>
+
               <div className="flex gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}

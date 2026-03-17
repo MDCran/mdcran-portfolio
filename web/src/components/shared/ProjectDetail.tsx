@@ -24,8 +24,10 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Lightbox from "@/components/shared/Lightbox";
+import BeforeAfterSlider from "@/components/shared/BeforeAfterSlider";
 import type { ArticleSection, Client, Project } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
+import SmartImage from "@/components/shared/SmartImage";
 
 interface ProjectDetailProps {
   project: Project;
@@ -152,12 +154,13 @@ export default function ProjectDetail({
             {project.sections && project.sections.length > 0 && (
               <section className="space-y-1">
                 {project.sections.map((section, i) => (
-                  <ProjectSection
-                    key={i}
-                    section={section}
-                    imageOffset={sectionImageBase + sectionImageOffsets[i]}
-                    onImageClick={setLightboxIndex}
-                  />
+                  <div key={i} className={section.type === "image" || section.type === "before-after" ? "inline" : "block"}>
+                    <ProjectSection
+                      section={section}
+                      imageOffset={sectionImageBase + sectionImageOffsets[i]}
+                      onImageClick={setLightboxIndex}
+                    />
+                  </div>
                 ))}
               </section>
             )}
@@ -811,26 +814,12 @@ function ProjectSection({
       );
     case "image":
       return section.src ? (
-        <figure className="my-8">
-          <div
-            className="relative rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
-            onClick={() => onImageClick(imageOffset)}
-          >
-            <div className="relative w-full aspect-video">
-              <Image
-                src={section.src}
-                alt={section.alt ?? ""}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-500"
-                sizes="(max-width: 768px) 100vw, 672px"
-                unoptimized={shouldBypassImageOptimization(section.src)}
-              />
-            </div>
-          </div>
-          {section.caption && (
-            <figcaption className="text-[10px] text-white/30 text-center mt-2">{section.caption}</figcaption>
-          )}
-        </figure>
+        <SmartImage
+          src={section.src}
+          alt={section.alt ?? ""}
+          caption={section.caption}
+          onClick={() => onImageClick(imageOffset)}
+        />
       ) : null;
     case "gallery":
       return (
@@ -886,6 +875,20 @@ function ProjectSection({
           <code className="text-xs text-emerald-400 leading-relaxed">{section.content}</code>
         </pre>
       );
+    case "before-after": {
+      const bSrc = imageAssetSrc(section.beforeImage);
+      const aSrc = imageAssetSrc(section.afterImage);
+      if (!bSrc || !aSrc) return null;
+      return (
+        <BeforeAfterSlider
+          beforeSrc={bSrc}
+          afterSrc={aSrc}
+          beforeAlt={typeof section.beforeImage === "object" && section.beforeImage?.alt ? section.beforeImage.alt : "Before"}
+          afterAlt={typeof section.afterImage === "object" && section.afterImage?.alt ? section.afterImage.alt : "After"}
+          caption={section.caption}
+        />
+      );
+    }
     case "divider":
       return (
         <div className="my-10 flex items-center gap-4">

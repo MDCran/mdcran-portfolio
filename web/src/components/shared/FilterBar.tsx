@@ -239,7 +239,7 @@ export default function FilterBar({
         {/* Grid column selector */}
         {cols !== undefined && onColsChange && (
           <div
-            className="hidden sm:flex h-10 w-fit items-center gap-1 px-1.5 rounded-sm border border-white/8 bg-white/2 select-none"
+            className="hidden lg:flex h-10 w-fit items-center gap-1 px-1.5 rounded-sm border border-white/8 bg-white/2 select-none"
             onPointerDown={handleGridPointerDown}
             onPointerMove={handleGridPointerMove}
             onPointerUp={() => setDraggingGrid(false)}

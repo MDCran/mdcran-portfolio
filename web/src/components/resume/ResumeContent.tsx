@@ -16,6 +16,7 @@ import {
   Github,
   Linkedin,
   Star,
+  Sparkles,
 } from "lucide-react";
 
 
@@ -23,7 +24,7 @@ const skillCategoryMeta: Record<string, { label: string; icon: typeof Code2 }> =
   technology: { label: "Technology", icon: Code2 },
   creative: { label: "Creative", icon: Palette },
   language: { label: "Languages", icon: Globe },
-  ai: { label: "AI", icon: Code2 },
+  ai: { label: "AI", icon: Sparkles },
   other: { label: "Other", icon: Users },
 };
 

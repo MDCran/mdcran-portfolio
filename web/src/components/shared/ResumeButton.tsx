@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileText, Mail, Palette, Star, TerminalSquare } from "lucide-react";
+import { FileText, Mail, Palette, Star, TerminalSquare, Volume2, VolumeX } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
+import ScreenReaderPopups, { useScreenReader } from "@/components/shared/ScreenReader";
 
 export default function ResumeButton() {
   const pathname = usePathname();
   const { themeInfo } = useTheme();
+  const screenReader = useScreenReader();
+
   if (pathname.startsWith("/admin") || pathname.startsWith("/rizz")) return null;
 
-  const showResume = pathname !== "/resume";
-  const showContact = pathname !== "/contact";
+  const showResume = true;
+  const showContact = true;
   const showTerminal = !pathname.startsWith("/terminal");
   const isLight = themeInfo.id === "light";
 
@@ -88,19 +91,57 @@ export default function ResumeButton() {
         </div>
       )}
 
-      {/* Theme toggle */}
-      <button
-        type="button"
-        onClick={() => window.dispatchEvent(new Event("mdcran:toggle-theme"))}
-        className={`${btnBase} ${btnTheme} w-10 md:w-full cursor-pointer`}
-        aria-label="Change theme"
-      >
-        <Palette size={14} className="md:hidden" style={{ color: themeInfo.primary }} />
-        <span className="hidden md:flex items-center gap-2">
+      {/* Theme + Screen Reader row */}
+      <div className="flex flex-row gap-3 items-center">
+        {/* Screen reader toggle — desktop only */}
+        <div className="group relative hidden md:block">
+          <button
+            type="button"
+            onClick={screenReader.toggle}
+            className={`${iconOnlyClassName} ${
+              screenReader.enabled
+                ? isLight
+                  ? "border-[var(--cranberry)]/50 shadow-[0_4px_24px_rgba(217,54,54,0.12)]"
+                  : "border-[var(--cranberry)]/50 shadow-[0_4px_24px_rgba(239,66,66,0.15)]"
+                : isLight
+                  ? "hover:border-black/25 hover:shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
+                  : "hover:border-white/30 hover:shadow-[0_4px_24px_rgba(255,255,255,0.08)]"
+            }`}
+            aria-label={screenReader.enabled ? "Disable screen reader" : "Enable screen reader"}
+          >
+            {screenReader.enabled ? (
+              <Volume2 size={14} className="text-[var(--cranberry)]" />
+            ) : (
+              <VolumeX size={14} className={isLight ? "text-black/50" : "text-white/50"} />
+            )}
+          </button>
+          <span className={tooltipClassName}>
+            {screenReader.enabled ? "Reader On" : "Screen Reader"}
+          </span>
+        </div>
+
+        {/* Theme button */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("mdcran:toggle-theme"))}
+          className={`${buttonClassName} cursor-pointer`}
+          aria-label="Change theme"
+        >
           <Palette size={12} style={{ color: themeInfo.primary }} />
-          Theme: {themeInfo.shortName}
-        </span>
-      </button>
+          <span className="hidden md:inline">Theme</span>
+        </button>
+      </div>
+
+      {/* Screen reader floating popups */}
+      <ScreenReaderPopups
+        enabled={screenReader.enabled}
+        reading={screenReader.reading}
+        volume={screenReader.volume}
+        onSpeak={screenReader.speak}
+        onStop={screenReader.stop}
+        onVolumeUp={screenReader.volumeUp}
+        onVolumeDown={screenReader.volumeDown}
+      />
     </motion.div>
   );
 }

@@ -438,7 +438,7 @@ export default function SpotifyWidget() {
   const lastHeard = !data?.isPlaying ? formatLastHeard(data?.playedAt, nowMs) : "";
   const historyTracks = data?.history ?? [];
   const isClickable = Boolean(data?.songUrl);
-  const cardClassName = `relative overflow-hidden rounded-sm px-4 pb-4 pt-4 backdrop-blur-xl group transition-all duration-300 ${
+  const cardClassName = `relative overflow-hidden rounded-sm px-4 pb-4 pt-4 backdrop-blur-xl group transition-all duration-300 h-full ${
     isClickable ? "cursor-pointer" : ""
   }`;
   const cardStyle: CSSProperties = {
@@ -1304,28 +1304,63 @@ export default function SpotifyWidget() {
         }
       `}</style>
       {favoritesOverlay}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className={cardClassName}
-        style={cardStyle}
-        role={isClickable ? "link" : undefined}
-        tabIndex={isClickable ? 0 : undefined}
-        onClick={isClickable ? openCurrentTrack : undefined}
-        onKeyDown={
-          isClickable
-            ? (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  openCurrentTrack();
+      <div className="relative h-full">
+        {/* Floating music notes when playing */}
+        {data?.isPlaying && (
+          <div className="pointer-events-none absolute inset-0 overflow-visible z-20" aria-hidden>
+            {[
+              { note: "\u266A", x: "-8px", delay: 0, dur: 2.8, dx: -18, size: 14 },
+              { note: "\u266B", x: "15%", delay: 1.2, dur: 3.2, dx: -12, size: 12 },
+              { note: "\u266A", x: "65%", delay: 0.6, dur: 2.6, dx: 14, size: 13 },
+              { note: "\u266B", x: "85%", delay: 2.0, dur: 3.0, dx: 20, size: 11 },
+              { note: "\u266A", x: "40%", delay: 1.8, dur: 3.4, dx: -8, size: 10 },
+              { note: "\u266B", x: "calc(100% + 4px)", delay: 0.4, dur: 2.9, dx: 16, size: 12 },
+            ].map((n, i) => (
+              <motion.span
+                key={`note-${i}`}
+                className="absolute bottom-0 text-[#1db954]"
+                style={{ left: n.x, fontSize: `${n.size}px` }}
+                animate={{
+                  y: [0, -60, -120],
+                  x: [0, n.dx, n.dx * 1.4],
+                  opacity: [0, 0.7, 0],
+                  rotate: [0, n.dx > 0 ? 20 : -20, n.dx > 0 ? 35 : -35],
+                }}
+                transition={{
+                  duration: n.dur,
+                  delay: n.delay,
+                  repeat: Infinity,
+                  ease: "easeOut",
+                }}
+              >
+                {n.note}
+              </motion.span>
+            ))}
+          </div>
+        )}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className={cardClassName}
+          style={cardStyle}
+          role={isClickable ? "link" : undefined}
+          tabIndex={isClickable ? 0 : undefined}
+          onClick={isClickable ? openCurrentTrack : undefined}
+          onKeyDown={
+            isClickable
+              ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openCurrentTrack();
+                  }
                 }
-              }
-            : undefined
-        }
-      >
-        {cardContent}
-      </motion.div>
+              : undefined
+          }
+        >
+          {cardContent}
+        </motion.div>
+      </div>
     </>
   );
 }

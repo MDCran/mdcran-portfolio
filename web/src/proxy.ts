@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const isDev = process.env.NODE_ENV === "development";
+
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // HTTP → HTTPS redirect (production only)
-  const proto = req.headers.get("x-forwarded-proto");
-  if (proto === "http") {
-    const url = req.nextUrl.clone();
-    url.protocol = "https";
-    return NextResponse.redirect(url, 301);
+  if (!isDev) {
+    const proto = req.headers.get("x-forwarded-proto");
+    if (proto === "http") {
+      const url = req.nextUrl.clone();
+      url.protocol = "https";
+      return NextResponse.redirect(url, 301);
+    }
   }
 
   // Trailing slash redirect (301) — skip for root and API/Next.js internals
@@ -34,7 +38,9 @@ export function proxy(req: NextRequest) {
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("X-Frame-Options", "SAMEORIGIN");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  if (!isDev) {
+    res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  }
 
   return res;
 }

@@ -31,6 +31,8 @@ interface ClientCardProps {
 }
 
 export default function ClientCard({ client, index = 0, className, projectCount }: ClientCardProps) {
+  const clientHref = client.isEmployer ? `/employers/${client.id}` : `/clients/${client.id}`;
+
   return (
     <motion.div
       id={`client-${client.id}`}
@@ -49,7 +51,7 @@ export default function ClientCard({ client, index = 0, className, projectCount 
           <div className="flex items-center gap-3 mb-4">
             {client.avatarUrl ? (
               <Link
-                href={`/clients/${client.id}`}
+                href={clientHref}
                 title={client.name}
                 className="relative w-12 h-12 rounded-sm overflow-hidden shrink-0 border border-white/10 transition-transform duration-200 hover:scale-110 hover:border-[rgba(239,66,66,0.3)]"
               >
@@ -57,7 +59,7 @@ export default function ClientCard({ client, index = 0, className, projectCount 
               </Link>
             ) : (
               <Link
-                href={`/clients/${client.id}`}
+                href={clientHref}
                 title={client.name}
                 className="w-12 h-12 rounded-sm bg-[rgba(239,66,66,0.08)] border border-[rgba(239,66,66,0.2)] flex items-center justify-center shrink-0 transition-transform duration-200 hover:scale-110 hover:border-[rgba(239,66,66,0.4)]"
               >
@@ -67,16 +69,23 @@ export default function ClientCard({ client, index = 0, className, projectCount 
               </Link>
             )}
             <div className="flex-1 min-w-0">
-              <Link
-                href={`/clients/${client.id}`}
-                className="block font-nord text-sm tracking-wide text-white truncate group-hover:text-[#ef4242] transition-colors duration-200"
-              >
-                {client.name}
-              </Link>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href={clientHref}
+                  className="block font-nord text-sm tracking-wide text-white truncate group-hover:text-[#ef4242] transition-colors duration-200"
+                >
+                  {client.name}
+                </Link>
+                {client.isEmployer && (
+                  <span className="shrink-0 text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400">
+                    Employer
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-white/40 truncate mt-0.5">{client.roles[0]}</p>
             </div>
             <Link
-              href={`/clients/${client.id}`}
+              href={clientHref}
               className="shrink-0 text-white/15 group-hover:text-[#ef4242] transition-colors duration-200"
             >
               <ExternalLink size={12} />
@@ -122,7 +131,7 @@ export default function ClientCard({ client, index = 0, className, projectCount 
           {/* View profile link */}
           <div className="py-4 border-t border-white/6 mt-auto">
             <Link
-              href={`/clients/${client.id}`}
+              href={clientHref}
               className="inline-flex items-center justify-center gap-2 h-9 w-full min-w-0 px-4 border border-white/12 hover:border-[rgba(239,66,66,0.3)] text-[11px] text-white/40 hover:text-[#ef4242] tracking-wider uppercase transition-all duration-200 rounded-sm group/link"
             >
               View Profile

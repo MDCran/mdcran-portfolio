@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { cn, imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
+import BeforeAfterSlider from "@/components/shared/BeforeAfterSlider";
+import SmartImage from "@/components/shared/SmartImage";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -158,35 +160,14 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
 
     case "image": {
       const resolvedSrc = imageAssetSrc(section.src);
-      const unoptimized = shouldBypassImageOptimization(resolvedSrc);
+      if (!resolvedSrc) return null;
       return (
-        <figure className="my-8">
-          <div
-            className="relative rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
-            onClick={() => resolvedSrc && onImageClick(imageOffset)}
-          >
-            <div className="relative w-full aspect-video">
-              <Image
-                src={resolvedSrc ?? ""}
-                alt={section.alt ?? ""}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-500"
-                sizes="(max-width: 768px) 100vw, 672px"
-                unoptimized={unoptimized}
-              />
-            </div>
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
-              <div className="w-10 h-10 rounded-full bg-black/70 border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-          {section.caption && (
-            <figcaption className="text-[10px] text-white/30 text-center mt-2">{section.caption}</figcaption>
-          )}
-        </figure>
+        <SmartImage
+          src={resolvedSrc}
+          alt={section.alt ?? ""}
+          caption={section.caption}
+          onClick={() => onImageClick(imageOffset)}
+        />
       );
     }
 
@@ -324,6 +305,21 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
           </div>
         </div>
       );
+
+    case "before-after": {
+      const bSrc = imageAssetSrc(section.beforeImage);
+      const aSrc = imageAssetSrc(section.afterImage);
+      if (!bSrc || !aSrc) return null;
+      return (
+        <BeforeAfterSlider
+          beforeSrc={bSrc}
+          afterSrc={aSrc}
+          beforeAlt={typeof section.beforeImage === "object" && section.beforeImage?.alt ? section.beforeImage.alt : "Before"}
+          afterAlt={typeof section.afterImage === "object" && section.afterImage?.alt ? section.afterImage.alt : "After"}
+          caption={section.caption}
+        />
+      );
+    }
 
     default:
       return null;
@@ -655,6 +651,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
         {article.sections.map((section, i) => (
           <div
             key={i}
+            className={section.type === "image" || section.type === "before-after" ? "inline" : "block"}
             data-highlight-id={`${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
           >
           <Section

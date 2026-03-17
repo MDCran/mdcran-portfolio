@@ -33,31 +33,31 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const client = await getClientById(id);
-  if (!client) {
+  if (!client || !client.isEmployer) {
     return buildSeoMetadata({
-      title: "Client Not Found",
-      description: "The requested client profile could not be found.",
-      path: `/clients/${id}`,
+      title: "Employer Not Found",
+      description: "The requested employer profile could not be found.",
+      path: `/employers/${id}`,
       noIndex: true,
     });
   }
 
   return buildSeoMetadata({
-    title: client.name,
-    description: client.bio ?? `Projects created for ${client.name} by MDCran.`,
-    path: `/clients/${client.id}`,
+    title: `${client.name} — Employer`,
+    description: client.bio ?? `Work done for ${client.name} by MDCran.`,
+    path: `/employers/${client.id}`,
     image: client.bannerUrl ?? client.avatarUrl,
     type: "profile",
   });
 }
 
-export default async function ClientPage({ params }: Props) {
+export default async function EmployerPage({ params }: Props) {
   const { id } = await params;
   const [client, rawClientProjects] = await Promise.all([
     getClientById(id),
     getProjectsByClientId(id),
   ]);
-  if (!client) notFound();
+  if (!client || !client.isEmployer) notFound();
   const clientProjects = await Promise.all(rawClientProjects.map((project) => hydrateProjectVideos(project)));
   const totalVideoViews = clientProjects.reduce(
     (sum, project) =>
@@ -66,7 +66,7 @@ export default async function ClientPage({ params }: Props) {
   );
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Person",
+    "@type": "Organization",
     name: client.name,
     description: client.bio,
     url: client.socialLinks[0]?.url,
@@ -122,11 +122,9 @@ export default async function ClientPage({ params }: Props) {
               <h1 className="font-nord text-3xl md:text-4xl text-white tracking-wider">
                 {client.name}
               </h1>
-              {client.isEmployer && (
-                <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400">
-                  Employer
-                </span>
-              )}
+              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400">
+                Employer
+              </span>
               {client.location && (
                 <span className="text-[11px] text-white/30 tracking-wider border border-white/10 px-2 py-0.5 rounded-sm">
                   {client.location}
@@ -159,7 +157,7 @@ export default async function ClientPage({ params }: Props) {
                   </div>
                   <div className="text-[10px] text-white/70 tracking-widest uppercase">Private</div>
                   <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-56 -translate-x-1/2 rounded-sm border border-white/10 bg-[#090909]/95 px-3 py-2 text-[10px] leading-relaxed text-white/70 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition-opacity duration-150 group-hover:opacity-100">
-                    This client may have private projects that are not able to be shown to the public due to NDA, project type, or by request. Or they have not been added yet.
+                    This employer may have private projects that are not able to be shown to the public due to NDA, project type, or by request. Or they have not been added yet.
                   </div>
                 </div>
                 <div className="px-4 py-2 rounded-sm border border-white/10 bg-white/4">
