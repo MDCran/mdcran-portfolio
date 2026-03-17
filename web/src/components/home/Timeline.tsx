@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import Link from "next/link";
 import type { Experience } from "@/lib/types";
@@ -25,12 +25,47 @@ interface TimelineProps {
 }
 
 export default function Timeline({ experiences }: TimelineProps) {
+  const jobs = experiences
+    .filter((e) => e.type === "job" || e.type === "volunteer")
+    .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
+
   const ref = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef({ dragging: false, startX: 0, scrollLeft: 0 });
   const inView = useInView(ref, { once: true, margin: "0px 0px -80px 0px" });
 
-  const jobs = experiences
-    .filter((e) => e.type === "job")
-    .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
+  // Scroll to the right (latest) on mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollLeft = el.scrollWidth;
+      });
+    }
+  }, [jobs.length]);
+
+  // Drag to scroll
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    dragState.current = { dragging: true, startX: e.clientX, scrollLeft: el.scrollLeft };
+    el.style.cursor = "grabbing";
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragState.current.dragging) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const dx = e.clientX - dragState.current.startX;
+    el.scrollLeft = dragState.current.scrollLeft - dx;
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    dragState.current.dragging = false;
+    const el = scrollRef.current;
+    if (el) el.style.cursor = "grab";
+  }, []);
 
   if (jobs.length === 0) return null;
 
@@ -71,10 +106,15 @@ export default function Timeline({ experiences }: TimelineProps) {
             />
           </div>
 
-          {/* Scrollable items */}
+          {/* Scrollable items — drag to scroll, defaults to rightmost */}
           <div
-            className="flex gap-0 overflow-x-auto h-full scrollbar-hide"
-            style={{ scrollbarWidth: "none" }}
+            ref={scrollRef}
+            className="flex gap-0 overflow-x-auto h-full scrollbar-hide select-none"
+            style={{ scrollbarWidth: "none", cursor: "grab" }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
           >
             {jobs.map((job, i) => {
               const isCurrent = job.current || !job.endDate;
@@ -104,6 +144,7 @@ export default function Timeline({ experiences }: TimelineProps) {
                           startYear={startYear}
                           endYear={endYear}
                           isCurrent={isCurrent}
+                          isVolunteer={job.type === "volunteer"}
                         />
                         {/* Connector line down to dot */}
                         <div className="flex justify-center">
@@ -152,6 +193,7 @@ export default function Timeline({ experiences }: TimelineProps) {
                           startYear={startYear}
                           endYear={endYear}
                           isCurrent={isCurrent}
+                          isVolunteer={job.type === "volunteer"}
                         />
                       </>
                     )}
@@ -208,12 +250,14 @@ function TimelineCard({
   startYear,
   endYear,
   isCurrent,
+  isVolunteer = false,
 }: {
   role: string;
   company: string;
   startYear: string;
   endYear: string;
   isCurrent: boolean;
+  isVolunteer?: boolean;
 }) {
   return (
     <div className="rounded-sm border border-white/8 bg-white/[0.02] p-2.5 hover:border-[rgba(239,66,66,0.2)] hover:bg-white/[0.04] transition-all duration-200 group">
@@ -243,6 +287,12 @@ function TimelineCard({
       <p className="text-[10px] text-white/30 leading-snug truncate group-hover:text-white/45 transition-colors">
         {company}
       </p>
+      {/* Volunteer tag */}
+      {isVolunteer && (
+        <span className="inline-block text-[7px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-emerald-400/30 bg-emerald-400/8 text-emerald-400 mt-1.5">
+          Volunteer
+        </span>
+      )}
     </div>
   );
 }

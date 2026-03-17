@@ -9,6 +9,7 @@ import ChatBubble from "@/components/chat/ChatBubble";
 import ThemeOverlay from "@/components/shared/ThemeOverlay";
 import ThemeEffectsOverlay from "@/components/shared/ThemeEffectsOverlay";
 import StatusBanner from "@/components/status/StatusBanner";
+import SectionWheel from "@/components/shared/SectionWheel";
 
 const TerminalExperience = dynamic(
   () => import("@/components/terminal/TerminalExperience"),
@@ -158,6 +159,7 @@ export default function GlobalChrome() {
       <ChatPanel />
       <ThemeOverlay />
       <ThemeEffectsOverlay />
+      <SectionWheel />
     </>
   );
 }

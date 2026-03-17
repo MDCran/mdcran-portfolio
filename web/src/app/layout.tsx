@@ -107,7 +107,7 @@ export default function RootLayout({
   const serviceJsonLd = buildProfessionalServiceJsonLd();
 
   return (
-    <html lang="en" className="dark" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" className="dark scroll-smooth" data-theme="dark" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
