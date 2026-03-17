@@ -5,6 +5,66 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+
+/* ── Floating Hearts Background ────────────────────────── */
+// Stable values to avoid SSR/client hydration mismatch
+const HEARTS = [
+  { id: 0, left: "3%", delay: 0.2, duration: 12, size: 20, opacity: 0.35, drift: 22 },
+  { id: 1, left: "12%", delay: 2.8, duration: 14, size: 28, opacity: 0.25, drift: -18 },
+  { id: 2, left: "20%", delay: 5.5, duration: 10, size: 16, opacity: 0.40, drift: 30 },
+  { id: 3, left: "28%", delay: 1.0, duration: 16, size: 22, opacity: 0.30, drift: -24 },
+  { id: 4, left: "36%", delay: 4.2, duration: 11, size: 18, opacity: 0.35, drift: 14 },
+  { id: 5, left: "44%", delay: 6.8, duration: 13, size: 24, opacity: 0.28, drift: -20 },
+  { id: 6, left: "50%", delay: 2.0, duration: 15, size: 32, opacity: 0.20, drift: 16 },
+  { id: 7, left: "58%", delay: 5.0, duration: 9, size: 20, opacity: 0.38, drift: -14 },
+  { id: 8, left: "66%", delay: 0.5, duration: 17, size: 14, opacity: 0.45, drift: 26 },
+  { id: 9, left: "74%", delay: 3.5, duration: 12, size: 26, opacity: 0.30, drift: -22 },
+  { id: 10, left: "82%", delay: 6.0, duration: 14, size: 18, opacity: 0.38, drift: 18 },
+  { id: 11, left: "92%", delay: 0.8, duration: 11, size: 30, opacity: 0.22, drift: -16 },
+  { id: 12, left: "7%", delay: 3.8, duration: 13, size: 22, opacity: 0.32, drift: 20 },
+  { id: 13, left: "33%", delay: 7.2, duration: 10, size: 16, opacity: 0.42, drift: -28 },
+  { id: 14, left: "55%", delay: 1.5, duration: 16, size: 20, opacity: 0.30, drift: 12 },
+  { id: 15, left: "70%", delay: 4.5, duration: 9, size: 24, opacity: 0.35, drift: -18 },
+  { id: 16, left: "16%", delay: 0.3, duration: 15, size: 34, opacity: 0.18, drift: 22 },
+  { id: 17, left: "88%", delay: 3.0, duration: 12, size: 20, opacity: 0.35, drift: -20 },
+  { id: 18, left: "42%", delay: 5.8, duration: 11, size: 26, opacity: 0.28, drift: 24 },
+  { id: 19, left: "60%", delay: 2.5, duration: 14, size: 18, opacity: 0.40, drift: -15 },
+  { id: 20, left: "25%", delay: 7.0, duration: 10, size: 22, opacity: 0.32, drift: 28 },
+  { id: 21, left: "78%", delay: 1.2, duration: 13, size: 28, opacity: 0.25, drift: -22 },
+  { id: 22, left: "48%", delay: 4.0, duration: 12, size: 16, opacity: 0.45, drift: 18 },
+  { id: 23, left: "95%", delay: 6.5, duration: 15, size: 20, opacity: 0.30, drift: -12 },
+];
+
+function FloatingHearts() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {HEARTS.map((h) => (
+        <motion.div
+          key={h.id}
+          className="absolute"
+          style={{ left: h.left, bottom: "-30px", fontSize: `${h.size}px`, opacity: 0 }}
+          animate={{
+            y: [0, -900],
+            x: [0, h.drift, h.drift * 0.5],
+            opacity: [0, h.opacity, h.opacity, 0],
+            rotate: [0, h.drift > 0 ? 15 : -15, 0],
+          }}
+          transition={{
+            duration: h.duration,
+            delay: h.delay,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" style={{ color: "#ef4242" }}>
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+          </svg>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 type DateIdeaOption = {
   value: "fancy-dinner-date" | "spontaneous-adventure" | "food-and-walking" | "coffee-and-talking" | "surprise-me";
   label: string;
@@ -61,12 +121,16 @@ const winOverOptions: WinOverOption[] = [
 ];
 
 const noMessages = [
-  "That answer seems suspicious. Try again.",
-  "Are you sure? That felt accidental.",
-  "The no button is currently experiencing technical issues.",
-  "Wow. Bold. Anyway, reconsider?",
+  "Wait... that wasn't a real no, right? Try again.",
+  "Hmm, pretty sure your finger slipped. One more try.",
+  "The yes button is literally right there. So close.",
+  "Bold move. But I believe in second chances.",
+  "I'm not mad. Just disappointed. And persistent.",
+  "That no was giving 'playing hard to get' energy.",
+  "I'll pretend I didn't see that. Go ahead.",
+  "My heart just did a little crack sound effect.",
+  "You sure? Because yes comes with snacks.",
   "I refuse to believe that was your final answer.",
-  "This page is aggressively rooting for yes.",
 ];
 
 const absoluteNoPositions = [
@@ -138,12 +202,16 @@ function isValidPhoneNumber(value: string) {
   return true;
 }
 
-export default function RizzPageClient() {
+export default function RizzPageClient({ targetName }: { targetName?: string }) {
   const router = useRouter();
   const [stage, setStage] = useState<"pitch" | "form" | "success">("pitch");
   const [formStep, setFormStep] = useState(0);
   const [noClicks, setNoClicks] = useState(0);
-  const [pitchMessage, setPitchMessage] = useState("This is a very serious proposal assembled with elite levels of cringe.");
+  const [pitchMessage, setPitchMessage] = useState(
+    targetName
+      ? `${targetName}, I made a whole page just to ask you out. That's either romantic or unhinged. Probably both.`
+      : "I made a whole page just to ask you out. That's either romantic or unhinged. Probably both."
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [redirectCountdown, setRedirectCountdown] = useState(10);
@@ -352,6 +420,7 @@ export default function RizzPageClient() {
   return (
     <main className="min-h-screen">
       <section className="relative overflow-hidden border-b border-white/6">
+        <FloatingHearts />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(239,66,66,0.2),transparent_38%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent_42%)]" />
         <div className="content-container relative py-16 sm:py-20 md:py-24">
@@ -368,24 +437,27 @@ export default function RizzPageClient() {
                 <div className="grid gap-6 lg:gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
                   <div className="order-2 lg:order-1">
                     <p className="mb-4 flex items-center gap-2 text-[11px] tracking-[0.28em] uppercase text-[#ef4242]">
-                      <Sparkles size={14} />
+                      <motion.span
+                        animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                      >
+                        <Sparkles size={14} />
+                      </motion.span>
                       Rizz Protocol
                     </p>
                     <h1 className="font-nord text-4xl leading-tight text-white sm:text-5xl md:text-6xl">
-                      Wanna go on a date with me?
+                      {targetName ? (
+                        <>{targetName}, wanna go on a date with me?</>
+                      ) : (
+                        <>Wanna go on a date with me?</>
+                      )}
                     </h1>
-                    <div className="mt-4 inline-flex max-w-xl items-center gap-2 rounded-sm border border-[#ef4242]/15 bg-[#ef4242]/[0.04] px-3 py-2">
-                      <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ef4242] opacity-60" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#ef4242]" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-[10px] tracking-[0.24em] uppercase text-[#ef4242]">Monitoring degraded performance</div>
-                        <div className="mt-0.5 text-xs text-white/50 sm:text-sm">
-                          Reported &quot;no&quot; button technical difficulties.
-                        </div>
-                      </div>
-                    </div>
+                    <p className="mt-3 text-sm text-white/40 sm:text-base">
+                      {targetName
+                        ? `Made this just for you. No pressure... but also yes pressure.`
+                        : `A deeply unserious but very sincere proposal.`
+                      }
+                    </p>
 
                     <div className="mt-8 relative min-h-[164px] rounded-sm border border-white/8 bg-black/35 p-4 sm:p-5">
                       <div
@@ -479,7 +551,9 @@ export default function RizzPageClient() {
                 </div>
                 <div className="mb-6 flex flex-col gap-3">
                   <div>
-                    <p className="text-[11px] tracking-[0.24em] uppercase text-[#ef4242]">Locked In</p>
+                    <p className="text-[11px] tracking-[0.24em] uppercase text-[#ef4242]">
+                      {targetName ? `Locked In, ${targetName}` : "Locked In"}
+                    </p>
                     <h2 className="mt-2 font-nord text-2xl text-white sm:text-3xl">{QUESTION_STEPS[formStep]}</h2>
                   </div>
                 </div>
@@ -645,9 +719,14 @@ export default function RizzPageClient() {
                     className="h-auto w-full rounded-sm"
                   />
                 </div>
-                <h2 className="mt-3 font-nord text-3xl text-white sm:text-4xl">Mission Complete!</h2>
+                <h2 className="mt-3 font-nord text-3xl text-white sm:text-4xl">
+                  {targetName ? `It's a date, ${targetName}!` : "Mission Complete!"}
+                </h2>
                 <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/55">
-                  I officially have no excuse to mess this up now.
+                  {targetName
+                    ? `I officially have no excuse to mess this up now. See you soon, ${targetName}.`
+                    : "I officially have no excuse to mess this up now."
+                  }
                 </p>
                 <p className="mt-4 text-[10px] text-center tracking-[0.14em] text-white/30">
                   Redirecting in {redirectCountdown} seconds...

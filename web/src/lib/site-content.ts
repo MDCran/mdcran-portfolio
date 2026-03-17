@@ -8,6 +8,7 @@ export const defaultSiteContent: SiteContent = {
     "hero",
     "stats",
     "about",
+    "timeline",
     "services",
     "featured",
     "clients",
@@ -15,6 +16,7 @@ export const defaultSiteContent: SiteContent = {
     "cta",
   ],
   featuredProjectIds: [],
+  featuredArticleIds: [],
   featuredClientIds: [],
   homeHero: {
     eyebrow: "Software Engineer",
@@ -292,7 +294,7 @@ export const defaultSiteContent: SiteContent = {
       {
         heading: "Acceptance of Terms",
         body:
-          "By accessing and using mdcran.com, you accept and agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the site.",
+          "By accessing and using mdcran.com, michaeldcran.com, or michaeldavidcran.com (collectively, the \"Site\"), you accept and agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the Site.",
       },
       {
         heading: "Use of the Site",
@@ -312,7 +314,7 @@ export const defaultSiteContent: SiteContent = {
       },
       {
         heading: "Contact",
-        body: "If you have questions about these terms, contact contact@mdcran.com.",
+        body: "These terms apply to all MDCran domains including mdcran.com, michaeldcran.com, and michaeldavidcran.com. If you have questions about these terms, contact contact@mdcran.com.",
       },
     ],
   },
@@ -323,7 +325,7 @@ export const defaultSiteContent: SiteContent = {
     sections: [
       {
         heading: "Information We Collect",
-        body: "When you interact with MDCran, we may collect the following types of information:",
+        body: "When you interact with MDCran through any of our domains (mdcran.com, michaeldcran.com, or michaeldavidcran.com), we may collect the following types of information:",
         bullets: [
           "Contact information when you submit the contact form, subscribe form, or newsletter signup.",
           "Usage data such as pages visited, time spent on pages, browser type, and device type via analytics tools.",
@@ -348,7 +350,7 @@ export const defaultSiteContent: SiteContent = {
       },
       {
         heading: "Contact",
-        body: "For any privacy-related questions or requests, contact contact@mdcran.com.",
+        body: "This policy applies to all MDCran domains including mdcran.com, michaeldcran.com, and michaeldavidcran.com. For any privacy-related questions or requests, contact contact@mdcran.com.",
       },
     ],
   },

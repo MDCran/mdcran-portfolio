@@ -152,7 +152,7 @@ function ConnectingTimer({ label }: { label?: string }) {
   );
 }
 
-function TypewriterText({ text, speed = 28, onComplete }: { text: string; speed?: number; onComplete?: () => void }) {
+function TypewriterText({ text, speed = 18, onComplete }: { text: string; speed?: number; onComplete?: () => void }) {
   const [displayed, setDisplayed] = useState("");
   const indexRef = useRef(0);
   const onCompleteRef = useRef(onComplete);
@@ -485,7 +485,7 @@ export default function ChatPanel() {
                       // Don't delay rendering if we're inside a marker (invisible chars)
                       const inMarker = /__[A-Z]/.test(accumulated) && !/__[A-Z]+:.+?__\s*$/.test(accumulated);
                       if (!inMarker) {
-                        await new Promise((r) => setTimeout(r, 22));
+                        await new Promise((r) => setTimeout(r, 8));
                       }
                     }
                   }

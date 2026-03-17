@@ -26,17 +26,17 @@ const PROFILE_SECTIONS: ProfileSection[] = [
   {
     title: "Developer Tools",
     icon: Wrench,
-    tags: ["Git", "Docker", "Figma", "pgAdmin4"],
+    tags: ["Git", "Docker", "Figma", "pgAdmin4", "Vercel", "Supabase"],
   },
   {
     title: "Frameworks & Libraries",
     icon: Cpu,
-    tags: ["React", "ExpressJS", "NextJS", "ThreeJS"],
+    tags: ["React", "ExpressJS", "NextJS", "ThreeJS", "Tailwind CSS", "Stripe"],
   },
   {
     title: "AI",
     icon: Sparkles,
-    tags: ["OpenAI Codex", "Claude Code", "GitHub Copilot", "Cursor"],
+    tags: ["OpenAI Codex", "Claude Code", "GitHub Copilot", "Cursor", "Paperclip"],
   },
 ];
 

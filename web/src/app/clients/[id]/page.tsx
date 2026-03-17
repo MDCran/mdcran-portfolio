@@ -122,6 +122,11 @@ export default async function ClientPage({ params }: Props) {
               <h1 className="font-nord text-3xl md:text-4xl text-white tracking-wider">
                 {client.name}
               </h1>
+              {client.isEmployer && (
+                <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400">
+                  Employer
+                </span>
+              )}
               {client.location && (
                 <span className="text-[11px] text-white/30 tracking-wider border border-white/10 px-2 py-0.5 rounded-sm">
                   {client.location}

@@ -58,6 +58,8 @@ export interface Client {
   // Follower/view counts stored in DB (admin editable; fetched from APIs when keys present)
   followerCount?: number;
   viewCount?: number;
+  // When true, treated as an employer (badge + /employers/[id] route)
+  isEmployer?: boolean;
 }
 
 // ─── Video ───────────────────────────────────────────────
@@ -290,7 +292,8 @@ export type ArticleSectionType =
   | "ingredient-list"
   | "steps"
   | "store-checklist"
-  | "info-block";
+  | "info-block"
+  | "before-after";
 
 export interface ArticleSection {
   type: ArticleSectionType;
@@ -306,6 +309,9 @@ export interface ArticleSection {
   // For info-block (cook time, preheat temp, etc.)
   label?: string;
   value?: string;
+  // For before-after comparison slider
+  beforeImage?: string | ImageAsset;
+  afterImage?: string | ImageAsset;
 }
 
 export interface Article {
@@ -321,7 +327,8 @@ export interface Article {
   tags: string[];
   category: ArticleCategory;
   sections: ArticleSection[];
-  featured?: boolean;
+  featured?: boolean;          // featured on articles page (only 1 at a time)
+  homeFeatured?: boolean;      // featured on home page (multiple allowed)
   tapCount?: number;           // stored in MongoDB, shown to all visitors
 }
 
@@ -620,6 +627,7 @@ export interface SiteContent {
   faviconUrl: string;
   homeSectionOrder: string[];
   featuredProjectIds: string[];   // ordered list of project IDs shown on home page
+  featuredArticleIds: string[];   // ordered list of article IDs shown on home page
   featuredClientIds: string[];    // ordered list of client IDs shown on home page
   homeHero: SiteContentHero;
   homeAbout: SiteContentAbout;
@@ -636,4 +644,5 @@ export interface SiteContent {
   footer: SiteContentFooter;
   termsPage: SiteContentLegalPage;
   privacyPage: SiteContentLegalPage;
+  rizzTargetName?: string;  // personalize /rizz page with a name
 }
