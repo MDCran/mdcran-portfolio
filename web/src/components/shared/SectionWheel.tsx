@@ -47,17 +47,40 @@ export default function SectionWheel() {
       if (!main) { setSections([]); return; }
 
       const entries: SectionEntry[] = [];
-      const candidates = main.querySelectorAll(":scope > [id], :scope > div > [id], section[id], article[id], [data-highlight-id]");
       const seen = new Set<string>();
 
-      candidates.forEach((el) => {
-        const id = el.id || (el as HTMLElement).getAttribute("data-highlight-id") || "";
-        if (!id || seen.has(id) || id.startsWith("_")) return;
-        const rect = (el as HTMLElement).getBoundingClientRect();
-        if (rect.height < 80) return;
-        seen.add(id);
-        entries.push({ id, label: humanize(id), el: el as HTMLElement });
-      });
+      const isHomePage = pathname === "/";
+      // Detail pages: /articles/[slug], /code/[slug], /arts-and-entertainment/*/[slug], etc.
+      const isDetailPage = /^\/(articles|code|employers|clients|arts-and-entertainment|motion-and-graphics)\/.+\/.+/.test(pathname)
+        || /^\/(articles|code|employers|clients)\/[^/]+$/.test(pathname);
+
+      if (isHomePage) {
+        // Home: top-level section divs only
+        const candidates = main.querySelectorAll(":scope > [id], :scope > div > [id]");
+        candidates.forEach((el) => {
+          const id = el.id;
+          if (!id || seen.has(id) || id.startsWith("_")) return;
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          if (rect.height < 100) return;
+          seen.add(id);
+          entries.push({ id, label: humanize(id), el: el as HTMLElement });
+        });
+      } else if (isDetailPage) {
+        // Detail pages: pick up article/project content sections via data-highlight-id
+        // Only grab direct section wrappers inside <article> or the content area
+        const article = main.querySelector("article");
+        const contentRoot = article ?? main;
+        const candidates = contentRoot.querySelectorAll(":scope > [data-highlight-id]");
+        candidates.forEach((el) => {
+          const id = (el as HTMLElement).getAttribute("data-highlight-id") ?? "";
+          if (!id || seen.has(id) || id.startsWith("_")) return;
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          if (rect.height < 50) return;
+          seen.add(id);
+          entries.push({ id, label: humanize(id), el: el as HTMLElement });
+        });
+      }
+      // Listing pages: don't show the wheel (entries stays empty)
 
       setSections(entries);
     }, 500);

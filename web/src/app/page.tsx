@@ -50,25 +50,45 @@ export default async function HomePage() {
     getExperiences().catch(() => []),
   ]);
 
-  // Admin-ordered IDs first (must still be marked featured), then any other featured projects
-  const orderedFeatured = siteContent.featuredProjectIds
-    .map((id) => allProjects.find((p) => p.id === id))
-    .filter((p): p is typeof allProjects[number] => !!p && !!p.featured);
-  const orderedIds = new Set(orderedFeatured.map((p) => p.id));
-  const additionalFeatured = allProjects.filter((p) => p.featured && !orderedIds.has(p.id));
-  const featuredProjects = [...orderedFeatured, ...additionalFeatured];
+  // Build unified featured work list (projects + articles interleaved per admin order)
+  const allFeaturedProjects = allProjects.filter((p) => p.featured);
+  const allFeaturedArticles = allArticles.filter((a) => a.homeFeatured);
 
-  // Featured articles for home — uses homeFeatured flag (separate from articles page featured)
-  const orderedFeaturedArticles = siteContent.featuredArticleIds
-    .map((id) => allArticles.find((a) => a.id === id))
-    .filter((a): a is typeof allArticles[number] => !!a && !!a.homeFeatured);
-  const orderedArticleIds = new Set(orderedFeaturedArticles.map((a) => a.id));
-  const additionalFeaturedArticles = allArticles.filter((a) => a.homeFeatured && !orderedArticleIds.has(a.id));
-  const featuredArticles = [...orderedFeaturedArticles, ...additionalFeaturedArticles];
+  // Collect all featured item IDs
+  const allFeaturedIds = new Set([
+    ...allFeaturedProjects.map((p) => p.id),
+    ...allFeaturedArticles.map((a) => a.id),
+  ]);
 
-  const featuredClients = siteContent.featuredClientIds.length
-    ? siteContent.featuredClientIds.map((id) => allClients.find((c) => c.id === id)).filter(Boolean) as typeof allClients
-    : allClients.filter((c) => c.featured);
+  // Use unified work order if available, otherwise fall back to projects then articles
+  const workOrder = siteContent.featuredWorkOrder ?? [];
+  const orderedWork = workOrder.filter((id) => allFeaturedIds.has(id));
+  const orderedSet = new Set(orderedWork);
+  // Append any featured items not in the order yet
+  const unorderedProjects = allFeaturedProjects.filter((p) => !orderedSet.has(p.id)).map((p) => p.id);
+  const unorderedArticles = allFeaturedArticles.filter((a) => !orderedSet.has(a.id)).map((a) => a.id);
+  const finalWorkOrder = [...orderedWork, ...unorderedProjects, ...unorderedArticles];
+
+  // Resolve into typed arrays for the component
+  const projectMap = new Map(allProjects.map((p) => [p.id, p]));
+  const articleMap = new Map(allArticles.map((a) => [a.id, a]));
+  const featuredProjects: typeof allProjects = [];
+  const featuredArticles: typeof allArticles = [];
+  // Keep track of order for the component — pass both arrays but they'll be interleaved by workOrder
+  for (const id of finalWorkOrder) {
+    const proj = projectMap.get(id);
+    if (proj && proj.featured) { featuredProjects.push(proj); continue; }
+    const art = articleMap.get(id);
+    if (art && art.homeFeatured) { featuredArticles.push(art); continue; }
+  }
+
+  // Admin-ordered client IDs first, then any other featured clients/employers not already in the list
+  const orderedFeaturedClients = siteContent.featuredClientIds
+    .map((id) => allClients.find((c) => c.id === id))
+    .filter((c): c is typeof allClients[number] => !!c && !!c.featured);
+  const orderedClientIds = new Set(orderedFeaturedClients.map((c) => c.id));
+  const additionalFeaturedClients = allClients.filter((c) => c.featured && !orderedClientIds.has(c.id));
+  const featuredClients = [...orderedFeaturedClients, ...additionalFeaturedClients];
 
   const webPageJsonLd = {
     "@context": "https://schema.org",
@@ -129,7 +149,7 @@ export default async function HomePage() {
     ),
     featured: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "1200px" }}>
-        <FeaturedProjects projects={featuredProjects} articles={featuredArticles} content={siteContent.homeFeaturedWork} />
+        <FeaturedProjects projects={featuredProjects} articles={featuredArticles} workOrder={finalWorkOrder} content={siteContent.homeFeaturedWork} />
       </div>
     ),
     clients: (

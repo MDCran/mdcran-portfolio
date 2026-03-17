@@ -17,6 +17,7 @@ export const defaultSiteContent: SiteContent = {
   ],
   featuredProjectIds: [],
   featuredArticleIds: [],
+  featuredWorkOrder: [],
   featuredClientIds: [],
   homeHero: {
     eyebrow: "Software Engineer",

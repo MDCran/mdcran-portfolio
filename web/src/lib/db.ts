@@ -133,6 +133,7 @@ export async function getSiteContent(): Promise<SiteContent> {
     })(),
     featuredProjectIds: content?.featuredProjectIds ?? defaultSiteContent.featuredProjectIds,
     featuredArticleIds: content?.featuredArticleIds ?? defaultSiteContent.featuredArticleIds,
+    featuredWorkOrder: content?.featuredWorkOrder ?? defaultSiteContent.featuredWorkOrder,
     featuredClientIds: content?.featuredClientIds ?? defaultSiteContent.featuredClientIds,
     homeHero: {
       ...defaultSiteContent.homeHero,
@@ -225,6 +226,7 @@ export async function saveSiteContent(content: SiteContent): Promise<void> {
     id: defaultSiteContent.id,
     featuredProjectIds: Array.isArray(content.featuredProjectIds) ? content.featuredProjectIds : [],
     featuredArticleIds: Array.isArray(content.featuredArticleIds) ? content.featuredArticleIds : [],
+    featuredWorkOrder: Array.isArray(content.featuredWorkOrder) ? content.featuredWorkOrder : [],
     featuredClientIds: Array.isArray(content.featuredClientIds) ? content.featuredClientIds : [],
     homeFeaturedWork: {
       eyebrow: content.homeFeaturedWork.eyebrow,
@@ -898,6 +900,15 @@ async function runProjectVideoRefresh(force: boolean, includeLogs: boolean): Pro
   }
 
   return { lines, totalProjectViews, refreshedAt };
+}
+
+export async function invalidateProjectVideoCache(): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.collection("settings").deleteOne({ key: PROJECT_VIDEO_REFRESH_KEY });
+  } catch {
+    // Non-fatal
+  }
 }
 
 export async function refreshProjectVideoViewsIfStale(): Promise<void> {

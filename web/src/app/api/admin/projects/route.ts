@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProjects, saveProjects } from "@/lib/db";
+import { getProjects, saveProjects, invalidateProjectVideoCache } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 
 export async function GET() {
@@ -16,5 +16,7 @@ export async function PUT(req: NextRequest) {
   }
   const data = await req.json();
   await saveProjects(data);
+  // Clear video view cache so new videos get their counts on next page load
+  await invalidateProjectVideoCache();
   return NextResponse.json({ ok: true });
 }
