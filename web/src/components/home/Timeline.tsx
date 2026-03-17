@@ -24,6 +24,17 @@ interface TimelineProps {
   experiences: Experience[];
 }
 
+// Fallback tags for experiences that don't have timelineTags in the DB yet
+const FALLBACK_TAGS: Record<string, { label: string; color: "red" | "orange" | "green" | "blue" | "purple" }[]> = {
+  "coretv-founder": [{ label: "Startup", color: "red" }],
+  "tubnet-qa": [{ label: "1Y Contract", color: "orange" }],
+};
+
+function getTimelineTags(job: Experience) {
+  if (job.timelineTags && job.timelineTags.length > 0) return job.timelineTags;
+  return FALLBACK_TAGS[job.id] ?? [];
+}
+
 export default function Timeline({ experiences }: TimelineProps) {
   const END_FUTURE = Date.now() + 999999999;
   const jobs = experiences
@@ -151,7 +162,7 @@ export default function Timeline({ experiences }: TimelineProps) {
                           endYear={endYear}
                           isCurrent={isCurrent}
                           isVolunteer={job.type === "volunteer"}
-                          tags={job.timelineTags}
+                          tags={getTimelineTags(job)}
                         />
                         {/* Connector line down to dot */}
                         <div className="flex justify-center">
@@ -201,7 +212,7 @@ export default function Timeline({ experiences }: TimelineProps) {
                           endYear={endYear}
                           isCurrent={isCurrent}
                           isVolunteer={job.type === "volunteer"}
-                          tags={job.timelineTags}
+                          tags={getTimelineTags(job)}
                         />
                       </>
                     )}
