@@ -40,7 +40,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function ArticlesPage() {
-  const { data: apiArticles = [] } = useSWR<Article[]>("/api/data/articles", fetcher, {
+  const { data: apiArticles = [], isLoading } = useSWR<Article[]>("/api/data/articles", fetcher, {
     fallbackData: [],
     revalidateOnFocus: false,
   });
@@ -222,7 +222,17 @@ export default function ArticlesPage() {
         <section className="py-12">
           <div className="content-container">
             <AnimatePresence mode="popLayout">
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center py-24 text-white/30 text-sm animate-pulse"
+                >
+                  Loading articles...
+                </motion.div>
+              ) : filtered.length === 0 ? (
                 <motion.div
                   key="empty"
                   initial={{ opacity: 0 }}

@@ -5879,7 +5879,7 @@ export default function AdminDashboard() {
 
               {/* ─── Featured Articles Order ─── */}
               {(() => {
-                const featuredArticles = articles.filter((a) => a.featured);
+                const featuredArticles = articles.filter((a) => a.homeFeatured);
                 const savedIds = (siteContent.featuredArticleIds ?? []).filter((id: string) => featuredArticles.some((a) => a.id === id));
                 const missingIds = featuredArticles.filter((a) => !savedIds.includes(a.id)).map((a) => a.id);
                 const orderedIds = [...savedIds, ...missingIds];
@@ -5899,7 +5899,7 @@ export default function AdminDashboard() {
                       <p className="text-xs text-white/40 mt-1">Only featured articles are listed. Use arrows to set the display order — saves instantly.</p>
                     </div>
                     {ordered.length === 0 ? (
-                      <p className="text-xs text-white/30 italic">No articles are marked as featured. Mark an article as "Featured" in the Articles tab first.</p>
+                      <p className="text-xs text-white/30 italic">No articles are marked as featured for home. Toggle &quot;Featured on home page&quot; in the Articles tab.</p>
                     ) : (
                       <div className="space-y-1">
                         {ordered.map((a, i) => (
