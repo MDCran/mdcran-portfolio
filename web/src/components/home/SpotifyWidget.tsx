@@ -166,8 +166,10 @@ function MarqueeText({
     };
 
     checkOverflow();
-    window.addEventListener("resize", checkOverflow);
-    return () => window.removeEventListener("resize", checkOverflow);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const debouncedCheck = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(checkOverflow, 200); };
+    window.addEventListener("resize", debouncedCheck, { passive: true });
+    return () => { clearTimeout(resizeTimer); window.removeEventListener("resize", debouncedCheck); };
   }, [text]);
 
   return (
@@ -1107,7 +1109,7 @@ export default function SpotifyWidget() {
                       animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                       exit={{ opacity: 0, scale: 1.04, filter: "blur(8px)" }}
                       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                      className="min-h-full xl:h-full xl:overflow-hidden"
+                      className="min-h-full xl:h-full xl:overflow-y-auto"
                     >
                       <div className="flex min-h-full flex-col gap-5 sm:gap-6 xl:justify-between">
                           {favoriteData.sections.map((section) => (

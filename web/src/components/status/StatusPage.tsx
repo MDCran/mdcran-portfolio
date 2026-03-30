@@ -282,9 +282,9 @@ export default function StatusPage({
                     <span className="text-sm font-medium text-white/90">
                       {service.name}
                     </span>
-                    <div className="relative group">
+                    <div className="relative group" style={{ overflow: "visible" }}>
                       <span
-                        className="inline-flex items-center gap-2 text-xs font-medium rounded-full px-3 py-1"
+                        className="inline-flex items-center gap-2 text-xs font-medium rounded-full px-3 py-1 cursor-default"
                         style={{
                           color: statusColor,
                           background: `${statusColor}15`,
@@ -298,8 +298,8 @@ export default function StatusPage({
                         {statusLabel}
                       </span>
                       {/* Latency tooltip */}
-                      {service.pingUrl && latency !== undefined && (
-                        <div className="absolute right-0 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      {service.pingUrl && (
+                        <div className="absolute right-0 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <div
                             className="rounded px-3 py-1.5 text-[11px] text-white/80 whitespace-nowrap"
                             style={{
@@ -307,9 +307,11 @@ export default function StatusPage({
                               border: "1px solid rgba(255,255,255,0.1)",
                             }}
                           >
-                            {latency !== null
-                              ? `Latency: ${latency}ms`
-                              : "Ping failed"}
+                            {latency === undefined
+                              ? "Pinging..."
+                              : latency !== null
+                                ? `Latency: ${latency}ms`
+                                : "Ping failed"}
                           </div>
                         </div>
                       )}

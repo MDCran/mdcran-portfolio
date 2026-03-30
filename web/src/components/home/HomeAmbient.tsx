@@ -274,70 +274,42 @@ export default function HomeAmbient() {
   return (
     <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
       {!isLight && lensFlares.map((flare, index) => (
-        <motion.div
+        <div
           key={`flare-${index}`}
-          className="absolute rounded-full blur-3xl"
+          className={`absolute rounded-full blur-3xl animate-[ambient-flare-${index}_${flare.duration}s_ease-in-out_${flare.delay}s_infinite]`}
           style={flare}
-          animate={{
-            opacity: [0.3, 0.55, 0.35],
-            scale: [0.96, 1.05, 0.98],
-            x: [0, index % 2 === 0 ? 10 : -10, 0],
-            y: [0, index % 2 === 0 ? -8 : 8, 0],
-          }}
-          transition={{
-            duration: flare.duration,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: flare.delay,
-          }}
         />
       ))}
 
       {!isLight && starField.map((star, index) => (
-        <motion.span
+        <span
           key={`star-${index}`}
-          className="absolute rounded-full bg-white/70"
+          className="absolute rounded-full bg-white/70 animate-[ambient-star_var(--star-dur)_ease-in-out_var(--star-delay)_infinite]"
           style={{
             top: star.top,
             left: star.left,
             width: star.size,
             height: star.size,
             boxShadow: "0 0 10px rgba(255,255,255,0.18)",
-          }}
-          animate={{
-            opacity: [0.08, 0.6, 0.14],
-            scale: [1, 1.4, 1],
-          }}
-          transition={{
-            duration: star.duration,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: star.delay,
-          }}
+            "--star-dur": `${star.duration}s`,
+            "--star-delay": `${star.delay}s`,
+          } as React.CSSProperties}
         />
       ))}
 
       {!isLight && extraStars.map((star, index) => (
-        <motion.span
+        <span
           key={`extra-star-${index}`}
-          className="absolute rounded-full bg-white/80"
+          className="absolute rounded-full bg-white/80 animate-[ambient-star_var(--star-dur)_ease-in-out_var(--star-delay)_infinite]"
           style={{
             top: star.top,
             left: star.left,
             width: star.size,
             height: star.size,
             boxShadow: "0 0 12px rgba(255,255,255,0.12)",
-          }}
-          animate={{
-            opacity: [0.04, star.opacity, 0.08],
-            scale: [1, 1.35, 1],
-          }}
-          transition={{
-            duration: star.duration,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: star.delay,
-          }}
+            "--star-dur": `${star.duration}s`,
+            "--star-delay": `${star.delay}s`,
+          } as React.CSSProperties}
         />
       ))}
 

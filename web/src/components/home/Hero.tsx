@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useRef } from "react";
-import { motion, useScroll, useTransform, useSpring } from "framer-motion";
+import React, { useRef, lazy, Suspense } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, ChevronDown, MapPin } from "lucide-react";
 import Link from "next/link";
-import SpotifyWidget from "./SpotifyWidget";
-import BibleWidget from "./BibleWidget";
-import MapWidget from "./MapWidget";
 import type { SiteContentHero } from "@/lib/types";
 import { PERSON_FULL_NAME, PERSON_NAME } from "@/lib/seo";
+
+const SpotifyWidget = lazy(() => import("./SpotifyWidget"));
+const BibleWidget = lazy(() => import("./BibleWidget"));
+const MapWidget = lazy(() => import("./MapWidget"));
 
 const defaultServices = [
   { label: "Minecraft Maps", href: "/arts-and-entertainment/minecraft-maps" },
@@ -23,8 +24,8 @@ const ambientParticles = Array.from({ length: 6 }, (_, i) => ({
   background: i % 2 === 0 ? "var(--cranberry)" : "color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)",
   top: `${20 + i * 12}%`,
   left: `${10 + i * 15}%`,
-  duration: 3 + i * 0.7,
-  delay: i * 0.8,
+  duration: `${3 + i * 0.7}s`,
+  delay: `${i * 0.8}s`,
 }));
 
 export default function Hero({ content }: { content?: SiteContentHero }) {
@@ -37,7 +38,6 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
   const y = useTransform(scrollYProgress, [0, 1], [0, 120]);
   const opacity = useTransform(scrollYProgress, [0, 0.85], [1, 0]);
   const scale = useTransform(scrollYProgress, [0, 1], [1, 0.92]);
-  const springY = useSpring(y, { stiffness: 100, damping: 30 });
   const services = content?.serviceTags?.length ? content.serviceTags : defaultServices;
   const titlePrimary = content?.titlePrimary ?? "MD";
   const titleAccent = content?.titleAccent ?? "CRAN";
@@ -56,23 +56,17 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
         />
       </div>
 
-      <motion.div
-        className="absolute top-1/4 -left-32 w-64 h-64 rounded-full pointer-events-none transform-gpu"
+      <div
+        className="absolute top-1/4 -left-32 w-64 h-64 rounded-full pointer-events-none transform-gpu animate-[hero-orb-1_12s_ease-in-out_infinite]"
         style={{
           background: "radial-gradient(circle, color-mix(in srgb, var(--theme-primary, #ef4242) 6%, transparent) 0%, transparent 70%)",
-          willChange: "transform",
         }}
-        animate={{ x: [0, 20, 0], y: [0, -30, 0] }}
-        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
-      <motion.div
-        className="absolute bottom-1/4 -right-32 w-80 h-80 rounded-full pointer-events-none transform-gpu"
+      <div
+        className="absolute bottom-1/4 -right-32 w-80 h-80 rounded-full pointer-events-none transform-gpu animate-[hero-orb-2_15s_ease-in-out_3s_infinite]"
         style={{
           background: "radial-gradient(circle, color-mix(in srgb, var(--theme-primary, #ef4242) 4%, transparent) 0%, transparent 70%)",
-          willChange: "transform",
         }}
-        animate={{ x: [0, -20, 0], y: [0, 20, 0] }}
-        transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
       />
 
       <div className="absolute top-16 left-6 w-16 h-16 border-l-2 border-t-2 pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)' }} />
@@ -81,22 +75,21 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
       <div className="absolute bottom-16 right-6 w-16 h-16 border-r-2 border-b-2 pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)' }} />
 
       {ambientParticles.map((particle) => (
-        <motion.div
+        <div
           key={particle.key}
-          className="absolute w-px h-px rounded-full pointer-events-none transform-gpu"
+          className="absolute w-px h-px rounded-full pointer-events-none transform-gpu animate-[hero-particle_var(--particle-duration)_ease-in-out_var(--particle-delay)_infinite]"
           style={{
             background: particle.background,
             top: particle.top,
             left: particle.left,
-            willChange: "transform, opacity",
-          }}
-          animate={{ opacity: [0, 1, 0], scale: [1, 2, 1], y: [0, -20, 0] }}
-          transition={{ duration: particle.duration, repeat: Infinity, delay: particle.delay }}
+            "--particle-duration": particle.duration,
+            "--particle-delay": particle.delay,
+          } as React.CSSProperties}
         />
       ))}
 
       <motion.div
-        style={{ y: springY, opacity, scale, willChange: "transform, opacity" }}
+        style={{ y, opacity, scale }}
         className="relative z-10 w-full content-container pt-32 sm:pt-36 pb-20 transform-gpu"
       >
         <div className="text-center mb-14">
@@ -174,20 +167,14 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             transition={{ duration: 0.6, delay: 0.5 }}
             className="flex flex-wrap gap-2 mb-10 justify-center"
           >
-            {services.map((service, i) => (
-              <motion.div
+            {services.map((service) => (
+              <Link
                 key={`${service.label}-${service.href}`}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.6 + i * 0.04 }}
+                href={service.href}
+                className="inline-block px-4 py-2 text-[11px] tracking-wider text-white/40 border border-white/10 rounded-sm bg-white/3 hover:border-[color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)] hover:text-white/75 hover:bg-[color-mix(in srgb, var(--theme-primary, #ef4242) 6%, transparent)] transition-all duration-200 cursor-pointer backdrop-blur-sm"
               >
-                <Link
-                  href={service.href}
-                  className="inline-block px-4 py-2 text-[11px] tracking-wider text-white/40 border border-white/10 rounded-sm bg-white/3 hover:border-[color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)] hover:text-white/75 hover:bg-[color-mix(in srgb, var(--theme-primary, #ef4242) 6%, transparent)] transition-all duration-200 cursor-pointer backdrop-blur-sm"
-                >
-                  {service.label}
-                </Link>
-              </motion.div>
+                {service.label}
+              </Link>
             ))}
           </motion.div>
 
@@ -227,21 +214,24 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
         >
-          <SpotifyWidget />
-          <BibleWidget />
-          <MapWidget />
+          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-[160px]" />}>
+            <SpotifyWidget />
+          </Suspense>
+          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-[160px]" />}>
+            <BibleWidget />
+          </Suspense>
+          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-[160px]" />}>
+            <MapWidget />
+          </Suspense>
         </motion.div>
       </motion.div>
 
-      <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20 z-10 transform-gpu"
-        style={{ willChange: "transform" }}
-        animate={{ y: [0, 8, 0] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+      <div
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20 z-10 transform-gpu animate-[hero-bounce_2.5s_ease-in-out_infinite]"
       >
         <span className="text-[9px] tracking-[0.3em] uppercase">Scroll</span>
         <ChevronDown size={14} />
-      </motion.div>
+      </div>
     </section>
   );
 }

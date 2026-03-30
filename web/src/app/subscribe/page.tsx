@@ -45,11 +45,14 @@ export default function SubscribePage() {
     };
 
     const frame = window.requestAnimationFrame(syncHighlight);
-    window.addEventListener("resize", syncHighlight);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const debouncedSync = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(syncHighlight, 150); };
+    window.addEventListener("resize", debouncedSync, { passive: true });
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", syncHighlight);
+      clearTimeout(resizeTimer);
+      window.removeEventListener("resize", debouncedSync);
     };
   }, [mode]);
 

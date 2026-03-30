@@ -345,10 +345,10 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
             </button>
 
             <Link
-              href="/contact"
+              href="/resume"
               className="hidden sm:flex h-10 px-6 items-center text-[11px] tracking-widest uppercase font-medium bg-[var(--cranberry)] text-white rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)] hover:shadow-[0_0_30px_rgba(239,66,66,0.45)]"
             >
-              Contact Me
+              Resume
             </Link>
 
             <button
@@ -406,11 +406,11 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                 ))}
                 <div className="pt-4 mt-2 border-t border-white/8">
                   <Link
-                    href="/contact"
+                    href="/resume"
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-center h-11 bg-[var(--cranberry)] text-white text-[11px] tracking-widest uppercase font-medium rounded-sm shadow-[0_0_20px_rgba(239,66,66,0.3)]"
                   >
-                    Contact Me
+                    Resume
                   </Link>
                 </div>
               </div>

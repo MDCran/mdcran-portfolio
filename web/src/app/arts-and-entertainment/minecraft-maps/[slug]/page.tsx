@@ -14,7 +14,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const projects = await getProjects();
+  const projects = await getProjects({ includeHidden: true });
   const project = projects.find((p) => p.slug === slug && p.subcategory === "minecraft-maps");
   if (!project) {
     return buildSeoMetadata({
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function MinecraftMapPage({ params }: Props) {
   const { slug } = await params;
-  const [projects, clients] = await Promise.all([getProjects(), getClients()]);
+  const [projects, clients] = await Promise.all([getProjects({ includeHidden: true }), getClients()]);
   const foundProject = projects.find((p) => p.slug === slug && p.subcategory === "minecraft-maps");
   if (!foundProject) notFound();
   const project = await hydrateProjectVideos(foundProject);

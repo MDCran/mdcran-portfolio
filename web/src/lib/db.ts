@@ -71,12 +71,14 @@ function normalizeAssetPaths<T>(value: T): T {
   return value;
 }
 
-export async function getProjects(options?: { refreshVideoViews?: boolean }): Promise<Project[]> {
+export async function getProjects(options?: { refreshVideoViews?: boolean; includeHidden?: boolean }): Promise<Project[]> {
   if (options?.refreshVideoViews !== false) {
     await refreshProjectVideoViewsIfStale();
   }
 
-  return getProjectsRaw();
+  const projects = await getProjectsRaw();
+  if (options?.includeHidden) return projects;
+  return projects.filter((p) => p.visible !== false);
 }
 
 export async function getSiteContent(): Promise<SiteContent> {
@@ -966,7 +968,7 @@ export async function getFeaturedProjects(): Promise<Project[]> {
 }
 
 export async function getProjectBySlug(slug: string): Promise<Project | undefined> {
-  const projects = await getProjects();
+  const projects = await getProjects({ includeHidden: true });
   return projects.find((project) => project.slug === slug);
 }
 
@@ -1134,8 +1136,10 @@ export async function hydrateProjectVideos(project: Project): Promise<Project> {
   }
 }
 
-export async function getArticles(): Promise<Article[]> {
-  return readCollection<Article>("articles");
+export async function getArticles(options?: { includeHidden?: boolean }): Promise<Article[]> {
+  const articles = await readCollection<Article>("articles");
+  if (options?.includeHidden) return articles;
+  return articles.filter((a) => a.visible !== false);
 }
 
 export async function getSortedArticles(): Promise<Article[]> {
@@ -1652,7 +1656,49 @@ export interface ChatConfig {
   rateWindowHours: number;
 }
 
-const DEFAULT_CHAT_CONFIG: ChatConfig = { rateLimit: 10, rateWindowHours: 24 };
+const DEFAULT_CHAT_CONFIG: ChatConfig = { rateLimit: 15, rateWindowHours: 24 };
+
+export interface ChatRateLimitEntry {
+  ip: string;
+  count: number;
+  resetAt: string; // ISO string
+}
+
+export async function checkChatRateLimit(ip: string, limit: number, windowMs: number): Promise<boolean> {
+  const db = await getDb();
+  const col = db.collection("chatRateLimits");
+  const now = Date.now();
+  const entry = await col.findOne({ ip });
+
+  if (!entry || now > new Date(entry.resetAt).getTime()) {
+    await col.updateOne(
+      { ip },
+      { $set: { ip, count: 1, resetAt: new Date(now + windowMs).toISOString() } },
+      { upsert: true }
+    );
+    return true;
+  }
+
+  if (entry.count >= limit) return false;
+
+  await col.updateOne({ ip }, { $inc: { count: 1 } });
+  return true;
+}
+
+export async function getChatRateLimitEntries(): Promise<ChatRateLimitEntry[]> {
+  const db = await getDb();
+  const docs = await db.collection("chatRateLimits").find({}).toArray();
+  return docs.map((d) => ({ ip: d.ip, count: d.count, resetAt: d.resetAt }));
+}
+
+export async function clearChatRateLimits(ip?: string): Promise<void> {
+  const db = await getDb();
+  if (ip) {
+    await db.collection("chatRateLimits").deleteOne({ ip });
+  } else {
+    await db.collection("chatRateLimits").deleteMany({});
+  }
+}
 
 export async function getChatConfig(): Promise<ChatConfig> {
   const db = await getDb();

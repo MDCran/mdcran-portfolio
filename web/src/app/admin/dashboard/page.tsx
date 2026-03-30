@@ -928,7 +928,9 @@ function ProjectModal({
   const [checkoutUrl, setCheckoutUrl] = useState(initial?.pricing.checkoutUrl ?? "");
   const [liveUrl, setLiveUrl] = useState(initial?.liveUrl ?? "");
   const [externalUrl, setExternalUrl] = useState(initial?.externalUrl ?? "");
+  const [githubUrl, setGithubUrl] = useState(initial?.githubUrl ?? "");
   const [featured, setFeatured] = useState(initial?.featured ?? false);
+  const [visible, setVisible] = useState(initial?.visible !== false);
   const [publishDate, setPublishDate] = useState(initial?.publishDate ?? "");
   const [clientIds, setClientIds] = useState<string[]>(initial?.clientIds ?? []);
   const [videos, setVideos] = useState<{ youtubeId: string; title: string }[]>(
@@ -994,10 +996,12 @@ function ProjectModal({
       },
       liveUrl: liveUrl.trim() || undefined,
       externalUrl: externalUrl.trim() || undefined,
+      githubUrl: githubUrl.trim() || undefined,
       videos: cleanedVideos.length ? cleanedVideos : undefined,
       credits: cleanedCredits.length ? cleanedCredits : undefined,
       sections: cleanedSections.length ? cleanedSections : undefined,
       featured,
+      visible,
       publishDate: publishDate || undefined,
       clientIds: clientIds.length ? clientIds : undefined,
     };
@@ -1304,6 +1308,16 @@ function ProjectModal({
         </Field>
 
         <Field>
+          <Label>GitHub URL (optional)</Label>
+          <input
+            className={inputCls}
+            value={githubUrl}
+            onChange={(e) => setGithubUrl(e.target.value)}
+            placeholder="https://github.com/… (repository link)"
+          />
+        </Field>
+
+        <Field>
           <Label>Publish Date</Label>
           <input className={inputCls} type="date" value={publishDate} onChange={(e) => setPublishDate(e.target.value)} />
         </Field>
@@ -1533,15 +1547,27 @@ function ProjectModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            id="proj-featured"
-            type="checkbox"
-            checked={featured}
-            onChange={(e) => setFeatured(e.target.checked)}
-            className="accent-[#ef4242]"
-          />
-          <label htmlFor="proj-featured" className="text-xs text-white/60 select-none">Featured project</label>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              id="proj-visible"
+              type="checkbox"
+              checked={visible}
+              onChange={(e) => setVisible(e.target.checked)}
+              className="accent-emerald-400"
+            />
+            <label htmlFor="proj-visible" className="text-xs text-white/60 select-none">Visible on site</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="proj-featured"
+              type="checkbox"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+              className="accent-[#ef4242]"
+            />
+            <label htmlFor="proj-featured" className="text-xs text-white/60 select-none">Featured project</label>
+          </div>
         </div>
 
         {errors.length > 0 && (
@@ -1585,6 +1611,7 @@ function ArticleModal({
   const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
   const [featured, setFeatured] = useState(initial?.featured ?? false);
   const [homeFeatured, setHomeFeatured] = useState(initial?.homeFeatured ?? false);
+  const [visible, setVisible] = useState(initial?.visible !== false);
   const [coverImage, setCoverImage] = useState<ImageAsset>(() => toEditableImageAsset(initial?.coverImage));
   const [sections, setSections] = useState<ArticleSection[]>(
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
@@ -1647,6 +1674,7 @@ function ArticleModal({
       sections: cleanedSections,
       featured,
       homeFeatured,
+      visible,
       tapCount: initial?.tapCount,
       authorProfilePic: initial?.authorProfilePic,
     };
@@ -1790,7 +1818,10 @@ function ArticleModal({
           </div>
         </Field>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <input id="art-visible" type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} className="accent-emerald-400" />
+          <label htmlFor="art-visible" className="text-xs text-white/60 select-none">Visible on site</label>
+          <span className="mx-2" />
           <input id="art-featured" type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="accent-[#ef4242]" />
           <label htmlFor="art-featured" className="text-xs text-white/60 select-none">Featured on articles page</label>
           <span className="mx-2" />
@@ -4577,6 +4608,7 @@ export default function AdminDashboard() {
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Pricing</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Taps</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Featured</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Visible</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Date</th>
                       <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
                     </tr>
@@ -4619,6 +4651,9 @@ export default function AdminDashboard() {
                         <td className="px-3 py-2 hidden lg:table-cell">
                           {p.featured ? <span className="text-[#ef4242] text-xs">★</span> : <span className="text-white/20">—</span>}
                         </td>
+                        <td className="px-3 py-2 hidden lg:table-cell">
+                          {p.visible !== false ? <span className="text-emerald-400 text-xs">●</span> : <span className="text-white/20 text-xs">○</span>}
+                        </td>
                         <td className="px-3 py-2 text-white/35 hidden md:table-cell">{fmtDate(p.publishDate)}</td>
                         <td className="px-3 py-2">
                           <div className="flex gap-1.5 justify-end">
@@ -4648,7 +4683,7 @@ export default function AdminDashboard() {
                     ))}
                     {filteredProjects.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="px-3 py-8 text-center text-white/25 text-xs">No projects found.</td>
+                        <td colSpan={10} className="px-3 py-8 text-center text-white/25 text-xs">No projects found.</td>
                       </tr>
                     )}
                   </tbody>
@@ -4693,6 +4728,7 @@ export default function AdminDashboard() {
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden sm:table-cell">Date / Time</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Taps</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Featured</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Visible</th>
                       <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
                     </tr>
                   </thead>
@@ -4719,6 +4755,9 @@ export default function AdminDashboard() {
                         <td className="px-3 py-2.5 hidden lg:table-cell">
                           {a.featured ? <span className="text-[#ef4242] text-xs">★</span> : <span className="text-white/20">—</span>}
                         </td>
+                        <td className="px-3 py-2.5 hidden lg:table-cell">
+                          {a.visible !== false ? <span className="text-emerald-400 text-xs">●</span> : <span className="text-white/20 text-xs">○</span>}
+                        </td>
                         <td className="px-3 py-2.5">
                           <div className="flex gap-1.5 justify-end">
                             <a
@@ -4737,7 +4776,7 @@ export default function AdminDashboard() {
                     ))}
                     {filteredArticles.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="px-3 py-8 text-center text-white/25 text-xs">No articles found.</td>
+                        <td colSpan={9} className="px-3 py-8 text-center text-white/25 text-xs">No articles found.</td>
                       </tr>
                     )}
                   </tbody>

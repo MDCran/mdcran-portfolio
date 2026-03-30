@@ -65,8 +65,8 @@ export default function FilterBar({
     }
 
     const stopDragging = () => setDraggingStatus(false);
-    window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
+    window.addEventListener("pointerup", stopDragging, { passive: true });
+    window.addEventListener("pointercancel", stopDragging, { passive: true });
 
     return () => {
       window.removeEventListener("pointerup", stopDragging);
@@ -80,8 +80,8 @@ export default function FilterBar({
     }
 
     const stopDragging = () => setDraggingGrid(false);
-    window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
+    window.addEventListener("pointerup", stopDragging, { passive: true });
+    window.addEventListener("pointercancel", stopDragging, { passive: true });
 
     return () => {
       window.removeEventListener("pointerup", stopDragging);
@@ -106,10 +106,13 @@ export default function FilterBar({
     };
 
     updateStatusHighlight();
-    window.addEventListener("resize", updateStatusHighlight);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const debouncedUpdate = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(updateStatusHighlight, 150); };
+    window.addEventListener("resize", debouncedUpdate, { passive: true });
 
     return () => {
-      window.removeEventListener("resize", updateStatusHighlight);
+      clearTimeout(resizeTimer);
+      window.removeEventListener("resize", debouncedUpdate);
     };
   }, [active, counts]);
 
