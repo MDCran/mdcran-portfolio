@@ -945,9 +945,10 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
 
   useEffect(() => {
     resizeCanvas();
-    const handleResize = () => resizeCanvas();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const handleResize = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resizeCanvas, 200); };
+    window.addEventListener("resize", handleResize, { passive: true });
+    return () => { clearTimeout(resizeTimer); window.removeEventListener("resize", handleResize); };
   }, [resizeCanvas]);
 
   // Also resize when started changes (container might change size)

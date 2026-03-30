@@ -99,9 +99,11 @@ export default function Lightbox({
     };
 
     syncViewportMode();
-    window.addEventListener("resize", syncViewportMode);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const debouncedSync = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(syncViewportMode, 100); };
+    window.addEventListener("resize", debouncedSync, { passive: true });
 
-    return () => window.removeEventListener("resize", syncViewportMode);
+    return () => { clearTimeout(resizeTimer); window.removeEventListener("resize", debouncedSync); };
   }, []);
 
   const hasCarousel = images.length > 1;

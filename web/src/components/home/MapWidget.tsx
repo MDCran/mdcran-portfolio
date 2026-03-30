@@ -1,16 +1,12 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
 import { MapPin } from "lucide-react";
 import { assetUrl } from "@/lib/utils";
 
 export default function MapWidget() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+    <div
       className="relative overflow-hidden rounded-sm border group transition-all duration-300"
       style={{
         borderColor: 'rgba(255,255,255,0.08)',
@@ -41,16 +37,12 @@ export default function MapWidget() {
       {/* Content */}
       <div className="relative z-10 p-4 flex flex-col h-full justify-end" style={{ minHeight: "160px" }}>
         {/* Pin dot */}
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-          animate={{ scale: [1, 1.3, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <div className="relative">
-            <div className="w-3 h-3 rounded-full bg-[#ef4242] shadow-[0_0_15px_rgba(239,66,66,0.8)]" />
+            <div className="w-3 h-3 rounded-full bg-[#ef4242] shadow-[0_0_15px_rgba(239,66,66,0.8)] animate-[hero-map-pin_2s_ease-in-out_infinite]" />
             <div className="absolute inset-0 rounded-full bg-[#ef4242] opacity-40 scale-150 animate-ping" />
           </div>
-        </motion.div>
+        </div>
 
         <div className="flex items-center gap-2 mt-auto">
           <MapPin size={13} className="text-[#ef4242] shrink-0" />
@@ -60,6 +52,6 @@ export default function MapWidget() {
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

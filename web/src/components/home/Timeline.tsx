@@ -175,11 +175,9 @@ export default function Timeline({ experiences }: TimelineProps) {
                   {/* Dot on the line */}
                   <div className="relative z-10 flex items-center justify-center" style={{ height: "16px" }}>
                     {isCurrent && (
-                      <motion.div
-                        className="absolute rounded-full"
+                      <div
+                        className="absolute rounded-full animate-[timeline-dot-pulse_2s_ease-in-out_infinite]"
                         style={{ width: "28px", height: "28px", background: "rgba(239, 66, 66, 0.2)" }}
-                        animate={{ opacity: [0.3, 0.7, 0.3], scale: [1, 1.3, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                       />
                     )}
                     <div
@@ -232,11 +230,9 @@ export default function Timeline({ experiences }: TimelineProps) {
               <div className="flex flex-col justify-end w-full" style={{ height: `${LINE_Y - 8}px` }} />
               {/* Dashed dot */}
               <div className="relative z-10 flex items-center justify-center" style={{ height: "16px" }}>
-                <motion.div
-                  className="absolute rounded-full"
+                <div
+                  className="absolute rounded-full animate-[timeline-spin_12s_linear_infinite]"
                   style={{ width: "32px", height: "32px", border: "1.5px dashed rgba(239, 66, 66, 0.35)" }}
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
                 />
                 <div
                   className="w-2 h-2 rounded-full relative z-10"
@@ -300,13 +296,11 @@ function TimelineCard({
         <span className="text-[9px] tracking-wider tabular-nums text-white/35">{startYear}</span>
         <span className="text-[7px] text-white/15">—</span>
         {isCurrent ? (
-          <motion.span
-            className="text-[9px] tracking-wider font-medium text-[#ef4242]"
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          <span
+            className="text-[9px] tracking-wider font-medium text-[#ef4242] animate-[timeline-present-blink_1.5s_ease-in-out_infinite]"
           >
             Present
-          </motion.span>
+          </span>
         ) : (
           <span className="text-[9px] tracking-wider tabular-nums text-white/35">{endYear}</span>
         )}

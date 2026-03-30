@@ -6,7 +6,7 @@ export function pickRandomRelatedProjects(
   predicate: (project: Project) => boolean,
   count = 4
 ): Project[] {
-  const pool = projects.filter((project) => project.id !== currentProjectId && predicate(project));
+  const pool = projects.filter((project) => project.id !== currentProjectId && project.visible !== false && predicate(project));
 
   for (let i = pool.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));

@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Github,
   Linkedin,
+  Mail,
   Star,
   Sparkles,
 } from "lucide-react";
@@ -85,32 +86,51 @@ export default function ResumeContent({
         breadcrumbs={[{ label: "Resume" }]}
         actions={
           <div className="flex items-center gap-3">
-            <a
-              href="https://www.linkedin.com/in/mdcran/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open LinkedIn profile"
-              title="LinkedIn"
-              className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
-            >
-              <Linkedin size={13} />
-            </a>
-            <a
-              href="https://github.com/mdcran"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open GitHub profile"
-              title="GitHub"
-              className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
-            >
-              <Github size={13} />
-            </a>
+            <div className="relative group">
+              <a
+                href="https://www.linkedin.com/in/mdcran/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open LinkedIn profile"
+                className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+              >
+                <Linkedin size={13} />
+              </a>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  LinkedIn
+                </div>
+              </div>
+            </div>
+            <div className="relative group">
+              <a
+                href="https://github.com/mdcran"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open GitHub profile"
+                className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+              >
+                <Github size={13} />
+              </a>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  GitHub
+                </div>
+              </div>
+            </div>
             <a
               href="/Michael_Cran_Resume.pdf"
               download
               className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors shadow-[0_0_20px_rgba(239,66,66,0.3)]"
             >
               Download PDF
+            </a>
+            <a
+              href="mailto:mdcranberry@gmail.com"
+              className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+            >
+              <Mail size={13} />
+              Contact Me
             </a>
           </div>
         }

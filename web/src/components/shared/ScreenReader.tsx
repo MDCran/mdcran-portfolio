@@ -433,11 +433,11 @@ export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, 
 
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("click", handleClickAway);
-    document.addEventListener("scroll", handleClickAway, true);
+    document.addEventListener("scroll", handleClickAway, { capture: true, passive: true });
     return () => {
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("click", handleClickAway);
-      document.removeEventListener("scroll", handleClickAway, true);
+      document.removeEventListener("scroll", handleClickAway, { capture: true } as EventListenerOptions);
     };
   }, []);
 

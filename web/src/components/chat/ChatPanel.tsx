@@ -469,10 +469,12 @@ export default function ChatPanel() {
                     for (const char of parsed.text) {
                       accumulated += char;
                       // Strip any complete or in-progress action markers from display
+                      // Use space-aware replacement to avoid joining words across marker boundaries
                       const display = accumulated
-                        .replace(/__[A-Z]+:.+?__/g, "")   // complete markers
-                        .replace(/__[A-Z]+:[^\n]*$/g, "")  // partial marker at end (still streaming)
-                        .replace(/__[A-Z]*$/g, "")          // partial opening __
+                        .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")  // complete markers → single space
+                        .replace(/\s*__[A-Z]+:[^\n]*$/g, "")     // partial marker at end (still streaming)
+                        .replace(/\s*__[A-Z]*$/g, "")             // partial opening __
+                        .replace(/  +/g, " ")                      // collapse double spaces
                         .trim();
                       setMessages((prev) => {
                         const updated = [...prev];
@@ -540,7 +542,7 @@ export default function ChatPanel() {
             if (THEMES.some((t) => t.id === themeId)) {
               setTheme(themeId);
             }
-            cleaned = cleaned.replace(/__THEME:[\w-]+__/g, "");
+            cleaned = cleaned.replace(/\s*__THEME:[\w-]+__\s*/g, " ");
           }
 
           // Navigation marker (explicit)
@@ -548,7 +550,7 @@ export default function ChatPanel() {
           if (navMatch) {
             hasMarkers = true;
             const navPath = navMatch[1];
-            cleaned = cleaned.replace(/__NAV:\/.+?__/g, "");
+            cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
             didNavigate = true;
             setTimeout(() => {
               const base = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
@@ -567,7 +569,7 @@ export default function ChatPanel() {
           const highlightMatch = cleaned.match(/__HIGHLIGHT:(.+?)__/);
           if (highlightMatch) {
             hasMarkers = true;
-            cleaned = cleaned.replace(/__HIGHLIGHT:.+?__/g, "");
+            cleaned = cleaned.replace(/\s*__HIGHLIGHT:.+?__\s*/g, " ");
           }
           const highlightTarget = highlightMatch?.[1];
 
@@ -622,7 +624,7 @@ export default function ChatPanel() {
 
           // Update the displayed message with markers stripped + flags
           if (hasMarkers || didNavigate || pendingHighlightTarget) {
-            cleaned = cleaned.trim();
+            cleaned = cleaned.replace(/  +/g, " ").trim();
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {

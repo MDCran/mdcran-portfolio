@@ -11,8 +11,8 @@ export async function GET() {
 
   const db = await getDb();
   const [articles, projects, taps] = await Promise.all([
-    getArticles(),
-    getProjects(),
+    getArticles({ includeHidden: true }),
+    getProjects({ includeHidden: true }),
     db.collection("taps").find({}, { projection: { _id: 0 } }).toArray() as unknown as Promise<TapRecord[]>,
   ]);
 

@@ -129,8 +129,10 @@ export interface Project {
   publishDate?: string;   // format: "MM-YYYY" or "MM-DD-YYYY"
   pricing: ProjectPricing;
   featured?: boolean;
+  visible?: boolean;      // defaults to true; set false to hide from public site
   liveUrl?: string;
   externalUrl?: string;   // Army Reserve article link, etc.
+  githubUrl?: string;     // optional link to GitHub repository
   sections?: ArticleSection[];
 }
 
@@ -330,6 +332,7 @@ export interface Article {
   sections: ArticleSection[];
   featured?: boolean;          // featured on articles page (only 1 at a time)
   homeFeatured?: boolean;      // featured on home page (multiple allowed)
+  visible?: boolean;           // defaults to true; set false to hide from public site
   tapCount?: number;           // stored in MongoDB, shown to all visitors
 }
 

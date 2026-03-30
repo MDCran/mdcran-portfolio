@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
 import { BookOpen, RefreshCw } from "lucide-react";
 import useSWR from "swr";
 import type { BibleVerse } from "@/lib/types";
@@ -22,10 +21,7 @@ export default function BibleWidget() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+    <div
       className="relative overflow-hidden rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl p-4 group hover:border-white/15 transition-all duration-300"
     >
       {/* Gold accent */}
@@ -69,6 +65,6 @@ export default function BibleWidget() {
       ) : (
         <p className="text-xs text-white/25">Could not load verse.</p>
       )}
-    </motion.div>
+    </div>
   );
 }
