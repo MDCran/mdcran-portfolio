@@ -686,7 +686,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
       cancelled = true;
       cancelAnimationFrame(animFrameRef.current);
     };
-  }, [getEffectiveSpeed, hasEffect, scheduleNextPowerup, spawnParticles, addScorePopup]);
+  }, [started, getEffectiveSpeed, hasEffect, scheduleNextPowerup, spawnParticles, addScorePopup]);
 
   // -----------------------------------------------------------------------
   // Render

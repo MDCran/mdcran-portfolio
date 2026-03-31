@@ -267,19 +267,43 @@ function DragReorderList<T>({ items, keyFn, onReorder, renderItem }: {
   renderItem: (item: T, idx: number) => React.ReactNode;
 }) {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
   return (
-    <div className="space-y-1">
+    <div>
       {items.map((item, i) => (
-        <div
-          key={keyFn(item, i)}
-          draggable
-          onDragStart={() => setDragIdx(i)}
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-          onDrop={() => { if (dragIdx !== null && dragIdx !== i) onReorder(dragIdx, i); setDragIdx(null); }}
-          onDragEnd={() => setDragIdx(null)}
-          className={`flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border cursor-grab active:cursor-grabbing transition-colors ${dragIdx === i ? "opacity-40" : ""} ${dragIdx !== null && dragIdx !== i ? "border-[#ef4242]/30" : "border-white/6"}`}
-        >
-          {renderItem(item, i)}
+        <div key={keyFn(item, i)} className="relative">
+          {/* Drop indicator line — shows above this item when dragging over the top half */}
+          {dragIdx !== null && dropIdx === i && dropIdx !== dragIdx && (
+            <div className="absolute -top-px left-2 right-2 h-0.5 bg-[#ef4242] rounded-full z-10 shadow-[0_0_6px_rgba(239,66,66,0.5)]" />
+          )}
+          <div
+            draggable
+            onDragStart={() => { setDragIdx(i); setDropIdx(null); }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              const rect = e.currentTarget.getBoundingClientRect();
+              const midY = rect.top + rect.height / 2;
+              setDropIdx(e.clientY < midY ? i : i + 1);
+            }}
+            onDragLeave={() => setDropIdx(null)}
+            onDrop={() => {
+              if (dragIdx !== null && dropIdx !== null && dropIdx !== dragIdx) {
+                const target = dropIdx > dragIdx ? dropIdx - 1 : dropIdx;
+                if (target !== dragIdx) onReorder(dragIdx, target);
+              }
+              setDragIdx(null);
+              setDropIdx(null);
+            }}
+            onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+            className={`flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border cursor-grab active:cursor-grabbing transition-colors mb-1 ${dragIdx === i ? "opacity-30" : ""} border-white/6`}
+          >
+            {renderItem(item, i)}
+          </div>
+          {/* Drop indicator line — shows below the last item when dragging over the bottom half */}
+          {dragIdx !== null && dropIdx === i + 1 && i === items.length - 1 && dropIdx !== dragIdx && (
+            <div className="absolute -bottom-px left-2 right-2 h-0.5 bg-[#ef4242] rounded-full z-10 shadow-[0_0_6px_rgba(239,66,66,0.5)]" />
+          )}
         </div>
       ))}
     </div>
@@ -657,10 +681,12 @@ function R2ImagePickerModal({
   title = "Select Image",
   onClose,
   onSelect,
+  allowPdf,
 }: {
   title?: string;
   onClose: () => void;
   onSelect: (url: string) => void;
+  allowPdf?: boolean;
 }) {
   const [prefix, setPrefix] = useState("");
   const [search, setSearch] = useState("");
@@ -672,7 +698,7 @@ function R2ImagePickerModal({
   const [folders, setFolders] = useState<R2BrowserFolder[]>([]);
   const [files, setFiles] = useState<R2BrowserFile[]>([]);
   const pickerFileInputRef = useRef<HTMLInputElement>(null);
-  const imageFiles = files.filter((file) => isImageAssetFile(file.name));
+  const imageFiles = files.filter((file) => allowPdf ? (isImageAssetFile(file.name) || /\.pdf$/i.test(file.name)) : isImageAssetFile(file.name));
 
   function goUpOneLevel() {
     const trimmed = prefix.replace(/\/$/, "");
@@ -993,6 +1019,7 @@ function ProjectModal({
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
   );
   const [sectionDragIdx, setSectionDragIdx] = useState<number | null>(null);
+  const [sectionDropIdx, setSectionDropIdx] = useState<number | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [imagePickerTarget, setImagePickerTarget] = useState<
     | null
@@ -1075,6 +1102,7 @@ function ProjectModal({
       "info-block": { type: "info-block", content: "", caption: "" },
       "before-after": { type: "before-after", beforeImage: { src: "", alt: "" }, afterImage: { src: "", alt: "" }, caption: "" },
       button: { type: "button", label: "", content: "", caption: "" },
+      pdf: { type: "pdf", src: "", caption: "", pdfWidth: "100%", pdfHeight: "600px" },
     };
     setSections((prev) => [...prev, { ...defaults[type] }]);
   }
@@ -1510,12 +1538,16 @@ function ProjectModal({
               <div
                 key={idx}
                 draggable
-                onDragStart={() => setSectionDragIdx(idx)}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-                onDrop={() => { if (sectionDragIdx !== null && sectionDragIdx !== idx) { setSections((prev) => arrayMove(prev, sectionDragIdx, idx)); } setSectionDragIdx(null); }}
-                onDragEnd={() => setSectionDragIdx(null)}
-                className={`border rounded-sm p-3 bg-white/2 space-y-2 cursor-grab active:cursor-grabbing transition-colors ${sectionDragIdx === idx ? "opacity-40" : ""} ${sectionDragIdx !== null && sectionDragIdx !== idx ? "border-[#ef4242]/30" : "border-white/8"}`}
+                onDragStart={() => { setSectionDragIdx(idx); setSectionDropIdx(null); }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; const rect = e.currentTarget.getBoundingClientRect(); setSectionDropIdx(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1); }}
+                onDragLeave={() => setSectionDropIdx(null)}
+                onDrop={() => { if (sectionDragIdx !== null && sectionDropIdx !== null && sectionDropIdx !== sectionDragIdx) { const target = sectionDropIdx > sectionDragIdx ? sectionDropIdx - 1 : sectionDropIdx; if (target !== sectionDragIdx) setSections((prev) => arrayMove(prev, sectionDragIdx, target)); } setSectionDragIdx(null); setSectionDropIdx(null); }}
+                onDragEnd={() => { setSectionDragIdx(null); setSectionDropIdx(null); }}
+                className={`border border-white/8 rounded-sm p-3 bg-white/2 space-y-2 cursor-grab active:cursor-grabbing transition-colors relative ${sectionDragIdx === idx ? "opacity-30" : ""}`}
               >
+                {sectionDragIdx !== null && sectionDropIdx === idx && sectionDropIdx !== sectionDragIdx && (
+                  <div className="absolute -top-1 left-2 right-2 h-0.5 bg-[#ef4242] rounded-full z-10 shadow-[0_0_6px_rgba(239,66,66,0.5)]" />
+                )}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-white/20 text-xs select-none cursor-grab">⠿</span>
@@ -1619,11 +1651,26 @@ function ProjectModal({
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption below button (optional)" />
                   </div>
                 )}
+                {sec.type === "pdf" && (
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-[1fr_auto] gap-2">
+                      <input className={inputCls} value={sec.src ?? ""} onChange={(e) => updateSection(idx, { src: e.target.value })} placeholder="PDF URL (https://... or /cdn/...)" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-image", sectionIndex: idx })}>
+                        Select PDF
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input className={inputCls} value={sec.pdfWidth ?? "100%"} onChange={(e) => updateSection(idx, { pdfWidth: e.target.value })} placeholder="Width (e.g. 100% or 800px)" />
+                      <input className={inputCls} value={sec.pdfHeight ?? "600px"} onChange={(e) => updateSection(idx, { pdfHeight: e.target.value })} placeholder="Height (e.g. 600px)" />
+                    </div>
+                    <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["text", "image", "gallery", "video", "quote", "code", "divider", "before-after", "button"] as ArticleSection["type"][]).map((t) => (
+            {(["text", "image", "gallery", "video", "quote", "code", "divider", "before-after", "button", "pdf"] as ArticleSection["type"][]).map((t) => (
               <button key={t} type="button" onClick={() => addSection(t)} className={btnOutline}>+ {t}</button>
             ))}
           </div>
@@ -1663,9 +1710,10 @@ function ProjectModal({
     </Modal>
     {imagePickerTarget && (
       <R2ImagePickerModal
-        title="Select Project Image"
+        title={imagePickerTarget?.kind === "section-image" && sections[imagePickerTarget.sectionIndex]?.type === "pdf" ? "Select PDF" : "Select Project Image"}
         onClose={() => setImagePickerTarget(null)}
         onSelect={applySelectedImage}
+        allowPdf={imagePickerTarget?.kind === "section-image" && sections[imagePickerTarget.sectionIndex]?.type === "pdf"}
       />
     )}
     </>
@@ -1699,6 +1747,7 @@ function ArticleModal({
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
   );
   const [sectionDragIdx, setSectionDragIdx] = useState<number | null>(null);
+  const [sectionDropIdx, setSectionDropIdx] = useState<number | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [imagePickerTarget, setImagePickerTarget] = useState<
     | null
@@ -1780,6 +1829,7 @@ function ArticleModal({
       "info-block": { type: "info-block", content: "", caption: "" },
       "before-after": { type: "before-after", beforeImage: { src: "", alt: "" }, afterImage: { src: "", alt: "" }, caption: "" },
       button: { type: "button", label: "", content: "", caption: "" },
+      pdf: { type: "pdf", src: "", caption: "", pdfWidth: "100%", pdfHeight: "600px" },
     };
     setSections((prev) => [...prev, { ...defaults[type] }]);
   }
@@ -1927,12 +1977,16 @@ function ArticleModal({
               <div
                 key={idx}
                 draggable
-                onDragStart={() => setSectionDragIdx(idx)}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-                onDrop={() => { if (sectionDragIdx !== null && sectionDragIdx !== idx) { setSections((prev) => arrayMove(prev, sectionDragIdx, idx)); } setSectionDragIdx(null); }}
-                onDragEnd={() => setSectionDragIdx(null)}
-                className={`border rounded-sm p-3 bg-white/2 space-y-2 cursor-grab active:cursor-grabbing transition-colors ${sectionDragIdx === idx ? "opacity-40" : ""} ${sectionDragIdx !== null && sectionDragIdx !== idx ? "border-[#ef4242]/30" : "border-white/8"}`}
+                onDragStart={() => { setSectionDragIdx(idx); setSectionDropIdx(null); }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; const rect = e.currentTarget.getBoundingClientRect(); setSectionDropIdx(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1); }}
+                onDragLeave={() => setSectionDropIdx(null)}
+                onDrop={() => { if (sectionDragIdx !== null && sectionDropIdx !== null && sectionDropIdx !== sectionDragIdx) { const target = sectionDropIdx > sectionDragIdx ? sectionDropIdx - 1 : sectionDropIdx; if (target !== sectionDragIdx) setSections((prev) => arrayMove(prev, sectionDragIdx, target)); } setSectionDragIdx(null); setSectionDropIdx(null); }}
+                onDragEnd={() => { setSectionDragIdx(null); setSectionDropIdx(null); }}
+                className={`border border-white/8 rounded-sm p-3 bg-white/2 space-y-2 cursor-grab active:cursor-grabbing transition-colors relative ${sectionDragIdx === idx ? "opacity-30" : ""}`}
               >
+                {sectionDragIdx !== null && sectionDropIdx === idx && sectionDropIdx !== sectionDragIdx && (
+                  <div className="absolute -top-1 left-2 right-2 h-0.5 bg-[#ef4242] rounded-full z-10 shadow-[0_0_6px_rgba(239,66,66,0.5)]" />
+                )}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-white/20 text-xs select-none cursor-grab">⠿</span>
@@ -2092,11 +2146,26 @@ function ArticleModal({
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption below button (optional)" />
                   </div>
                 )}
+                {sec.type === "pdf" && (
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-[1fr_auto] gap-2">
+                      <input className={inputCls} value={sec.src ?? ""} onChange={(e) => updateSection(idx, { src: e.target.value })} placeholder="PDF URL (https://... or /cdn/...)" />
+                      <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "section-image", sectionIndex: idx })}>
+                        Select PDF
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input className={inputCls} value={sec.pdfWidth ?? "100%"} onChange={(e) => updateSection(idx, { pdfWidth: e.target.value })} placeholder="Width (e.g. 100% or 800px)" />
+                      <input className={inputCls} value={sec.pdfHeight ?? "600px"} onChange={(e) => updateSection(idx, { pdfHeight: e.target.value })} placeholder="Height (e.g. 600px)" />
+                    </div>
+                    <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["text", "image", "gallery", "video", "quote", "code", "divider", "checklist", "ingredient-list", "steps", "store-checklist", "info-block", "before-after", "button"] as ArticleSection["type"][]).map((t) => (
+            {(["text", "image", "gallery", "video", "quote", "code", "divider", "checklist", "ingredient-list", "steps", "store-checklist", "info-block", "before-after", "button", "pdf"] as ArticleSection["type"][]).map((t) => (
               <button key={t} onClick={() => addSection(t)} className={btnOutline}>+ {t}</button>
             ))}
           </div>
@@ -2113,9 +2182,10 @@ function ArticleModal({
     </Modal>
     {imagePickerTarget && (
       <R2ImagePickerModal
-        title="Select Article Image"
+        title={imagePickerTarget?.kind === "section-image" && sections[imagePickerTarget.sectionIndex]?.type === "pdf" ? "Select PDF" : "Select Article Image"}
         onClose={() => setImagePickerTarget(null)}
         onSelect={applySelectedImage}
+        allowPdf={imagePickerTarget?.kind === "section-image" && sections[imagePickerTarget.sectionIndex]?.type === "pdf"}
       />
     )}
     </>

@@ -297,13 +297,14 @@ export type ArticleSectionType =
   | "store-checklist"
   | "info-block"
   | "before-after"
-  | "button";
+  | "button"
+  | "pdf";
 
 export interface ArticleSection {
   type: ArticleSectionType;
-  content?: string;    // markdown text / code / quote text
+  content?: string;    // markdown text / code / quote text / button URL
   caption?: string;
-  src?: string;        // single image src
+  src?: string;        // single image or PDF src
   images?: (string | ImageAsset)[];   // gallery images
   youtubeId?: string;  // embedded video
   language?: string;   // code block language
@@ -316,6 +317,9 @@ export interface ArticleSection {
   // For before-after comparison slider
   beforeImage?: string | ImageAsset;
   afterImage?: string | ImageAsset;
+  // For pdf viewer dimensions
+  pdfWidth?: string;   // e.g. "100%" or "800px"
+  pdfHeight?: string;  // e.g. "600px" or "800px"
 }
 
 export interface Article {

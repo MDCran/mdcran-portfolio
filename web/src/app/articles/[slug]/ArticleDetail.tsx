@@ -340,6 +340,26 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
       );
     }
 
+    case "pdf": {
+      if (!section.src) return null;
+      const pdfSrc = section.src.startsWith("/cdn/") ? `https://cdn.mdcran.com${section.src.slice(4)}` : section.src;
+      return (
+        <div className="my-8">
+          <div className="rounded-sm overflow-hidden border border-white/8" style={{ width: section.pdfWidth || "100%", maxWidth: "100%", margin: "0 auto" }}>
+            <iframe
+              src={pdfSrc}
+              title={section.caption || "PDF Document"}
+              style={{ width: "100%", height: section.pdfHeight || "600px", border: "none" }}
+              allowFullScreen
+            />
+          </div>
+          {section.caption && (
+            <p className="text-[10px] text-white/30 text-center mt-2">{section.caption}</p>
+          )}
+        </div>
+      );
+    }
+
     default:
       return null;
   }
