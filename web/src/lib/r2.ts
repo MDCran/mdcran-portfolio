@@ -223,3 +223,21 @@ export async function renameR2Asset(oldKey: string, newKey: string) {
   await copyR2Asset(oldKey, newKey);
   await deleteR2Asset(oldKey);
 }
+
+export async function createR2Folder(prefix: string, folderName: string) {
+  const normalizedPrefix = normalizePrefix(prefix);
+  const cleanName = folderName.trim().replace(/[^a-zA-Z0-9_\-. ]/g, "_").replace(/\s+/g, "_");
+  if (!cleanName) throw new Error("Invalid folder name.");
+  const key = `${normalizedPrefix}${cleanName}/.keep`;
+
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET!,
+      Key: key,
+      Body: Buffer.alloc(0),
+      ContentType: "application/octet-stream",
+    })
+  );
+
+  return { key, prefix: `${normalizedPrefix}${cleanName}/` };
+}

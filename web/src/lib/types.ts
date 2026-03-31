@@ -296,7 +296,8 @@ export type ArticleSectionType =
   | "steps"
   | "store-checklist"
   | "info-block"
-  | "before-after";
+  | "before-after"
+  | "button";
 
 export interface ArticleSection {
   type: ArticleSectionType;

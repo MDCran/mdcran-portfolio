@@ -12,6 +12,7 @@ export const SAME_AS_URLS = [
 ] as const;
 export const PERSON_ALIASES = [
   BRAND_NAME,
+  "mdcran",
   "MD Cran",
   PERSON_NAME,
   PERSON_FULL_NAME,

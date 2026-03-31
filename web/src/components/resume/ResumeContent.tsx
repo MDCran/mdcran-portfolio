@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import ExperienceCard from "@/components/resume/ExperienceCard";
 import PageHeader from "@/components/shared/PageHeader";
 import type { Experience, Education, Skill, Certification, Award, ClubMembership, Client } from "@/lib/types";
@@ -162,9 +163,18 @@ export default function ResumeContent({
             {/* Renowned Projects - always shown */}
             {renownedProjects.length > 0 && (
               <section id="renowned-projects" data-highlight-id="renowned-projects">
-                <div className="flex items-center gap-3 mb-9">
-                  <Star size={16} className="text-[#ef4242]" />
-                  <h2 className="font-nord text-xl text-white tracking-wider">Renowned Projects</h2>
+                <div className="flex items-center justify-between mb-9">
+                  <div className="flex items-center gap-3">
+                    <Star size={16} className="text-[#ef4242]" />
+                    <h2 className="font-nord text-xl text-white tracking-wider">Renowned Projects</h2>
+                  </div>
+                  <Link
+                    href="/#featured"
+                    className="flex items-center gap-1.5 text-[10px] tracking-widest uppercase text-white/30 hover:text-[#ef4242] transition-colors"
+                  >
+                    View Featured Work
+                    <ExternalLink size={10} />
+                  </Link>
                 </div>
                 <div className="space-y-0">
                   {renownedProjects.map((experience, index) => (

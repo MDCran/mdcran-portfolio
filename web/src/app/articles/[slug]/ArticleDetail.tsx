@@ -321,6 +321,25 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
       );
     }
 
+    case "button": {
+      if (!section.label || !section.content) return null;
+      return (
+        <div className="flex flex-col items-center gap-2 py-4">
+          <a
+            href={section.content}
+            target={section.content.startsWith("http") ? "_blank" : undefined}
+            rel={section.content.startsWith("http") ? "noopener noreferrer" : undefined}
+            className="inline-flex items-center gap-2 h-11 px-7 bg-[#ef4242] text-white text-sm tracking-wider uppercase rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)]"
+          >
+            {section.label}
+          </a>
+          {section.caption && (
+            <p className="text-xs text-white/35 text-center">{section.caption}</p>
+          )}
+        </div>
+      );
+    }
+
     default:
       return null;
   }

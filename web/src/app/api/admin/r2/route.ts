@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
-import { deleteR2Asset, listR2Assets, publicUrlForKey, renameR2Asset, uploadR2Asset } from "@/lib/r2";
+import { createR2Folder, deleteR2Asset, listR2Assets, publicUrlForKey, renameR2Asset, uploadR2Asset } from "@/lib/r2";
 import { updateR2AssetReferences } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -63,6 +63,27 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to delete file." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = (await req.json()) as { prefix?: string; folderName?: string };
+    if (!body.folderName?.trim()) {
+      return NextResponse.json({ error: "Folder name is required." }, { status: 400 });
+    }
+
+    const result = await createR2Folder(body.prefix ?? "", body.folderName);
+    return NextResponse.json({ ok: true, prefix: result.prefix });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to create folder." },
       { status: 500 }
     );
   }
