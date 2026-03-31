@@ -26,7 +26,7 @@ const PROFILE_SECTIONS: ProfileSection[] = [
   {
     title: "Developer Tools",
     icon: Wrench,
-    tags: ["Git", "Docker", "Figma", "pgAdmin4", "Vercel", "Supabase"],
+    tags: ["Git", "Docker", "Figma", "pgAdmin4", "Vercel", "Supabase", "Render"],
   },
   {
     title: "Frameworks & Libraries",
