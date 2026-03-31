@@ -77,7 +77,7 @@ export default function VisitorMap({ countries, content }: VisitorMapProps) {
           >
             {/* Total */}
             <div className="text-[10px] tracking-[0.2em] uppercase text-white/25 font-jb">
-              Total Visitors
+              Visitors
             </div>
             <div className="text-4xl font-bold text-[#ef4242] font-jb mt-2 leading-none">
               {totalCount.toLocaleString("en-US")}

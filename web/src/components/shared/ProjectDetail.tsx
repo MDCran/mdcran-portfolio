@@ -146,12 +146,6 @@ export default function ProjectDetail({
       <main className="content-container py-12 sm:py-16" data-highlight-id={project.id}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12">
           <div className="lg:col-span-2 space-y-12">
-            {project.description && (
-              <section>
-                <p className="text-[15px] text-white/65 leading-relaxed">{project.description}</p>
-              </section>
-            )}
-
             {project.sections && project.sections.length > 0 && (
               <section className="space-y-1">
                 {project.sections.map((section, i) => (
