@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+
 import { assetUrl } from "@/lib/utils";
 import { Mail, Github } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -43,13 +43,13 @@ export default function Footer() {
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="inline-flex items-center gap-3 group"
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={assetUrl(siteContent.brandLogoUrl) ?? ""}
                   alt="MDCran"
-                  width={120}
-                  height={30}
                   style={{ height: "30px", width: "auto" }}
                   className="opacity-75 group-hover:opacity-100 transition-opacity duration-200 rounded-sm"
+                  loading="lazy"
                 />
                 <span className="font-nord text-sm tracking-[0.18em] text-white/85 group-hover:text-white transition-colors duration-200">
                   <span>MD</span>
