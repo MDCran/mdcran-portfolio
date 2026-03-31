@@ -436,12 +436,13 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
-    // Calculate cell size to fit the grid with aspect ratio (small margin to prevent clipping)
-    const availW = rect.width - 4;
-    const availH = rect.height - 4;
+    // Calculate cell size to fit the grid with aspect ratio
+    // Cap max cell size to prevent canvas from being too large
+    const availW = rect.width - 8;
+    const availH = rect.height - 8;
     const cellW = availW / GRID_W;
     const cellH = availH / GRID_H;
-    const cellSize = Math.floor(Math.min(cellW, cellH));
+    const cellSize = Math.min(Math.floor(Math.min(cellW, cellH)), 32);
 
     const totalW = cellSize * GRID_W;
     const totalH = cellSize * GRID_H;
@@ -662,8 +663,8 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
           gy = ghost.pos.y;
         }
 
-        // Wobbly animation
-        const wobble = Math.sin(now * 0.008 + i * 2) * cs * 0.04;
+        // Subtle wobble animation
+        const wobble = Math.sin(now * 0.004 + i * 2) * cs * 0.02;
 
         const gpx = gx * cs + cs / 2 + wobble;
         const gpy = gy * cs + cs / 2;
@@ -685,7 +686,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         for (let w = 0; w < numWaves; w++) {
           const wx1 = gpx + gr - w * waveWidth - waveWidth * 0.5;
           const wx2 = gpx + gr - (w + 1) * waveWidth;
-          const waveOffset = Math.sin(now * 0.01 + w + i) * cs * 0.04;
+          const waveOffset = Math.sin(now * 0.005 + w + i) * cs * 0.025;
           ctx.quadraticCurveTo(
             wx1,
             skirtY - cs * 0.12 + waveOffset,

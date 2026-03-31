@@ -244,44 +244,10 @@ export default function ProjectDetail({
               </div>
             </section>
 
-            {relatedProjects.length > 0 && (
-              <section>
-                <h2 className="font-nord text-lg text-white tracking-wider mb-5">Other Projects</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {relatedProjects.map((rel) => (
-                    <Link
-                      key={rel.id}
-                      href={projectUrl(rel.category, rel.slug, rel.subcategory)}
-                      className="group flex gap-3 p-4 rounded-sm border border-white/6 bg-white/2 hover:border-[rgba(239,66,66,0.25)] hover:bg-white/4 transition-all duration-200"
-                    >
-                      {imageAssetSrc(rel.coverImage) && (
-                        <div className="relative w-16 h-16 shrink-0 rounded-sm overflow-hidden">
-                          <Image
-                            src={imageAssetSrc(rel.coverImage)!}
-                            alt={imageAssetAlt(rel.coverImage, rel.title)}
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                            unoptimized={shouldBypassImageOptimization(imageAssetSrc(rel.coverImage))}
-                          />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="text-sm text-white/80 group-hover:text-white transition-colors leading-snug line-clamp-2">
-                          {rel.title}
-                        </div>
-                        {rel.tags && rel.tags.length > 0 && (
-                          <div className="text-[10px] text-white/30 mt-1">{rel.tags.slice(0, 2).join(" · ")}</div>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
 
-          <div className="space-y-6">
+          {/* Sidebar — order-1 on mobile puts it before related projects */}
+          <div className="space-y-6 order-1 lg:order-none">
             {hasTopSidebarContent && (
             <div className="p-5 rounded-sm border border-white/7 bg-white/2 space-y-4">
               {showPricing && (
@@ -355,6 +321,28 @@ export default function ProjectDetail({
                   </svg>
                   View on GitHub
                 </a>
+              )}
+
+              {(project.sections ?? []).some((s) => s.type === "pdf" && s.src) && (
+                <div className="py-1 space-y-2">
+                  <p className="text-[10px] tracking-widest uppercase text-white/35">Files</p>
+                  {(project.sections ?? []).filter((s) => s.type === "pdf" && s.src).map((s, i) => {
+                    const pdfSrc = s.src!.startsWith("/cdn/") ? `https://cdn.mdcran.com${s.src!.slice(4)}` : s.src!;
+                    const fileName = s.caption || s.src!.split("/").pop() || "Document.pdf";
+                    return (
+                      <a
+                        key={i}
+                        href={pdfSrc}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-xs text-white/55 hover:text-white/80 transition-colors"
+                      >
+                        <Download size={11} className="text-[var(--cranberry)] shrink-0" />
+                        <span className="truncate">{fileName}</span>
+                      </a>
+                    );
+                  })}
+                </div>
               )}
 
               {hasVideos && (
@@ -467,6 +455,45 @@ export default function ProjectDetail({
               </div>
             )}
           </div>
+
+          {/* Related projects — full-width row below sidebar on both mobile and desktop */}
+          {relatedProjects.length > 0 && (
+            <div className="lg:col-span-3 order-2 lg:order-none pt-4">
+              <section>
+                <h2 className="font-nord text-lg text-white tracking-wider mb-5">Other Projects</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {relatedProjects.map((rel) => (
+                    <Link
+                      key={rel.id}
+                      href={projectUrl(rel.category, rel.slug, rel.subcategory)}
+                      className="group flex gap-3 p-4 rounded-sm border border-white/6 bg-white/2 hover:border-[rgba(239,66,66,0.25)] hover:bg-white/4 transition-all duration-200"
+                    >
+                      {imageAssetSrc(rel.coverImage) && (
+                        <div className="relative w-16 h-16 shrink-0 rounded-sm overflow-hidden">
+                          <Image
+                            src={imageAssetSrc(rel.coverImage)!}
+                            alt={imageAssetAlt(rel.coverImage, rel.title)}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                            unoptimized={shouldBypassImageOptimization(imageAssetSrc(rel.coverImage))}
+                          />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-sm text-white/80 group-hover:text-white transition-colors leading-snug line-clamp-2">
+                          {rel.title}
+                        </div>
+                        {rel.tags && rel.tags.length > 0 && (
+                          <div className="text-[10px] text-white/30 mt-1">{rel.tags.slice(0, 2).join(" · ")}</div>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       </main>
 
@@ -920,6 +947,25 @@ function ProjectSection({
           </a>
           {section.caption && (
             <p className="text-xs text-white/35 text-center">{section.caption}</p>
+          )}
+        </div>
+      );
+    }
+    case "pdf": {
+      if (!section.src) return null;
+      const pdfSrc = section.src.startsWith("/cdn/") ? `https://cdn.mdcran.com${section.src.slice(4)}` : section.src;
+      return (
+        <div className="my-8">
+          <div className="rounded-sm overflow-hidden border border-white/8" style={{ width: section.pdfWidth || "100%", maxWidth: "100%", margin: "0 auto" }}>
+            <iframe
+              src={pdfSrc}
+              title={section.caption || "PDF Document"}
+              style={{ width: "100%", height: section.pdfHeight || "600px", border: "none" }}
+              allowFullScreen
+            />
+          </div>
+          {section.caption && (
+            <p className="text-[10px] text-white/30 text-center mt-2">{section.caption}</p>
           )}
         </div>
       );
