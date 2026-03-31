@@ -103,7 +103,8 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                 <motion.div
                   key={photo.src}
                   initial={{ opacity: 0, y: 32, rotate: (i % 2 === 0 ? -2 : 2) * 0.5 }}
-                  animate={{ opacity: 1, y: 0, rotate: i % 2 === 0 ? -2 : 2 }}
+                  whileInView={{ opacity: 1, y: 0, rotate: i % 2 === 0 ? -2 : 2 }}
+                  viewport={{ once: true, amount: 0.15 }}
                   transition={{
                     duration: 0.8,
                     delay: i * 0.1,

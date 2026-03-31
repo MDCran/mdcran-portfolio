@@ -260,6 +260,32 @@ function humanizeChoiceList(values?: string[]): string {
   return values.map((value) => humanizeChoice(value)).join(", ");
 }
 
+function DragReorderList<T>({ items, keyFn, onReorder, renderItem }: {
+  items: T[];
+  keyFn: (item: T, idx: number) => string;
+  onReorder: (from: number, to: number) => void;
+  renderItem: (item: T, idx: number) => React.ReactNode;
+}) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  return (
+    <div className="space-y-1">
+      {items.map((item, i) => (
+        <div
+          key={keyFn(item, i)}
+          draggable
+          onDragStart={() => setDragIdx(i)}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+          onDrop={() => { if (dragIdx !== null && dragIdx !== i) onReorder(dragIdx, i); setDragIdx(null); }}
+          onDragEnd={() => setDragIdx(null)}
+          className={`flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border cursor-grab active:cursor-grabbing transition-colors ${dragIdx === i ? "opacity-40" : ""} ${dragIdx !== null && dragIdx !== i ? "border-[#ef4242]/30" : "border-white/6"}`}
+        >
+          {renderItem(item, i)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function arrayMove<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
     return items;
@@ -474,12 +500,36 @@ function Modal({
   onClose,
   children,
   wide,
+  fullPage,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   wide?: boolean;
+  fullPage?: boolean;
 }) {
+  if (fullPage) {
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0a]">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0d0d0d] shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-sm flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              Back
+            </button>
+            <div className="w-px h-5 bg-white/10" />
+            <h2 className="font-nord text-sm text-white tracking-wide">{title}</h2>
+          </div>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors text-lg leading-none">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm">
       <div className="flex min-h-full items-center justify-center px-4 py-6">
@@ -942,6 +992,7 @@ function ProjectModal({
   const [sections, setSections] = useState<ArticleSection[]>(
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
   );
+  const [sectionDragIdx, setSectionDragIdx] = useState<number | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [imagePickerTarget, setImagePickerTarget] = useState<
     | null
@@ -1023,6 +1074,7 @@ function ProjectModal({
       "store-checklist": { type: "store-checklist", items: [], caption: "" },
       "info-block": { type: "info-block", content: "", caption: "" },
       "before-after": { type: "before-after", beforeImage: { src: "", alt: "" }, afterImage: { src: "", alt: "" }, caption: "" },
+      button: { type: "button", label: "", content: "", caption: "" },
     };
     setSections((prev) => [...prev, { ...defaults[type] }]);
   }
@@ -1110,7 +1162,7 @@ function ProjectModal({
 
   return (
     <>
-    <Modal title={initial ? "Edit Project" : "New Project"} onClose={onClose} wide>
+    <Modal title={initial ? "Edit Project" : "New Project"} onClose={onClose} wide fullPage>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Field>
@@ -1202,22 +1254,28 @@ function ProjectModal({
 
         <Field>
           <Label>Cover Image URL</Label>
-          <div className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
-            <input
-              className={inputCls}
-              value={coverImage.src}
-              onChange={(e) => setCoverImage((prev) => ({ ...prev, src: e.target.value }))}
-              placeholder="/cdn/…/cover.png"
-            />
-            <input
-              className={inputCls}
-              value={coverImage.alt ?? ""}
-              onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
-              placeholder="Cover alt text"
-            />
-            <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "cover" })}>
-              Select Image
-            </button>
+          <div className="flex items-start gap-3">
+            {coverImage.src && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={coverImage.src.startsWith("/cdn/") ? `https://cdn.mdcran.com${coverImage.src.slice(4)}` : coverImage.src} alt="" className="w-16 h-16 rounded-sm object-cover border border-white/10 shrink-0 bg-white/5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            )}
+            <div className="flex-1 grid grid-cols-[1.6fr_1fr_auto] gap-2">
+              <input
+                className={inputCls}
+                value={coverImage.src}
+                onChange={(e) => setCoverImage((prev) => ({ ...prev, src: e.target.value }))}
+                placeholder="/cdn/…/cover.png"
+              />
+              <input
+                className={inputCls}
+                value={coverImage.alt ?? ""}
+                onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
+                placeholder="Cover alt text"
+              />
+              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "cover" })}>
+                Select Image
+              </button>
+            </div>
           </div>
         </Field>
 
@@ -1225,7 +1283,12 @@ function ProjectModal({
           <Label>Gallery Images</Label>
           <div className="space-y-2">
             {galleryImages.map((image, idx) => (
-              <div key={idx} className="grid grid-cols-[1.6fr_1fr_auto_auto] gap-2">
+              <div key={idx} className="flex items-start gap-2">
+                {image.src && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={image.src.startsWith("/cdn/") ? `https://cdn.mdcran.com${image.src.slice(4)}` : image.src} alt="" className="w-10 h-10 rounded-sm object-cover border border-white/10 shrink-0 bg-white/5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                )}
+                <div className="flex-1 grid grid-cols-[1.6fr_1fr_auto_auto] gap-2">
                 <input
                   className={inputCls}
                   value={image.src}
@@ -1248,6 +1311,7 @@ function ProjectModal({
                 >
                   x
                 </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1440,12 +1504,23 @@ function ProjectModal({
         </div>
 
         <div className="border-t border-white/8 pt-4">
-          <p className={labelCls}>Sections ({sections.length})</p>
+          <p className={labelCls}>Sections ({sections.length}) <span className="text-white/20 font-normal ml-1">— drag to reorder</span></p>
           <div className="space-y-3 mb-3">
             {sections.map((sec, idx) => (
-              <div key={idx} className="border border-white/8 rounded-sm p-3 bg-white/2 space-y-2">
+              <div
+                key={idx}
+                draggable
+                onDragStart={() => setSectionDragIdx(idx)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                onDrop={() => { if (sectionDragIdx !== null && sectionDragIdx !== idx) { setSections((prev) => arrayMove(prev, sectionDragIdx, idx)); } setSectionDragIdx(null); }}
+                onDragEnd={() => setSectionDragIdx(null)}
+                className={`border rounded-sm p-3 bg-white/2 space-y-2 cursor-grab active:cursor-grabbing transition-colors ${sectionDragIdx === idx ? "opacity-40" : ""} ${sectionDragIdx !== null && sectionDragIdx !== idx ? "border-[#ef4242]/30" : "border-white/8"}`}
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] tracking-widest uppercase text-white/40">{sec.type}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/20 text-xs select-none cursor-grab">⠿</span>
+                    <span className="text-[10px] tracking-widest uppercase text-white/40">{sec.type}</span>
+                  </div>
                   <div className="flex gap-1">
                     <button type="button" onClick={() => moveSection(idx, -1)} className="text-white/30 hover:text-white text-xs px-1.5">↑</button>
                     <button type="button" onClick={() => moveSection(idx, 1)} className="text-white/30 hover:text-white text-xs px-1.5">↓</button>
@@ -1537,11 +1612,18 @@ function ProjectModal({
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
                   </div>
                 )}
+                {sec.type === "button" && (
+                  <div className="space-y-1.5">
+                    <input className={inputCls} value={sec.label ?? ""} onChange={(e) => updateSection(idx, { label: e.target.value })} placeholder="Button label (e.g. Visit Website)" />
+                    <input className={inputCls} value={sec.content ?? ""} onChange={(e) => updateSection(idx, { content: e.target.value })} placeholder="Button URL (https://...)" />
+                    <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption below button (optional)" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["text", "image", "gallery", "video", "quote", "code", "divider", "before-after"] as ArticleSection["type"][]).map((t) => (
+            {(["text", "image", "gallery", "video", "quote", "code", "divider", "before-after", "button"] as ArticleSection["type"][]).map((t) => (
               <button key={t} type="button" onClick={() => addSection(t)} className={btnOutline}>+ {t}</button>
             ))}
           </div>
@@ -1616,6 +1698,7 @@ function ArticleModal({
   const [sections, setSections] = useState<ArticleSection[]>(
     () => (initial?.sections ?? []).map((section) => normalizeSectionForEditor(section))
   );
+  const [sectionDragIdx, setSectionDragIdx] = useState<number | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [imagePickerTarget, setImagePickerTarget] = useState<
     | null
@@ -1696,6 +1779,7 @@ function ArticleModal({
       "store-checklist": { type: "store-checklist", items: [], caption: "" },
       "info-block": { type: "info-block", content: "", caption: "" },
       "before-after": { type: "before-after", beforeImage: { src: "", alt: "" }, afterImage: { src: "", alt: "" }, caption: "" },
+      button: { type: "button", label: "", content: "", caption: "" },
     };
     setSections((prev) => [...prev, { ...defaults[type] }]);
   }
@@ -1744,7 +1828,7 @@ function ArticleModal({
 
   return (
     <>
-    <Modal title={initial ? "Edit Article" : "New Article"} onClose={onClose} wide>
+    <Modal title={initial ? "Edit Article" : "New Article"} onClose={onClose} wide fullPage>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Field>
@@ -1799,22 +1883,28 @@ function ArticleModal({
 
         <Field>
           <Label>Cover Image URL</Label>
-          <div className="grid grid-cols-[1.6fr_1fr_auto] gap-2">
-            <input
-              className={inputCls}
-              value={coverImage.src}
-              onChange={(e) => setCoverImage((prev) => ({ ...prev, src: e.target.value }))}
-              placeholder="/cdn/…/cover.jpg"
-            />
-            <input
-              className={inputCls}
-              value={coverImage.alt ?? ""}
-              onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
-              placeholder="Cover alt text"
-            />
-            <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "cover" })}>
-              Select Image
-            </button>
+          <div className="flex items-start gap-3">
+            {coverImage.src && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={coverImage.src.startsWith("/cdn/") ? `https://cdn.mdcran.com${coverImage.src.slice(4)}` : coverImage.src} alt="" className="w-16 h-16 rounded-sm object-cover border border-white/10 shrink-0 bg-white/5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            )}
+            <div className="flex-1 grid grid-cols-[1.6fr_1fr_auto] gap-2">
+              <input
+                className={inputCls}
+                value={coverImage.src}
+                onChange={(e) => setCoverImage((prev) => ({ ...prev, src: e.target.value }))}
+                placeholder="/cdn/…/cover.jpg"
+              />
+              <input
+                className={inputCls}
+                value={coverImage.alt ?? ""}
+                onChange={(e) => setCoverImage((prev) => ({ ...prev, alt: e.target.value }))}
+                placeholder="Cover alt text"
+              />
+              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setImagePickerTarget({ kind: "cover" })}>
+                Select Image
+              </button>
+            </div>
           </div>
         </Field>
 
@@ -1831,12 +1921,23 @@ function ArticleModal({
 
         {/* Sections */}
         <div className="border-t border-white/8 pt-4">
-          <p className={labelCls}>Sections ({sections.length})</p>
+          <p className={labelCls}>Sections ({sections.length}) <span className="text-white/20 font-normal ml-1">— drag to reorder</span></p>
           <div className="space-y-3 mb-3">
             {sections.map((sec, idx) => (
-              <div key={idx} className="border border-white/8 rounded-sm p-3 bg-white/2 space-y-2">
+              <div
+                key={idx}
+                draggable
+                onDragStart={() => setSectionDragIdx(idx)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                onDrop={() => { if (sectionDragIdx !== null && sectionDragIdx !== idx) { setSections((prev) => arrayMove(prev, sectionDragIdx, idx)); } setSectionDragIdx(null); }}
+                onDragEnd={() => setSectionDragIdx(null)}
+                className={`border rounded-sm p-3 bg-white/2 space-y-2 cursor-grab active:cursor-grabbing transition-colors ${sectionDragIdx === idx ? "opacity-40" : ""} ${sectionDragIdx !== null && sectionDragIdx !== idx ? "border-[#ef4242]/30" : "border-white/8"}`}
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] tracking-widest uppercase text-white/40">{sec.type}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/20 text-xs select-none cursor-grab">⠿</span>
+                    <span className="text-[10px] tracking-widest uppercase text-white/40">{sec.type}</span>
+                  </div>
                   <div className="flex gap-1">
                     <button onClick={() => moveSection(idx, -1)} className="text-white/30 hover:text-white text-xs px-1.5">↑</button>
                     <button onClick={() => moveSection(idx, 1)} className="text-white/30 hover:text-white text-xs px-1.5">↓</button>
@@ -1984,11 +2085,18 @@ function ArticleModal({
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
                   </div>
                 )}
+                {sec.type === "button" && (
+                  <div className="space-y-1.5">
+                    <input className={inputCls} value={sec.label ?? ""} onChange={(e) => updateSection(idx, { label: e.target.value })} placeholder="Button label (e.g. Visit Website)" />
+                    <input className={inputCls} value={sec.content ?? ""} onChange={(e) => updateSection(idx, { content: e.target.value })} placeholder="Button URL (https://...)" />
+                    <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption below button (optional)" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["text", "image", "gallery", "video", "quote", "code", "divider", "checklist", "ingredient-list", "steps", "store-checklist", "info-block", "before-after"] as ArticleSection["type"][]).map((t) => (
+            {(["text", "image", "gallery", "video", "quote", "code", "divider", "checklist", "ingredient-list", "steps", "store-checklist", "info-block", "before-after", "button"] as ArticleSection["type"][]).map((t) => (
               <button key={t} onClick={() => addSection(t)} className={btnOutline}>+ {t}</button>
             ))}
           </div>
@@ -2900,6 +3008,9 @@ export default function AdminDashboard() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [siteContent, setSiteContent] = useState<SiteContent>(defaultSiteContent);
+  const [siteContentAutoSaved, setSiteContentAutoSaved] = useState(false);
+  const siteContentAutoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const siteContentInitializedRef = useRef(false);
   const [siteContentImageTarget, setSiteContentImageTarget] = useState<null | "brandLogoUrl" | "faviconUrl">(null);
   const [r2Folders, setR2Folders] = useState<R2BrowserFolder[]>([]);
   const [r2Files, setR2Files] = useState<R2BrowserFile[]>([]);
@@ -2918,6 +3029,9 @@ export default function AdminDashboard() {
   const [r2RenameTarget, setR2RenameTarget] = useState<R2BrowserFile | null>(null);
   const [r2RenameValue, setR2RenameValue] = useState("");
   const [r2Renaming, setR2Renaming] = useState(false);
+  const [r2NewFolderName, setR2NewFolderName] = useState("");
+  const [r2CreatingFolder, setR2CreatingFolder] = useState(false);
+  const [r2ShowNewFolder, setR2ShowNewFolder] = useState(false);
   const r2CopyResetRef = useRef<number | null>(null);
   const r2FileInputRef = useRef<HTMLInputElement | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -2951,6 +3065,9 @@ export default function AdminDashboard() {
   const [awards, setAwards] = useState<Award[]>([]);
   const [clubs, setClubs] = useState<ClubMembership[]>([]);
   const [resumeSaving, setResumeSaving] = useState(false);
+  const [resumeAutoSaved, setResumeAutoSaved] = useState(false);
+  const resumeAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeInitializedRef = useRef(false);
   const [draggedResumeItem, setDraggedResumeItem] = useState<{
     list: "experiences" | "educations" | "skills" | "certifications" | "awards" | "clubs";
     index: number;
@@ -3021,8 +3138,8 @@ export default function AdminDashboard() {
         else setArticles([]);
         if (cRes.ok) setClients(await cRes.json());
         else setClients([]);
-        if (siteContentRes.ok) setSiteContent(await siteContentRes.json());
-        else setSiteContent(defaultSiteContent);
+        if (siteContentRes.ok) { setSiteContent(await siteContentRes.json()); siteContentInitializedRef.current = true; }
+        else { setSiteContent(defaultSiteContent); siteContentInitializedRef.current = true; }
         if (contactsRes.ok) setContacts(await contactsRes.json());
         else setContacts([]);
         if (rateLimitsRes.ok) setRateLimits(await rateLimitsRes.json());
@@ -3203,9 +3320,23 @@ export default function AdminDashboard() {
           setClubs(data.clubs ?? []);
         }
         setResumeLoaded(true);
+        resumeInitializedRef.current = true;
       })
-      .catch(() => setResumeLoaded(true));
+      .catch(() => { setResumeLoaded(true); resumeInitializedRef.current = true; });
   }, [activeSection, resumeLoaded]);
+
+  // Auto-save resume on changes (debounced 2s)
+  useEffect(() => {
+    if (!resumeInitializedRef.current) return;
+    if (resumeAutoSaveTimerRef.current) clearTimeout(resumeAutoSaveTimerRef.current);
+    resumeAutoSaveTimerRef.current = setTimeout(() => {
+      void persistResume();
+      setResumeAutoSaved(true);
+      setTimeout(() => setResumeAutoSaved(false), 2000);
+    }, 2000);
+    return () => { if (resumeAutoSaveTimerRef.current) clearTimeout(resumeAutoSaveTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [experiences, educations, skills, certifications, awards, clubs]);
 
   async function persistResume(next?: {
     experiences?: Experience[];
@@ -3524,6 +3655,19 @@ export default function AdminDashboard() {
     setContactModal({ open: false });
   }
 
+  // Auto-save site content on changes (debounced 2s)
+  useEffect(() => {
+    if (!siteContentInitializedRef.current) return;
+    if (siteContentAutoSaveRef.current) clearTimeout(siteContentAutoSaveRef.current);
+    siteContentAutoSaveRef.current = setTimeout(() => {
+      void saveSiteContentEditor();
+      setSiteContentAutoSaved(true);
+      setTimeout(() => setSiteContentAutoSaved(false), 2000);
+    }, 2000);
+    return () => { if (siteContentAutoSaveRef.current) clearTimeout(siteContentAutoSaveRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteContent]);
+
   async function saveSiteContentEditor() {
     const response = await fetch("/api/admin/site-content", {
       method: "PUT",
@@ -3628,6 +3772,30 @@ export default function AdminDashboard() {
       if (r2FileInputRef.current) {
         r2FileInputRef.current.value = "";
       }
+    }
+  }
+
+  async function createR2FolderHandler() {
+    if (!r2NewFolderName.trim()) return;
+    setR2CreatingFolder(true);
+    setR2Error("");
+    try {
+      const res = await fetch("/api/admin/r2", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: r2Prefix, folderName: r2NewFolderName.trim() }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Failed to create folder.");
+      }
+      setR2NewFolderName("");
+      setR2ShowNewFolder(false);
+      await loadR2Assets();
+    } catch (error) {
+      setR2Error(error instanceof Error ? error.message : "Failed to create folder.");
+    } finally {
+      setR2CreatingFolder(false);
     }
   }
 
@@ -4366,6 +4534,28 @@ export default function AdminDashboard() {
                     <p className="font-nord text-3xl text-white">{value}</p>
                   </div>
                 ))}
+              </div>
+
+              {/* Quick links */}
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href="https://analytics.google.com/analytics/web/#/a387300891p528038861/reports/intelligenthome"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 h-9 px-4 text-xs tracking-wider text-white/50 border border-white/10 rounded-sm hover:border-[#ef4242]/40 hover:text-white/80 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                  View Analytics
+                </a>
+                <a
+                  href="https://mdcran.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 h-9 px-4 text-xs tracking-wider text-white/50 border border-white/10 rounded-sm hover:border-[#ef4242]/40 hover:text-white/80 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  View Live Site
+                </a>
               </div>
 
               {/* Seed database utility */}
@@ -5279,6 +5469,12 @@ export default function AdminDashboard() {
                     >
                       {r2Uploading ? "Uploading..." : "Upload File"}
                     </button>
+                    <button
+                      className={btnOutline}
+                      onClick={() => setR2ShowNewFolder(true)}
+                    >
+                      New Folder
+                    </button>
                     <input
                       ref={r2FileInputRef}
                       type="file"
@@ -5288,6 +5484,23 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
+
+                {r2ShowNewFolder && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      className={inputCls + " flex-1"}
+                      placeholder="Folder name..."
+                      value={r2NewFolderName}
+                      onChange={(e) => setR2NewFolderName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void createR2FolderHandler(); if (e.key === "Escape") { setR2ShowNewFolder(false); setR2NewFolderName(""); } }}
+                      autoFocus
+                    />
+                    <button className={btnRed} onClick={() => void createR2FolderHandler()} disabled={r2CreatingFolder || !r2NewFolderName.trim()}>
+                      {r2CreatingFolder ? "Creating..." : "Create"}
+                    </button>
+                    <button className={btnOutline} onClick={() => { setR2ShowNewFolder(false); setR2NewFolderName(""); }}>Cancel</button>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
                   <input
@@ -5481,9 +5694,9 @@ export default function AdminDashboard() {
                       Saved to MongoDB and used to drive shared brand assets, homepage copy and order, footer content, work and subpage headers, and legal page content.
                     </p>
                   </div>
-                  <button className={`${btnRed} cursor-pointer`} onClick={() => void saveSiteContentEditor()}>
-                    Save Site Content
-                  </button>
+                  <span className="text-[11px] tracking-wider text-white/30">
+                    {siteContentAutoSaved ? "Saved" : "Auto-saves on change"}
+                  </span>
                 </div>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div>
@@ -5856,9 +6069,13 @@ export default function AdminDashboard() {
                     {ordered.length === 0 ? (
                       <p className="text-xs text-white/30 italic">No projects or articles are marked as featured. Mark items as featured in their respective tabs.</p>
                     ) : (
-                      <div className="space-y-1">
-                        {ordered.map((item, i) => (
-                          <div key={item.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
+                      <DragReorderList
+                        items={ordered}
+                        keyFn={(item) => item.id}
+                        onReorder={(from, to) => moveWork(from, to)}
+                        renderItem={(item, i) => (
+                          <>
+                            <span className="text-white/20 text-xs select-none cursor-grab mr-1">⠿</span>
                             <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
                             <span className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border shrink-0 ${
                               item.kind === "article"
@@ -5877,9 +6094,9 @@ export default function AdminDashboard() {
                                 className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
                                 onClick={() => moveWork(i, i + 1)}>↓</button>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          </>
+                        )}
+                      />
                     )}
                   </div>
                 );
@@ -5909,9 +6126,13 @@ export default function AdminDashboard() {
                     {ordered.length === 0 ? (
                       <p className="text-xs text-white/30 italic">No clients are marked as featured. Mark a client as "Featured" in the Clients tab first.</p>
                     ) : (
-                      <div className="space-y-1">
-                        {ordered.map((c, i) => (
-                          <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/6">
+                      <DragReorderList
+                        items={ordered}
+                        keyFn={(c) => c.id}
+                        onReorder={(from, to) => moveFeaturedClient(from, to)}
+                        renderItem={(c, i) => (
+                          <>
+                            <span className="text-white/20 text-xs select-none cursor-grab mr-1">⠿</span>
                             <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
                             {c.isEmployer && (
                               <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-sky-400/30 bg-sky-400/8 text-sky-400 shrink-0">
@@ -5927,9 +6148,9 @@ export default function AdminDashboard() {
                                 className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
                                 onClick={() => moveFeaturedClient(i, i + 1)}>↓</button>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          </>
+                        )}
+                      />
                     )}
                   </div>
                 );
@@ -5940,20 +6161,22 @@ export default function AdminDashboard() {
                 <p className="font-nord text-sm text-white">Homepage Layout, Hero, and About</p>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div>
-                    <Label>Homepage Section Order</Label>
-                    <input
-                      className={inputCls}
-                      value={siteContent.homeSectionOrder.join(", ")}
-                      onChange={(e) =>
-                        setSiteContent((prev) => ({
-                          ...prev,
-                          homeSectionOrder: e.target.value
-                            .split(",")
-                            .map((item) => item.trim().toLowerCase())
-                            .filter(Boolean),
-                        }))
-                      }
-                      placeholder="hero, stats, about, services, featured, clients, cta"
+                    <Label>Homepage Section Order <span className="text-white/20 font-normal ml-1">— drag to reorder</span></Label>
+                    <DragReorderList
+                      items={siteContent.homeSectionOrder}
+                      keyFn={(section) => section}
+                      onReorder={(from, to) => {
+                        const next = { ...siteContent, homeSectionOrder: arrayMove(siteContent.homeSectionOrder, from, to) };
+                        setSiteContent(next);
+                        void fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                      }}
+                      renderItem={(section, i) => (
+                        <>
+                          <span className="text-white/20 text-xs select-none cursor-grab mr-1">⠿</span>
+                          <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                          <span className="flex-1 text-xs text-white/80 capitalize">{section.replace(/-/g, " ")}</span>
+                        </>
+                      )}
                     />
                   </div>
                   <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-xs text-white/35">
@@ -6696,9 +6919,9 @@ export default function AdminDashboard() {
                         <p className="font-nord text-sm text-white">Edit Resume Content</p>
                         <p className="text-xs text-white/35">Saved to MongoDB and used by the public resume page.</p>
                       </div>
-                      <button className={btnRed} onClick={() => void persistResume()} disabled={resumeSaving}>
-                        {resumeSaving ? "Saving..." : "Save Resume Changes"}
-                      </button>
+                      <span className="text-[11px] tracking-wider text-white/30">
+                        {resumeSaving ? "Saving..." : resumeAutoSaved ? "Saved" : "Auto-saves on change"}
+                      </span>
                     </div>
 
                     <div className="space-y-4">
@@ -6727,7 +6950,7 @@ export default function AdminDashboard() {
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={() => handleResumeDrop("experiences", idx)}
                           onDragEnd={() => setDraggedResumeItem(null)}
-                          className="border border-white/6 rounded-sm p-4 space-y-3 cursor-move"
+                          className="border border-white/6 rounded-sm p-4 space-y-3 cursor-grab active:cursor-grabbing hover:border-[#ef4242]/20 transition-colors"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[10px] tracking-widest uppercase text-white/35">{exp.id || "new-entry"}</span>
@@ -6802,7 +7025,7 @@ export default function AdminDashboard() {
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={() => handleResumeDrop("educations", idx)}
                           onDragEnd={() => setDraggedResumeItem(null)}
-                          className="border border-white/6 rounded-sm p-4 space-y-3 cursor-move"
+                          className="border border-white/6 rounded-sm p-4 space-y-3 cursor-grab active:cursor-grabbing hover:border-[#ef4242]/20 transition-colors"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[10px] tracking-widest uppercase text-white/35">{education.id || "new-entry"}</span>
@@ -7392,8 +7615,10 @@ function AdminVisitorsSection() {
 
 /* ─── Admin Status Section ──────────────────────────────────────────────── */
 function AdminStatusSection() {
-  const [services, setServices] = useState<{ id: string; name: string; group?: string; sortOrder: number; pingUrl?: string; createdAt: string }[]>([]);
+  const [services, setServices] = useState<{ id: string; name: string; group?: string; sortOrder: number; pingUrl?: string; defunct?: boolean; createdAt: string }[]>([]);
   const [incidents, setIncidents] = useState<{ id: string; serviceId: string; title: string; message: string; severity: string; status: string; startedAt: string; resolvedAt?: string; createdAt: string; updatedAt?: string }[]>([]);
+  const [pingResults, setPingResults] = useState<Record<string, { reachable: boolean; latencyMs: number | null; error?: string }>>({});
+  const [pinging, setPinging] = useState(false);
   const [loading, setLoading] = useState(true);
   const [incForm, setIncForm] = useState({ title: "", message: "", severity: "minor", serviceId: "" });
   const [saving, setSaving] = useState(false);
@@ -7410,7 +7635,22 @@ function AdminStatusSection() {
     setLoading(false);
   }, []);
 
+  const runPings = useCallback(async () => {
+    setPinging(true);
+    try {
+      const res = await fetch("/api/admin/status/ping", { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        const map: Record<string, { reachable: boolean; latencyMs: number | null; error?: string }> = {};
+        for (const r of d.results) { map[r.id] = { reachable: r.reachable, latencyMs: r.latencyMs, error: r.error }; }
+        setPingResults(map);
+      }
+    } catch {}
+    setPinging(false);
+  }, []);
+
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { runPings(); }, [runPings]);
 
   const handleCreateIncident = async () => {
     if (!incForm.title || !incForm.serviceId) return;
@@ -7448,21 +7688,54 @@ function AdminStatusSection() {
   return (
     <div className="space-y-6">
       <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
-        <p className="font-nord text-sm text-white">Services ({services.length})</p>
+        <div className="flex items-center justify-between">
+          <p className="font-nord text-sm text-white">Services ({services.length})</p>
+          <button onClick={runPings} disabled={pinging} className="text-[10px] text-white/40 hover:text-white/70 transition-colors disabled:opacity-40">
+            {pinging ? "Pinging..." : "Refresh Pings"}
+          </button>
+        </div>
         <div className="space-y-1">
-          {services.map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/5">
-              <div>
-                <span className="text-xs text-white/80">{s.name}</span>
-                {s.group && <span className="text-[10px] text-white/30 ml-2">{s.group}</span>}
+          {services.map((s) => {
+            const hasIncident = activeIncidents.some((i) => i.serviceId === s.id);
+            const ping = pingResults[s.id];
+            const isDefunct = s.defunct;
+
+            // Determine live status: incident > ping failure > operational
+            let statusLabel: string;
+            let statusCls: string;
+            if (hasIncident) {
+              statusLabel = "Incident";
+              statusCls = "bg-red-500/20 text-red-400 border-red-500/20";
+            } else if (isDefunct) {
+              statusLabel = "Defunct";
+              statusCls = "bg-white/5 text-white/30 border-white/10";
+            } else if (ping && !ping.reachable) {
+              statusLabel = "Unreachable";
+              statusCls = "bg-orange-500/20 text-orange-400 border-orange-500/20";
+            } else if (ping && ping.reachable) {
+              statusLabel = "Operational";
+              statusCls = "bg-green-500/20 text-green-400 border-green-500/20";
+            } else if (!s.pingUrl) {
+              statusLabel = hasIncident ? "Incident" : "No Ping URL";
+              statusCls = hasIncident ? "bg-red-500/20 text-red-400 border-red-500/20" : "bg-white/5 text-white/25 border-white/10";
+            } else {
+              statusLabel = pinging ? "Pinging..." : "Unknown";
+              statusCls = "bg-white/5 text-white/25 border-white/10";
+            }
+
+            return (
+              <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-sm bg-white/2 border border-white/5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs text-white/80 truncate">{s.name}</span>
+                  {s.group && <span className="text-[10px] text-white/30">{s.group}</span>}
+                  {ping?.latencyMs != null && (
+                    <span className="text-[10px] text-white/20 tabular-nums">{ping.latencyMs}ms</span>
+                  )}
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-sm border shrink-0 ${statusCls}`}>{statusLabel}</span>
               </div>
-              {activeIncidents.some((i) => i.serviceId === s.id) ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-sm bg-red-500/20 text-red-400 border border-red-500/20">Incident</span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-sm bg-green-500/20 text-green-400 border border-green-500/20">Operational</span>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

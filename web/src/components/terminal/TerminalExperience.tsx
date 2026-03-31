@@ -1369,6 +1369,8 @@ export default function TerminalExperience() {
   const [gifVisible, setGifVisible] = React.useState(false);
   const [gifEnabled, setGifEnabled] = React.useState(true);
   const [gameMode, setGameMode] = React.useState<"snake" | "pacman" | null>(null);
+  const gameModeRef = React.useRef<"snake" | "pacman" | null>(null);
+  React.useEffect(() => { gameModeRef.current = gameMode; }, [gameMode]);
 
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -2196,6 +2198,9 @@ export default function TerminalExperience() {
     const onWindowEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.metaKey || e.ctrlKey || e.altKey) return;
 
+      // Let games handle Escape to exit the game first
+      if (gameModeRef.current) return;
+
       const shellNode = shellCaptureRef.current;
       const target = e.target;
 
@@ -2224,6 +2229,9 @@ export default function TerminalExperience() {
 
     const onWindowKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Let games handle their own keyboard input
+      if (gameModeRef.current) return;
 
       const key = e.key;
       const activeNode = document.activeElement;

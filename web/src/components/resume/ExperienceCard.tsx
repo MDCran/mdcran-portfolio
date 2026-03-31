@@ -45,19 +45,25 @@ function formatTimelineDate(date?: string): string {
 function ClientAvatar({ client }: { client: Client }) {
   if (client.avatarUrl) {
     return (
-      <Link
-        href={`/clients/${client.id}`}
-        title={client.name}
-        className="relative block w-7 h-7 rounded-full overflow-hidden border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110 shrink-0"
-      >
-        <Image
-          src={imageAssetSrc(client.avatarUrl) ?? client.avatarUrl}
-          alt={client.name}
-          fill
-          className="object-cover"
-          unoptimized={shouldBypassImageOptimization(client.avatarUrl)}
-        />
-      </Link>
+      <div className="relative group shrink-0">
+        <Link
+          href={`/clients/${client.id}`}
+          className="relative block w-7 h-7 rounded-full overflow-hidden border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110"
+        >
+          <Image
+            src={imageAssetSrc(client.avatarUrl) ?? client.avatarUrl}
+            alt={client.name}
+            fill
+            className="object-cover"
+            unoptimized={shouldBypassImageOptimization(client.avatarUrl)}
+          />
+        </Link>
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+            {client.name}
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -69,13 +75,19 @@ function ClientAvatar({ client }: { client: Client }) {
     .toUpperCase();
 
   return (
-    <Link
-      href={`/clients/${client.id}`}
-      title={client.name}
-      className="block w-7 h-7 rounded-full border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110 bg-white/8 flex items-center justify-center shrink-0"
-    >
-      <span className="text-[9px] text-white/60 font-mono">{initials}</span>
-    </Link>
+    <div className="relative group shrink-0">
+      <Link
+        href={`/clients/${client.id}`}
+        className="block w-7 h-7 rounded-full border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110 bg-white/8 flex items-center justify-center"
+      >
+        <span className="text-[9px] text-white/60 font-mono">{initials}</span>
+      </Link>
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+          {client.name}
+        </div>
+      </div>
+    </div>
   );
 }
 
