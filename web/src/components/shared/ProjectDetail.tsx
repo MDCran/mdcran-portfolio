@@ -956,13 +956,22 @@ function ProjectSection({
       const pdfSrc = section.src.startsWith("/cdn/") ? `https://cdn.mdcran.com${section.src.slice(4)}` : section.src;
       return (
         <div className="my-8">
-          <div className="rounded-sm overflow-hidden border border-white/8" style={{ width: section.pdfWidth || "100%", maxWidth: "100%", margin: "0 auto" }}>
+          <div className="relative rounded-sm overflow-hidden border border-white/8" style={{ width: section.pdfWidth || "100%", maxWidth: "100%", margin: "0 auto" }}>
             <iframe
               src={pdfSrc}
               title={section.caption || "PDF Document"}
               style={{ width: "100%", height: section.pdfHeight || "600px", border: "none" }}
               allowFullScreen
             />
+            <a
+              href={pdfSrc}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 h-8 px-3 text-[10px] tracking-wider uppercase bg-black/70 text-white/70 hover:text-white border border-white/15 hover:border-white/30 rounded-sm backdrop-blur-sm transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+              View Full Screen
+            </a>
           </div>
           {section.caption && (
             <p className="text-[10px] text-white/30 text-center mt-2">{section.caption}</p>
