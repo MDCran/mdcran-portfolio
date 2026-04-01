@@ -202,7 +202,7 @@ export default async function HomePage() {
       <main className="relative overflow-hidden">
         <HomeAmbient />
         {sectionsToRender.map((section) => (
-          <div key={section.id} id={section.id} data-highlight-id={section.id}>{section.node}</div>
+          <div key={section.id} id={section.id} data-highlight-id={section.id} style={{ scrollMarginTop: "5rem" }}>{section.node}</div>
         ))}
         <MercuryPrompt />
       </main>
