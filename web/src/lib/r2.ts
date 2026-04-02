@@ -54,6 +54,9 @@ function getClient() {
         accessKeyId: R2_ACCESS_KEY_ID!,
         secretAccessKey: R2_SECRET_ACCESS_KEY!,
       },
+      requestHandler: {
+        requestTimeout: 120_000, // 2 minute timeout for large uploads
+      } as Record<string, unknown>,
     });
   }
 
@@ -179,20 +182,36 @@ export async function uploadR2Asset(file: File, options?: { prefix?: string; fil
   const fileName = rawName.split("/").pop() || "upload";
   const key = `${normalizedPrefix}${fileName}`;
   const body = Buffer.from(await file.arrayBuffer());
+  const contentType = contentTypeFor(fileName, file.type || undefined);
 
-  await getClient().send(
-    new PutObjectCommand({
-      Bucket: R2_BUCKET!,
-      Key: key,
-      Body: body,
-      ContentType: contentTypeFor(fileName, file.type || undefined),
-    })
-  );
+  // Retry up to 3 times — R2 can be flaky on cold connections
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await getClient().send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET!,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+          ContentLength: body.length,
+        })
+      );
+      return {
+        key,
+        publicUrl: publicUrlForKey(key),
+      };
+    } catch (err) {
+      lastError = err;
+      // Reset client on connection errors so next attempt gets a fresh connection
+      client = null;
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+  }
 
-  return {
-    key,
-    publicUrl: publicUrlForKey(key),
-  };
+  throw lastError;
 }
 
 export async function deleteR2Asset(key: string) {

@@ -3,6 +3,13 @@ import { isAdminAuthenticated } from "@/lib/auth";
 import { createR2Folder, deleteR2Asset, listR2Assets, publicUrlForKey, renameR2Asset, uploadR2Asset } from "@/lib/r2";
 import { updateR2AssetReferences } from "@/lib/db";
 
+// Allow up to 50MB uploads
+export const config = {
+  api: { bodyParser: false },
+};
+
+export const maxDuration = 60; // seconds — Vercel function timeout
+
 export async function GET(req: NextRequest) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
