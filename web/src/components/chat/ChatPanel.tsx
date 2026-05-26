@@ -272,6 +272,17 @@ export default function ChatPanel() {
   const audioChunksRef = useRef<Blob[]>([]);
   const recognitionRef = useRef<{ stop: () => void; abort: () => void } | null>(null);
 
+  /* Bottom-middle karaoke caption while reading a reply aloud (mirrors the tour). */
+  const [capWords, setCapWords] = useState<string[]>([]);
+  const [capIdx, setCapIdx] = useState(-1);
+  const capRafRef = useRef<number | null>(null);
+  /* Non-destructive hide while reading on mobile (keeps the chat log intact). */
+  const [minimized, setMinimized] = useState(false);
+  const minimizedRef = useRef(false);
+  minimizedRef.current = minimized;
+  /* End-chat confirmation prompt (the X asks before wiping the conversation). */
+  const [confirmEnd, setConfirmEnd] = useState(false);
+
   /* Confirm voice availability in the background; correct the optimistic default if unconfigured. */
   useEffect(() => {
     if (!open) return;
@@ -307,13 +318,24 @@ export default function ChatPanel() {
       audioRef.current = null;
     }
     setSpeaking(false);
+    if (capRafRef.current) { cancelAnimationFrame(capRafRef.current); capRafRef.current = null; }
+    setCapWords([]);
+    setCapIdx(-1);
+    setMinimized(false);
   }, []);
 
-  /* Synthesize + play a reply via ElevenLabs (only when voice is toggled on). */
+  /* Synthesize + play a reply via ElevenLabs (only when voice is toggled on).
+     Drives a bottom-middle karaoke caption synced to the audio (same enthusiastic
+     voice + word-highlighting as the guided tour). On mobile it minimizes the chat
+     so the caption takes the stage, then restores it — WITHOUT clearing the log. */
   const speak = useCallback(async (text: string) => {
     if (!voiceOnRef.current) return;
     const clean = stripForSpeech(text);
     if (!clean) return;
+    const words = clean.split(/\s+/);
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    const stopKaraoke = () => { if (capRafRef.current) cancelAnimationFrame(capRafRef.current); capRafRef.current = null; };
+    const endCaption = () => { stopKaraoke(); setCapWords([]); setCapIdx(-1); if (isMobile) setMinimized(false); };
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
@@ -326,12 +348,25 @@ export default function ChatPanel() {
       if (audioRef.current) audioRef.current.pause();
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      // Show the caption + minimize on mobile right as audio starts.
+      setCapWords(words);
+      setCapIdx(0);
+      if (isMobile) setMinimized(true);
+      const sync = () => {
+        const a = audioRef.current;
+        if (!a) return;
+        const d = a.duration && isFinite(a.duration) ? a.duration : words.length * 0.34;
+        setCapIdx(Math.min(words.length - 1, Math.floor((a.currentTime / Math.max(d, 0.1)) * words.length)));
+        if (!a.ended) capRafRef.current = requestAnimationFrame(sync);
+      };
+      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); endCaption(); };
+      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); endCaption(); };
       setSpeaking(true);
       await audio.play();
+      capRafRef.current = requestAnimationFrame(sync);
     } catch {
       setSpeaking(false);
+      endCaption();
     }
   }, []);
 
@@ -494,6 +529,11 @@ export default function ChatPanel() {
       }
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       setSpeaking(false);
+      if (capRafRef.current) { cancelAnimationFrame(capRafRef.current); capRafRef.current = null; }
+      setCapWords([]);
+      setCapIdx(-1);
+      setMinimized(false);
+      setConfirmEnd(false);
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
@@ -504,10 +544,13 @@ export default function ChatPanel() {
     return () => clearTimeout(t);
   }, [open]);
 
-  /* Listen for toggle + explicit open/close events (e.g. from the tour) */
+  /* Listen for toggle + explicit open/close events (e.g. from the tour).
+     While MINIMIZED (reading aloud on mobile), a toggle/open restores the panel
+     instead of closing — so clicking the bubble picks the chat back up with its
+     history intact rather than ending the session. */
   useEffect(() => {
-    const onToggle = () => setOpen((prev) => !prev);
-    const onOpen = () => setOpen(true);
+    const onToggle = () => { if (minimizedRef.current) { setMinimized(false); return; } setOpen((prev) => !prev); };
+    const onOpen = () => { setMinimized(false); setOpen(true); };
     const onClose = () => setOpen(false);
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:chat-open", onOpen);
@@ -519,13 +562,11 @@ export default function ChatPanel() {
     };
   }, []);
 
-  /* ESC to close */
+  /* ESC asks to end the chat (same confirmation as the X) */
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
-      }
+      if (e.key === "Escape") setConfirmEnd(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -546,8 +587,11 @@ export default function ChatPanel() {
     }
   }, [open]);
 
-  const handleClose = () => {
-    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
+  // The X asks for confirmation first so the conversation isn't wiped by accident.
+  const handleClose = () => setConfirmEnd(true);
+  const confirmEndChat = () => {
+    setConfirmEnd(false);
+    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // actually close (triggers reset)
   };
 
   const handleSend = useCallback(async (overrideText?: string) => {
@@ -680,9 +724,11 @@ export default function ChatPanel() {
                         };
                         return updated.slice(-MAX_MESSAGES);
                       });
-                      // Don't delay rendering if we're inside a marker (invisible chars)
+                      // Don't delay rendering if we're inside a marker (invisible chars).
+                      // When reading aloud, skip the per-char delay so the bubble fills fast
+                      // and the spoken audio + karaoke caption start right as it writes.
                       const inMarker = /__[A-Z]/.test(accumulated) && !/__[A-Z]+:.+?__\s*$/.test(accumulated);
-                      if (!inMarker) {
+                      if (!inMarker && !voiceOnRef.current) {
                         await new Promise((r) => setTimeout(r, 8));
                       }
                     }
@@ -1064,8 +1110,79 @@ export default function ChatPanel() {
   const isWelcome = welcomeStep === 4 && messages.length === 1 && messages[0].content === "__WELCOME__";
 
   return (
-    <AnimatePresence>
-      {open && (
+    <>
+      {/* Bottom-middle karaoke caption while reading a reply aloud (mirrors the tour). */}
+      <AnimatePresence>
+        {capWords.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-8 left-1/2 z-[80] -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
+          >
+            <div
+              className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
+              style={{
+                borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)",
+                background: "rgba(6,6,8,0.9)",
+                backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
+              }}
+            >
+              {capWords.map((word, i) => {
+                const isCurrent = i === capIdx; const spoken = i <= capIdx;
+                return (
+                  <span key={i} style={
+                    isCurrent
+                      ? { color: "#fff", fontWeight: 700, textShadow: "0 0 12px rgba(255,255,255,0.85), 0 0 22px color-mix(in srgb, var(--theme-primary, #ef4242) 60%, transparent)" }
+                      : spoken ? { color: "rgba(255,255,255,0.82)" } : { color: "rgba(255,255,255,0.34)" }
+                  }>{word}{i < capWords.length - 1 ? " " : ""}</span>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* End-chat confirmation */}
+      <AnimatePresence>
+        {confirmEnd && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)" }}
+            onClick={() => setConfirmEnd(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 10, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-xs rounded-sm border p-5 text-center ${isLight ? "bg-white" : "bg-[#0c0c0e]"}`}
+              style={{ borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)", boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}
+            >
+              <p className="font-jb text-[14px] mb-1" style={{ color: isLight ? "#111" : "#fff" }}>End this chat?</p>
+              <p className="font-jb text-[12px] mb-4" style={{ color: isLight ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)" }}>Your conversation will be cleared.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button" onClick={() => setConfirmEnd(false)}
+                  className={`flex-1 h-9 rounded-sm border text-[12px] font-medium cursor-pointer transition-colors ${isLight ? "border-black/15 text-black/70 hover:bg-black/5" : "border-white/15 text-white/70 hover:bg-white/5"}`}
+                >
+                  No, keep chatting
+                </button>
+                <button
+                  type="button" onClick={confirmEndChat}
+                  className="flex-1 h-9 rounded-sm text-[12px] font-medium text-white cursor-pointer transition-opacity hover:opacity-90"
+                  style={{ background: "var(--theme-primary, #ef4242)" }}
+                >
+                  Yes, end
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+      {open && !minimized && (
         <motion.div
           initial={{ opacity: 0, y: 34, x: -18, scale: 0.92, filter: "blur(10px)" }}
           animate={{
@@ -1493,6 +1610,7 @@ export default function ChatPanel() {
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 }
