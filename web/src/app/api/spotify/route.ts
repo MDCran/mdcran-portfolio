@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { apiRateLimit, clientIp } from "@/lib/api-rate-limit";
 import type { SpotifyHistoryTrack, SpotifyTrack } from "@/lib/types";
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -204,7 +205,11 @@ async function getAccessToken() {
   return data.access_token as string;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Cost/abuse guard so the Spotify API isn't hammered (the widget polls).
+  if (!(await apiRateLimit("spotify:ip", clientIp(req), 240, 60 * 60 * 1000))) {
+    return NextResponse.json({ isPlaying: false, error: "Rate limited" }, { status: 429 });
+  }
   if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
     return NextResponse.json(
       await attachHistory({ isPlaying: false, error: "Spotify not configured" }),
