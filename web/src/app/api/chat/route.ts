@@ -133,6 +133,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
   /* ── Fetch portfolio context ── */
   let contextStr = "";
   let profileLocation = "Orlando, Florida";
+  let currentPageSubject = ""; // exact thing the user is looking at, resolved from the URL
   try {
     const [projects, clients, articles, experiences, skills, certs, awards, clubs, educations, profile] = await Promise.all([
       getProjects({ refreshVideoViews: false }),
@@ -192,6 +193,22 @@ async function handlePost(req: NextRequest): Promise<Response> {
       `AWARDS: ${awardLines.join(", ")}`,
       `ORGANIZATIONS: ${clubLines.join(", ")}`,
     ].join("\n\n");
+
+    // Resolve EXACTLY what the user is looking at, so "it"/"this"/"tell me more" is unambiguous.
+    const pagePath = currentPage.split(/[?#]/)[0];
+    const proj = projects.find((p) => projectUrl(p.category, p.slug, p.subcategory) === pagePath);
+    if (proj) {
+      const cn = (proj.clientIds ?? []).map((id) => clientMap.get(id)).filter(Boolean);
+      currentPageSubject = `RIGHT NOW the user is on the PROJECT page for "${proj.title}" [id:${proj.id}].${proj.description ? ` What it is: ${proj.description}.` : ""}${cn.length ? ` Client(s): ${cn.join(", ")}.` : ""} If they say "it", "this", "this project", "tell me more", or "more about it" — they mean THIS project. Answer about it directly without asking which one.`;
+    } else {
+      const art = articles.find((a) => `/articles/${a.slug}` === pagePath);
+      if (art) {
+        currentPageSubject = `RIGHT NOW the user is on the ARTICLE "${art.title}" [slug:${art.slug}].${art.excerpt ? ` What it's about: ${art.excerpt}.` : ""} If they say "it", "this", "this article", or "tell me more" — they mean THIS article.`;
+      } else {
+        const cl = clients.find((c) => `/clients/${c.id}` === pagePath);
+        if (cl) currentPageSubject = `RIGHT NOW the user is on the CLIENT page for "${cl.name}" [id:${cl.id}]. If they say "it", "this", "them", or "tell me more" — they mean THIS client and Michael's work with them.`;
+      }
+    }
   } catch {
     contextStr = "Portfolio data unavailable.";
   }
@@ -218,7 +235,7 @@ PERSONALITY:
 - Use conversational filler naturally — "yeah", "oh nice", "for sure", "honestly" — but do not overuse them.
 - Never use bullet points or lists unless specifically asked. Just talk normally.
 - Match the user's energy — if they're casual, be casual. If they're professional, be professional.
-- Be concise. Don't ramble. Answer the question and stop. HARD LIMIT: keep every reply under ~90 words / 4 sentences. If there's more to say, offer to show or take them there instead of writing a wall of text.
+- Match length to the question. For simple/factual questions, keep it short (1-3 sentences) and stop. But when the user asks about a SPECIFIC project, article, experience, or client — or you've just taken them to one — give a real, substantive answer: a solid paragraph (think 4-7 sentences) covering what it is, Michael's role, and why it matters. Don't pad, but don't give a one-liner about something that deserves a proper description. Never just say "here you go" and stop.
 
 CRITICAL — RESPONSE QUALITY:
 - NEVER use emojis. Not a single one. No exceptions.
@@ -267,10 +284,11 @@ CERTIFICATIONS AND ACHIEVEMENTS:
 
 THE USER IS CURRENTLY VIEWING: ${currentPage}
 CURRENT PAGE CONTEXT:
-- When the user says "this", "it", "here", "this project", "this article", "this page" — they mean the page at ${currentPage}. ALWAYS check this URL first.
-- If they are on a project page, "this" = that project. Look it up by matching the URL to find its title, description, and clients.
-- If they ask "who was this made for" or "who is the client" — find the project matching the current URL, answer with the client(s), and highlight: __HIGHLIGHT:project-clients__
-- If they are on an article page, "this" = that article. Match by URL/slug.
+${currentPageSubject ? `- ${currentPageSubject}` : `- When the user says "this", "it", "here", "this project", "this article", "this page" — they mean the page at ${currentPage}. ALWAYS check this URL first.`}
+- Use the conversation history to keep context. If the user already named or is clearly discussing a specific project/article/client, "it"/"that"/"more about it" refers to THAT — never ask "which one?" when it's obvious from the page or the recent messages.
+- If they ask "who was this made for" or "who is the client" — answer with the client(s) and highlight: __HIGHLIGHT:project-clients__
+- When you NAVIGATE the user to a project or article, don't just say "here you go" — actually TELL them about it: what it is, Michael's role, what makes it notable, the client/result. Give a real, substantive description (a short paragraph), then offer to dig deeper.
+- You can scroll the page to and spotlight any section or component with __HIGHLIGHT:target__ (it scrolls the element into view), or __ZOOM:target__ to focus on it. Use these to physically guide the user around the page they're on.
 
 PORTFOLIO DATA:
 ${contextStr}
@@ -490,7 +508,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
           try {
             const stream = anthropic.messages.stream({
               model,
-              max_tokens: 600,
+              max_tokens: 1024,
               system: [
                 { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
                 { type: "text", text: memoryNote },
