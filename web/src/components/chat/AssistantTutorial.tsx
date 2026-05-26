@@ -77,11 +77,7 @@ export default function AssistantTutorial() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
-  const voiceAllowed = () => {
-    try { return localStorage.getItem("mdcran_voice_on") !== "0"; } catch { return true; }
-  };
-
-  /* Narrate one step: show the caption, speak it (if voice on), and karaoke-highlight words. */
+  /* Narrate one step: show the caption, speak it aloud, and karaoke-highlight words. */
   const narrate = useCallback((text: string, myRun: number) => new Promise<void>((resolve) => {
     const w = text.split(/\s+/);
     setCaption(text);
@@ -107,8 +103,7 @@ export default function AssistantTutorial() {
       }, 260);
     };
 
-    if (!voiceAllowed()) { timedFallback(); return; }
-
+    // The tour ALWAYS narrates aloud (independent of the chat read-aloud setting).
     fetch("/api/voice/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) })
       .then((r) => (r.ok ? r.blob() : null))
       .then((blob) => {
@@ -147,16 +142,28 @@ export default function AssistantTutorial() {
           setShowTree(false);
         } else if (step.kind === "spot") {
           setShowTree(false);
+          const isNav = step.target === "nav-resume";
+          const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+          // On mobile, the Resume link lives inside the collapsed menu — open it first.
+          if (isNav && mobile) {
+            window.dispatchEvent(new CustomEvent("mdcran:open-nav"));
+            await wait(500);
+          }
           const el = findTarget(step.target);
           if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-            await wait(750);
+            if (!isNav) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            await wait(isNav ? 250 : 750);
             if (myRun !== runIdRef.current) break;
             targetElRef.current = el;
           } else {
             targetElRef.current = null;
             setSpot(null);
           }
+          await narrate(step.text, myRun);
+          if (isNav && mobile) window.dispatchEvent(new CustomEvent("mdcran:close-nav"));
+          if (myRun !== runIdRef.current) break;
+          await wait(350);
+          continue;
         } else if (step.kind === "tree") {
           targetElRef.current = null;
           setSpot(null);

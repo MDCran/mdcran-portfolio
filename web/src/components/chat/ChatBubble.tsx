@@ -13,6 +13,13 @@ const TOGGLE_EVENT = "mdcran:toggle-chat";
 const GREETING_STORAGE_KEY = "mdcran_chat_greeting_seen_v1";
 const GREETING_DELAY_MS = 2500;
 
+function hasToured(): boolean {
+  try { return /(?:^|;\s*)mdcran_toured=1/.test(document.cookie); } catch { return false; }
+}
+function markToured(): void {
+  try { document.cookie = `mdcran_toured=1; path=/; max-age=${60 * 60 * 24 * 365}`; } catch { /* */ }
+}
+
 export default function ChatBubble() {
   const [chatOpen, setChatOpen] = useState(false);
   const [showGreeting, setShowGreeting] = useState(false);
@@ -81,6 +88,12 @@ export default function ChatBubble() {
     setShowGreeting(false);
     setNudge(null);
     try { window.localStorage.setItem(GREETING_STORAGE_KEY, "true"); } catch { /* ignore */ }
+    // First time ever opening the chat → run the guided tour first (it reopens the chat at the end).
+    if (!chatOpen && !hasToured()) {
+      markToured();
+      window.dispatchEvent(new CustomEvent("mdcran:run-tutorial"));
+      return;
+    }
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
   };
 
