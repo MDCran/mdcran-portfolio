@@ -71,8 +71,7 @@ export default function VoiceMode() {
   const [phase, setPhase] = useState<Phase>("connecting");
   const [interim, setInterim] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [amplitude, setAmplitude] = useState(0); // 0..1 drives the reactive circle
-  const [wave, setWave] = useState<number[]>(() => new Array(48).fill(0)); // mic time-domain bars
+  const [amplitude, setAmplitude] = useState(0); // 0..1 drives the reactive orb
   const [interrupted, setInterrupted] = useState(false); // brief "go ahead" indicator on barge-in
   const [showTips, setShowTips] = useState(false); // tutorial prompt suggestions
   const [captionWords, setCaptionWords] = useState<string[]>([]); // bottom-middle karaoke of the spoken reply
@@ -108,16 +107,14 @@ export default function VoiceMode() {
     return () => window.removeEventListener(TOGGLE_EVENT, onToggle);
   }, []);
 
-  /* ── Drive the reactive circle + mic waveform; handle barge-in ── */
+  /* ── Drive the reactive orb amplitude; handle barge-in ── */
   const startMeter = useCallback(() => {
     const mic = analyserRef.current;
     if (!mic) return;
-    const freq = new Uint8Array(mic.frequencyBinCount);
     const time = new Uint8Array(mic.fftSize);
-    const WAVE_BARS = 48;
 
     const tick = () => {
-      // Amplitude drives the metaball — read the assistant's voice while it speaks, else the mic.
+      // Amplitude drives the orb — read the assistant's voice while it speaks, else the mic.
       const speaking = phaseRef.current === "speaking";
       const ampAnalyser = speaking && ttsAnalyserRef.current ? ttsAnalyserRef.current : mic;
       const aData = new Uint8Array(ampAnalyser.frequencyBinCount);
@@ -127,18 +124,11 @@ export default function VoiceMode() {
       const avg = sum / aData.length / 255;
       setAmplitude((prev) => prev * 0.6 + avg * 0.4);
 
-      // Mic time-domain → sine-wave bars (only meaningful while listening / barging in).
+      // Mic RMS for barge-in detection.
       mic.getByteTimeDomainData(time);
       let rms = 0;
-      const bars: number[] = new Array(WAVE_BARS);
-      const step = Math.floor(time.length / WAVE_BARS);
-      for (let b = 0; b < WAVE_BARS; b++) {
-        const v = (time[b * step] - 128) / 128; // -1..1
-        bars[b] = Math.abs(v);
-      }
       for (let i = 0; i < time.length; i++) { const v = (time[i] - 128) / 128; rms += v * v; }
       rms = Math.sqrt(rms / time.length);
-      if (phaseRef.current === "listening" || speaking) setWave(bars);
 
       // Barge-in: sustained mic energy while the assistant is speaking → user interrupted.
       if (speaking) {
@@ -444,7 +434,6 @@ export default function VoiceMode() {
     bargeFramesRef.current = 0;
     setAmplitude(0);
     setInterim("");
-    setWave(new Array(48).fill(0));
     setInterrupted(false);
     setShowTips(false);
     setCaptionWords([]);
@@ -457,166 +446,34 @@ export default function VoiceMode() {
   if (typeof document === "undefined") return null;
 
   const scale = 1 + Math.min(amplitude * 1.4, 0.7);
-  const glow = 30 + amplitude * 120;
-  const phaseLabel =
-    phase === "connecting" ? "Connecting…" :
-    phase === "listening" ? "Listening…" :
-    phase === "thinking" ? "Thinking…" :
-    phase === "speaking" ? `${AGENT_NAME} is speaking…` :
-    "Voice unavailable";
+  const orbColor = phase === "speaking" ? "#ff7a7a" : "var(--theme-primary, #ef4242)";
+  const shortLabel =
+    phase === "connecting" ? "Connecting" :
+    phase === "listening" ? "Listening" :
+    phase === "thinking" ? "Thinking" :
+    phase === "speaking" ? "Speaking" :
+    "Voice";
 
   return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[60] flex flex-col items-center justify-center"
-          style={{ background: "radial-gradient(circle at 50% 40%, rgba(20,8,8,0.96), rgba(5,5,5,0.98))", backdropFilter: "blur(8px)" }}
-        >
-          {/* Close */}
-          <button
-            onClick={close}
-            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-sm border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-colors"
-            aria-label="Exit voice mode"
-          >
-            <X size={18} />
-          </button>
-
-          {/* Replay tips */}
-          <button
-            onClick={() => setShowTips(true)}
-            className="absolute left-5 top-5 flex h-10 items-center gap-1.5 rounded-sm border border-white/10 px-3 text-[11px] uppercase tracking-[0.18em] text-white/40 hover:text-white hover:border-white/30 transition-colors"
-            aria-label="Show example questions"
-          >
-            <HelpCircle size={14} /> Tips
-          </button>
-
-          <div className="text-[10px] uppercase tracking-[0.3em] text-[#ef4242]/80 mb-1">Voice Mode</div>
-          <div className="text-[11px] uppercase tracking-[0.22em] text-white/30 mb-10">{phaseLabel}</div>
-
-          {/* Reactive metaball circle */}
-          <div className="relative flex items-center justify-center" style={{ width: 280, height: 280 }}>
-            {/* Gooey filter — merges nearby blobs into liquid mercury */}
-            <svg width="0" height="0" aria-hidden="true" style={{ position: "absolute" }}>
-              <defs>
-                <filter id="voice-goo">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur" />
-                  <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10" result="goo" />
-                  <feBlend in="SourceGraphic" in2="goo" />
-                </filter>
-              </defs>
-            </svg>
-
-            <div className="absolute inset-0 flex items-center justify-center" style={{ filter: "url(#voice-goo)" }}>
-              {/* central blob — pulses with audio amplitude */}
-              <div
-                className="absolute rounded-full"
-                style={{
-                  width: 150, height: 150, background: "#ef4242",
-                  transform: `scale(${scale})`, transition: "transform 80ms linear",
-                }}
-              />
-              {/* orbiting droplets — split apart while thinking, fuse otherwise */}
-              <motion.div
-                className="absolute"
-                style={{ width: 150, height: 150 }}
-                animate={{ rotate: phase === "thinking" ? 360 : 0 }}
-                transition={phase === "thinking" ? { duration: 3, repeat: Infinity, ease: "linear" } : { duration: 0.8 }}
-              >
-                {[0, 120, 240].map((deg) => (
-                  <motion.div
-                    key={deg}
-                    className="absolute left-1/2 top-1/2 rounded-full"
-                    style={{ width: 54, height: 54, background: "#ef4242", marginLeft: -27, marginTop: -27, transformOrigin: "center" }}
-                    animate={{ x: (phase === "thinking" ? 64 : 0) * Math.cos((deg * Math.PI) / 180), y: (phase === "thinking" ? 64 : 0) * Math.sin((deg * Math.PI) / 180) }}
-                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                ))}
-              </motion.div>
-            </div>
-
-            {/* soft glow halo (outside the goo so it stays smooth) */}
-            <div className="absolute rounded-full pointer-events-none" style={{ width: 170, height: 170, boxShadow: `0 0 ${glow}px rgba(239,66,66,0.55)` }} />
-
-            {/* Pulsing rings */}
-            <div className="absolute rounded-full border border-[#ef4242]/30" style={{ width: 220, height: 220 }} />
-            <div className="absolute rounded-full border border-[#ef4242]/15" style={{ width: 264, height: 264 }} />
-            <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-black/40 border border-white/10">
-              {phase === "thinking" ? (
-                <Loader2 size={22} className="text-white/70 animate-spin" />
-              ) : (
-                <Mic size={22} className={phase === "listening" ? "text-[#ef4242]" : "text-white/60"} />
-              )}
-            </div>
-          </div>
-
-          {/* Mic waveform — sine-wave lines reacting to your voice */}
-          <div className="mt-8 flex h-12 items-center justify-center gap-[3px]" aria-hidden>
-            {wave.map((v, i) => {
-              const active = phase === "listening" || phase === "speaking";
-              const center = 1 - Math.abs(i - (wave.length - 1) / 2) / (wave.length / 2); // taper at edges
-              const h = active ? Math.max(3, v * 46 * (0.4 + center * 0.6)) : 3;
-              return (
-                <span
-                  key={i}
-                  className="w-[3px] rounded-full"
-                  style={{
-                    height: `${h}px`,
-                    background: phase === "speaking" ? "rgba(255,255,255,0.5)" : "var(--theme-primary, #ef4242)",
-                    opacity: active ? 0.5 + v * 0.5 : 0.25,
-                    transition: "height 70ms linear, opacity 120ms linear",
-                  }}
-                />
-              );
-            })}
-          </div>
-
-          {interrupted && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mt-2 text-[11px] uppercase tracking-[0.2em] text-[#ef4242]"
-            >
-              Go ahead — I&apos;m listening
-            </motion.div>
-          )}
-
-          {/* Live transcript (your speech) / status — the assistant's reply is captioned at the bottom */}
-          <div className="mt-6 w-full max-w-lg px-6 text-center min-h-[60px]">
-            {phase === "error" ? (
-              <p className="text-sm text-white/50">
-                {supported
-                  ? "I need microphone access for voice mode. Allow the mic in your browser, then reopen voice mode."
-                  : "Live voice isn't available in this browser. Try Chrome, Edge, or Safari — or use the mic button in the chat panel."}
-              </p>
-            ) : interim ? (
-              <p className="text-base text-white/80 font-jb">{interim}</p>
-            ) : captionWords.length === 0 ? (
-              <p className="text-sm text-white/30 font-jb">Say something — ask about my work, projects, or where to find anything.</p>
-            ) : null}
-          </div>
-
-          {/* Bottom-middle karaoke caption of what the assistant is saying */}
+        <>
+          {/* Bottom-middle karaoke caption — what the assistant is saying */}
           <AnimatePresence>
-            {captionWords.length > 0 && !showTips && (
+            {captionWords.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.3 }}
-                className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
+                className="fixed bottom-8 left-1/2 z-[71] -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
               >
                 <div
                   className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
                   style={{
                     borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)",
-                    background: "rgba(6,6,8,0.82)",
-                    backdropFilter: "blur(10px)",
-                    WebkitBackdropFilter: "blur(10px)",
+                    background: "rgba(6,6,8,0.9)",
+                    backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
                     boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
                   }}
                 >
@@ -624,16 +481,11 @@ export default function VoiceMode() {
                     const isCurrent = i === captionIdx;
                     const spoken = i <= captionIdx;
                     return (
-                      <span
-                        key={i}
-                        style={
-                          isCurrent
-                            ? { color: "#fff", fontWeight: 700, textShadow: "0 0 12px rgba(255,255,255,0.85), 0 0 22px color-mix(in srgb, var(--theme-primary, #ef4242) 60%, transparent)" }
-                            : spoken
-                              ? { color: "rgba(255,255,255,0.82)" }
-                              : { color: "rgba(255,255,255,0.34)" }
-                        }
-                      >
+                      <span key={i} style={
+                        isCurrent
+                          ? { color: "#fff", fontWeight: 700, textShadow: "0 0 12px rgba(255,255,255,0.85), 0 0 22px color-mix(in srgb, var(--theme-primary, #ef4242) 60%, transparent)" }
+                          : spoken ? { color: "rgba(255,255,255,0.82)" } : { color: "rgba(255,255,255,0.34)" }
+                      }>
                         {word}{i < captionWords.length - 1 ? " " : ""}
                       </span>
                     );
@@ -643,31 +495,23 @@ export default function VoiceMode() {
             )}
           </AnimatePresence>
 
-          {/* Tutorial: example prompts (first use + replayable) */}
+          {/* Example prompts (tutorial) — anchored above the widget */}
           <AnimatePresence>
             {showTips && (
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute bottom-16 left-1/2 z-20 w-[min(92vw,30rem)] -translate-x-1/2 rounded-sm border border-white/12 bg-[#0c0c0e]/97 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+                className="fixed bottom-28 right-6 z-[74] w-[min(92vw,22rem)] rounded-sm border border-white/12 bg-[#0c0c0e]/97 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl"
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-[11px] uppercase tracking-[0.18em] text-[#ef4242]">Try asking</span>
                   <button onClick={() => setShowTips(false)} className="text-white/35 hover:text-white" aria-label="Dismiss tips"><X size={13} /></button>
                 </div>
-                <p className="mb-3 text-[12px] leading-relaxed text-white/50">
-                  Just speak naturally — or tap one to try it. {AGENT_NAME} will answer out loud and guide you around the site.
-                </p>
+                <p className="mb-3 text-[12px] leading-relaxed text-white/50">Speak naturally — or tap one to try it. I&apos;ll answer out loud and guide you around the site.</p>
                 <div className="flex flex-wrap gap-2">
                   {TUTORIAL_PROMPTS.map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => { setShowTips(false); void sendToAgent(p); }}
-                      disabled={phase === "thinking"}
-                      className="rounded-sm border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[12px] text-white/70 transition-colors hover:border-[#ef4242]/40 hover:text-white disabled:opacity-40"
-                    >
+                    <button key={p} onClick={() => { setShowTips(false); void sendToAgent(p); }} disabled={phase === "thinking"}
+                      className="rounded-sm border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[12px] text-white/70 transition-colors hover:border-[#ef4242]/40 hover:text-white disabled:opacity-40">
                       {p}
                     </button>
                   ))}
@@ -676,10 +520,59 @@ export default function VoiceMode() {
             )}
           </AnimatePresence>
 
-          <p className="absolute bottom-6 text-[10px] uppercase tracking-[0.2em] text-white/20">
-            Speak naturally · {AGENT_NAME} can guide you around the site · talk over me to interrupt
-          </p>
-        </motion.div>
+          {/* Siri-like floating widget — stays on while you browse */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 12 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
+          >
+            {/* Your live speech / status / error */}
+            {(interim || phase === "error") && (
+              <div
+                className="max-w-[16rem] rounded-sm border px-3 py-2 text-right text-[12px] leading-snug font-jb"
+                style={{ borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)", background: "rgba(8,8,10,0.92)", backdropFilter: "blur(8px)" }}
+              >
+                {phase === "error"
+                  ? <span className="text-white/55">{supported ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
+                  : <span className="text-white/85">{interim}</span>}
+              </div>
+            )}
+
+            {/* Controls row */}
+            <div className="flex items-center gap-1.5">
+              <span className="rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
+              <button onClick={() => setShowTips((s) => !s)} title="Example questions" aria-label="Example questions"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-black/50 text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors">
+                <HelpCircle size={13} />
+              </button>
+              <button onClick={close} title="Exit voice mode" aria-label="Exit voice mode"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-black/50 text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* The orb (tap to interrupt while it's speaking) */}
+            <button
+              onClick={() => { if (phase === "speaking") interruptTtsRef.current?.(); }}
+              aria-label={phase === "speaking" ? "Tap to interrupt" : "Voice assistant"}
+              className="relative flex h-16 w-16 items-center justify-center rounded-full"
+              style={{ boxShadow: `0 8px 28px rgba(0,0,0,0.45), 0 0 ${18 + amplitude * 60}px color-mix(in srgb, ${orbColor} 55%, transparent)` }}
+            >
+              {(phase === "listening" || phase === "speaking") && (
+                <span className="absolute inset-0 rounded-full animate-ping" style={{ background: `color-mix(in srgb, ${orbColor} 28%, transparent)` }} />
+              )}
+              <span className="absolute rounded-full" style={{ height: 50, width: 50, background: `radial-gradient(circle at 35% 30%, #fff, ${orbColor} 78%)`, transform: `scale(${scale})`, transition: "transform 80ms linear" }} />
+              {interrupted && (
+                <span className="absolute -top-7 right-0 whitespace-nowrap rounded-sm bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#ef4242]">Go ahead</span>
+              )}
+              <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35">
+                {phase === "thinking" ? <Loader2 size={15} className="text-white animate-spin" /> : <Mic size={15} className="text-white" />}
+              </span>
+            </button>
+          </motion.div>
+        </>
       )}
     </AnimatePresence>,
     document.body,

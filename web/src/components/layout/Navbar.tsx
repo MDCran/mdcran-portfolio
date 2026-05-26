@@ -70,6 +70,15 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  /* Let the guided tour open/close the mobile menu (so it can highlight nav items on mobile). */
+  useEffect(() => {
+    const open = () => setMobileOpen(true);
+    const close = () => setMobileOpen(false);
+    window.addEventListener("mdcran:open-nav", open);
+    window.addEventListener("mdcran:close-nav", close);
+    return () => { window.removeEventListener("mdcran:open-nav", open); window.removeEventListener("mdcran:close-nav", close); };
+  }, []);
+
   function isNavActive(href: string) {
     if (href === "/") {
       return pathname === "/";

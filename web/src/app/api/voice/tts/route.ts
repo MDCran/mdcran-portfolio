@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         text: clipped,
         model_id: process.env.ELEVENLABS_MODEL || DEFAULT_MODEL,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.2, use_speaker_boost: true },
+        // Lower stability + higher style = more expressive, enthusiastic delivery (not monotone).
+        voice_settings: { stability: 0.32, similarity_boost: 0.85, style: 0.65, use_speaker_boost: true },
       }),
     }
   );

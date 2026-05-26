@@ -95,6 +95,18 @@ function renderChatMarkdown(text: string, onNavigate?: (href: string) => void, s
   return parts.length > 0 ? parts : [text];
 }
 
+interface SpeechResultEventLike {
+  resultIndex: number;
+  results: { length: number;[i: number]: { isFinal: boolean;[j: number]: { transcript: string } } };
+}
+interface SpeechRecognitionLike {
+  continuous: boolean; interimResults: boolean; lang: string;
+  start: () => void; stop: () => void; abort: () => void;
+  onresult: ((e: SpeechResultEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -252,6 +264,7 @@ export default function ChatPanel() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<{ stop: () => void; abort: () => void } | null>(null);
 
   /* Confirm voice availability in the background; correct the optimistic default if unconfigured. */
   useEffect(() => {
@@ -382,10 +395,9 @@ export default function ChatPanel() {
       setWelcomeStep(4);
       welcomeCompletedRef.current = true;
       lastAgentMessageRef.current = Date.now();
-      // First-time visitors get the guided tour synced to the greeting.
+      // (The tour is triggered by the chat bubble's first click — see ChatBubble — not here.)
       if (isFirstVisit) {
         try { localStorage.setItem("mdcran_tutorial_done", "1"); } catch { /* */ }
-        push(setTimeout(() => { if (!cancelled) window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")); }, 1200));
       }
     }, messageDelay));
 
@@ -465,6 +477,7 @@ export default function ChatPanel() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
+      if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch { /* */ } recognitionRef.current = null; }
       setRecording(false);
       setTranscribing(false);
     }, 500);
@@ -594,9 +607,7 @@ export default function ChatPanel() {
             if (errData?.detail) console.warn("[chat] server error:", errData.detail);
             const errorMsg = res.status === 429
               ? "You've reached the message limit for today. Check back in a bit!"
-              : errData?.detail
-                ? `Sorry — the assistant errored: ${errData.detail}`
-                : (errData?.error || "Sorry, something went wrong. Please try again.");
+              : "I'm having a little trouble responding right now — please try again in a moment.";
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {
@@ -739,6 +750,8 @@ export default function ChatPanel() {
             const navPath = navMatch[1];
             cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
             didNavigate = true;
+            // Preload the target so it's ready by the time we push (no waiting on a blank page).
+            try { router.prefetch(navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath); } catch { /* */ }
             setTimeout(() => {
               const base = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
               router.push(base);
@@ -798,6 +811,7 @@ export default function ChatPanel() {
             if (internalLinks.length === 1) {
               const linkPath = internalLinks[0];
               didNavigate = true;
+              try { router.prefetch(linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath); } catch { /* */ }
               setTimeout(() => {
                 const base = linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath;
                 router.push(base);
@@ -857,11 +871,12 @@ export default function ChatPanel() {
           break;
         }
 
-        /* Stream surfaced an explicit error — show it (don't burn retries silently) */
+        /* Stream surfaced an explicit error — show a friendly message (log the detail) */
         if (streamErrorDetail) {
+          console.warn("[chat] stream error:", streamErrorDetail);
           setMessages((prev) => {
             const updated = [...prev];
-            updated[updated.length - 1] = { role: "assistant", content: `Sorry — the assistant errored: ${streamErrorDetail}` };
+            updated[updated.length - 1] = { role: "assistant", content: "I'm having a little trouble responding right now — please try again in a moment." };
             return updated;
           });
           break;
@@ -892,10 +907,47 @@ export default function ChatPanel() {
     }
   }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak]);
 
-  /* ── Microphone recording → ElevenLabs STT → send transcript ── */
+  /* ── Microphone recording — live transcription (SpeechRecognition) with STT fallback ── */
   const startRecording = useCallback(async () => {
     if (recording || transcribing || streaming) return;
     stopSpeaking();
+
+    // Preferred: Web Speech API → real-time interim words straight into the input box.
+    const SR = (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike })
+      .SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+    if (SR) {
+      try {
+        const rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+        let finalText = "";
+        rec.onresult = (e: SpeechResultEventLike) => {
+          let interim = "";
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const r = e.results[i];
+            const t = r[0]?.transcript ?? "";
+            if (r.isFinal) finalText += t + " "; else interim += t;
+          }
+          setInput((finalText + interim).replace(/\s+/g, " ").trimStart());
+        };
+        rec.onerror = () => { /* transient */ };
+        rec.onend = () => {
+          recognitionRef.current = null;
+          setRecording(false);
+          const toSend = finalText.trim();
+          if (toSend) void handleSend(toSend);
+        };
+        recognitionRef.current = rec as unknown as { stop: () => void; abort: () => void };
+        rec.start();
+        setRecording(true);
+        return;
+      } catch {
+        recognitionRef.current = null;
+        /* fall through to MediaRecorder */
+      }
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
@@ -929,6 +981,10 @@ export default function ChatPanel() {
   }, [recording, transcribing, streaming, stopSpeaking, handleSend]);
 
   const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch { /* */ } // onend fires → sends transcript
+      return;
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
