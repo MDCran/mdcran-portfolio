@@ -4,9 +4,16 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import useSWR from "swr";
 import { Area, AreaChart, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { ChartContainer } from "@/components/ui/chart";
-import GitHubContributions from "@/components/home/GitHubContributions";
 import type { SiteContentStats } from "@/lib/types";
+
+// Below the live metrics — defer it so its JS + GitHub fetch don't block the
+// initial render. Placeholder reserves height to avoid layout shift.
+const GitHubContributions = dynamic(() => import("@/components/home/GitHubContributions"), {
+  ssr: false,
+  loading: () => <div className="min-h-[150px]" aria-hidden />,
+});
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
