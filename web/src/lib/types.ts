@@ -570,6 +570,8 @@ export interface StatusServiceWithHealth extends StatusService {
   currentStatus: ServiceStatus;
   uptimePercent90d: number;
   dailyStatus: DailyStatus[];
+  latencyMs?: number | null;   // live ping latency (null = unreachable / not pinged)
+  liveChecked?: boolean;       // true when status reflects a live ping this request
 }
 
 // ─── Visitor Adjustments ──────────────────────────────────

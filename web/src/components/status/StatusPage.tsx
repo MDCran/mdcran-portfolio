@@ -279,8 +279,11 @@ export default function StatusPage({
                 >
                   {/* Service header row */}
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-white/90">
+                    <span className="text-sm font-medium text-white/90 inline-flex items-center gap-2">
                       {service.name}
+                      {typeof service.latencyMs === "number" && service.currentStatus === "operational" && (
+                        <span className="text-[10px] font-normal text-white/35 tabular-nums">{service.latencyMs}ms</span>
+                      )}
                     </span>
                     <div className="relative group" style={{ overflow: "visible" }}>
                       <span
