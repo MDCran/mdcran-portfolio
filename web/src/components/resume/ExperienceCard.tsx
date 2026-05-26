@@ -195,7 +195,9 @@ export default function ExperienceCard({
 
           {linkedClients.length > 0 && (
             <div className={`${hasHighlights ? "mb-0" : "pt-1"}`}>
-              <div className="flex -space-x-1.5">
+              {/* Wrap to multiple rows on narrow screens so the avatars never spill
+                  past the card edge. gap-y handles vertical spacing between rows. */}
+              <div className="flex flex-wrap gap-y-1.5 -space-x-1.5">
                 {linkedClients.map((client) => (
                   <ClientAvatar key={client.id} client={client} />
                 ))}

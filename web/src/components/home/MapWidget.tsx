@@ -7,6 +7,7 @@ import { assetUrl } from "@/lib/utils";
 export default function MapWidget() {
   return (
     <div
+      data-highlight-id="location-map"
       className="relative overflow-hidden rounded-sm border group transition-all duration-300"
       style={{
         borderColor: 'rgba(255,255,255,0.08)',
