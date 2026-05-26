@@ -101,15 +101,15 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ password, code: code.trim() || undefined }),
       });
       const data = await res.json().catch(() => ({} as Record<string, unknown>));
-      if (res.ok) {
-        router.push("/admin/dashboard");
-        return;
-      }
+      // IMPORTANT: check setup/needCode BEFORE res.ok. The first-time-setup response
+      // comes back 200 (res.ok) with { setup: true } — if we redirected on res.ok we'd
+      // skip the QR step, bounce to the dashboard with no cookie, and spin.
       if (data.setup) {
         setStep("setup");
         setQr(typeof data.qr === "string" ? data.qr : "");
         setSecret(typeof data.secret === "string" ? data.secret : "");
         setError(typeof data.error === "string" ? data.error : "");
+        setCode("");
         setLoading(false);
         return;
       }
@@ -117,6 +117,10 @@ export default function AdminLoginPage() {
         setStep("code");
         setError(typeof data.error === "string" ? data.error : "");
         setLoading(false);
+        return;
+      }
+      if (res.ok) {
+        router.push("/admin/dashboard");
         return;
       }
       // Bad password (still at the password step).
