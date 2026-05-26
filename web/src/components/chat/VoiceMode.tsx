@@ -197,7 +197,17 @@ export default function VoiceMode() {
       await new Promise<void>((resolve) => {
         let done = false;
         const stopKaraoke = () => { if (captionRafRef.current) cancelAnimationFrame(captionRafRef.current); captionRafRef.current = null; };
-        const finish = () => { if (done) return; done = true; stopKaraoke(); interruptTtsRef.current = null; URL.revokeObjectURL(url); resolve(); };
+        const finish = () => {
+          if (done) return;
+          done = true;
+          stopKaraoke();
+          interruptTtsRef.current = null;
+          URL.revokeObjectURL(url);
+          // Reply finished — clear the bottom caption so it doesn't linger.
+          setCaptionWords([]);
+          setCaptionIdx(-1);
+          resolve();
+        };
         // Karaoke-highlight the caption words synced to the audio position.
         const karaoke = () => {
           const a = audioElRef.current;
@@ -479,7 +489,7 @@ export default function VoiceMode() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.3 }}
-                className="fixed bottom-8 left-1/2 z-[71] -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
+                className="fixed bottom-32 left-1/2 z-[71] -translate-x-1/2 w-[min(92vw,44rem)] px-4 pointer-events-none"
               >
                 <div
                   className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
@@ -503,6 +513,33 @@ export default function VoiceMode() {
                       </span>
                     );
                   })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* What the USER is saying (live transcription) / errors — top middle */}
+          <AnimatePresence>
+            {(interim || phase === "error") && !showTips && (
+              <motion.div
+                initial={{ opacity: 0, y: -14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                className="fixed top-20 left-1/2 z-[72] -translate-x-1/2 w-[min(92vw,40rem)] px-4 pointer-events-none"
+              >
+                <div
+                  className="rounded-sm border px-5 py-3 text-center text-[14px] sm:text-[15px] leading-relaxed font-jb"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)",
+                    background: "rgba(8,8,10,0.9)",
+                    backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                    boxShadow: "0 16px 50px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {phase === "error"
+                    ? <span className="text-white/55">{supported ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
+                    : <span className="text-white/90">{interim}</span>}
                 </div>
               </motion.div>
             )}
@@ -541,18 +578,6 @@ export default function VoiceMode() {
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
-            {/* Your live speech / status / error */}
-            {(interim || phase === "error") && (
-              <div
-                className="max-w-[16rem] rounded-sm border px-3 py-2 text-right text-[12px] leading-snug font-jb"
-                style={{ borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)", background: "rgba(8,8,10,0.92)", backdropFilter: "blur(8px)" }}
-              >
-                {phase === "error"
-                  ? <span className="text-white/55">{supported ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
-                  : <span className="text-white/85">{interim}</span>}
-              </div>
-            )}
-
             {/* Controls row */}
             <div className="flex items-center gap-1.5">
               <span className="rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
