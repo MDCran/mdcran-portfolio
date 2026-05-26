@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import HomeAmbient from "@/components/home/HomeAmbient";
+import HomeLoader from "@/components/home/HomeLoader";
 import Hero from "@/components/home/Hero";
 import Stats from "@/components/home/Stats";
 import Services from "@/components/home/Services";
@@ -185,6 +186,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <HomeLoader />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageJsonLd) }}
