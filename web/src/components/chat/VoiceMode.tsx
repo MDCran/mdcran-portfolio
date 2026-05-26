@@ -14,9 +14,9 @@ const VOICE_TUTORIAL_KEY = "mdcran_voice_tutorial_done";
 
 /* Example prompts the tutorial nudges first-time users to try. */
 const TUTORIAL_PROMPTS = [
+  "Break down what I'm looking at",
   "Tell me about yourself",
   "Who have you worked with?",
-  "How many views do your projects have?",
   "Why should I hire you?",
 ];
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, AudioLines, Bot, Compass } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -21,6 +22,7 @@ function markToured(): void {
 }
 
 export default function ChatBubble() {
+  const pathname = usePathname();
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // voice-vs-text chooser
@@ -105,6 +107,25 @@ export default function ChatBubble() {
     window.addEventListener("mdcran:hesitation", onHes);
     return () => { window.removeEventListener("mdcran:rage", onRage); window.removeEventListener("mdcran:hesitation", onHes); clearTimeout(clearTimer); };
   }, []);
+
+  /* Gentle, incremental on-page offer to help — "want me to break down what you're
+     looking at?" — fired at a random interval per page, capped per session so it's
+     never spammy. Skips the home page (the tour covers that) and admin/rizz. */
+  useEffect(() => {
+    if (chatOpen || voiceOpen) return;
+    if (pathname === "/" || pathname.startsWith("/admin") || pathname.startsWith("/rizz")) return;
+    let count = 0;
+    try { count = parseInt(sessionStorage.getItem("mdcran_nudge_count") || "0", 10) || 0; } catch { /* */ }
+    if (count >= 3) return;
+    const delay = 28000 + Math.random() * 32000; // 28–60s on the page
+    const t = setTimeout(() => {
+      // The hesitation handler already guards against the chat being open and
+      // auto-clears the bubble after 8s; just fire it (and count it).
+      try { sessionStorage.setItem("mdcran_nudge_count", String(count + 1)); } catch { /* */ }
+      window.dispatchEvent(new CustomEvent("mdcran:hesitation"));
+    }, delay);
+    return () => clearTimeout(t);
+  }, [pathname, chatOpen, voiceOpen]);
 
   const dispatchToggle = () => {
     setShowGreeting(false);

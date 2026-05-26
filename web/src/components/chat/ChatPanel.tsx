@@ -139,7 +139,7 @@ const ChatContactCard = dynamicImport(() => import("@/components/chat/ChatAction
 const ChatBookingCard = dynamicImport(() => import("@/components/chat/ChatActionCards").then((m) => m.ChatBookingCard), { ssr: false });
 
 const SUGGESTIONS = [
-  "What kind of work do you do?",
+  "Break down what I'm looking at",
   "Show me your best project",
   "Are you available for hire?",
 ];
