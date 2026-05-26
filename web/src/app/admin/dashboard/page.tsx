@@ -353,7 +353,7 @@ function arrayMove<T>(items: T[], fromIndex: number, toIndex: number): T[] {
 const inputCls =
   "w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 h-9 text-sm text-white outline-none placeholder-white/25 transition-colors";
 const textareaCls =
-  "w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none";
+  "w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-y min-h-[80px] leading-relaxed";
 const labelCls = "block text-[10px] tracking-[0.2em] uppercase text-white/40 mb-1.5";
 const btnRed = "px-4 h-9 bg-[#ef4242] hover:bg-[#d93838] text-white text-xs font-medium rounded-sm transition-colors";
 const btnGhost = "inline-flex items-center justify-center px-4 h-8 min-w-[60px] border border-white/15 hover:border-white/30 text-white/60 hover:text-white text-xs rounded-sm transition-colors";
