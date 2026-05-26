@@ -143,6 +143,7 @@ export default function AccessibilityMenu() {
   }, []);
 
   const highContrastOn = themeInfo.id === "high-contrast";
+  const isLightTheme = themeInfo.id === "light";
   const toggleHighContrast = () => {
     if (highContrastOn) setTheme((prevThemeRef.current as ThemeName) || "dark");
     else { prevThemeRef.current = themeInfo.id as ThemeName; setTheme("high-contrast"); }
@@ -191,21 +192,29 @@ export default function AccessibilityMenu() {
                 <span
                   title="The terminal isn't available on mobile"
                   aria-disabled="true"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border border-[#00ff41]/20 text-[11px] text-[#00ff41]/40 cursor-not-allowed"
-                  style={{
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border text-[11px] cursor-not-allowed"
+                  style={isLightTheme ? {
+                    backgroundColor: "#ffffff",
+                    backgroundImage: "linear-gradient(rgba(0,170,60,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(0,170,60,0.16) 1px, transparent 1px)",
+                    backgroundSize: "8px 8px", color: "rgba(0,0,0,0.4)", borderColor: "rgba(0,150,50,0.3)",
+                  } : {
                     backgroundColor: "rgba(0,18,4,0.45)",
                     backgroundImage: "linear-gradient(rgba(0,255,65,0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,0.13) 1px, transparent 1px)",
-                    backgroundSize: "8px 8px",
+                    backgroundSize: "8px 8px", color: "rgba(0,255,65,0.4)", borderColor: "rgba(0,255,65,0.2)",
                   }}
                 ><Lock size={11} /> Terminal</span>
               ) : (
                 <Link
                   href="/terminal"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border border-[#00ff41]/30 text-[11px] text-[#00ff41] hover:text-[#5fff85] hover:border-[#00ff41]/50 cursor-pointer transition-colors"
-                  style={{
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border text-[11px] cursor-pointer transition-colors"
+                  style={isLightTheme ? {
+                    backgroundColor: "#ffffff",
+                    backgroundImage: "linear-gradient(rgba(0,170,60,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(0,170,60,0.16) 1px, transparent 1px)",
+                    backgroundSize: "8px 8px", color: "#0a0a0a", borderColor: "rgba(0,150,50,0.45)",
+                  } : {
                     backgroundColor: "rgba(0,18,4,0.55)",
                     backgroundImage: "linear-gradient(rgba(0,255,65,0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,0.13) 1px, transparent 1px)",
-                    backgroundSize: "8px 8px",
+                    backgroundSize: "8px 8px", color: "#00ff41", borderColor: "rgba(0,255,65,0.3)",
                   }}
                 ><TerminalSquare size={12} /> Terminal</Link>
               )}
