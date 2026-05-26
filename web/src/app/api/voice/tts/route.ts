@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { limitVoiceLike } from "@/lib/api-rate-limit";
 
 const DEFAULT_VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael — overridable via ELEVENLABS_VOICE_ID
 const DEFAULT_MODEL = "eleven_turbo_v2_5"; // low-latency conversational model
@@ -17,6 +18,11 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "Voice not configured" }), { status: 503 });
+  }
+
+  // Cost guard: cap TTS synthesis per IP/session.
+  if (!(await limitVoiceLike(req, "voice-tts", 500))) {
+    return new Response(JSON.stringify({ error: "Voice rate limit reached" }), { status: 429 });
   }
 
   let body: { text?: string };

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { limitVoiceLike } from "@/lib/api-rate-limit";
 
 export const maxDuration = 30;
 
@@ -7,6 +8,9 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "Voice not configured" }), { status: 503 });
+  }
+  if (!(await limitVoiceLike(req, "voice-stt", 300))) {
+    return new Response(JSON.stringify({ error: "Voice rate limit reached" }), { status: 429 });
   }
 
   let inForm: FormData;
