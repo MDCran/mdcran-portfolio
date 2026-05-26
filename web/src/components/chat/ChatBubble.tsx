@@ -324,11 +324,11 @@ export default function ChatBubble() {
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
           style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
-          className="relative h-12 w-12 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
+          className="relative h-11 w-11 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
           aria-label={chatOpen ? "Close assistant" : "Open assistant"}
         >
           <span className="flex items-center justify-center">
-            <Bot size={20} />
+            <Bot size={18} />
           </span>
         </motion.button>
       )}
