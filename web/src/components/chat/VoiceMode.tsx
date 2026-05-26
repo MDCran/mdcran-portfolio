@@ -97,6 +97,7 @@ export default function VoiceMode() {
   turnsRef.current = turns;
   const pendingFinalRef = useRef("");
   const sendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendingRef = useRef(false); // guard against overlapping replies (no double-answer)
   const openRef = useRef(false);
   openRef.current = open;
 
@@ -279,6 +280,10 @@ export default function VoiceMode() {
   const sendToAgent = useCallback(async (text: string) => {
     const clean = text.trim();
     if (!clean) return;
+    // Hard guard: never run two replies at once (was causing double answers /
+    // two captions). Ignore any send while one is already in flight.
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     // Keep the recognizer running (results are ignored unless we're listening) so the
     // user can barge in over the assistant and be heard from the first word.
     setInterim("");
@@ -347,6 +352,7 @@ export default function VoiceMode() {
     if (ttsSourceRef.current) { try { ttsSourceRef.current.disconnect(); } catch { /* */ } ttsSourceRef.current = null; }
     audioElRef.current = null;
 
+    sendingRef.current = false;
     if (openRef.current) {
       setPhaseSafe("listening");
       try { recRef.current?.start(); } catch { /* already running */ }
@@ -448,6 +454,7 @@ export default function VoiceMode() {
     if (open) return;
     if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
     pendingFinalRef.current = "";
+    sendingRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (recRef.current) { try { recRef.current.abort(); } catch { /* */ } recRef.current = null; }
     if (audioElRef.current) { try { audioElRef.current.pause(); } catch { /* */ } audioElRef.current = null; }
