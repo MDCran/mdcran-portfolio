@@ -19,6 +19,14 @@ export interface TrackPayload {
 
 const ACTIVE_WINDOW_MS = 90 * 1000; // a session is "active" if seen within 90s
 
+/** Label loopback / unknown IPs as local so dev sessions are obvious. */
+function labelLocalIp(ip: string | null | undefined): string | null {
+  if (!ip || ip === "unknown" || ip === "::1" || ip === "0.0.0.0" || ip === "localhost" || ip.startsWith("127.")) {
+    return "0.0.0.0 (Local)";
+  }
+  return ip;
+}
+
 export type SessionCommand = { action: "kill" | "refresh" | "redirect" | "block"; path?: string };
 
 /* ─── Ingest ────────────────────────────────────────────── */
@@ -214,7 +222,9 @@ export async function getLiveSessions(): Promise<{ visitors: LiveVisitor[]; blac
     if (!v.ip && s.ip) v.ip = s.ip;
   }
 
-  const visitors = Array.from(byVisitor.values()).sort((a, b) => b.activeTabs - a.activeTabs || new Date(b.tabs[0]?.lastSeen ?? 0).getTime() - new Date(a.tabs[0]?.lastSeen ?? 0).getTime());
+  const visitors = Array.from(byVisitor.values())
+    .map((v) => ({ ...v, ip: labelLocalIp(v.ip) }))
+    .sort((a, b) => b.activeTabs - a.activeTabs || new Date(b.tabs[0]?.lastSeen ?? 0).getTime() - new Date(a.tabs[0]?.lastSeen ?? 0).getTime());
   const blacklist = (await db.collection("ipBlacklist").find({}, { projection: { _id: 0, ip: 1 } }).toArray()).map((d) => d.ip as string);
   return { visitors, blacklist };
 }
@@ -380,7 +390,7 @@ export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
     sessionsToday,
     recentSessions: recentSessionsRaw.map((s) => ({
       sessionId: s.sessionId,
-      ip: s.ip ?? null,
+      ip: labelLocalIp(s.ip),
       countryName: s.countryName ?? null,
       browser: s.browser ?? "Other",
       os: s.os ?? "Other",

@@ -1470,10 +1470,11 @@ export async function deleteVisitorAdjustment(id: string): Promise<void> {
 // ─── Status Page ─────────────────────────────────────────────────────────────
 
 const DEFAULT_SERVICES: Omit<StatusService, "createdAt">[] = [
-  { id: "mdcran-api", name: "MDCran API", group: "MDCran", sortOrder: 1, pingUrl: "https://mdcran.com/api/status" },
-  { id: "mdcran-cdn", name: "MDCran CDN", group: "MDCran", sortOrder: 2, pingUrl: "https://cdn.mdcran.com" },
-  { id: "lbc-website", name: "LuckyBlockCreator Website", group: "LuckyBlockCreator", sortOrder: 3, defunct: true },
-  { id: "lbc-api", name: "LuckyBlockCreator API", group: "LuckyBlockCreator", sortOrder: 4, defunct: true },
+  { id: "mdcran-web", name: "MDCran Web", group: "MDCran", sortOrder: 1, pingUrl: "https://mdcran.com" },
+  { id: "mdcran-api", name: "MDCran API", group: "MDCran", sortOrder: 2, pingUrl: "https://mdcran.com/api/status" },
+  { id: "mdcran-cdn", name: "MDCran CDN", group: "MDCran", sortOrder: 3, pingUrl: "https://cdn.mdcran.com" },
+  { id: "lbc-website", name: "LuckyBlockCreator Website", group: "LuckyBlockCreator", sortOrder: 4, defunct: true },
+  { id: "lbc-api", name: "LuckyBlockCreator API", group: "LuckyBlockCreator", sortOrder: 5, defunct: true },
 ];
 
 const DEPRECATED_SERVICE_IDS = ["mdcran-db", "lbc-db"];
@@ -1482,6 +1483,12 @@ async function seedServicesIfEmpty(): Promise<void> {
   const db = await getDb();
   // Remove deprecated services
   await db.collection("statusServices").deleteMany({ id: { $in: DEPRECATED_SERVICE_IDS } });
+  // Ensure the MDCran Web service exists even on already-seeded databases.
+  await db.collection("statusServices").updateOne(
+    { id: "mdcran-web" },
+    { $setOnInsert: { id: "mdcran-web", name: "MDCran Web", group: "MDCran", sortOrder: 1, pingUrl: "https://mdcran.com", createdAt: new Date().toISOString() } },
+    { upsert: true },
+  );
   const count = await db.collection("statusServices").countDocuments();
   if (count === 0) {
     const now = new Date().toISOString();
@@ -1552,10 +1559,35 @@ export async function deleteStatusIncident(id: string): Promise<void> {
   await db.collection("statusIncidents").deleteOne({ id });
 }
 
+async function livePing(url: string, timeoutMs = 4500): Promise<{ ok: boolean; latencyMs: number | null }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const start = Date.now();
+  try {
+    let res = await fetch(url, { method: "HEAD", signal: controller.signal, cache: "no-store", redirect: "follow" });
+    // Some hosts reject HEAD — retry with GET before declaring it down.
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(url, { method: "GET", signal: controller.signal, cache: "no-store", redirect: "follow" });
+    }
+    clearTimeout(timer);
+    return { ok: res.status < 400, latencyMs: Date.now() - start };
+  } catch {
+    clearTimeout(timer);
+    return { ok: false, latencyMs: null };
+  }
+}
+
 export async function computeServiceHealth(): Promise<StatusServiceWithHealth[]> {
   const [services, incidents] = await Promise.all([getStatusServices(), getStatusIncidents()]);
   const now = new Date();
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  // Live-ping every pingable service in parallel for real-time status + latency.
+  const pingable = services.filter((s) => s.pingUrl && !s.defunct);
+  const pingEntries = await Promise.all(
+    pingable.map(async (s) => [s.id, await livePing(s.pingUrl!)] as const),
+  );
+  const pings = new Map(pingEntries);
 
   return services.map((service) => {
     // Defunct services are permanently offline
@@ -1572,11 +1604,14 @@ export async function computeServiceHealth(): Promise<StatusServiceWithHealth[]>
     const serviceIncidents = incidents.filter((i) => i.serviceId === service.id);
     const recentIncidents = serviceIncidents.filter((i) => new Date(i.startedAt) >= ninetyDaysAgo);
 
-    // Current status
+    // Current status — admin incidents take priority; otherwise reflect the live ping.
     const activeIncident = serviceIncidents.find((i) => i.status !== "resolved");
+    const ping = pings.get(service.id);
     let currentStatus: ServiceStatus = "operational";
     if (activeIncident) {
       currentStatus = activeIncident.severity === "critical" ? "major_outage" : "partial_outage";
+    } else if (ping && !ping.ok) {
+      currentStatus = "major_outage"; // live check failed right now
     }
 
     // Daily status for 90 days
@@ -1599,7 +1634,14 @@ export async function computeServiceHealth(): Promise<StatusServiceWithHealth[]>
     const operationalDays = dailyStatus.filter((d) => d.status === "operational").length;
     const uptimePercent90d = Math.round((operationalDays / 90) * 10000) / 100;
 
-    return { ...service, currentStatus, uptimePercent90d, dailyStatus };
+    return {
+      ...service,
+      currentStatus,
+      uptimePercent90d,
+      dailyStatus,
+      latencyMs: ping ? ping.latencyMs : undefined,
+      liveChecked: Boolean(ping),
+    };
   });
 }
 
