@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart, rememberTopic } from "@/lib/visitor-memory";
+import type { ContactData, BookingData } from "@/components/chat/ChatActionCards";
 
 const TOGGLE_EVENT = "mdcran:toggle-chat";
 const MAX_MESSAGES = 20;
@@ -22,6 +23,7 @@ function pickAgentName(): string {
 /** Strip markdown + action markers so only natural speech is sent to TTS. */
 function stripForSpeech(text: string): string {
   return text
+    .replace(/__(?:CONTACTCARD|BOOKINGCARD):[\s\S]*$/g, " ") // never read the card JSON aloud
     .replace(/__[A-Z]+:[^_]*__/g, " ")
     .replace(/__[A-Z]+__/g, " ")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -114,6 +116,8 @@ interface Message {
   pendingHighlight?: string;
   images?: string[];
   projectCards?: string[];
+  contactCard?: ContactData;
+  bookingCard?: BookingData;
 }
 
 /** Extract unique external (http) URLs from an assistant message — both markdown links and bare URLs. */
@@ -131,6 +135,8 @@ function extractExternalLinks(text: string): string[] {
 
 const ChatProjectCard = dynamicImport(() => import("@/components/chat/ChatProjectCard"), { ssr: false });
 const ChatLinkPreview = dynamicImport(() => import("@/components/chat/ChatLinkPreview"), { ssr: false });
+const ChatContactCard = dynamicImport(() => import("@/components/chat/ChatActionCards").then((m) => m.ChatContactCard), { ssr: false });
+const ChatBookingCard = dynamicImport(() => import("@/components/chat/ChatActionCards").then((m) => m.ChatBookingCard), { ssr: false });
 
 const SUGGESTIONS = [
   "What kind of work do you do?",
@@ -716,6 +722,8 @@ export default function ChatPanel() {
           let didNavigate = false;
           let pendingHighlightTarget: string | undefined;
           let projectCards: string[] | undefined;
+          let contactCard: ContactData | undefined;
+          let bookingCard: BookingData | undefined;
 
           // Project card markers
           const cardMatches = [...cleaned.matchAll(/__PROJECTCARD:([\w-]+)__/g)].map((m) => m[1]);
@@ -723,6 +731,24 @@ export default function ChatPanel() {
             hasMarkers = true;
             projectCards = cardMatches.slice(0, 2);
             cleaned = cleaned.replace(/\s*__PROJECTCARD:[\w-]+__\s*/g, " ");
+          }
+
+          // Contact-form card — AI collected the fields; render a pre-filled card to send.
+          // The marker is the last thing in the reply; grab the JSON object after it (greedy
+          // to the final brace) and strip everything from the marker to end.
+          const contactMatch = cleaned.match(/__CONTACTCARD:\s*(\{[\s\S]*\})/);
+          if (contactMatch) {
+            hasMarkers = true;
+            try { contactCard = JSON.parse(contactMatch[1]) as ContactData; } catch { /* ignore bad json */ }
+            cleaned = cleaned.replace(/\s*__CONTACTCARD:[\s\S]*$/, " ");
+          }
+
+          // Booking card — AI collected details (+ optional preferred day/time).
+          const bookingMatch = cleaned.match(/__BOOKINGCARD:\s*(\{[\s\S]*\})/);
+          if (bookingMatch) {
+            hasMarkers = true;
+            try { bookingCard = JSON.parse(bookingMatch[1]) as BookingData; } catch { /* ignore bad json */ }
+            cleaned = cleaned.replace(/\s*__BOOKINGCARD:[\s\S]*$/, " ");
           }
 
           // Theme change marker
@@ -869,7 +895,7 @@ export default function ChatPanel() {
           }
 
           // Update the displayed message with markers stripped + flags
-          if (hasMarkers || didNavigate || pendingHighlightTarget || projectCards) {
+          if (hasMarkers || didNavigate || pendingHighlightTarget || projectCards || contactCard || bookingCard) {
             cleaned = cleaned.replace(/  +/g, " ").trim();
             setMessages((prev) => {
               const updated = [...prev];
@@ -879,6 +905,8 @@ export default function ChatPanel() {
                 autoNavigated: didNavigate,
                 pendingHighlight: pendingHighlightTarget,
                 projectCards,
+                contactCard,
+                bookingCard,
               };
               return updated;
             });
@@ -1323,6 +1351,8 @@ export default function ChatPanel() {
                           {msg.projectCards?.map((pid) => (
                             <ChatProjectCard key={pid} projectId={pid} onNavigate={(href) => router.push(href)} />
                           ))}
+                          {msg.contactCard && <ChatContactCard data={msg.contactCard} />}
+                          {msg.bookingCard && <ChatBookingCard data={msg.bookingCard} />}
                           {extractExternalLinks(msg.content === "__WELCOME__" ? "" : msg.content).map((u) => (
                             <ChatLinkPreview key={u} url={u} />
                           ))}
