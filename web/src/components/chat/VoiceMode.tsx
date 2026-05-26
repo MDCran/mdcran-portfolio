@@ -458,9 +458,9 @@ export default function VoiceMode() {
     <AnimatePresence>
       {open && (
         <>
-          {/* Bottom-middle karaoke caption — what the assistant is saying */}
+          {/* Bottom-middle karaoke caption — what the assistant is saying (hidden while Tips is open) */}
           <AnimatePresence>
-            {captionWords.length > 0 && (
+            {captionWords.length > 0 && !showTips && (
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}

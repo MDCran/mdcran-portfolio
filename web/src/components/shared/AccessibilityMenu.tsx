@@ -57,7 +57,7 @@ const Section = ({ label, children }: { label: string; children: React.ReactNode
   </div>
 );
 const seg = (active: boolean) =>
-  `px-2 py-1 rounded-sm text-[11px] border transition-colors cursor-pointer ${active ? "border-[var(--cranberry)]/45 bg-[var(--cranberry)]/12 text-[var(--cranberry)]" : "border-white/10 text-white/45 hover:text-white"}`;
+  `px-2 py-1 rounded-sm text-[11px] border transition-colors cursor-pointer ${active ? "a11y-seg-active" : "border-white/10 text-white/45 hover:text-white"}`;
 
 interface DropOption<T> { value: T; label: string; swatch?: React.ReactNode; cursorPreview?: string }
 function Dropdown<T extends string>({ value, options, onChange }: { value: T; options: DropOption<T>[]; onChange: (v: T) => void }) {
@@ -98,7 +98,16 @@ export default function AccessibilityMenu() {
   const [prefs, setPrefs] = useState<A11yPrefs>(DEFAULTS);
   const [country, setCountry] = useState<string>("United States");
   const [countryCode, setCountryCode] = useState<string>("US");
+  const [isMobile, setIsMobile] = useState(false);
   const prevThemeRef = useRef<ThemeName | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -177,15 +186,28 @@ export default function AccessibilityMenu() {
             </div>
 
             <div className="flex gap-2">
-              <Link
-                href="/terminal"
-                className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border border-[#00ff41]/30 text-[11px] text-[#00ff41] hover:text-[#5fff85] hover:border-[#00ff41]/50 cursor-pointer transition-colors"
-                style={{
-                  backgroundColor: "rgba(0,18,4,0.55)",
-                  backgroundImage: "linear-gradient(rgba(0,255,65,0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,0.13) 1px, transparent 1px)",
-                  backgroundSize: "8px 8px",
-                }}
-              ><TerminalSquare size={12} /> Terminal</Link>
+              {isMobile ? (
+                <span
+                  title="The terminal isn't available on mobile"
+                  aria-disabled="true"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border border-[#00ff41]/20 text-[11px] text-[#00ff41]/40 cursor-not-allowed"
+                  style={{
+                    backgroundColor: "rgba(0,18,4,0.45)",
+                    backgroundImage: "linear-gradient(rgba(0,255,65,0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,0.13) 1px, transparent 1px)",
+                    backgroundSize: "8px 8px",
+                  }}
+                ><Lock size={11} /> Terminal</span>
+              ) : (
+                <Link
+                  href="/terminal"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border border-[#00ff41]/30 text-[11px] text-[#00ff41] hover:text-[#5fff85] hover:border-[#00ff41]/50 cursor-pointer transition-colors"
+                  style={{
+                    backgroundColor: "rgba(0,18,4,0.55)",
+                    backgroundImage: "linear-gradient(rgba(0,255,65,0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,0.13) 1px, transparent 1px)",
+                    backgroundSize: "8px 8px",
+                  }}
+                ><TerminalSquare size={12} /> Terminal</Link>
+              )}
               <button onClick={screenReader.toggle} className={`flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border text-[11px] cursor-pointer ${screenReader.enabled ? "border-[var(--cranberry)]/45 text-[var(--cranberry)]" : "border-white/10 text-white/55 hover:text-white"}`}>
                 {screenReader.enabled ? <Volume2 size={12} /> : <VolumeX size={12} />} {screenReader.enabled ? "Narrator On" : "Narrator Off"}
               </button>

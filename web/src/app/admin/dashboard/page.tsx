@@ -7240,7 +7240,7 @@ export default function AdminDashboard() {
                   Clear
                 </button>
                 <button
-                  className={btnRed}
+                  className="inline-flex items-center justify-center px-3 h-8 text-[11px] bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors"
                   onClick={async () => {
                     await fetch("/api/admin/site-content", {
                       method: "PUT",
