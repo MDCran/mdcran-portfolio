@@ -296,26 +296,30 @@ export default function ChatBubble() {
         )}
       </AnimatePresence>
 
-      {/* Assistant button — a head with a voice/waveform badge */}
-      <motion.button
-        onClick={dispatchToggle}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
-        className="relative h-12 w-12 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
-        aria-label={chatOpen || voiceOpen ? "Close assistant" : "Open assistant"}
-      >
-        <span className="relative flex items-center justify-center">
-          <Bot size={19} />
-          {/* Voice badge in the corner so it reads as a talking assistant */}
-          <span
-            className="absolute -bottom-1.5 -right-2 flex items-center justify-center h-[15px] w-[15px] rounded-full"
-            style={{ backgroundColor: iconColor, color: "var(--theme-primary, #ef4242)" }}
-          >
-            <AudioLines size={9} strokeWidth={2.5} />
+      {/* Assistant button — a head with a voice/waveform badge.
+          Hidden while voice mode is open: the voice widget's mic orb takes this
+          spot, and the user closes voice with its own X button. */}
+      {!voiceOpen && (
+        <motion.button
+          onClick={dispatchToggle}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
+          className="relative h-12 w-12 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
+          aria-label={chatOpen ? "Close assistant" : "Open assistant"}
+        >
+          <span className="relative flex items-center justify-center">
+            <Bot size={19} />
+            {/* Voice badge in the corner so it reads as a talking assistant */}
+            <span
+              className="absolute -bottom-1.5 -right-2 flex items-center justify-center h-[15px] w-[15px] rounded-full"
+              style={{ backgroundColor: iconColor, color: "var(--theme-primary, #ef4242)" }}
+            >
+              <AudioLines size={9} strokeWidth={2.5} />
+            </span>
           </span>
-        </span>
-      </motion.button>
+        </motion.button>
+      )}
     </div>
   );
 }

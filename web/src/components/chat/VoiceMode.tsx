@@ -512,9 +512,9 @@ export default function VoiceMode() {
           <AnimatePresence>
             {showTips && (
               <motion.div
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="fixed bottom-28 right-6 z-[74] w-[min(92vw,22rem)] rounded-sm border border-white/12 bg-[#0c0c0e]/97 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+                className="fixed top-20 left-1/2 -translate-x-1/2 z-[74] w-[min(92vw,22rem)] rounded-sm border border-white/12 bg-[#0c0c0e]/97 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl"
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-[11px] uppercase tracking-[0.18em] text-[#ef4242]">Try asking</span>
