@@ -4750,18 +4750,6 @@ export default function AdminDashboard() {
             </div>
           </div>
             <div className="flex items-center gap-2 min-w-[200px] justify-end shrink-0">
-              {activeSection === "projects" && (
-                <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
-              )}
-              {activeSection === "articles" && (
-                <button className={btnRed} onClick={() => setArticleModal({ open: true })}>+ New Article</button>
-              )}
-              {activeSection === "clients" && (
-                <button className={btnRed} onClick={() => setClientModal({ open: true })}>+ New Client</button>
-              )}
-              {activeSection === "campaigns" && (
-                <button className={btnRed} onClick={() => setCampaignModal({ open: true })}>+ Compose</button>
-              )}
               <a
                 href="https://mdcran.com"
                 target="_blank"
@@ -5056,6 +5044,10 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "projects" && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-white/35">Create, edit, reorder and feature portfolio projects.</p>
+                <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
+              </div>
               {/* Filter bar */}
               <div className="flex gap-3">
                 <input
@@ -5189,6 +5181,10 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "articles" && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-white/35">Write and manage articles, with rich sections and media.</p>
+                <button className={btnRed} onClick={() => setArticleModal({ open: true })}>+ New Article</button>
+              </div>
               <div className="flex gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
@@ -5213,20 +5209,31 @@ export default function AdminDashboard() {
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 w-12">Cover</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Title</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Category</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Excerpt</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Author</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden sm:table-cell">Date / Time</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Category</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden xl:table-cell">Excerpt</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Taps</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Featured</th>
                       <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Visible</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Date</th>
                       <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredArticles.map((a) => (
                       <tr key={a.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
+                        <td className="px-3 py-2">
+                          {a.coverImage ? (
+                            <img
+                              src={assetUrl(toEditableImageAsset(a.coverImage).src)}
+                              alt={toEditableImageAsset(a.coverImage).alt ?? ""}
+                              className="w-10 h-[30px] object-cover rounded-sm opacity-80"
+                            />
+                          ) : (
+                            <div className="w-10 h-[30px] bg-white/5 rounded-sm" />
+                          )}
+                        </td>
                         <td className="px-3 py-2.5">
                           <button
                             onClick={() => setArticleModal({ open: true, editing: a })}
@@ -5235,14 +5242,12 @@ export default function AdminDashboard() {
                             {a.title}
                           </button>
                         </td>
-                        <td className="px-3 py-2.5 hidden md:table-cell">
+                        <td className="px-3 py-2.5 hidden lg:table-cell">
                           <span className="text-[10px] px-2 py-0.5 rounded-sm bg-white/8 text-white/40">{a.category}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-white/35 hidden lg:table-cell max-w-[200px]">
+                        <td className="px-3 py-2.5 text-white/35 hidden xl:table-cell max-w-[200px]">
                           <span className="truncate block">{a.excerpt.slice(0, 60)}{a.excerpt.length > 60 ? "…" : ""}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-white/40 hidden md:table-cell">{a.author}</td>
-                        <td className="px-3 py-2.5 text-white/35 hidden sm:table-cell">{fmtDate(a.publishDate)}</td>
                         <td className="px-3 py-2.5 text-white/40 hidden lg:table-cell">{tapCounts[a.id] ?? 0}</td>
                         <td className="px-3 py-2.5 hidden lg:table-cell">
                           {a.featured ? <span className="text-[#ef4242] text-xs">★</span> : <span className="text-white/20">—</span>}
@@ -5282,6 +5287,10 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "clients" && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-white/35">Manage clients and the people you&apos;ve worked with.</p>
+                <button className={btnRed} onClick={() => setClientModal({ open: true })}>+ New Client</button>
+              </div>
               <div className="flex gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
@@ -7157,6 +7166,10 @@ export default function AdminDashboard() {
 
           {activeSection === "campaigns" && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-white/35">Compose and send email or SMS campaigns.</p>
+                <button className={btnRed} onClick={() => setCampaignModal({ open: true })}>+ Compose</button>
+              </div>
               <div className="border border-white/8 rounded-sm overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
