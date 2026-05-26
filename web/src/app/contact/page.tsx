@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -10,13 +10,18 @@ import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import BookMeeting from "@/components/contact/BookMeeting";
 
 type Status = "idle" | "sending" | "success" | "error";
+type Tab = "contact" | "book";
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function ContactPage() {
   const { data: siteContent } = useSWR("/api/data/site-content", fetcher, { revalidateOnFocus: false });
   const header = siteContent?.pageHeaders?.contact;
+  const [tab, setTab] = useState<Tab>("contact");
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [tabHighlight, setTabHighlight] = useState({ left: 0, width: 0, ready: false });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [submissionId, setSubmissionId] = useState(() => crypto.randomUUID());
@@ -28,6 +33,21 @@ export default function ContactPage() {
     message: "",
     consent: false,
   });
+
+  const TABS: { key: Tab; label: string }[] = [
+    { key: "contact", label: "Contact" },
+    { key: "book", label: "Book a Meeting" },
+  ];
+  useEffect(() => {
+    const sync = () => {
+      const btn = tabRefs.current[TABS.findIndex((t) => t.key === tab)];
+      if (btn) setTabHighlight({ left: btn.offsetLeft, width: btn.offsetWidth, ready: true });
+    };
+    const frame = requestAnimationFrame(sync);
+    window.addEventListener("resize", sync);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", sync); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const set = (k: keyof typeof form, v: string | boolean) => {
     if (status === "error") {
@@ -98,6 +118,42 @@ export default function ContactPage() {
       />
       <main className="content-container py-14 sm:py-16">
         <div className="max-w-3xl">
+          {/* Contact / Book a Meeting slider */}
+          <div
+            className="relative flex gap-1 p-1 rounded-sm bg-white/4 border border-white/8 w-fit mb-8 select-none"
+            onPointerDown={(e) => { (e.currentTarget as HTMLElement).dataset.dragging = "1"; }}
+            onPointerMove={(e) => {
+              if ((e.currentTarget as HTMLElement).dataset.dragging !== "1") return;
+              const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+              const k = el?.closest<HTMLButtonElement>("[data-tab]")?.dataset.tab as Tab | undefined;
+              if (k && k !== tab) setTab(k);
+            }}
+            onPointerUp={(e) => { delete (e.currentTarget as HTMLElement).dataset.dragging; }}
+            onPointerCancel={(e) => { delete (e.currentTarget as HTMLElement).dataset.dragging; }}
+          >
+            <div
+              className={`pointer-events-none absolute inset-y-1 rounded-sm bg-[var(--cranberry)] shadow-[0_0_12px_rgba(239,66,66,0.3)] transition-all duration-300 ease-out ${tabHighlight.ready ? "opacity-100" : "opacity-0"}`}
+              style={{ left: `${tabHighlight.left}px`, width: `${tabHighlight.width}px` }}
+            />
+            {TABS.map((t, i) => (
+              <button
+                key={t.key}
+                data-tab={t.key}
+                ref={(node) => { tabRefs.current[i] = node; }}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className="relative z-10 px-4 py-1.5 rounded-sm text-[11px] tracking-wider uppercase transition-colors duration-200 cursor-pointer"
+                style={{ color: tab === t.key ? "var(--on-accent, #fff)" : "color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)" }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "book" ? (
+            <BookMeeting />
+          ) : (
+          <>
           {/* Success state */}
           {status === "success" && (
             <motion.div
@@ -278,6 +334,8 @@ export default function ContactPage() {
               )}
             </button>
           </form>
+          </>
+          )}
         </div>
       </main>
       <Footer />

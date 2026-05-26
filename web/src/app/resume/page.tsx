@@ -11,6 +11,10 @@ import {
   getExperiences,
   getSiteContent,
   getSkills,
+  getResumeProfile,
+  getSkillCategories,
+  getProjects,
+  getArticles,
 } from "@/lib/db";
 import { buildSeoMetadata, SITE_URL } from "@/lib/seo";
 
@@ -28,16 +32,46 @@ export async function generateMetadata() {
 export const dynamic = "force-dynamic";
 
 export default async function ResumePage() {
-  const [experiences, educations, skills, certifications, awards, clubs, clients] = await Promise.all([
-    getExperiences(),
-    getEducations(),
-    getSkills(),
-    getCertifications(),
-    getAwards(),
-    getClubs(),
-    getClients(),
+  const [experiences, educations, skills, certifications, awards, clubs, clients, profile, skillCategoryMeta] =
+    await Promise.all([
+      getExperiences(),
+      getEducations(),
+      getSkills(),
+      getCertifications(),
+      getAwards(),
+      getClubs(),
+      getClients(),
+      getResumeProfile(),
+      getSkillCategories(),
+    ]);
+  const [allProjects, allArticles] = await Promise.all([
+    getProjects({ refreshVideoViews: false }).catch(() => []),
+    getArticles().catch(() => []),
   ]);
   const siteContent = await getSiteContent();
+
+  // Featured work for the Renowned Projects section — reuse the home-page featured selection.
+  const featuredProjectsAll = allProjects.filter((p) => p.featured);
+  const featuredArticlesAll = allArticles.filter((a) => a.homeFeatured);
+  const featuredIds = new Set([...featuredProjectsAll.map((p) => p.id), ...featuredArticlesAll.map((a) => a.id)]);
+  const workOrder = (siteContent.featuredWorkOrder ?? []).filter((id) => featuredIds.has(id));
+  const orderedSet = new Set(workOrder);
+  const finalFeaturedOrder = [
+    ...workOrder,
+    ...featuredProjectsAll.filter((p) => !orderedSet.has(p.id)).map((p) => p.id),
+    ...featuredArticlesAll.filter((a) => !orderedSet.has(a.id)).map((a) => a.id),
+  ];
+  const projById = new Map(allProjects.map((p) => [p.id, p]));
+  const artById = new Map(allArticles.map((a) => [a.id, a]));
+  const featuredWork = finalFeaturedOrder
+    .map((id) => {
+      const p = projById.get(id);
+      if (p && p.featured) return { type: "project" as const, project: p };
+      const a = artById.get(id);
+      if (a && a.homeFeatured) return { type: "article" as const, article: a };
+      return null;
+    })
+    .filter(Boolean) as ({ type: "project"; project: (typeof allProjects)[number] } | { type: "article"; article: (typeof allArticles)[number] })[];
   const header = siteContent.pageHeaders.resume;
   const clientsById = new Map(clients.map((client) => [client.id, client]));
 
@@ -84,23 +118,23 @@ export default async function ResumePage() {
   ).sort(sortNewest);
   const skillCategories = Array.from(new Set(skills.map((s) => s.category)));
 
+  const [locality, region] = profile.location.split(",").map((part) => part.trim());
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Person",
-    name: "Michael Cran",
+    name: profile.fullName,
     alternateName: "MDCran",
-    jobTitle: "Independent Contractor & Content Creator",
+    jobTitle: profile.title,
     description:
-      "Minecraft map maker, graphic designer, video editor, and web developer based in Orlando, FL.",
+      "Minecraft map maker, graphic designer, video editor, and web developer based in " +
+      profile.location +
+      ".",
     url: SITE_URL,
-    sameAs: [
-      "https://github.com/mdcran",
-      "https://www.linkedin.com/in/mdcran/",
-    ],
+    sameAs: [profile.githubUrl, profile.linkedinUrl].filter(Boolean),
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Orlando",
-      addressRegion: "FL",
+      addressLocality: locality || profile.location,
+      addressRegion: region || undefined,
       addressCountry: "US",
     },
   };
@@ -125,6 +159,9 @@ export default async function ResumePage() {
         awards={awards}
         clubs={clubs}
         clientsById={clientsById}
+        profile={profile}
+        skillCategoryMeta={skillCategoryMeta}
+        featuredWork={featuredWork}
       />
       <Footer />
     </>

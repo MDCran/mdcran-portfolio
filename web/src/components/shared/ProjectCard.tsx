@@ -8,6 +8,9 @@ import { Download, ShoppingCart, Star, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
+import AuthorByline from "@/components/shared/AuthorByline";
+import { projectReadMinutes } from "@/lib/read-time";
+import { effectiveProjectDate } from "@/lib/project-date";
 import type { Project } from "@/lib/types";
 
 interface ProjectCardProps {
@@ -201,12 +204,7 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
             className="flex items-center justify-between py-2 border-t mt-auto"
             style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}
           >
-            <span
-              className="text-[10px] tracking-wider uppercase"
-              style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}
-            >
-              {project.subcategory?.replace(/-/g, " ") ?? project.category.replace(/-/g, " ")}
-            </span>
+            <AuthorByline date={effectiveProjectDate(project)} minutes={projectReadMinutes(project)} />
             <PricingAction project={project} />
           </div>
         </div>

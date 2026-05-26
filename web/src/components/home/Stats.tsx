@@ -5,6 +5,8 @@ import { motion, useInView } from "framer-motion";
 import useSWR from "swr";
 import { Area, AreaChart, YAxis } from "recharts";
 import { ChartContainer } from "@/components/ui/chart";
+import GitHubContributions from "@/components/home/GitHubContributions";
+import type { SiteContentStats } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -28,18 +30,18 @@ interface Metric {
 
 const METRICS: Metric[] = [
   {
-    key: "totalFollowers",
-    label: "Client Followers",
-    description: "Combined across all clients",
-    fallback: 38_000_000,
-    suffix: "",
-    format: (n) => n.toLocaleString("en-US"),
-  },
-  {
     key: "totalProjectViews",
     label: "Project Views",
     description: "Total views on embedded content",
     fallback: 120_000_000,
+    suffix: "",
+    format: (n) => n.toLocaleString("en-US"),
+  },
+  {
+    key: "githubContributions",
+    label: "GitHub Contributions",
+    description: "Since Jan 2024",
+    fallback: 0,
     suffix: "",
     format: (n) => n.toLocaleString("en-US"),
   },
@@ -64,6 +66,39 @@ const METRICS: Metric[] = [
     ),
   },
 ];
+
+const GITHUB_YEARS = [2024, 2025, 2026];
+
+/** Fetch all-time GitHub contributions (2024–2026) + a monthly cumulative series for the background graph. */
+function useGithubContributions() {
+  return useSWR(
+    "github-contrib-summary",
+    async () => {
+      const results = await Promise.all(
+        GITHUB_YEARS.map((y) => fetch(`/api/github/contributions?year=${y}`).then((r) => (r.ok ? r.json() : null)))
+      );
+      let total = 0;
+      const daily = new Map<string, number>();
+      for (const res of results) {
+        if (!res?.weeks) continue;
+        total += res.total ?? 0;
+        for (const week of res.weeks as { date: string; contributionCount: number }[][]) {
+          for (const day of week) {
+            daily.set(day.date, (daily.get(day.date) ?? 0) + (day.contributionCount ?? 0));
+          }
+        }
+      }
+      // Cumulative running total from Jan 1 2024 → today: an upward line that's
+      // flat on 0-contribution days and jumps more on busy days.
+      const today = new Date().toISOString().slice(0, 10);
+      const dates = Array.from(daily.keys()).filter((d) => d <= today).sort();
+      let running = 0;
+      const trend = dates.map((d, i) => { running += daily.get(d) ?? 0; return { slot: i, views: running }; });
+      return { total, trend: trend.length ? trend : Array.from({ length: 12 }, (_, i) => ({ slot: i, views: i })) };
+    },
+    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+  );
+}
 
 const PROJECT_VIEWS_FALLBACK = METRICS.find((metric) => metric.key === "totalProjectViews")?.fallback ?? 120_000_000;
 const CREATOR_FOLLOWERS_LIVE_START = 189_232_941;
@@ -232,7 +267,8 @@ function AnimatedNumber({
   );
 }
 
-export default function Stats() {
+export default function Stats({ content }: { content?: SiteContentStats }) {
+  const metricOverrides = new Map((content?.metrics ?? []).map((m) => [m.key, m]));
   const [followersDisplayValue, setFollowersDisplayValue] = useState(CREATOR_FOLLOWERS_LIVE_START);
   const [followersTrend, setFollowersTrend] = useState(() =>
     Array.from({ length: 18 }, (_, index) => ({ slot: index, views: CREATOR_FOLLOWERS_LIVE_START }))
@@ -363,6 +399,8 @@ export default function Stats() {
       }
     };
   }, []);
+
+  const { data: github } = useGithubContributions();
 
   const { data } = useSWR<MetricsResponse>("/api/metrics", fetcher, {
     revalidateOnFocus: false,
@@ -510,14 +548,18 @@ export default function Stats() {
           className="flex items-center gap-3 mb-14"
         >
           <div className="h-px w-8 bg-[var(--cranberry)]" />
-          <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">By the Numbers</span>
+          <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">{content?.eyebrow || "By the Numbers"}</span>
         </motion.div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {METRICS.map((metric, i) => {
             const isFollowers = metric.key === "totalFollowers";
             const isProjectViews = metric.key === "totalProjectViews";
-            const isLiveMetric = isFollowers || isProjectViews;
+            const isGithub = metric.key === "githubContributions";
+            const isLiveMetric = isFollowers || isProjectViews || isGithub;
+            // Show a skeleton until real data arrives — never a fabricated fallback.
+            // ("Creating" is computed locally from 2018, so it's always accurate.)
+            const cardLoading = isGithub ? !github : metric.key === "yearsActive" ? false : !data;
             const value = data?.[metric.key as keyof MetricsResponse] ?? metric.fallback;
             const displayedProjectViews = Math.max(
               Math.round(projectDisplayValue),
@@ -542,7 +584,7 @@ export default function Stats() {
                       gradientId="followers-live-fill"
                     />
                   )}
-                  {isProjectViews && (
+                  {isProjectViews && !cardLoading && (
                     <LiveMetricBackground
                       data={projectTrend}
                       color="rgba(34,197,94,0.9)"
@@ -550,9 +592,16 @@ export default function Stats() {
                       forceUpward
                     />
                   )}
+                  {isGithub && github?.trend && (
+                    <LiveMetricBackground
+                      data={github.trend}
+                      color="rgba(34,197,94,0.9)"
+                      gradientId="github-contrib-fill"
+                    />
+                  )}
                   <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full bg-[var(--cranberry)] opacity-0 group-hover:opacity-[0.08] blur-xl transition-opacity duration-500" />
                   <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[var(--cranberry)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  {isLiveMetric && (
+                  {isLiveMetric && !cardLoading && (
                     <span className="absolute right-5 top-5 z-10 flex h-3 w-3">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                       <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.45)]" />
@@ -561,7 +610,9 @@ export default function Stats() {
 
                   <div className="relative z-10 flex h-full flex-col justify-center text-left">
                     <div className="mb-2">
-                      {isFollowers ? (
+                      {cardLoading ? (
+                        <span className="block h-9 w-28 rounded-sm bg-white/10 animate-pulse" aria-hidden />
+                      ) : isFollowers ? (
                         <span className="stat-value text-white tracking-tight leading-none">
                           {displayedFollowers.toLocaleString("en-US")}
                         </span>
@@ -569,6 +620,12 @@ export default function Stats() {
                         <span className="stat-value text-white tracking-tight leading-none">
                           {displayedProjectViews.toLocaleString("en-US")}
                         </span>
+                      ) : isGithub ? (
+                        <AnimatedNumber
+                          value={github?.total ?? 0}
+                          format={metric.format}
+                          suffix={metric.suffix}
+                        />
                       ) : (
                         <AnimatedNumber
                           value={value as number}
@@ -578,13 +635,16 @@ export default function Stats() {
                         />
                       )}
                     </div>
-                    <div className="text-xs text-white/75 font-jb tracking-wider uppercase">{metric.label}</div>
+                    <div className="text-xs text-white/75 font-jb tracking-wider uppercase">{metricOverrides.get(metric.key)?.label || metric.label}</div>
                   </div>
                 </div>
               </motion.div>
             );
           })}
         </div>
+
+        {/* GitHub contributions calendar — live activity */}
+        <GitHubContributions />
       </div>
     </section>
   );

@@ -7,6 +7,8 @@ import type {
   Experience,
   Education,
   Skill,
+  SkillCategoryMeta,
+  ResumeProfile,
   Certification,
   Award,
   ClubMembership,
@@ -1654,9 +1656,11 @@ export async function updateR2AssetReferences(oldUrl: string, newUrl: string): P
 export interface ChatConfig {
   rateLimit: number;
   rateWindowHours: number;
+  /** Extra admin-authored context injected into the assistant's system prompt. */
+  extraContext?: string;
 }
 
-const DEFAULT_CHAT_CONFIG: ChatConfig = { rateLimit: 15, rateWindowHours: 24 };
+const DEFAULT_CHAT_CONFIG: ChatConfig = { rateLimit: 15, rateWindowHours: 24, extraContext: "" };
 
 export interface ChatRateLimitEntry {
   ip: string;
@@ -1707,6 +1711,7 @@ export async function getChatConfig(): Promise<ChatConfig> {
   return {
     rateLimit: typeof doc.rateLimit === "number" ? doc.rateLimit : DEFAULT_CHAT_CONFIG.rateLimit,
     rateWindowHours: typeof doc.rateWindowHours === "number" ? doc.rateWindowHours : DEFAULT_CHAT_CONFIG.rateWindowHours,
+    extraContext: typeof doc.extraContext === "string" ? doc.extraContext : "",
   };
 }
 
@@ -1717,4 +1722,49 @@ export async function saveChatConfig(config: ChatConfig): Promise<void> {
     { $set: config },
     { upsert: true }
   );
+}
+
+/* ── Resume profile (editable personal/contact info) ── */
+const DEFAULT_RESUME_PROFILE: ResumeProfile = {
+  fullName: "Michael Cran",
+  title: "Software Engineer & Developer",
+  location: "Orlando, Florida",
+  email: "mdcranberry@gmail.com",
+  linkedinUrl: "https://www.linkedin.com/in/mdcran/",
+  githubUrl: "https://github.com/mdcran",
+  pdfUrl: "",
+  sectionOrder: ["experience", "featured", "education", "volunteer"],
+};
+
+export async function getResumeProfile(): Promise<ResumeProfile> {
+  const db = await getDb();
+  const doc = await db.collection("resumeProfile").findOne<Partial<ResumeProfile>>({}, { projection: { _id: 0 } });
+  return { ...DEFAULT_RESUME_PROFILE, ...(doc ?? {}) };
+}
+
+export async function saveResumeProfile(profile: Partial<ResumeProfile>): Promise<void> {
+  const db = await getDb();
+  const merged = { ...DEFAULT_RESUME_PROFILE, ...profile };
+  await db.collection("resumeProfile").updateOne({}, { $set: merged }, { upsert: true });
+}
+
+/* ── Skill categories (ordered metadata: label + icon) ── */
+export async function getSkillCategories(): Promise<SkillCategoryMeta[]> {
+  const db = await getDb();
+  const rows = await db
+    .collection("skillCategories")
+    .find<SkillCategoryMeta & { position?: number }>({}, { projection: { _id: 0 } })
+    .sort({ position: 1 })
+    .toArray();
+  return rows.map(({ position: _position, ...rest }) => rest);
+}
+
+export async function saveSkillCategories(categories: SkillCategoryMeta[]): Promise<void> {
+  const db = await getDb();
+  await db.collection("skillCategories").deleteMany({});
+  if (categories.length) {
+    await db.collection("skillCategories").insertMany(
+      categories.map((c, i) => ({ ...c, position: i })) as unknown as Record<string, unknown>[]
+    );
+  }
 }

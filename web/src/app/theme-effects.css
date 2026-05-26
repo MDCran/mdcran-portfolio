@@ -287,6 +287,24 @@ html[data-theme="high-contrast"] [class*="border-white"] {
   border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
+/* Uniform readable text — any faded white text becomes solid white (matches the navbar). */
+html[data-theme="high-contrast"] [class*="text-white\/"] {
+  color: #ffffff !important;
+}
+
+/* Selected accent chips/toggles (e.g. High contrast On, Motion Allow, Tone) render as
+   solid yellow with BLACK text, so they're truly high-contrast — not faint yellow-on-dark. */
+html[data-theme="high-contrast"] [class*="bg-\[var(--cranberry)\]\/12"],
+html[data-theme="high-contrast"] [class*="bg-\[var(--cranberry)\]\/10"] {
+  background-color: #ffff00 !important;
+}
+html[data-theme="high-contrast"] [class*="bg-\[var(--cranberry)\]\/12"],
+html[data-theme="high-contrast"] [class*="bg-\[var(--cranberry)\]\/12"] *,
+html[data-theme="high-contrast"] [class*="bg-\[var(--cranberry)\]\/10"],
+html[data-theme="high-contrast"] [class*="bg-\[var(--cranberry)\]\/10"] * {
+  color: #000000 !important;
+}
+
 html[data-theme="light"] {
   --theme-primary: #d93636;
   --theme-bg: #f8f8f8;

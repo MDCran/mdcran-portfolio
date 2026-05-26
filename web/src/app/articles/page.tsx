@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,6 +8,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
+import ArticleCard from "@/components/shared/ArticleCard";
+import AuthorByline from "@/components/shared/AuthorByline";
+import { articleReadMinutes } from "@/lib/read-time";
 import type { Article, ArticleCategory, SiteContent } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 
@@ -30,14 +33,6 @@ const CATEGORY_COLORS: Record<ArticleCategory, string> = {
   tutorial: "text-[#ef4242] border-[#ef4242]/30 bg-[#ef4242]/8",
   announcement: "text-orange-400 border-orange-400/30 bg-orange-400/8",
 };
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
 
 export default function ArticlesPage() {
   const { data: apiArticles = [], isLoading } = useSWR<Article[]>("/api/data/articles", fetcher, {
@@ -75,6 +70,20 @@ export default function ArticlesPage() {
         })),
     ];
   }, [allArticles]);
+
+  // Sliding-pill highlight for the category toggle.
+  const catRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [catHighlight, setCatHighlight] = useState({ left: 0, width: 0, ready: false });
+  useEffect(() => {
+    const sync = () => {
+      const idx = availableCategories.findIndex((c) => c.id === activeCategory);
+      const btn = catRefs.current[idx];
+      if (btn) setCatHighlight({ left: btn.offsetLeft, width: btn.offsetWidth, ready: true });
+    };
+    const frame = requestAnimationFrame(sync);
+    window.addEventListener("resize", sync);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", sync); };
+  }, [activeCategory, availableCategories]);
 
   const filtered = useMemo(() => {
     let list = allArticles;
@@ -131,7 +140,8 @@ export default function ArticlesPage() {
               transition={{ delay: 0.25 }}
               className="text-sm text-white/40 max-w-xl"
             >
-              {(header?.description ?? "A collection of recipes, technical articles, and personal stories.")} {allArticles.length} and counting. :D
+              {(header?.description ?? "A collection of recipes, technical articles, and personal stories.")}
+              <span className="block mt-1">{allArticles.length} and counting.</span>
             </motion.p>
           </div>
         </section>
@@ -169,11 +179,7 @@ export default function ArticlesPage() {
                         {featured.title}
                       </h2>
                       <p className="text-sm text-white/50 leading-relaxed mb-6">{featured.excerpt}</p>
-                      <div className="flex items-center gap-4">
-                        <span className="text-[10px] text-white/30">{featured.author}</span>
-                        <span className="text-white/15">·</span>
-                        <span className="text-[10px] text-white/30">{formatDate(featured.publishDate)}</span>
-                      </div>
+                      <AuthorByline date={featured.publishDate} minutes={articleReadMinutes(featured)} size="md" />
                       <div className="flex flex-wrap gap-2 mt-4">
                         {featured.tags.slice(0, 4).map((tag) => (
                           <span key={tag} className="text-[9px] text-white/25 bg-white/4 px-2 py-0.5 rounded-sm">#{tag}</span>
@@ -191,20 +197,37 @@ export default function ArticlesPage() {
         <section className="py-8 border-b border-white/6 sticky top-[var(--navbar-height)] z-20 bg-[#0a0a0a]/90 backdrop-blur-xl">
           <div className="content-container flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-              <div className="flex flex-wrap gap-2 flex-1">
-                {availableCategories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`px-3 py-1.5 text-[10px] tracking-widest uppercase rounded-sm transition-all duration-200 font-nord ${
-                      activeCategory === cat.id
-                        ? "bg-[#ef4242] text-white shadow-[0_0_16px_rgba(239,66,66,0.4)]"
-                        : "border border-white/10 text-white/40 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+              <div className="flex-1 overflow-x-auto">
+                <div
+                  className="relative inline-flex gap-1 p-1 rounded-sm border border-white/8 bg-white/3 select-none"
+                  style={{ touchAction: "pan-y" }}
+                  onPointerDown={(e) => { (e.currentTarget as HTMLElement).dataset.dragging = "1"; }}
+                  onPointerMove={(e) => {
+                    if ((e.currentTarget as HTMLElement).dataset.dragging !== "1") return;
+                    const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+                    const id = el?.closest<HTMLButtonElement>("[data-cat]")?.dataset.cat;
+                    if (id && id !== activeCategory) setActiveCategory(id as ArticleCategory | "all");
+                  }}
+                  onPointerUp={(e) => { delete (e.currentTarget as HTMLElement).dataset.dragging; }}
+                  onPointerCancel={(e) => { delete (e.currentTarget as HTMLElement).dataset.dragging; }}
+                >
+                  <div
+                    className={`pointer-events-none absolute inset-y-1 rounded-sm bg-[#ef4242] shadow-[0_0_14px_rgba(239,66,66,0.35)] transition-all duration-300 ease-out ${catHighlight.ready ? "opacity-100" : "opacity-0"}`}
+                    style={{ left: `${catHighlight.left}px`, width: `${catHighlight.width}px` }}
+                  />
+                  {availableCategories.map((cat, i) => (
+                    <button
+                      key={cat.id}
+                      data-cat={cat.id}
+                      ref={(node) => { catRefs.current[i] = node; }}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className="relative z-10 px-3 py-1.5 text-[10px] tracking-widest uppercase rounded-sm transition-colors duration-200 font-nord whitespace-nowrap cursor-pointer"
+                      style={{ color: activeCategory === cat.id ? "var(--on-accent, #fff)" : "color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)" }}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="relative w-full sm:w-64">
                 <input
@@ -243,82 +266,11 @@ export default function ArticlesPage() {
                   No articles found.
                 </motion.div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filtered.map((article, i) => {
-                    const coverSrc = imageAssetSrc(article.coverImage);
-                    const coverUnoptimized = shouldBypassImageOptimization(coverSrc);
-
-                    return (
-                      <motion.div
-                        key={article.id}
-                        layout
-                        initial={{ opacity: 0, y: 24 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.96 }}
-                        transition={{ duration: 0.4, delay: i * 0.05 }}
-                      >
-                        <Link href={`/articles/${article.slug}`} className="group block h-full">
-                          <div className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl overflow-hidden hover:border-[#ef4242]/30 hover:bg-white/5 transition-all duration-300 h-full flex flex-col">
-                            {coverSrc ? (
-                              <div className="relative h-44 overflow-hidden">
-                                <Image
-                                  src={coverSrc}
-                                  alt={imageAssetAlt(article.coverImage, article.title)}
-                                  fill
-                                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                  className="object-cover group-hover:scale-105 transition-transform duration-700"
-                                  unoptimized={coverUnoptimized}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/80 to-transparent" />
-                              </div>
-                            ) : (
-                              <div className="h-32 bg-gradient-to-br from-[#ef4242]/10 to-transparent flex items-center px-6">
-                                <div className={`text-[9px] tracking-widest uppercase px-2 py-0.5 rounded-sm border ${CATEGORY_COLORS[article.category]}`}>
-                                  {article.category}
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="p-6 flex flex-col flex-1">
-                              {coverSrc && (
-                                <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase mb-3 self-start ${CATEGORY_COLORS[article.category]}`}>
-                                  {article.category}
-                                </div>
-                              )}
-
-                              <h3 className="font-nord text-base text-white tracking-wider mb-2 group-hover:text-[#ef4242] transition-colors duration-300 leading-snug">
-                                {article.title}
-                              </h3>
-
-                              <p className="text-xs text-white/40 leading-relaxed mb-4 flex-1 line-clamp-3">
-                                {article.excerpt}
-                              </p>
-
-                              <div className="flex items-center justify-between border-t border-white/6 pt-3">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[9px] text-white/25">{formatDate(article.publishDate)}</span>
-                                </div>
-                                <span className="inline-flex items-center justify-center h-8 min-w-[72px] px-3 border border-white/12 text-[11px] tracking-wider rounded-sm opacity-0 group-hover:opacity-100 group-hover:border-[rgba(239,66,66,0.35)] group-hover:text-[#ef4242] text-white/40 transition-all duration-200">
-                                  Read
-                                </span>
-                              </div>
-
-                              <div className="flex flex-wrap gap-1.5 mt-3">
-                                {article.tags.slice(0, 3).map((tag) => (
-                                  <span key={tag} className="text-[9px] text-white/20 bg-white/4 px-1.5 py-0.5 rounded-sm">
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[#ef4242] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          </div>
-                        </Link>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filtered.map((article, i) => (
+                    <ArticleCard key={article.id} article={article} index={i} />
+                  ))}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

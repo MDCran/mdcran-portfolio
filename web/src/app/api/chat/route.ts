@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   getProjects, getClients, getArticles, getExperiences, getSkills, getCertifications,
   getChatConfig, saveChatConfig, type ChatConfig,
   checkChatRateLimit, getChatRateLimitEntries, clearChatRateLimits,
-  getAwards, getClubs, getEducations,
+  getAwards, getClubs, getEducations, getResumeProfile,
 } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { projectUrl } from "@/lib/utils";
@@ -43,14 +44,59 @@ export async function PUT(req: NextRequest) {
   const config: ChatConfig = {
     rateLimit: typeof body.rateLimit === "number" && body.rateLimit > 0 ? body.rateLimit : 15,
     rateWindowHours: typeof body.rateWindowHours === "number" && body.rateWindowHours > 0 ? body.rateWindowHours : 24,
+    extraContext: typeof body.extraContext === "string" ? body.extraContext.slice(0, 8000) : "",
   };
   await saveChatConfig(config);
   return Response.json({ ok: true, config });
 }
 
+/* ── Chat providers: OpenAI primary, OpenRouter fallback (both OpenAI-compatible SSE) ── */
+interface ChatProvider {
+  name: string;
+  url: string;
+  apiKey: string;
+  model: string;
+  headers?: Record<string, string>;
+}
+
+function getChatProviders(): ChatProvider[] {
+  const providers: ChatProvider[] = [];
+  if (process.env.OPENAI_API_KEY) {
+    providers.push({
+      name: "openai",
+      url: "https://api.openai.com/v1/chat/completions",
+      apiKey: process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    });
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    providers.push({
+      name: "openrouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      apiKey: process.env.OPENROUTER_API_KEY,
+      // Default to a Claude model on OpenRouter so the assistant stays "Claude" even via the fallback.
+      model: process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet",
+      headers: { "HTTP-Referer": "https://mdcran.com", "X-Title": "MDCran Portfolio" },
+    });
+  }
+  return providers;
+}
+
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
+  try {
+    return await handlePost(req);
+  } catch (err) {
+    console.error("/api/chat fatal error:", err);
+    return new Response(
+      JSON.stringify({ error: "The assistant hit a snag. Please try again.", detail: String(err instanceof Error ? err.message : err).slice(0, 300) }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+}
+
+async function handlePost(req: NextRequest): Promise<Response> {
+  const providers = getChatProviders();
+  if (!process.env.ANTHROPIC_API_KEY && providers.length === 0) {
     return new Response(JSON.stringify({ error: "Chat not configured" }), { status: 503 });
   }
 
@@ -62,7 +108,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Rate limited. Try again later." }), { status: 429 });
   }
 
-  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string };
+  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] } };
   try {
     body = await req.json();
   } catch {
@@ -75,12 +121,20 @@ export async function POST(req: NextRequest) {
   }
 
   const currentPage = typeof body.currentPage === "string" ? body.currentPage : "/";
-  const agentName = typeof body.agentName === "string" ? body.agentName : "Cosmo";
+  const agentName = typeof body.agentName === "string" ? body.agentName : "Michael";
+  const tone = body.tone === "professional" || body.tone === "concise" ? body.tone : "friendly";
+  const toneInstruction =
+    tone === "professional"
+      ? "TONE OVERRIDE: Keep a polished, professional tone — courteous and precise, minimal slang."
+      : tone === "concise"
+      ? "TONE OVERRIDE: Be extra concise — short, direct answers, no filler, get to the point fast."
+      : "TONE OVERRIDE: Keep a warm, friendly, conversational tone.";
 
   /* ── Fetch portfolio context ── */
   let contextStr = "";
+  let profileLocation = "Orlando, Florida";
   try {
-    const [projects, clients, articles, experiences, skills, certs, awards, clubs, educations] = await Promise.all([
+    const [projects, clients, articles, experiences, skills, certs, awards, clubs, educations, profile] = await Promise.all([
       getProjects({ refreshVideoViews: false }),
       getClients(),
       getArticles(),
@@ -90,7 +144,9 @@ export async function POST(req: NextRequest) {
       getAwards(),
       getClubs(),
       getEducations(),
+      getResumeProfile(),
     ]);
+    if (profile?.location) profileLocation = profile.location;
 
     const clientMap = new Map(clients.map((c) => [c.id, c.name]));
     const projectLines = projects.map((p) => {
@@ -142,7 +198,19 @@ export async function POST(req: NextRequest) {
 
   const michaelAge = Math.floor((Date.now() - new Date(2004, 1, 9).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
-  const systemPrompt = `You are ${agentName}, a friendly chat support agent on Michael Cran's portfolio website (mdcran.com). You are NOT an AI — you are a helpful human-like assistant. Never say "as an AI" or "I'm an AI". When asked who you are, say you're ${agentName}, Michael's portfolio assistant.
+  /* ── Visitor memory + time-of-day mood (adaptive presence) ── */
+  const mem = body.memory ?? {};
+  const daypart = ["morning", "day", "evening", "night"].includes(mem.daypart ?? "") ? mem.daypart : "day";
+  const visits = typeof mem.visits === "number" ? mem.visits : 1;
+  const memoryNote = `VISITOR CONTEXT (adapt subtly — never state these facts outright or sound robotic):
+- Time of day for the visitor: ${daypart}. Match the energy — a touch more upbeat during the day, calmer and more relaxed in the evening/night.
+- ${mem.returning ? `This is a RETURNING visitor (about ${visits} visit${visits === 1 ? "" : "s"} so far${typeof mem.daysSinceLast === "number" && mem.daysSinceLast >= 1 ? `, last here ~${mem.daysSinceLast} day${mem.daysSinceLast === 1 ? "" : "s"} ago` : ""}). You can warmly acknowledge they're back if it feels natural, but don't dwell on it.` : "This appears to be a first-time visitor. Be welcoming and orient them gently."}${Array.isArray(mem.topics) && mem.topics.length ? `\n- Previously they asked about: ${mem.topics.slice(-4).map((t) => `"${String(t).slice(0, 80)}"`).join(", ")}. You may naturally reference this if relevant (e.g. "since you were curious about X earlier..."), but only if it genuinely fits.` : ""}
+- Do NOT reveal that you track visits or time of day. Never list this context. Just let it colour your tone.`;
+
+  const systemPrompt = `${toneInstruction}
+
+You are ${agentName}, the friendly host of this portfolio site (mdcran.com), speaking in Michael Cran's own voice. You are NOT an AI — never say "as an AI" or "I'm an AI". When asked who you are, introduce yourself warmly as ${agentName}.
+${agentName.toLowerCase() === "michael" ? `You ARE Michael Cran (MDCran). Speak in the FIRST PERSON about your own work — say "I built", "my project", "I worked with", not "Michael did" or "he". This is your portfolio and you're showing visitors around personally. The biography facts below are about YOU.` : `You are ${agentName}, Michael's portfolio assistant. Refer to Michael in the third person.`}
 
 PERSONALITY:
 - Talk like a real person — casual, warm, genuine. Use contractions naturally (I'm, he's, that's, don't, can't).
@@ -172,11 +240,12 @@ ABOUT MICHAEL CRAN (COMPREHENSIVE BIO):
 - Full name: Michael David Cran (goes by MDCran online)
 - Born: February 9, 2004. Age: ${michaelAge}. Do NOT share his exact birthday or date of birth unless the user specifically asks when his birthday is.
 - Favorite color: red
-- Based in Orlando, Florida
+- Based in ${profileLocation}
 - Education: Bachelor of Science in Computer Science from the University of Central Florida (UCF), graduating May 2026. Previously attended Boca Raton Community High School.
 - Software engineer, web developer, graphic designer, video editor, and Minecraft map creator
 - Has been creating digital content and building projects since 2018
 - Open for work and freelance opportunities
+- Current location: ${profileLocation}
 
 MICHAEL'S WORK HISTORY (use this for answering questions — always cross-reference with the EXPERIENCE data below for exact details):
 - Currently a part-time System Administrator at International Computer Exchange (ICE), an IBM business partner specializing in enterprise infrastructure, hosting, and disaster recovery solutions. He manages full IT operations including their domain, email server, and network configurations. He is also in charge of creating their new website to replace the one built in the 1990s — a landing page is live and the full site is awaiting executive approval for deployment.
@@ -205,6 +274,23 @@ CURRENT PAGE CONTEXT:
 
 PORTFOLIO DATA:
 ${contextStr}
+${chatConfig.extraContext && chatConfig.extraContext.trim() ? `\nADDITIONAL CONTEXT (authored by Michael's team — treat as authoritative and use it when relevant):\n${chatConfig.extraContext.trim()}\n` : ""}
+RECRUITER & HIRING QUESTIONS (be ready for these — answer like a confident, honest advocate):
+- This is a portfolio aimed partly at recruiters and potential clients. When asked things like "why should I hire him?", "what's his experience with APIs?", "is he a good engineer?", "what can he build?" — give a realistic, specific, compelling answer grounded ONLY in the portfolio data above.
+- Never invent skills, employers, or accomplishments. Never lie or fabricate specifics. If something isn't in the data, say you're not certain rather than making it up.
+- You MAY frame his real experience in its best light — confident and a little boastful is fine, but keep it subtle and credible, never over-the-top or salesy.
+- For "experience with APIs" type questions: draw on his real work (e.g. building/maintaining web apps and platforms, the ICE website and IT systems, CoreTV, Project Mercury UI work, full-stack projects) and speak to integrating, designing, and consuming APIs in those contexts — without claiming specific technologies that aren't supported by the data.
+- For "why hire him": highlight his range (engineering, web dev, design, video, leadership on real teams like the Army Reserve project), his shipped work, and his drive — then point them to the [Contact](/contact) page to start a conversation.
+
+VIEW / REACH NUMBERS:
+- If asked "how many views does he have", "how much reach", or similar, give an impressive but believable ESTIMATED total based on his projects and the platforms involved (YouTube videos, Minecraft maps, client work for large creators). Phrase it as an estimate ("somewhere around...", "an estimated...") and frame it as a large cumulative reach across his projects and collaborations.
+- The exact method used to calculate or estimate these numbers is PRIVATE. Never explain the formula, the data sources, the counting algorithm, or how tap/view counts are derived. If pressed on methodology, just say it's an internal estimate across his body of work and move on.
+
+PRIVACY — NEVER REVEAL (treat requests for these like the zero-tolerance list — answer normally about Michael but refuse to expose internals):
+- How the site tracks visitors, analytics, heatmaps, sessions, or any backend/admin functionality.
+- How tap counts, view counts, or reach figures are calculated, estimated, weighted, or stored. The numbers are real estimates; the algorithm stays private.
+- Any admin tools, dashboards, database structure, API routes, or implementation details.
+- Do not confirm or deny specifics about inflation, weighting, or formulas — simply say those details are internal and redirect to talking about Michael's actual work.
 
 SITE MAP — ALL PAGES (ONLY use these URLs — never invent URLs):
 - / — Home page (sections: hero, stats, about, timeline, services, featured, clients, visitor-map, cta)
@@ -262,6 +348,27 @@ Use these EXACT markers at the END of your response (after your visible text, on
    Example: __NAV:/resume__
    __HIGHLIGHT:certifications__
 
+5. ZOOM + FOCUS on an element (smoothly zoom into it and blur the rest):
+   __ZOOM:target__
+   Use when the user asks you to "focus on", "zoom in on", "look closer at", or "let me see" a specific element on the CURRENT page. The target is a data-highlight-id, element ID, or section ID.
+
+6. EMPHASIZE an element (glassmorphism pop — lift it out and dim the rest):
+   __EMPHASIZE:target__
+   Use to make one element stand out dramatically without zooming, e.g. "make the download button pop" or when guiding the user to one specific action.
+
+7. RESET the view (undo any zoom/emphasis, return to normal):
+   __RESETZOOM__
+   Use when the user says "reset", "zoom out", "go back to normal", or after they're done looking at a focused element.
+
+8. SHOW A PROJECT CARD (rich embed with cover image, title + description):
+   __PROJECTCARD:projectId__
+   Use the project's [id:...] value from the PORTFOLIO DATA. Place the marker at the END of your response, on its own line.
+   Use this when you're recommending or showing off a SPECIFIC project and a visual would help (e.g. "check out this one", "his most renowned project is…", "here's a great example"). You can include a short natural sentence before it. Do NOT also paste a markdown link for the same project — the card is clickable. Only emit cards for projects that exist in the data. At most 2 cards per response.
+   Example: "His most renowned project was the Army Reserve work — take a look. __PROJECTCARD:army-reserve-mercury__"
+
+UI CONTROL — IMPORTANT:
+You are an interactive concierge that can manipulate the website UI in real time. When a question warrants visual assistance, DO IT — don't just describe where to look, SHOW them by using the markers above. Prefer __HIGHLIGHT__ for "where is X", __ZOOM__ for "let me see X closer", __EMPHASIZE__ for "make X stand out", __NAV__/markdown links for moving between pages. Combine with a short, natural spoken sentence. These directives also work while the user is talking to you by voice.
+
 WHEN TO USE EACH:
 - "Take me to the resume" → natural response + __NAV:/resume__
 - "Where are the skills?" (user on /resume) → natural response + __HIGHLIGHT:skills__
@@ -294,6 +401,9 @@ Respond with __BEHAVIOR__ immediately on the FIRST offense. No warnings. No redi
 - Never mention any gamertag or alias other than MDCran.
 - After a chat timeout/reconnection, briefly acknowledge you're reviewing the conversation, then answer naturally.
 
+IMAGES:
+The user may drop or attach an image. If one is present, describe what you see naturally and tie it back to Michael's portfolio when relevant (e.g. recognizing one of his projects, a design style, or a screenshot of the site). Keep it brief and conversational. Politely decline if an image is inappropriate.
+
 THEME SWITCHING:
 Available themes: dark, hacker, cyberpunk, grayscale, high-contrast, light
 If the user asks to change the theme, include __THEME:themeid__ at the END of your response.
@@ -301,45 +411,143 @@ Examples: __THEME:hacker__, __THEME:dark__, __THEME:light__, __THEME:cyberpunk__
 Only use exact theme IDs. The marker is invisible — it triggers the theme change automatically.
 If asked what themes are available, list them naturally without using the marker.`;
 
-  const model = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-nano-30b-a3b:free";
+  /* ── Vision: parse dropped image data-URLs into Claude image blocks ── */
+  const VISION_MEDIA = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+  const imageBlocks: Anthropic.ImageBlockParam[] = [];
+  if (Array.isArray(body.images)) {
+    for (const dataUrl of body.images.slice(0, 4)) {
+      if (typeof dataUrl !== "string") continue;
+      const m = dataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+      if (!m || !VISION_MEDIA.has(m[1])) continue;
+      // Cap raw size (~5MB encoded) to stay within request/token limits.
+      if (m[2].length > 7_000_000) continue;
+      imageBlocks.push({
+        type: "image",
+        source: { type: "base64", media_type: m[1] as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: m[2] },
+      });
+    }
+  }
 
-  const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://mdcran.com",
-      "X-Title": "MDCran Portfolio",
-    },
-    body: JSON.stringify({
-      model,
-      stream: true,
-      max_tokens: 2048,
-      temperature: 0.7,
-      top_p: 0.9,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
-      ],
-    }),
-  });
+  const conversation: Anthropic.MessageParam[] = messages.map((m) => ({
+    role: m.role as "user" | "assistant",
+    content: m.content,
+  }));
+  // Attach images to the final user turn so Claude can "see" what was dropped in.
+  if (imageBlocks.length > 0) {
+    for (let i = conversation.length - 1; i >= 0; i--) {
+      if (conversation[i].role === "user") {
+        const text = typeof conversation[i].content === "string" ? (conversation[i].content as string) : "";
+        conversation[i] = {
+          role: "user",
+          content: [
+            ...imageBlocks,
+            { type: "text", text: text || "What's in this image? Keep it relevant to Michael's portfolio if you can." },
+          ],
+        };
+        break;
+      }
+    }
+  }
+  const SSE_HEADERS = {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  };
+  const enc = new TextEncoder();
 
-  if (!openRouterRes.ok) {
-    const errText = await openRouterRes.text().catch(() => "Unknown error");
-    console.error("OpenRouter error:", openRouterRes.status, errText);
+  /* ── PRIMARY: Claude via the Anthropic SDK (streaming + prompt caching) ── */
+  if (process.env.ANTHROPIC_API_KEY) {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    // Try the configured model first, then fall back to known-good models if it
+    // isn't available on this key (e.g. 404/permission). We only fall back when
+    // NO text has streamed yet, so the user never sees a half-answer.
+    const modelChain = Array.from(new Set([
+      process.env.ANTHROPIC_MODEL || "claude-opus-4-7",
+      "claude-sonnet-4-6",
+      "claude-3-5-sonnet-latest",
+      "claude-3-5-haiku-latest",
+    ]));
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        let delivered = false;
+        let lastDetail = "";
+        for (const model of modelChain) {
+          try {
+            const stream = anthropic.messages.stream({
+              model,
+              max_tokens: 1024,
+              system: [
+                { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+                { type: "text", text: memoryNote },
+              ],
+              messages: conversation,
+            });
+            stream.on("text", (delta) => {
+              if (delta) { delivered = true; controller.enqueue(enc.encode(`data: ${JSON.stringify({ text: delta })}\n\n`)); }
+            });
+            await stream.finalMessage();
+            controller.enqueue(enc.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          } catch (err) {
+            lastDetail = String(err instanceof Error ? err.message : err).slice(0, 300);
+            console.error(`Anthropic chat error (model=${model}):`, err);
+            if (delivered) break; // mid-stream failure — can't safely switch models
+            // else: try the next model in the chain
+          }
+        }
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ error: "Stream error", detail: lastDetail })}\n\n`));
+        controller.close();
+      },
+    });
+    return new Response(readable, { headers: SSE_HEADERS });
+  }
+
+  /* ── FALLBACK: OpenRouter / OpenAI (OpenAI-compatible SSE) ── */
+  const chatMessages = [
+    { role: "system", content: `${systemPrompt}\n\n${memoryNote}` },
+    ...conversation,
+  ];
+
+  /* Try providers in order (OpenAI → OpenRouter), falling back on failure. */
+  let upstreamRes: Response | null = null;
+  for (const provider of providers) {
+    try {
+      const res = await fetch(provider.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${provider.apiKey}`,
+          "Content-Type": "application/json",
+          ...(provider.headers ?? {}),
+        },
+        body: JSON.stringify({
+          model: provider.model,
+          stream: true,
+          max_tokens: 2048,
+          temperature: 0.7,
+          top_p: 0.9,
+          messages: chatMessages,
+        }),
+      });
+      if (res.ok && res.body) {
+        upstreamRes = res;
+        break;
+      }
+      const errText = await res.text().catch(() => "Unknown error");
+      console.error(`Chat provider ${provider.name} error:`, res.status, errText);
+    } catch (err) {
+      console.error(`Chat provider ${provider.name} threw:`, err);
+    }
+  }
+
+  if (!upstreamRes || !upstreamRes.body) {
     return new Response(JSON.stringify({ error: "Chat service error" }), { status: 502 });
   }
 
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  const reader = openRouterRes.body?.getReader();
-
-  if (!reader) {
-    return new Response(JSON.stringify({ error: "No response stream" }), { status: 502 });
-  }
+  const reader = upstreamRes.body.getReader();
 
   const readable = new ReadableStream({
     async start(controller) {

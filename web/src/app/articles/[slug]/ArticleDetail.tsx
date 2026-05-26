@@ -4,12 +4,14 @@ import { useState, useCallback, useEffect } from "react";
 import { cn, imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 import BeforeAfterSlider from "@/components/shared/BeforeAfterSlider";
 import SmartImage from "@/components/shared/SmartImage";
+import TaggableImage from "@/components/shared/TaggableImage";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Link2, Check, Share2, ArrowLeft } from "lucide-react";
 import type { Article, ArticleSection, ArticleCategory } from "@/lib/types";
 import Lightbox from "@/components/shared/Lightbox";
+import AuthorByline from "@/components/shared/AuthorByline";
 
 const CATEGORY_COLORS: Record<ArticleCategory, string> = {
   press: "text-sky-400 border-sky-400/30 bg-sky-400/8",
@@ -162,12 +164,14 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
       const resolvedSrc = imageAssetSrc(section.src);
       if (!resolvedSrc) return null;
       return (
-        <SmartImage
-          src={resolvedSrc}
-          alt={section.alt ?? ""}
-          caption={section.caption}
-          onClick={() => onImageClick(imageOffset)}
-        />
+        <TaggableImage tags={section.imageTags}>
+          <SmartImage
+            src={resolvedSrc}
+            alt={section.alt ?? ""}
+            caption={section.caption}
+            onClick={() => onImageClick(imageOffset)}
+          />
+        </TaggableImage>
       );
     }
 
@@ -329,6 +333,8 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
             href={section.content}
             target={section.content.startsWith("http") ? "_blank" : undefined}
             rel={section.content.startsWith("http") ? "noopener noreferrer" : undefined}
+            data-track="content_link_click"
+            data-track-meta={JSON.stringify({ label: section.label, href: section.content })}
             className="inline-flex items-center gap-2 h-11 px-7 bg-[#ef4242] text-white text-sm tracking-wider uppercase rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)]"
           >
             {section.label}
@@ -587,6 +593,19 @@ export default function ArticleDetail({ article }: { article: Article }) {
   const coverSrc = imageAssetSrc(article.coverImage);
   const coverUnoptimized = shouldBypassImageOptimization(coverSrc);
 
+  // Estimated read time (~225 wpm) from all text in the article.
+  const readWords = (() => {
+    const parts: string[] = [article.title, article.excerpt ?? ""];
+    for (const s of article.sections) {
+      for (const v of Object.values(s)) {
+        if (typeof v === "string") parts.push(v);
+        else if (Array.isArray(v)) for (const x of v) if (typeof x === "string") parts.push(x);
+      }
+    }
+    return parts.join(" ").trim().split(/\s+/).filter(Boolean).length;
+  })();
+  const readMinutes = Math.max(1, Math.round(readWords / 225));
+
   // Collect ALL images across sections into one flat array for the shared Lightbox.
   // Track each section's starting offset so clicking any image resolves to a global index.
   const allImages: string[] = [];
@@ -607,8 +626,6 @@ export default function ArticleDetail({ article }: { article: Article }) {
       }
     }
   }
-
-  const authorPic = imageAssetSrc(article.authorProfilePic) ?? "/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png";
 
   return (
     <main className="min-h-screen">
@@ -632,7 +649,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
           <div className="h-32 bg-gradient-to-b from-[#ef4242]/4 to-transparent" />
         )}
 
-        <div className={cn("max-w-3xl mx-auto px-4 sm:px-8 relative z-10", coverSrc ? "-mt-24" : "mt-8")}>
+        <div className={cn("max-w-5xl mx-auto px-4 sm:px-8 relative z-10", coverSrc ? "-mt-24" : "mt-8")}>
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -663,30 +680,9 @@ export default function ArticleDetail({ article }: { article: Article }) {
             {/* Excerpt */}
             <p className="text-base text-white/60 leading-relaxed mb-6">{article.excerpt}</p>
 
-            {/* Meta row */}
+            {/* Meta row — standardized MDCran brand byline (matches the project pages) */}
             <div className="flex flex-wrap items-center gap-4 pb-6 border-b border-white/8">
-              <div className="flex items-center gap-2">
-                <div className="relative w-7 h-7 rounded-full overflow-hidden bg-[#ef4242] border border-white/10 shrink-0">
-                  <Image
-                    src={authorPic}
-                    alt={article.author}
-                    fill
-                    className="object-cover"
-                    sizes="28px"
-                    onError={(e) => {
-                      // Fallback: hide image so bg shows through
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-white">{article.author}</div>
-                  <div className="text-[9px] text-white/30">{formatDate(article.publishDate)}</div>
-                </div>
-              </div>
-              {article.updatedDate && (
-                <span className="text-[10px] text-white/25">Updated {formatDate(article.updatedDate)}</span>
-              )}
+              <AuthorByline date={article.publishDate} minutes={readMinutes} size="md" />
             </div>
           </motion.div>
         </div>
@@ -694,7 +690,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
 
       {/* ── Content ── */}
       <article
-        className="max-w-3xl mx-auto px-4 sm:px-8 py-16"
+        className="max-w-5xl mx-auto px-4 sm:px-8 py-16"
       >
         {article.sections.map((section, i) => (
           <div
@@ -709,11 +705,20 @@ export default function ArticleDetail({ article }: { article: Article }) {
           />
           </div>
         ))}
+        {/* Byline footer — standardized MDCran brand byline + (best practice) last-updated */}
+        <div className="mt-12 pt-6 border-t border-white/8 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <AuthorByline date={article.publishDate} minutes={readMinutes} size="md" />
+          {article.updatedDate && (
+            <span className="text-[11px] text-white/35">
+              <span className="text-white/20">·</span> Last updated {formatDate(article.updatedDate)}
+            </span>
+          )}
+        </div>
       </article>
 
       {/* ── Tags ── */}
       {article.tags.length > 0 && (
-        <div className="max-w-3xl mx-auto px-4 sm:px-8 pb-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 pb-8">
           <div className="flex flex-wrap gap-2">
             {article.tags.map((tag) => (
               <span
@@ -728,7 +733,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
       )}
 
       {/* ── Taps + Share ── */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-8 py-8 border-t border-white/8">
+      <section className="max-w-5xl mx-auto px-4 sm:px-8 py-8 border-t border-white/8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
             <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Appreciate this article</p>
@@ -742,7 +747,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
       </section>
 
       {/* ── Back link ── */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-8 pb-20">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 pb-20">
         <Link
           href="/articles"
           className="inline-flex items-center gap-2 text-[10px] tracking-widest uppercase text-white/30 hover:text-[#ef4242] transition-colors duration-200"

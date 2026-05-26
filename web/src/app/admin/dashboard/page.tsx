@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useSWRConfig } from "swr";
 import {
   ResponsiveContainer,
@@ -17,6 +16,14 @@ import {
   Bar,
 } from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
+import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
+import SessionsControl from "@/components/admin/SessionsControl";
+import { R2StatsBar, R2AssetDetailPanel } from "@/components/admin/R2AssetDetail";
+import ImageTagsEditor from "@/components/admin/ImageTagsEditor";
+import DatePicker from "@/components/shared/DatePicker";
+import BookingAdmin from "@/components/admin/BookingAdmin";
+import { synthProjectDate } from "@/lib/project-date";
+import { formatPublishDate } from "@/lib/read-time";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 import type {
   Project,
@@ -43,8 +50,13 @@ import type {
   RizzSubmission,
   ImageAsset,
   SiteContent,
+  ResumeProfile,
+  SkillCategoryMeta,
+  EducationProgram,
 } from "@/lib/types";
+import { DEGREE_LEVELS, RESUME_SECTIONS, RESUME_SECTION_LABELS } from "@/lib/types";
 import { defaultSiteContent } from "@/lib/site-content";
+import { SKILL_ICON_NAMES, SkillIcon } from "@/lib/skill-icons";
 import { assetUrl } from "@/lib/utils";
 
 /* ─── Local-only types ───────────────────────────────────── */
@@ -87,15 +99,30 @@ type NavSection =
   | "r2-assets"
   | "site-content"
   | "resume"
+  | "analytics"
+  | "sessions"
   | "contacts"
   | "rate-limits"
   | "contact-form-entries"
   | "campaigns"
   | "rizz"
   | "visitors"
+  | "booking"
   | "status";
 
 const SKILL_CATEGORY_OPTIONS = ["technology", "creative", "languages", "other"] as const;
+
+const DEFAULT_RESUME_PROFILE: ResumeProfile = {
+  fullName: "Michael Cran",
+  title: "Software Engineer & Developer",
+  location: "Orlando, Florida",
+  email: "mdcranberry@gmail.com",
+  linkedinUrl: "https://www.linkedin.com/in/mdcran/",
+  githubUrl: "https://github.com/mdcran",
+  pdfUrl: "",
+  sectionOrder: ["experience", "featured", "education", "volunteer"],
+};
+
 const PROJECT_VIEWS_AUDIT_CACHE_KEY = "mdcran-admin-project-views-audit";
 const PROJECT_VIEWS_REFRESH_INTERVAL_MS = 20 * 60 * 1000;
 
@@ -674,6 +701,72 @@ function ContactEditorModal({
         <button className={`${btnRed} cursor-pointer`} onClick={handleSave}>Save Contact</button>
       </div>
     </Modal>
+  );
+}
+
+/* Compact icon picker — choose a lucide icon from the curated skill registry. */
+function IconPickerButton({
+  value,
+  onChange,
+  label = "Icon",
+}: {
+  value?: string;
+  onChange: (icon: string | undefined) => void;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const filtered = query
+    ? SKILL_ICON_NAMES.filter((n) => n.toLowerCase().includes(query.toLowerCase()))
+    : SKILL_ICON_NAMES;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 px-2.5 h-9 text-[11px] border border-white/15 text-white/50 hover:text-white hover:border-white/30 rounded-sm transition-colors"
+        title={`${label}: ${value || "none"}`}
+      >
+        {value ? <SkillIcon name={value} size={14} className="text-[#ef4242]" /> : <span className="text-white/30">◇</span>}
+        <span className="truncate max-w-[80px]">{value || label}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 mt-1 w-64 rounded-sm border border-white/15 bg-[#0d0d0d] p-2 shadow-xl">
+            <input
+              autoFocus
+              className="w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-2 h-7 text-xs text-white outline-none placeholder-white/25 mb-2"
+              placeholder="Search icons…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div className="grid grid-cols-7 gap-1 max-h-48 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => { onChange(undefined); setOpen(false); }}
+                className={`flex items-center justify-center h-8 rounded-sm border text-[10px] ${!value ? "border-[#ef4242]/50 text-[#ef4242]" : "border-white/10 text-white/30 hover:border-white/30"}`}
+                title="No icon"
+              >
+                ✕
+              </button>
+              {filtered.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { onChange(name); setOpen(false); }}
+                  className={`flex items-center justify-center h-8 rounded-sm border transition-colors ${value === name ? "border-[#ef4242]/50 bg-[#ef4242]/10 text-[#ef4242]" : "border-white/10 text-white/50 hover:border-white/30 hover:text-white"}`}
+                  title={name}
+                >
+                  <SkillIcon name={name} size={15} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1411,7 +1504,13 @@ function ProjectModal({
 
         <Field>
           <Label>Publish Date</Label>
-          <input className={inputCls} type="date" value={publishDate} onChange={(e) => setPublishDate(e.target.value)} />
+          <DatePicker value={publishDate} onChange={setPublishDate} />
+          {!publishDate && (
+            <p className="mt-1.5 text-[11px] text-white/40">
+              No date set — publicly shown as <span className="text-white/70">{formatPublishDate(synthProjectDate(initial?.id || slug || title || ""))}</span>
+              <span title="Auto-generated placeholder — not an official date. Set a date to make it official." className="text-[var(--cranberry)] cursor-help">&nbsp;*</span>
+            </p>
+          )}
         </Field>
 
         <Field>
@@ -1578,6 +1677,7 @@ function ProjectModal({
                     </div>
                     <input className={inputCls} value={sec.alt ?? ""} onChange={(e) => updateSection(idx, { alt: e.target.value })} placeholder="Alt text" />
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
+                    <ImageTagsEditor src={sec.src} tags={sec.imageTags ?? []} onChange={(t) => updateSection(idx, { imageTags: t })} />
                   </div>
                 )}
                 {sec.type === "video" && (
@@ -1909,7 +2009,7 @@ function ArticleModal({
           </Field>
           <Field>
             <Label>Publish Date</Label>
-            <input className={inputCls} type="date" value={publishDate} onChange={(e) => setPublishDate(e.target.value)} />
+            <DatePicker value={publishDate} onChange={setPublishDate} />
           </Field>
         </div>
 
@@ -2017,6 +2117,7 @@ function ArticleModal({
                     </div>
                     <input className={inputCls} value={sec.alt ?? ""} onChange={(e) => updateSection(idx, { alt: e.target.value })} placeholder="Alt text" />
                     <input className={inputCls} value={sec.caption ?? ""} onChange={(e) => updateSection(idx, { caption: e.target.value })} placeholder="Caption (optional)" />
+                    <ImageTagsEditor src={sec.src} tags={sec.imageTags ?? []} onChange={(t) => updateSection(idx, { imageTags: t })} />
                   </div>
                 )}
                 {sec.type === "video" && (
@@ -2714,12 +2815,7 @@ function CampaignModal({
 
         <Field>
           <Label>Schedule</Label>
-          <input
-            type="datetime-local"
-            className={inputCls}
-            value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.target.value)}
-          />
+          <DatePicker withTime value={scheduledFor} onChange={setScheduledFor} placeholder="Pick date & time" />
           <p className="mt-2 text-[11px] text-white/35">
             Uses your local browser time. Draft and Send ignore this.
           </p>
@@ -3073,6 +3169,30 @@ export default function AdminDashboard() {
   const { mutate } = useSWRConfig();
   const [activeSection, setActiveSection] = useState<NavSection>("dashboard");
 
+  /* ── Deep-link each section via URL hash (#projects, #resume, …) ── */
+  useEffect(() => {
+    const VALID_SECTIONS: NavSection[] = [
+      "dashboard", "projects", "articles", "clients", "r2-assets", "site-content",
+      "resume", "analytics", "sessions", "contacts", "rate-limits", "contact-form-entries", "campaigns",
+      "rizz", "visitors", "status",
+    ];
+    const applyHash = () => {
+      const hash = window.location.hash.replace(/^#/, "");
+      if ((VALID_SECTIONS as string[]).includes(hash)) setActiveSection(hash as NavSection);
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const target = `#${activeSection}`;
+    if (window.location.hash !== target) {
+      window.history.replaceState(null, "", target);
+    }
+  }, [activeSection]);
+
   /* ── Data state ── */
   const [projects, setProjects] = useState<Project[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -3106,7 +3226,7 @@ export default function AdminDashboard() {
   const r2FileInputRef = useRef<HTMLInputElement | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
-  const [chatRateLimitConfig, setChatRateLimitConfig] = useState({ rateLimit: 10, rateWindowHours: 24 });
+  const [chatRateLimitConfig, setChatRateLimitConfig] = useState<{ rateLimit: number; rateWindowHours: number; extraContext?: string }>({ rateLimit: 10, rateWindowHours: 24, extraContext: "" });
   const [chatRateLimitEntries, setChatRateLimitEntries] = useState<{ ip: string; count: number; resetAt: string }[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rizzEntries, setRizzEntries] = useState<RizzEntry[]>([]);
@@ -3134,12 +3254,20 @@ export default function AdminDashboard() {
   const [certifications, setCertifications] = useState<Certification[]>([]);
   const [awards, setAwards] = useState<Award[]>([]);
   const [clubs, setClubs] = useState<ClubMembership[]>([]);
+  const [resumeProfile, setResumeProfile] = useState<ResumeProfile>(DEFAULT_RESUME_PROFILE);
+  const [skillCategories, setSkillCategories] = useState<SkillCategoryMeta[]>([]);
+  const [resumePdfPickerOpen, setResumePdfPickerOpen] = useState(false);
+  const [resumeLogoTarget, setResumeLogoTarget] = useState<
+    | { list: "experiences" | "educations" | "certifications" | "awards" | "clubs"; index: number }
+    | { list: "program"; index: number; programIndex: number }
+    | null
+  >(null);
   const [resumeSaving, setResumeSaving] = useState(false);
   const [resumeAutoSaved, setResumeAutoSaved] = useState(false);
   const resumeAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resumeInitializedRef = useRef(false);
   const [draggedResumeItem, setDraggedResumeItem] = useState<{
-    list: "experiences" | "educations" | "skills" | "certifications" | "awards" | "clubs";
+    list: "experiences" | "educations" | "skills" | "skillCategories" | "certifications" | "awards" | "clubs";
     index: number;
   } | null>(null);
 
@@ -3388,6 +3516,8 @@ export default function AdminDashboard() {
           setCertifications(data.certifications ?? []);
           setAwards(data.awards ?? []);
           setClubs(data.clubs ?? []);
+          setResumeProfile({ ...DEFAULT_RESUME_PROFILE, ...(data.profile ?? {}) });
+          setSkillCategories(data.skillCategories ?? []);
         }
         setResumeLoaded(true);
         resumeInitializedRef.current = true;
@@ -3406,7 +3536,7 @@ export default function AdminDashboard() {
     }, 2000);
     return () => { if (resumeAutoSaveTimerRef.current) clearTimeout(resumeAutoSaveTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experiences, educations, skills, certifications, awards, clubs]);
+  }, [experiences, educations, skills, certifications, awards, clubs, resumeProfile, skillCategories]);
 
   async function persistResume(next?: {
     experiences?: Experience[];
@@ -3415,6 +3545,8 @@ export default function AdminDashboard() {
     certifications?: Certification[];
     awards?: Award[];
     clubs?: ClubMembership[];
+    profile?: ResumeProfile;
+    skillCategories?: SkillCategoryMeta[];
   }) {
     const payload = {
       experiences: next?.experiences ?? experiences,
@@ -3423,6 +3555,8 @@ export default function AdminDashboard() {
       certifications: next?.certifications ?? certifications,
       awards: next?.awards ?? awards,
       clubs: next?.clubs ?? clubs,
+      profile: next?.profile ?? resumeProfile,
+      skillCategories: next?.skillCategories ?? skillCategories,
     };
 
     setResumeSaving(true);
@@ -3438,7 +3572,7 @@ export default function AdminDashboard() {
   }
 
   function handleResumeDrop(
-    list: "experiences" | "educations" | "skills" | "certifications" | "awards" | "clubs",
+    list: "experiences" | "educations" | "skills" | "skillCategories" | "certifications" | "awards" | "clubs",
     dropIndex: number
   ) {
     if (!draggedResumeItem || draggedResumeItem.list !== list) return;
@@ -3452,6 +3586,7 @@ export default function AdminDashboard() {
     if (list === "experiences") setExperiences((prev) => arrayMove(prev, fromIndex, dropIndex));
     if (list === "educations") setEducations((prev) => arrayMove(prev, fromIndex, dropIndex));
     if (list === "skills") setSkills((prev) => arrayMove(prev, fromIndex, dropIndex));
+    if (list === "skillCategories") setSkillCategories((prev) => arrayMove(prev, fromIndex, dropIndex));
     if (list === "certifications") setCertifications((prev) => arrayMove(prev, fromIndex, dropIndex));
     if (list === "awards") setAwards((prev) => arrayMove(prev, fromIndex, dropIndex));
     if (list === "clubs") setClubs((prev) => arrayMove(prev, fromIndex, dropIndex));
@@ -3475,6 +3610,49 @@ export default function AdminDashboard() {
         };
       })
     );
+  }
+
+  /* ── Resume logo assignment (shared R2 picker) ── */
+  function setResumeLogo(url: string) {
+    const t = resumeLogoTarget;
+    if (!t) return;
+    if (t.list === "experiences") setExperiences((p) => p.map((it, i) => (i === t.index ? { ...it, companyLogo: url || undefined } : it)));
+    else if (t.list === "educations") setEducations((p) => p.map((it, i) => (i === t.index ? { ...it, institutionLogo: url || undefined } : it)));
+    else if (t.list === "certifications") setCertifications((p) => p.map((it, i) => (i === t.index ? { ...it, issuerLogo: url || undefined } : it)));
+    else if (t.list === "awards") setAwards((p) => p.map((it, i) => (i === t.index ? { ...it, logo: url || undefined } : it)));
+    else if (t.list === "clubs") setClubs((p) => p.map((it, i) => (i === t.index ? { ...it, logo: url || undefined } : it)));
+    else if (t.list === "program") setEducations((p) => p.map((it, i) => (i === t.index ? { ...it, programs: (it.programs ?? []).map((pr, j) => (j === t.programIndex ? { ...pr, logo: url || undefined } : pr)) } : it)));
+    setResumeLogoTarget(null);
+  }
+
+  /* ── Education programs CRUD + reorder ── */
+  function addProgram(eduIndex: number) {
+    setEducations((prev) => prev.map((edu, i) => (i === eduIndex ? { ...edu, programs: [...(edu.programs ?? []), { id: uid(), name: "" }] } : edu)));
+  }
+  function updateProgram(eduIndex: number, progIndex: number, patch: Partial<EducationProgram>) {
+    setEducations((prev) => prev.map((edu, i) => (i === eduIndex ? { ...edu, programs: (edu.programs ?? []).map((pr, j) => (j === progIndex ? { ...pr, ...patch } : pr)) } : edu)));
+  }
+  function removeProgram(eduIndex: number, progIndex: number) {
+    setEducations((prev) => prev.map((edu, i) => (i === eduIndex ? { ...edu, programs: (edu.programs ?? []).filter((_, j) => j !== progIndex) } : edu)));
+  }
+  function moveProgram(eduIndex: number, progIndex: number, dir: -1 | 1) {
+    setEducations((prev) => prev.map((edu, i) => {
+      if (i !== eduIndex) return edu;
+      const list = [...(edu.programs ?? [])];
+      const target = progIndex + dir;
+      if (target < 0 || target >= list.length) return edu;
+      [list[progIndex], list[target]] = [list[target], list[progIndex]];
+      return { ...edu, programs: list };
+    }));
+  }
+  function toggleEducationLink(eduIndex: number, kind: "award" | "club", id: string) {
+    setEducations((prev) => prev.map((edu, i) => {
+      if (i !== eduIndex) return edu;
+      const key = kind === "award" ? "linkedAwardIds" : "linkedClubIds";
+      const cur = (edu[key] ?? []) as string[];
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      return { ...edu, [key]: next.length ? next : undefined };
+    }));
   }
 
   /* ── CRUD handlers ── */
@@ -4298,12 +4476,15 @@ export default function AdminDashboard() {
     { key: "r2-assets", label: "R2 Assets" },
     { key: "site-content", label: "Site Content" },
     { key: "resume", label: "Resume" },
+    { key: "analytics", label: "Analytics" },
+    { key: "sessions", label: "Sessions" },
     { key: "contacts", label: "Contacts" },
     { key: "rate-limits", label: "Rate Limits" },
     { key: "contact-form-entries", label: "Messages", unreadCount: unreadMessages },
     { key: "campaigns", label: "Compose" },
     { key: "rizz", label: "Rizz" },
     { key: "visitors", label: "Visitors" },
+    { key: "booking", label: "Booking" },
     { key: "status", label: "Status" },
   ];
 
@@ -4463,13 +4644,36 @@ export default function AdminDashboard() {
     "r2-assets": "R2 Assets",
     "site-content": "Site Content",
     resume: "Resume",
+    analytics: "Analytics",
+    sessions: "Sessions",
     contacts: "Contacts",
     "rate-limits": "Rate Limits",
     "contact-form-entries": "Messages",
     campaigns: "Compose",
     rizz: "Rizz",
     visitors: "Visitors",
+    booking: "Booking",
     status: "Status",
+  };
+
+  const sectionDescriptions: Record<NavSection, string> = {
+    dashboard: "Snapshot of your content, traffic and quick actions.",
+    projects: "Create, edit, reorder and feature portfolio projects.",
+    articles: "Write and manage articles, with rich sections and media.",
+    clients: "Manage clients and the people you've worked with.",
+    "r2-assets": "Browse, upload and organize media stored in R2.",
+    "site-content": "Edit page headers, hero, about and footer content.",
+    resume: "Profile, experience, skills, certifications, awards and the resume PDF.",
+    analytics: "Visits, recruiter intent, top pages, scroll depth, live sessions and heatmaps.",
+    sessions: "Live visitors and tabs — control, refresh, redirect, kill or blacklist in real time.",
+    contacts: "Subscribers collected across the site.",
+    "rate-limits": "Inspect and clear API and chat rate-limit records.",
+    "contact-form-entries": "Messages submitted through the contact form.",
+    campaigns: "Compose and send email or SMS campaigns.",
+    rizz: "Submissions from the Rizz experience.",
+    visitors: "Live visitor analytics and adjustments.",
+    booking: "Calendar-backed meeting booking, business hours, and meeting types.",
+    status: "Service uptime monitoring and incidents.",
   };
 
   if (!hydrated) {
@@ -4481,54 +4685,32 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex font-jb">
-      {/* ── SIDEBAR ── */}
-      <aside className="fixed top-0 left-0 h-full w-[220px] bg-[#080808] border-r border-white/8 flex flex-col z-30">
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ key, label, unreadCount }) => (
-            <button
-              key={key}
-              onClick={() => setActiveSection(key)}
-              className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-sm text-xs transition-colors ${
-                activeSection === key
-                  ? "text-[#ef4242] bg-[#ef4242]/8"
-                  : "text-white/45 hover:text-white hover:bg-white/4"
-              }`}
-            >
-              <span>{label}</span>
-              {Boolean(unreadCount) && (
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4242] px-1.5 py-0.5 text-[10px] text-white">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {/* Back link + Logout */}
-        <div className="px-4 py-4 border-t border-white/6 space-y-2">
-          <Link href="/" className="flex items-center gap-2 text-[11px] text-white/30 hover:text-white/60 transition-colors">
-            <span>←</span>
-            <span>MDCran.com</span>
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-[11px] text-[#ef4242]/50 hover:text-[#ef4242] transition-colors w-full text-left"
-          >
-            <span>⏻</span>
-            <span>Log Out</span>
-          </button>
-        </div>
-      </aside>
-
+    <div className="min-h-screen bg-[#0a0a0a] font-jb">
       {/* ── MAIN CONTENT ── */}
-      <main className="ml-[220px] flex-1 min-h-screen flex flex-col">
-        {/* Header */}
-        <header className="sticky top-0 z-20 h-14 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/8 px-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 min-w-[160px]">
-            <h1 className="font-nord text-lg text-white">{sectionTitles[activeSection]}</h1>
-          </div>
+      <main className="min-h-screen flex flex-col">
+        {/* ── TOP NAVIGATION ── */}
+        <header className="sticky top-0 z-30 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/8 shrink-0">
+          {/* subtle grid + glow to match the frontend */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-60"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(239,66,66,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(239,66,66,0.04) 1px, transparent 1px)",
+              backgroundSize: "26px 26px",
+            }}
+          />
+          {/* Row 1 — brand, title, search, actions */}
+          <div className="relative h-14 px-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-[200px] shrink-0">
+              <span className="font-nord text-base text-white tracking-wide">
+                MDCran<span className="text-[#ef4242]">.admin</span>
+              </span>
+              <span className="h-4 w-px bg-white/10" />
+              <div className="leading-none">
+                <span className="block text-[9px] uppercase tracking-[0.22em] text-[#ef4242]/70">Section</span>
+                <h1 className="font-nord text-sm text-white">{sectionTitles[activeSection]}</h1>
+              </div>
+            </div>
           <div className="flex-1 flex justify-center px-6">
             <div className="relative w-full max-w-xl">
               <input
@@ -4567,24 +4749,74 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3 min-w-[160px] justify-end">
-            {activeSection === "projects" && (
-              <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
-            )}
-            {activeSection === "articles" && (
-              <button className={btnRed} onClick={() => setArticleModal({ open: true })}>+ New Article</button>
-            )}
-            {activeSection === "clients" && (
-              <button className={btnRed} onClick={() => setClientModal({ open: true })}>+ New Client</button>
-            )}
-            {activeSection === "campaigns" && (
-              <button className={btnRed} onClick={() => setCampaignModal({ open: true })}>+ Compose</button>
-            )}
+            <div className="flex items-center gap-2 min-w-[200px] justify-end shrink-0">
+              {activeSection === "projects" && (
+                <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
+              )}
+              {activeSection === "articles" && (
+                <button className={btnRed} onClick={() => setArticleModal({ open: true })}>+ New Article</button>
+              )}
+              {activeSection === "clients" && (
+                <button className={btnRed} onClick={() => setClientModal({ open: true })}>+ New Client</button>
+              )}
+              {activeSection === "campaigns" && (
+                <button className={btnRed} onClick={() => setCampaignModal({ open: true })}>+ Compose</button>
+              )}
+              <a
+                href="https://mdcran.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline-flex items-center justify-center h-9 px-3 text-[11px] tracking-wider text-white/45 border border-white/10 rounded-sm hover:border-[#ef4242]/40 hover:text-white/80 transition-colors"
+                title="View live site"
+              >
+                Live Site ↗
+              </a>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center justify-center h-9 px-3 text-[11px] tracking-wider text-[#ef4242]/60 border border-[#ef4242]/25 rounded-sm hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors"
+                title="Log out"
+              >
+                Log Out
+              </button>
+            </div>
           </div>
+
+          {/* Row 2 — horizontal section tabs (replaces the old sidebar) */}
+          <nav className="relative flex items-center gap-0.5 px-5 overflow-x-auto border-t border-white/6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+            {navItems.map(({ key, label, unreadCount }) => {
+              const active = activeSection === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveSection(key)}
+                  className={`relative flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2.5 text-[11px] tracking-wide transition-colors ${
+                    active ? "text-[#ef4242]" : "text-white/45 hover:text-white/80"
+                  }`}
+                >
+                  <span>{label}</span>
+                  {Boolean(unreadCount) && (
+                    <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-[#ef4242] px-1 py-0.5 text-[9px] leading-none text-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                  {active && (
+                    <span className="absolute inset-x-2 -bottom-px h-px bg-[#ef4242] shadow-[0_0_8px_rgba(239,66,66,0.8)]" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </header>
 
         {/* Content */}
-        <div className="flex-1 px-8 py-8">
+        <div className="flex-1 px-8 py-8 max-w-[1400px] w-full mx-auto">
+
+          {/* Section intro header */}
+          <div className="mb-7">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-[#ef4242]/70 mb-1.5">{sectionTitles[activeSection]}</p>
+            <p className="text-sm text-white/40 max-w-2xl">{sectionDescriptions[activeSection]}</p>
+            <div className="mt-4 h-px w-full bg-gradient-to-r from-[#ef4242]/40 via-white/8 to-transparent" />
+          </div>
 
           {/* ─────────────────────────────────────
               DASHBOARD OVERVIEW
@@ -5355,6 +5587,40 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
+
+                {/* Admin-authored AI context */}
+                <div className="border border-white/8 rounded-sm p-4 space-y-2">
+                  <div>
+                    <p className="font-nord text-sm text-white">Assistant Context</p>
+                    <p className="text-xs text-white/35">
+                      Extra knowledge for the AI assistant (e.g. current availability, rates philosophy, talking points for recruiters). This is treated as authoritative and injected into the assistant&apos;s instructions. Do NOT put anything secret here — visitors can ask the AI questions that draw on it. Backend, tracking, and tap/view algorithms stay private automatically.
+                    </p>
+                  </div>
+                  <textarea
+                    value={chatRateLimitConfig.extraContext ?? ""}
+                    onChange={(e) => setChatRateLimitConfig((prev) => ({ ...prev, extraContext: e.target.value }))}
+                    rows={6}
+                    maxLength={8000}
+                    placeholder="e.g. Michael is currently open to full-time roles starting June 2026. He's especially interested in full-stack and platform engineering work…"
+                    className="w-full rounded-sm border border-white/10 bg-white/4 px-3 py-2 text-xs text-white outline-none focus:border-white/30 resize-y font-jb leading-relaxed"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-white/30">{(chatRateLimitConfig.extraContext ?? "").length} / 8000</span>
+                    <button
+                      className={btnOutline}
+                      onClick={async () => {
+                        await fetch("/api/chat", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(chatRateLimitConfig),
+                        });
+                      }}
+                    >
+                      Save Context
+                    </button>
+                  </div>
+                </div>
+
                 {chatRateLimitEntries.length > 0 ? (
                   <div className="border border-white/8 rounded-sm overflow-hidden">
                     <table className="w-full text-xs">
@@ -5505,6 +5771,7 @@ export default function AdminDashboard() {
 
           {activeSection === "r2-assets" && (
             <div className="space-y-6">
+              <R2StatsBar />
               <div
                 className={`border bg-white/2 rounded-sm p-5 space-y-4 relative transition-colors ${r2DragOver ? "border-[#ef4242]/50 bg-[#ef4242]/5" : "border-white/7"}`}
                 onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setR2DragOver(true); } }}
@@ -5843,6 +6110,109 @@ export default function AdminDashboard() {
                       <span className="text-xs text-white/35">Browser tab, bookmark, and app icon metadata</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Announcement banner */}
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-nord text-sm text-white">Announcement Banner</p>
+                    <p className="text-[11px] text-white/35">Thin stripe across the top of every page.</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-white/60 cursor-pointer">
+                    <input type="checkbox" className="accent-[#ef4242]" checked={siteContent.announcementBanner?.enabled ?? false} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, enabled: e.target.checked } }))} />
+                    Enabled
+                  </label>
+                </div>
+                {/* Live preview */}
+                {siteContent.announcementBanner?.message && (
+                  <div className="rounded-sm overflow-hidden text-xs" style={{ background: siteContent.announcementBanner.bgColor, color: siteContent.announcementBanner.textColor }}>
+                    <div className={`px-3 py-2 flex items-center gap-2 ${siteContent.announcementBanner.align === "left" ? "justify-start" : siteContent.announcementBanner.align === "right" ? "justify-end" : "justify-center"}`}>
+                      {siteContent.announcementBanner.icon && <SkillIcon name={siteContent.announcementBanner.icon} size={14} />}
+                      <span>{siteContent.announcementBanner.message}</span>
+                      {siteContent.announcementBanner.ctaLabel && <span className="ml-2 border rounded-sm px-2 py-0.5 text-[10px] uppercase" style={{ borderColor: siteContent.announcementBanner.textColor }}>{siteContent.announcementBanner.ctaLabel}</span>}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="md:col-span-2">
+                    <Label>Message</Label>
+                    <input className={inputCls} value={siteContent.announcementBanner?.message ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, message: e.target.value } }))} placeholder="e.g. Now booking freelance projects for Q3" />
+                  </div>
+                  <div>
+                    <Label>Icon</Label>
+                    <div><IconPickerButton value={siteContent.announcementBanner?.icon} onChange={(icon) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, icon: icon ?? "" } }))} label="Icon" /></div>
+                  </div>
+                  <div>
+                    <Label>Alignment</Label>
+                    <select className={inputCls} value={siteContent.announcementBanner?.align ?? "center"} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, align: e.target.value as "left" | "center" | "right" } }))}>
+                      <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Background color</Label>
+                    <div className="flex gap-2">
+                      <input type="color" className="h-9 w-10 rounded-sm bg-transparent border border-white/10 cursor-pointer" value={siteContent.announcementBanner?.bgColor ?? "#ef4242"} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, bgColor: e.target.value } }))} />
+                      <input className={inputCls} value={siteContent.announcementBanner?.bgColor ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, bgColor: e.target.value } }))} placeholder="#ef4242" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Text color</Label>
+                    <div className="flex gap-2">
+                      <input type="color" className="h-9 w-10 rounded-sm bg-transparent border border-white/10 cursor-pointer" value={siteContent.announcementBanner?.textColor ?? "#ffffff"} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, textColor: e.target.value } }))} />
+                      <input className={inputCls} value={siteContent.announcementBanner?.textColor ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, textColor: e.target.value } }))} placeholder="#ffffff" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>CTA label (optional)</Label>
+                    <input className={inputCls} value={siteContent.announcementBanner?.ctaLabel ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, ctaLabel: e.target.value } }))} placeholder="Learn more" />
+                  </div>
+                  <div>
+                    <Label>CTA link</Label>
+                    <input className={inputCls} value={siteContent.announcementBanner?.ctaHref ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, ctaHref: e.target.value } }))} placeholder="/contact" />
+                  </div>
+                  <div>
+                    <Label>Show from (optional)</Label>
+                    <DatePicker withTime value={siteContent.announcementBanner?.startsAt ?? ""} onChange={(v) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, startsAt: v } }))} placeholder="Always" />
+                  </div>
+                  <div>
+                    <Label>Hide after (optional)</Label>
+                    <DatePicker withTime value={siteContent.announcementBanner?.endsAt ?? ""} onChange={(v) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, endsAt: v } }))} placeholder="Never" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Home: By the Numbers (stats) */}
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <p className="font-nord text-sm text-white">Home: By the Numbers</p>
+                <div>
+                  <Label>Eyebrow</Label>
+                  <input
+                    className={inputCls}
+                    value={siteContent.homeStats?.eyebrow ?? ""}
+                    onChange={(e) => setSiteContent((prev) => ({ ...prev, homeStats: { eyebrow: e.target.value, metrics: prev.homeStats?.metrics ?? [] } }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Metric labels (live values are computed automatically)</Label>
+                  {(siteContent.homeStats?.metrics ?? []).map((m, mi) => (
+                    <div key={m.key} className="grid grid-cols-[120px_1fr_1.4fr] gap-2 items-center">
+                      <span className="text-[10px] text-white/30 font-jb truncate">{m.key}</span>
+                      <input
+                        className={inputCls}
+                        value={m.label}
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, homeStats: { eyebrow: prev.homeStats.eyebrow, metrics: prev.homeStats.metrics.map((x, i) => (i === mi ? { ...x, label: e.target.value } : x)) } }))}
+                        placeholder="Label"
+                      />
+                      <input
+                        className={inputCls}
+                        value={m.description}
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, homeStats: { eyebrow: prev.homeStats.eyebrow, metrics: prev.homeStats.metrics.map((x, i) => (i === mi ? { ...x, description: e.target.value } : x)) } }))}
+                        placeholder="Description"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -6488,8 +6858,10 @@ export default function AdminDashboard() {
               </div>
 
               {([
+                ["homeTimeline", "Homepage: Experience / Timeline", false],
                 ["homeFeaturedWork", "Homepage: Featured Work", true],
                 ["homeClients", "Homepage: Clients", false],
+                ["homeVisitorMap", "Homepage: Visitor Map", false],
                 ["homeCta", "Homepage: Newsletter CTA", true],
               ] as const).map(([key, label, showCtaFields]) => (
                 <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
@@ -6983,6 +7355,79 @@ export default function AdminDashboard() {
                       {filteredExperiences.length + filteredEducations.length + filteredSkillsList.length + filteredCertificationsList.length + filteredAwardsList.length + filteredClubsList.length} matches
                     </span>
                   </div>
+
+                  {/* Profile / personal info + resume PDF */}
+                  <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                    <div>
+                      <p className="font-nord text-sm text-white">Profile & Contact</p>
+                      <p className="text-xs text-white/35">Name, title, location and links shown on the resume page header.</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input className={inputCls} value={resumeProfile.fullName} onChange={(e) => setResumeProfile((p) => ({ ...p, fullName: e.target.value }))} placeholder="Full name" />
+                      <input className={inputCls} value={resumeProfile.title} onChange={(e) => setResumeProfile((p) => ({ ...p, title: e.target.value }))} placeholder="Title (e.g. Software Engineer)" />
+                      <input className={inputCls} value={resumeProfile.location} onChange={(e) => setResumeProfile((p) => ({ ...p, location: e.target.value }))} placeholder="Location (e.g. Orlando, Florida)" />
+                      <input className={inputCls} value={resumeProfile.email} onChange={(e) => setResumeProfile((p) => ({ ...p, email: e.target.value }))} placeholder="Contact email" />
+                      <input className={inputCls} value={resumeProfile.linkedinUrl} onChange={(e) => setResumeProfile((p) => ({ ...p, linkedinUrl: e.target.value }))} placeholder="LinkedIn URL" />
+                      <input className={inputCls} value={resumeProfile.githubUrl} onChange={(e) => setResumeProfile((p) => ({ ...p, githubUrl: e.target.value }))} placeholder="GitHub URL" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[10px] tracking-widest uppercase text-white/35">Resume PDF (Download button)</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input
+                          className={`${inputCls} flex-1 min-w-[200px]`}
+                          value={resumeProfile.pdfUrl}
+                          onChange={(e) => setResumeProfile((p) => ({ ...p, pdfUrl: e.target.value }))}
+                          placeholder="Uploaded PDF URL (leave blank for /Michael_Cran_Resume.pdf)"
+                        />
+                        <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumePdfPickerOpen(true)}>
+                          Upload / Select PDF
+                        </button>
+                        {resumeProfile.pdfUrl && (
+                          <a href={resumeProfile.pdfUrl} target="_blank" rel="noopener noreferrer" className={btnOutline}>
+                            Preview
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-white/25">If no PDF is set, the Download PDF button is hidden on the resume page.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-[10px] tracking-widest uppercase text-white/35">Resume Section Order (main column)</p>
+                      <DragReorderList
+                        items={(resumeProfile.sectionOrder?.length ? resumeProfile.sectionOrder : [...RESUME_SECTIONS])}
+                        keyFn={(s) => s}
+                        onReorder={(from, to) => setResumeProfile((p) => ({ ...p, sectionOrder: arrayMove(p.sectionOrder?.length ? p.sectionOrder : [...RESUME_SECTIONS], from, to) }))}
+                        renderItem={(s, i) => (
+                          <>
+                            <span className="text-white/20 text-xs select-none cursor-grab mr-1">⠿</span>
+                            <span className="text-[10px] text-white/25 w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                            <span className="text-sm text-white/70">{RESUME_SECTION_LABELS[s] ?? s}</span>
+                          </>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {resumePdfPickerOpen && (
+                    <R2ImagePickerModal
+                      title="Select Resume PDF"
+                      allowPdf
+                      onClose={() => setResumePdfPickerOpen(false)}
+                      onSelect={(url) => {
+                        setResumeProfile((p) => ({ ...p, pdfUrl: url }));
+                        setResumePdfPickerOpen(false);
+                      }}
+                    />
+                  )}
+
+                  {resumeLogoTarget && (
+                    <R2ImagePickerModal
+                      title="Select Logo"
+                      onClose={() => setResumeLogoTarget(null)}
+                      onSelect={(url) => setResumeLogo(url)}
+                    />
+                  )}
+
                   <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-6">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -7024,7 +7469,13 @@ export default function AdminDashboard() {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[10px] tracking-widest uppercase text-white/35">{exp.id || "new-entry"}</span>
-                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setExperiences((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                            <div className="flex items-center gap-2">
+                              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "experiences", index: idx })}>
+                                {exp.companyLogo ? "Change Logo" : "+ Logo"}
+                              </button>
+                              {exp.companyLogo && <img src={assetUrl(exp.companyLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setExperiences((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <input className={inputCls} value={exp.id} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, id: e.target.value } : item)))} placeholder="ID" />
@@ -7033,6 +7484,8 @@ export default function AdminDashboard() {
                             <input className={inputCls} value={exp.role} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, role: e.target.value } : item)))} placeholder="Role" />
                             <input className={inputCls} value={exp.startDate} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value } : item)))} placeholder="YYYY-MM" />
                             <input className={inputCls} value={exp.endDate ?? ""} disabled={!!exp.current} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
+                            <input className={inputCls} value={exp.location ?? ""} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, location: e.target.value || undefined } : item)))} placeholder="Location (e.g. Orlando, FL)" />
+                            <input className={inputCls} value={exp.companyUrl ?? ""} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, companyUrl: e.target.value || undefined } : item)))} placeholder="Company URL" />
                           </div>
                           <label className="flex items-center gap-2 text-xs text-white/50">
                             <input type="checkbox" className="accent-[#ef4242]" checked={!!exp.current} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, current: e.target.checked, endDate: e.target.checked ? undefined : item.endDate } : item)))} />
@@ -7065,6 +7518,7 @@ export default function AdminDashboard() {
                             </div>
                           )}
                           <textarea className={textareaCls} rows={3} value={exp.description} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value } : item)))} placeholder="Description" />
+                          <textarea className={textareaCls} rows={3} value={(exp.highlights ?? []).join("\n")} onChange={(e) => setExperiences((prev) => prev.map((item, i) => (i === idx ? { ...item, highlights: e.target.value.split("\n").map((line) => line.trim()).filter(Boolean) } : item)))} placeholder="Highlights — one per line (shown under 'Read More')" />
                         </div>
                       ))}
                     </div>
@@ -7099,17 +7553,24 @@ export default function AdminDashboard() {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[10px] tracking-widest uppercase text-white/35">{education.id || "new-entry"}</span>
-                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setEducations((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                            <div className="flex items-center gap-2">
+                              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "educations", index: idx })}>
+                                {education.institutionLogo ? "Change Logo" : "+ Logo"}
+                              </button>
+                              {education.institutionLogo && <img src={assetUrl(education.institutionLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setEducations((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <input className={inputCls} value={education.id} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, id: e.target.value } : item)))} placeholder="ID" />
                             <input className={inputCls} value={education.institution} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, institution: e.target.value } : item)))} placeholder="Institution" />
-                            <input className={inputCls} value={education.degree} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, degree: e.target.value } : item)))} placeholder="Degree" />
+                            <input className={inputCls} value={education.degree} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, degree: e.target.value } : item)))} placeholder="Degree (summary)" />
                             <input className={inputCls} value={education.field ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, field: e.target.value || undefined } : item)))} placeholder="Field of study" />
                             <input className={inputCls} value={education.startDate} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value } : item)))} placeholder="YYYY-MM" />
                             <input className={inputCls} value={education.endDate ?? ""} disabled={!!education.current} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
                             <input className={inputCls} value={education.location ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, location: e.target.value || undefined } : item)))} placeholder="Location" />
                             <input className={inputCls} value={education.gpa ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, gpa: e.target.value || undefined } : item)))} placeholder="GPA (optional)" />
+                            <input className={`${inputCls} col-span-2`} value={education.url ?? ""} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, url: e.target.value || undefined } : item)))} placeholder="Website" />
                           </div>
                           <textarea
                             className={textareaCls}
@@ -7128,53 +7589,151 @@ export default function AdminDashboard() {
                             <input type="checkbox" className="accent-[#ef4242]" checked={!!education.current} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, current: e.target.checked, endDate: e.target.checked ? undefined : item.endDate } : item)))} />
                             Currently enrolled
                           </label>
-                          <textarea className={textareaCls} rows={3} value={(education.highlights ?? []).join("\n")} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, highlights: e.target.value.split("\n").map((line) => line.trim()).filter(Boolean) || undefined } : item)))} placeholder="Highlights (one per line)" />
+                          <textarea className={textareaCls} rows={3} value={(education.highlights ?? []).join("\n")} onChange={(e) => setEducations((prev) => prev.map((item, i) => (i === idx ? { ...item, highlights: e.target.value.split("\n").map((line) => line.trim()).filter(Boolean) || undefined } : item)))} placeholder="Bullet points (one per line)" />
+
+                          {/* Programs (degrees / certificates within this institution) */}
+                          <div className="border-t border-white/6 pt-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] tracking-widest uppercase text-white/35">Programs</p>
+                              <button type="button" className={btnOutline} onClick={() => addProgram(idx)}>+ Add Program</button>
+                            </div>
+                            {(education.programs ?? []).map((prog, pIdx) => (
+                              <div key={prog.id} className="rounded-sm border border-white/8 bg-white/[0.02] p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] text-white/30">Program {pIdx + 1}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <button type="button" className="text-white/30 hover:text-white/70 text-xs px-1 disabled:opacity-30" disabled={pIdx === 0} onClick={() => moveProgram(idx, pIdx, -1)}>↑</button>
+                                    <button type="button" className="text-white/30 hover:text-white/70 text-xs px-1 disabled:opacity-30" disabled={pIdx === (education.programs?.length ?? 0) - 1} onClick={() => moveProgram(idx, pIdx, 1)}>↓</button>
+                                    <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "program", index: idx, programIndex: pIdx })}>{prog.logo ? "Logo ✓" : "+ Logo"}</button>
+                                    {prog.logo && <img src={assetUrl(prog.logo)} alt="" className="h-5 w-5 rounded-sm object-cover border border-white/10" />}
+                                    <button type="button" className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => removeProgram(idx, pIdx)}>Remove</button>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input className={inputCls} value={prog.name} onChange={(e) => updateProgram(idx, pIdx, { name: e.target.value })} placeholder="Program name" />
+                                  <select className={inputCls} value={prog.degreeLevel ?? ""} onChange={(e) => updateProgram(idx, pIdx, { degreeLevel: e.target.value || undefined })}>
+                                    <option value="">Degree level…</option>
+                                    {DEGREE_LEVELS.map((d) => <option key={d} value={d}>{d}</option>)}
+                                  </select>
+                                  <input className={inputCls} value={prog.field ?? ""} onChange={(e) => updateProgram(idx, pIdx, { field: e.target.value || undefined })} placeholder="Field of study" />
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <input className={inputCls} value={prog.startDate ?? ""} onChange={(e) => updateProgram(idx, pIdx, { startDate: e.target.value || undefined })} placeholder="Start YYYY-MM" />
+                                    <input className={inputCls} value={prog.endDate ?? ""} onChange={(e) => updateProgram(idx, pIdx, { endDate: e.target.value || undefined })} placeholder="End YYYY-MM" />
+                                  </div>
+                                </div>
+                                <textarea className={textareaCls} rows={2} value={prog.description ?? ""} onChange={(e) => updateProgram(idx, pIdx, { description: e.target.value || undefined })} placeholder="Description" />
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Link awards / organizations to this education */}
+                          {(awards.length > 0 || clubs.length > 0) && (
+                            <div className="border-t border-white/6 pt-3 space-y-2">
+                              {awards.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] tracking-widest uppercase text-white/35">Linked Awards</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {awards.map((a) => {
+                                      const on = education.linkedAwardIds?.includes(a.id) ?? false;
+                                      return <button key={a.id} type="button" onClick={() => toggleEducationLink(idx, "award", a.id)} className={`rounded-sm border px-2.5 py-1 text-[10px] tracking-[0.12em] transition-colors ${on ? "border-[#ef4242]/30 bg-[#ef4242]/10 text-[#ef4242]" : "border-white/10 bg-white/[0.02] text-white/35 hover:border-white/20 hover:text-white/60"}`}>{a.name || a.id}</button>;
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              {clubs.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] tracking-widest uppercase text-white/35">Linked Organizations</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {clubs.map((c) => {
+                                      const on = education.linkedClubIds?.includes(c.id) ?? false;
+                                      return <button key={c.id} type="button" onClick={() => toggleEducationLink(idx, "club", c.id)} className={`rounded-sm border px-2.5 py-1 text-[10px] tracking-[0.12em] transition-colors ${on ? "border-[#ef4242]/30 bg-[#ef4242]/10 text-[#ef4242]" : "border-white/10 bg-white/[0.02] text-white/35 hover:border-white/20 hover:text-white/60"}`}>{c.name || c.id}</button>;
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-nord text-xs text-white">Skills</p>
-                          <p className="text-[10px] text-white/25 mt-1">Drag rows to reorder. Pick a category from the dropdown.</p>
+                    {(() => {
+                      const categoryOptions = Array.from(new Set([
+                        ...skillCategories.map((c) => c.id),
+                        ...SKILL_CATEGORY_OPTIONS,
+                        ...skills.map((s) => s.category),
+                      ].filter(Boolean)));
+                      const labelFor = (id: string) =>
+                        skillCategories.find((c) => c.id === id)?.label || (id.charAt(0).toUpperCase() + id.slice(1));
+                      return (
+                    <div className="space-y-6">
+                      {/* Skill categories */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-nord text-xs text-white">Skill Categories</p>
+                            <p className="text-[10px] text-white/25 mt-1">Set a category id (matches each skill&apos;s category), display label and icon. Reorder controls display order.</p>
+                          </div>
+                          <button className={btnOutline} onClick={() => setSkillCategories((prev) => [...prev, { id: `category-${prev.length + 1}`, label: "New Category", icon: undefined }])}>+ Add Category</button>
                         </div>
-                        <button className={btnOutline} onClick={() => setSkills((prev) => [...prev, { name: "", category: "technology" }])}>+ Add Skill</button>
-                      </div>
-                      {skills.map((skill, idx) => (
-                        <div
-                          key={`${skill.name}-${idx}`}
-                          draggable
-                          onDragStart={() => setDraggedResumeItem({ list: "skills", index: idx })}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleResumeDrop("skills", idx)}
-                          onDragEnd={() => setDraggedResumeItem(null)}
-                          className="grid grid-cols-[1fr_180px_auto] gap-3 items-center cursor-move"
-                        >
-                          <input className={inputCls} value={skill.name} onChange={(e) => setSkills((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Skill" />
-                          <select
-                            className={inputCls}
-                            value={skill.category}
-                            onChange={(e) =>
-                              setSkills((prev) =>
-                                prev.map((item, i) =>
-                                  i === idx ? { ...item, category: e.target.value } : item
-                                )
-                              )
-                            }
+                        {skillCategories.map((cat, idx) => (
+                          <div
+                            key={`cat-${idx}`}
+                            draggable
+                            onDragStart={() => setDraggedResumeItem({ list: "skillCategories", index: idx })}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => handleResumeDrop("skillCategories", idx)}
+                            onDragEnd={() => setDraggedResumeItem(null)}
+                            className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center cursor-move"
                           >
-                            {[...SKILL_CATEGORY_OPTIONS, ...(SKILL_CATEGORY_OPTIONS.includes(skill.category as typeof SKILL_CATEGORY_OPTIONS[number]) ? [] : [skill.category])]
-                              .filter(Boolean)
-                              .map((option) => (
-                                <option key={option} value={option}>
-                                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                                </option>
-                              ))}
-                          </select>
-                          <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setSkills((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                            <input className={inputCls} value={cat.id} onChange={(e) => setSkillCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, id: e.target.value } : c)))} placeholder="Category id (e.g. technology)" />
+                            <input className={inputCls} value={cat.label} onChange={(e) => setSkillCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, label: e.target.value } : c)))} placeholder="Display label" />
+                            <IconPickerButton value={cat.icon} onChange={(icon) => setSkillCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, icon } : c)))} label="Icon" />
+                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs px-2" onClick={() => setSkillCategories((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          </div>
+                        ))}
+                        {skillCategories.length === 0 && (
+                          <p className="text-[10px] text-white/25">No custom categories yet — categories are inferred from skills below. Add one to set a custom label and icon.</p>
+                        )}
+                      </div>
+
+                      {/* Skills */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-nord text-xs text-white">Skills</p>
+                            <p className="text-[10px] text-white/25 mt-1">Drag rows to reorder. Pick a category and optional icon.</p>
+                          </div>
+                          <button className={btnOutline} onClick={() => setSkills((prev) => [...prev, { name: "", category: skillCategories[0]?.id ?? categoryOptions[0] ?? "technology" }])}>+ Add Skill</button>
                         </div>
-                      ))}
+                        {skills.map((skill, idx) => (
+                          <div
+                            key={`${skill.name}-${idx}`}
+                            draggable
+                            onDragStart={() => setDraggedResumeItem({ list: "skills", index: idx })}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => handleResumeDrop("skills", idx)}
+                            onDragEnd={() => setDraggedResumeItem(null)}
+                            className="grid grid-cols-[1fr_auto_180px_auto] gap-2 items-center cursor-move"
+                          >
+                            <input className={inputCls} value={skill.name} onChange={(e) => setSkills((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Skill" />
+                            <IconPickerButton value={skill.icon} onChange={(icon) => setSkills((prev) => prev.map((item, i) => (i === idx ? { ...item, icon } : item)))} label="Icon" />
+                            <select
+                              className={inputCls}
+                              value={skill.category}
+                              onChange={(e) => setSkills((prev) => prev.map((item, i) => (i === idx ? { ...item, category: e.target.value } : item)))}
+                            >
+                              {Array.from(new Set([...categoryOptions, skill.category].filter(Boolean))).map((option) => (
+                                <option key={option} value={option}>{labelFor(option)}</option>
+                              ))}
+                            </select>
+                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs px-2" onClick={() => setSkills((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                      );
+                    })()}
 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -7195,11 +7754,20 @@ export default function AdminDashboard() {
                           className="border border-white/6 rounded-sm p-4 grid grid-cols-2 gap-3 cursor-move"
                         >
                           <input className={inputCls} value={cert.id} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, id: e.target.value } : item)))} placeholder="ID" />
-                          <input className={inputCls} value={cert.date} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="YYYY-MM" />
                           <input className={inputCls} value={cert.name} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Name" />
                           <input className={inputCls} value={cert.issuer} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, issuer: e.target.value } : item)))} placeholder="Issuer" />
-                          <input className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 h-9 text-sm text-white outline-none placeholder-white/25 transition-colors" value={cert.credentialUrl ?? ""} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, credentialUrl: e.target.value || undefined } : item)))} placeholder="Credential URL" />
-                          <button className="col-span-2 text-left text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setCertifications((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          <input className={inputCls} value={cert.credentialId ?? ""} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, credentialId: e.target.value || undefined } : item)))} placeholder="Credential ID" />
+                          <input className={inputCls} value={cert.date} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="Issued YYYY-MM" />
+                          <input className={inputCls} value={cert.expiryDate ?? ""} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, expiryDate: e.target.value || undefined } : item)))} placeholder="Expires YYYY-MM" />
+                          <input className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 h-9 text-sm text-white outline-none placeholder-white/25 transition-colors" value={cert.credentialUrl ?? ""} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, credentialUrl: e.target.value || undefined } : item)))} placeholder="Verification URL" />
+                          <textarea className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none" rows={2} value={cert.description ?? ""} onChange={(e) => setCertifications((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value || undefined } : item)))} placeholder="Description" />
+                          <div className="col-span-2 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "certifications", index: idx })}>{cert.issuerLogo ? "Change Logo" : "+ Logo"}</button>
+                              {cert.issuerLogo && <img src={assetUrl(cert.issuerLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                            </div>
+                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setCertifications((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -7223,11 +7791,19 @@ export default function AdminDashboard() {
                           className="border border-white/6 rounded-sm p-4 grid grid-cols-2 gap-3 cursor-move"
                         >
                           <input className={inputCls} value={award.id} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, id: e.target.value } : item)))} placeholder="ID" />
-                          <input className={inputCls} value={award.date} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="YYYY-MM" />
+                          <input className={inputCls} value={award.date} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, date: e.target.value } : item)))} placeholder="Received YYYY-MM" />
                           <input className={inputCls} value={award.name} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Name" />
                           <input className={inputCls} value={award.issuer ?? ""} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, issuer: e.target.value || undefined } : item)))} placeholder="Issuer" />
+                          <input className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 h-9 text-sm text-white outline-none placeholder-white/25 transition-colors" value={award.issuerUrl ?? ""} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, issuerUrl: e.target.value || undefined } : item)))} placeholder="Link" />
                           <textarea className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none" rows={2} value={award.description ?? ""} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value || undefined } : item)))} placeholder="Description" />
-                          <button className="col-span-2 text-left text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setAwards((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          <textarea className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none" rows={2} value={(award.requirements ?? []).join("\n")} onChange={(e) => setAwards((prev) => prev.map((item, i) => (i === idx ? { ...item, requirements: e.target.value.split("\n").map((l) => l.trim()).filter(Boolean) } : item)))} placeholder="Requirements (one per line)" />
+                          <div className="col-span-2 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "awards", index: idx })}>{award.logo ? "Change Logo" : "+ Logo / Badge"}</button>
+                              {award.logo && <img src={assetUrl(award.logo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                            </div>
+                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setAwards((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -7257,7 +7833,13 @@ export default function AdminDashboard() {
                           <input className={inputCls} value={club.startDate ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, startDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
                           <input className={inputCls} value={club.endDate ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, endDate: e.target.value || undefined } : item)))} placeholder="YYYY-MM" />
                           <textarea className="col-span-2 w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 py-2 text-sm text-white outline-none placeholder-white/25 transition-colors resize-none" rows={2} value={club.description ?? ""} onChange={(e) => setClubs((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value || undefined } : item)))} placeholder="Description" />
-                          <button className="col-span-2 text-left text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setClubs((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          <div className="col-span-2 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "clubs", index: idx })}>{club.logo ? "Change Logo" : "+ Logo"}</button>
+                              {club.logo && <img src={assetUrl(club.logo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                            </div>
+                            <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setClubs((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -7407,8 +7989,20 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeSection === "analytics" && (
+            <AnalyticsDashboard />
+          )}
+
+          {activeSection === "sessions" && (
+            <SessionsControl />
+          )}
+
           {activeSection === "visitors" && (
             <AdminVisitorsSection />
+          )}
+
+          {activeSection === "booking" && (
+            <BookingAdmin />
           )}
 
           {activeSection === "status" && (
@@ -7527,31 +8121,14 @@ export default function AdminDashboard() {
           wide
         >
           <div className="space-y-4 p-6">
-            <div className="overflow-hidden rounded-sm border border-white/8 bg-black/30">
-              <img
-                src={r2PreviewFile.publicUrl}
-                alt={r2PreviewFile.name}
-                className="max-h-[70vh] w-full object-contain"
-              />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/35">
-              <span className="truncate">{r2PreviewFile.key}</span>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={r2PreviewFile.publicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={btnOutline}
-                >
-                  Open
-                </a>
-                <button
-                  className={`${btnOutline} cursor-pointer`}
-                  onClick={() => void copyR2Link(r2PreviewFile.publicUrl)}
-                >
-                  {r2CopiedUrl === r2PreviewFile.publicUrl ? "Copied." : "Copy Link"}
-                </button>
-              </div>
+            <R2AssetDetailPanel fileKey={r2PreviewFile.key} onChanged={() => void loadR2Assets()} />
+            <div className="flex flex-wrap items-center justify-end gap-2 text-[11px] text-white/35 border-t border-white/6 pt-3">
+              <button
+                className={`${btnOutline} cursor-pointer`}
+                onClick={() => void copyR2Link(r2PreviewFile.publicUrl)}
+              >
+                {r2CopiedUrl === r2PreviewFile.publicUrl ? "Copied." : "Copy Link"}
+              </button>
             </div>
           </div>
         </Modal>

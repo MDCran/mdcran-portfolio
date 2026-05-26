@@ -129,7 +129,7 @@ export default async function HomePage() {
     hero: <Hero content={siteContent.homeHero} />,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
-        <Stats />
+        <Stats content={siteContent.homeStats} />
       </div>
     ),
     about: (
@@ -139,7 +139,7 @@ export default async function HomePage() {
     ),
     timeline: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "400px" }}>
-        <Timeline experiences={experiences} />
+        <Timeline experiences={experiences} content={siteContent.homeTimeline} />
       </div>
     ),
     services: (
