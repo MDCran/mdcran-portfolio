@@ -65,8 +65,8 @@ export const defaultSiteContent: SiteContent = {
   homeStats: {
     eyebrow: "By the Numbers",
     metrics: [
-      { key: "totalFollowers", label: "Client Followers", description: "Combined across all clients" },
       { key: "totalProjectViews", label: "Project Views", description: "Total views on embedded content" },
+      { key: "githubContributions", label: "GitHub Contributions", description: "Since Jan 2024" },
       { key: "totalProjects", label: "Public Projects", description: "Maps, designs, events & more" },
       { key: "yearsActive", label: "Creating", description: "Continuously since 2018" },
     ],
