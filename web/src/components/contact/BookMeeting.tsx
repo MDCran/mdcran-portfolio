@@ -100,6 +100,16 @@ export default function BookMeeting() {
     }
   };
 
+  // NOTE: all hooks must run before any early return (Rules of Hooks).
+  const availableDates = useMemo(() => new Set((days ?? []).map((d) => d.date)), [days]);
+  // First/last available months bound the calendar's prev/next navigation.
+  const monthBounds = useMemo(() => {
+    if (!days || days.length === 0) return null;
+    const first = days[0].date, last = days[days.length - 1].date;
+    return { first: { y: +first.slice(0, 4), m: +first.slice(5, 7) }, last: { y: +last.slice(0, 4), m: +last.slice(5, 7) } };
+  }, [days]);
+  const monthKey = (y: number, m: number) => y * 12 + (m - 1);
+
   if (loadingConfig) return <div className="flex items-center gap-2 text-sm text-white/40 py-10"><Loader2 size={16} className="animate-spin" /> Loading availability…</div>;
 
   if (!config?.enabled || config.meetingTypes.length === 0) {
@@ -128,14 +138,6 @@ export default function BookMeeting() {
   }
 
   const activeDayObj = days?.find((d) => d.date === activeDay);
-  const availableDates = useMemo(() => new Set((days ?? []).map((d) => d.date)), [days]);
-  // First/last available months bound the calendar's prev/next navigation.
-  const monthBounds = useMemo(() => {
-    if (!days || days.length === 0) return null;
-    const first = days[0].date, last = days[days.length - 1].date;
-    return { first: { y: +first.slice(0, 4), m: +first.slice(5, 7) }, last: { y: +last.slice(0, 4), m: +last.slice(5, 7) } };
-  }, [days]);
-  const monthKey = (y: number, m: number) => y * 12 + (m - 1);
 
   return (
     <div className="space-y-8">
