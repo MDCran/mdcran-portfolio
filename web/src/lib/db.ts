@@ -1242,6 +1242,33 @@ export async function verifyAdminPassword(plain: string): Promise<boolean> {
   return false;
 }
 
+/* ── Admin TOTP 2FA ── */
+export interface AdminTotpState { secret: string | null; enabled: boolean }
+
+export async function getAdminTotp(): Promise<AdminTotpState> {
+  // Backend escape hatch: ADMIN_TOTP_RESET=1 forces re-setup (recovery from lockout).
+  if (process.env.ADMIN_TOTP_RESET === "1") return { secret: null, enabled: false };
+  try {
+    const db = await getDb();
+    const doc = await db.collection("settings").findOne<{ key: string; secret?: string; enabled?: boolean }>({ key: "admin_totp" });
+    return { secret: doc?.secret ?? null, enabled: Boolean(doc?.enabled) };
+  } catch {
+    return { secret: null, enabled: false };
+  }
+}
+
+/** Store a pending (not-yet-enabled) secret during setup. */
+export async function setAdminTotpSecret(secret: string): Promise<void> {
+  const db = await getDb();
+  await db.collection("settings").updateOne({ key: "admin_totp" }, { $set: { key: "admin_totp", secret, enabled: false } }, { upsert: true });
+}
+
+/** Lock in TOTP after the first valid code (it can't be re-initialized from the UI afterward). */
+export async function enableAdminTotp(): Promise<void> {
+  const db = await getDb();
+  await db.collection("settings").updateOne({ key: "admin_totp" }, { $set: { enabled: true } });
+}
+
 // Save helpers (replace entire collection)
 export async function saveProjects(data: Project[]): Promise<void> {
   const db = await getDb();
