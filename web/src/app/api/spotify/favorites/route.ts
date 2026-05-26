@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
+import { getSpotifyAccessToken } from "@/lib/spotify";
 
-const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
-const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.SPOTIFY_REFRESH_TOKEN;
 const TRACKS_ENDPOINT = "https://api.spotify.com/v1/tracks";
-const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 
 type FavoriteSeed = {
   title: string;
@@ -129,26 +126,6 @@ function extractTrackId(url: string) {
   return match?.[1] ?? "";
 }
 
-async function getAccessToken() {
-  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) return null;
-  const basic = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
-  const res = await fetch(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: REFRESH_TOKEN,
-    }),
-  });
-
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.access_token as string;
-}
-
 export async function GET() {
   const seedsWithIds = FAVORITE_SECTIONS.map((section) => ({
     ...section,
@@ -159,7 +136,7 @@ export async function GET() {
   }));
 
   const allIds = seedsWithIds.flatMap((section) => section.items.map((item) => item.id)).filter(Boolean);
-  const token = await getAccessToken();
+  const token = await getSpotifyAccessToken();
   const trackMap = new Map<
     string,
     {

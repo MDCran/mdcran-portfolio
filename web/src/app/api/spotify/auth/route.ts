@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { isAdminAuthenticated } from "@/lib/auth";
 
-// Visit this route in your browser to start the Spotify OAuth flow.
-// You will be redirected to Spotify to authorize, then sent back to
-// /api/spotify/callback where your refresh token will be displayed.
+// Admin-only: start the Spotify OAuth flow to (re)connect the account.
+// Redirects to Spotify to authorize, then back to /api/spotify/callback where
+// the new refresh token is saved to the DB.
 
 export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   if (!clientId) {
     return NextResponse.json({ error: "SPOTIFY_CLIENT_ID not set" }, { status: 500 });

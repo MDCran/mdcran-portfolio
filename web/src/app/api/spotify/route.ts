@@ -1,13 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/mongodb";
 import { apiRateLimit, clientIp } from "@/lib/api-rate-limit";
+import { getSpotifyAccessToken, spotifyConfigured } from "@/lib/spotify";
 import type { SpotifyHistoryTrack, SpotifyTrack } from "@/lib/types";
 
-const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
-const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.SPOTIFY_REFRESH_TOKEN;
-
-const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 const PLAYER_ENDPOINT = "https://api.spotify.com/v1/me/player";
 const CURRENT_PLAYING_ENDPOINT =
   "https://api.spotify.com/v1/me/player/currently-playing";
@@ -186,31 +182,12 @@ async function attachHistory(
   } satisfies SpotifyTrack;
 }
 
-async function getAccessToken() {
-  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) return null;
-  const basic = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
-  const res = await fetch(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: REFRESH_TOKEN,
-    }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.access_token as string;
-}
-
 export async function GET(req: NextRequest) {
   // Cost/abuse guard so the Spotify API isn't hammered (the widget polls).
   if (!(await apiRateLimit("spotify:ip", clientIp(req), 240, 60 * 60 * 1000))) {
     return NextResponse.json({ isPlaying: false, error: "Rate limited" }, { status: 429 });
   }
-  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
+  if (!spotifyConfigured()) {
     return NextResponse.json(
       await attachHistory({ isPlaying: false, error: "Spotify not configured" }),
       { status: 200 }
@@ -218,7 +195,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = await getAccessToken();
+    // Token comes DB-first (admin reconnect) then env — see @/lib/spotify.
+    const token = await getSpotifyAccessToken();
     if (!token) return NextResponse.json(await attachHistory({ isPlaying: false }));
 
     // First try the full player state. This still returns the active track when paused.

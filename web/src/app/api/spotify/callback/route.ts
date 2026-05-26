@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminAuthenticated } from "@/lib/auth";
+import { setSpotifyRefreshToken } from "@/lib/spotify";
 
 // Spotify redirects here after authorization.
-// This exchanges the code for tokens and displays your refresh token.
+// This exchanges the code for tokens and persists the refresh token to the DB
+// (so reconnecting never requires editing env vars / redeploying).
 
 export async function GET(req: NextRequest) {
+  // Only the admin can complete a reconnect (the auth route is admin-gated too).
+  if (!(await isAdminAuthenticated())) {
+    return new NextResponse(
+      `<html><body style="background:#0a0a0a;color:#ef4242;font-family:monospace;padding:40px"><h2>Unauthorized</h2><p>Sign in to the admin center first.</p></body></html>`,
+      { status: 401, headers: { "Content-Type": "text/html" } }
+    );
+  }
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
 
@@ -57,16 +67,22 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Persist the new refresh token to the DB — used DB-first by the Spotify routes.
+  let saved = false;
+  try { await setSpotifyRefreshToken(data.refresh_token); saved = true; } catch { /* */ }
+
+  const siteHome = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://mdcran.com").replace(/\/$/, "");
   return new NextResponse(
     `<html><body style="background:#0a0a0a;color:#f2f2f2;font-family:'Courier New',monospace;padding:40px;max-width:700px">
       <div style="border-left:3px solid #ef4242;padding-left:20px;margin-bottom:30px">
-        <h1 style="color:#fff;letter-spacing:0.1em">SPOTIFY CONNECTED</h1>
+        <h1 style="color:#fff;letter-spacing:0.1em">SPOTIFY ${saved ? "RECONNECTED" : "CONNECTED"}</h1>
         <p style="color:#ef4242;font-size:12px;letter-spacing:0.2em;text-transform:uppercase">MDCran Setup</p>
       </div>
-      <p style="color:#aaa;margin-bottom:8px;font-size:13px">Copy this value into your <code style="color:#ef4242">.env.local</code> file:</p>
-      <pre style="background:#111;border:1px solid #333;padding:16px;border-radius:4px;color:#4ade80;word-break:break-all;font-size:13px">SPOTIFY_REFRESH_TOKEN=${data.refresh_token}</pre>
-      <p style="color:#666;font-size:12px;margin-top:20px">After adding this to .env.local, restart your dev server. You can delete the <code>/api/spotify/auth</code> and <code>/api/spotify/callback</code> routes afterwards.</p>
-      <p style="color:#666;font-size:12px;">Access token (temporary, not needed): <span style="color:#555">${data.access_token?.slice(0, 20)}...</span></p>
+      ${saved
+        ? `<p style="color:#4ade80;font-size:14px">Your Spotify connection has been refreshed and saved. Now Playing should work again within a few seconds — no env changes or redeploy needed.</p>
+           <p style="color:#666;font-size:12px;margin-top:20px"><a href="${siteHome}" style="color:#ef4242">← Back to MDCran.com</a></p>`
+        : `<p style="color:#f59e0b;font-size:13px">Couldn't write to the database. As a fallback, set this in your env and redeploy:</p>
+           <pre style="background:#111;border:1px solid #333;padding:16px;border-radius:4px;color:#4ade80;word-break:break-all;font-size:13px">SPOTIFY_REFRESH_TOKEN=${data.refresh_token}</pre>`}
     </body></html>`,
     { headers: { "Content-Type": "text/html" } }
   );
