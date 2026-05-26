@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines } from "lucide-react";
+import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines, Lock } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
@@ -282,6 +282,14 @@ export default function ChatPanel() {
       .catch(() => {});
     return () => { active = false; };
   }, [open]);
+
+  /* Voice CONVERSATION needs SpeechRecognition (Chrome/Edge/Safari) on top of TTS. */
+  const [speechSupported, setSpeechSupported] = useState(true);
+  useEffect(() => {
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+    setSpeechSupported(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition));
+  }, []);
+  const voiceAvailable = voiceEnabled && speechSupported;
 
   /* Keep the chat's speaker toggle in sync with the accessibility "speak aloud" pref. */
   useEffect(() => {
@@ -1149,7 +1157,7 @@ export default function ChatPanel() {
                 </span>
               </div>
 
-              {voiceEnabled && (
+              {voiceAvailable ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1166,6 +1174,17 @@ export default function ChatPanel() {
                   <AudioLines size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
                   <span className="text-[9px] uppercase tracking-[0.15em]">Switch to voice</span>
                 </button>
+              ) : (
+                <span
+                  className={`ml-auto flex h-7 items-center gap-1.5 px-2 rounded-sm border cursor-not-allowed opacity-70 ${
+                    isLight ? 'border-black/10 text-black/35' : 'border-white/10 text-white/35'
+                  }`}
+                  title={voiceEnabled ? "Voice chat needs Chrome, Edge, or Safari" : "Voice chat isn't available right now"}
+                  aria-label="Voice chat unavailable"
+                >
+                  <Lock size={12} />
+                  <span className="text-[9px] uppercase tracking-[0.15em]">Switch to voice</span>
+                </span>
               )}
               {voiceEnabled && (
                 <button

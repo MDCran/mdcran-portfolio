@@ -49,11 +49,25 @@ export default function HomeLoader() {
           key="home-loader"
           aria-hidden
           initial={{ opacity: 1 }}
-          animate={leaving ? { opacity: 0, scale: 1.06, filter: "blur(14px)" } : { opacity: 1, scale: 1, filter: "blur(0px)" }}
-          transition={{ duration: leaving ? 0.7 : 0.3, ease: [0.16, 1, 0.3, 1] }}
+          animate={leaving
+            ? { opacity: 0, scale: 1.12, y: -10, filter: "blur(18px)" }
+            : { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: leaving ? 0.85 : 0.3, ease: [0.16, 1, 0.3, 1] }}
           className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
           style={{ background: "radial-gradient(circle at 50% 45%, #0e0e12 0%, #060608 55%, #000 100%)" }}
         >
+          {/* Bloom that expands outward as we step into the site */}
+          <AnimatePresence>
+            {leaving && (
+              <motion.div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+                style={{ width: 200, height: 200, background: "radial-gradient(circle, color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent) 0%, transparent 70%)" }}
+                initial={{ scale: 0.6, opacity: 0.8 }}
+                animate={{ scale: 9, opacity: 0 }}
+                transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+              />
+            )}
+          </AnimatePresence>
           {/* Faint grid + glow for depth */}
           <div
             className="absolute inset-0 pointer-events-none opacity-[0.5]"
