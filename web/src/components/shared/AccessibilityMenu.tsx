@@ -9,6 +9,7 @@ import {
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import ScreenReaderPopups, { useScreenReader } from "@/components/shared/ScreenReader";
 import { flagEmoji } from "@/lib/flag";
+import PersonalIdentity from "@/components/shared/PersonalIdentity";
 
 type Colorblind = "none" | "deuteranopia" | "protanopia" | "tritanopia";
 type CursorMode = "default" | "large" | "circle" | "contrast";
@@ -339,6 +340,10 @@ export default function AccessibilityMenu() {
                 <Lock size={11} className="text-white/30 ml-auto" />
               </div>
               <p className="text-[10px] text-white/25 leading-snug mt-1">Locked to IP geolocation. Seeing the wrong country? Disable your VPN or route traffic through the correct region, then reopen this panel.</p>
+            </Section>
+
+            <Section label="Personal Identity">
+              <PersonalIdentity />
             </Section>
 
             <button onClick={reset} className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-sm border border-white/10 text-[11px] text-white/50 hover:text-white hover:border-white/25 cursor-pointer">

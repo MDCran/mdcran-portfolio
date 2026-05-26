@@ -22,6 +22,7 @@ import { R2StatsBar, R2AssetDetailPanel } from "@/components/admin/R2AssetDetail
 import ImageTagsEditor from "@/components/admin/ImageTagsEditor";
 import DatePicker from "@/components/shared/DatePicker";
 import BookingAdmin from "@/components/admin/BookingAdmin";
+import IdentitiesAdmin from "@/components/admin/IdentitiesAdmin";
 import { synthProjectDate } from "@/lib/project-date";
 import { formatPublishDate } from "@/lib/read-time";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
@@ -108,6 +109,7 @@ type NavSection =
   | "rizz"
   | "visitors"
   | "booking"
+  | "identities"
   | "status";
 
 const SKILL_CATEGORY_OPTIONS = ["technology", "creative", "languages", "other"] as const;
@@ -4485,6 +4487,7 @@ export default function AdminDashboard() {
     { key: "rizz", label: "Rizz" },
     { key: "visitors", label: "Visitors" },
     { key: "booking", label: "Booking" },
+    { key: "identities", label: "Identities" },
     { key: "status", label: "Status" },
   ];
 
@@ -4653,6 +4656,7 @@ export default function AdminDashboard() {
     rizz: "Rizz",
     visitors: "Visitors",
     booking: "Booking",
+    identities: "Identities",
     status: "Status",
   };
 
@@ -4673,6 +4677,7 @@ export default function AdminDashboard() {
     rizz: "Submissions from the Rizz experience.",
     visitors: "Live visitor analytics and adjustments.",
     booking: "Calendar-backed meeting booking, business hours, and meeting types.",
+    identities: "Recognized visitors by device fingerprint — rename, merge, link, or remove.",
     status: "Service uptime monitoring and incidents.",
   };
 
@@ -8016,6 +8021,10 @@ export default function AdminDashboard() {
 
           {activeSection === "booking" && (
             <BookingAdmin />
+          )}
+
+          {activeSection === "identities" && (
+            <IdentitiesAdmin />
           )}
 
           {activeSection === "status" && (

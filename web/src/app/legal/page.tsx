@@ -48,6 +48,16 @@ const COOKIE_AI_SECTIONS: { heading: string; body: string; bullets?: string[] }[
     body: "We cache content for performance and publish a sitemap and machine-readable metadata so search engines and AI crawlers can index the site. Pages may be served from edge/CDN caches.",
   },
   {
+    heading: "Device Recognition & Personal Identity",
+    body: "To offer an optional personalized experience (greeting you by a name you choose), this site can recognize your device across visits using a privacy-conscious device fingerprint — a hash derived from characteristics your browser exposes (user-agent, language, screen, timezone, graphics renderer, and a canvas rendering). This can recognize a returning device even after cookies/cache are cleared. We do NOT and CANNOT read your MAC address; the fingerprint is the privacy-safe equivalent. A name is only stored if you enter one; the fingerprint and an approximate IP are associated with that name solely to recognize the device next time.",
+    bullets: [
+      "You control it — set, change, or remove your name anytime in the Accessibility panel's 'Personal Identity' section ('Not me' detaches your device).",
+      "Only a self-chosen display name is ever shown to other visitors as a suggestion on a shared network; no other personal data is exposed.",
+      "Legal basis: consent. Decline analytics/cookies on this page to opt out, or use 'Not me' to delete the association.",
+      "The site owner can view device fingerprints and approximate IPs in an admin tool and may merge or delete identities; request deletion anytime via the contact below.",
+    ],
+  },
+  {
     heading: "Legal Bases for Processing (GDPR)",
     body: "Where the EU/UK General Data Protection Regulation applies, we process personal data under the following legal bases:",
     bullets: [
