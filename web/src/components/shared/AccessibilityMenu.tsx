@@ -142,6 +142,27 @@ export default function AccessibilityMenu() {
     setPrefs((prev) => { const next = { ...prev, ...patch }; applyPrefs(next); return next; });
   }, []);
 
+  /* Let the AI assistant drive accessibility settings (text size, motion, colorblind,
+     cursor, read-aloud, tone) by dispatching `mdcran:a11y-set` with a partial-prefs patch.
+     A `reset: true` flag restores defaults. Theme/high-contrast go through ThemeContext. */
+  useEffect(() => {
+    const onSet = (e: Event) => {
+      const detail = (e as CustomEvent).detail as (Partial<A11yPrefs> & { reset?: boolean }) | undefined;
+      if (!detail) return;
+      if (detail.reset) { setPrefs(DEFAULTS); applyPrefs(DEFAULTS); return; }
+      const patch: Partial<A11yPrefs> = {};
+      if (typeof detail.textScale === "number") patch.textScale = Math.min(1.6, Math.max(0.85, detail.textScale));
+      if (detail.motion === "reduce" || detail.motion === "allow") patch.motion = detail.motion;
+      if (detail.colorblind) patch.colorblind = detail.colorblind;
+      if (detail.cursor) patch.cursor = detail.cursor;
+      if (typeof detail.speakAloud === "boolean") patch.speakAloud = detail.speakAloud;
+      if (detail.aiTone) patch.aiTone = detail.aiTone;
+      if (Object.keys(patch).length) update(patch);
+    };
+    window.addEventListener("mdcran:a11y-set", onSet);
+    return () => window.removeEventListener("mdcran:a11y-set", onSet);
+  }, [update]);
+
   const highContrastOn = themeInfo.id === "high-contrast";
   const isLightTheme = themeInfo.id === "light";
   const toggleHighContrast = () => {

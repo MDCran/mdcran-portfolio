@@ -39,12 +39,24 @@ const STEPS: Step[] = [
   { kind: "return", text: "And that's the quick tour! Ask me anything, and I'll show you around." },
 ];
 
+function isVisible(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 1 && r.height > 1;
+}
+
 function findTarget(id: string): HTMLElement | null {
-  return (
-    document.getElementById(id) ||
-    (document.querySelector(`[data-highlight-id="${id}"]`) as HTMLElement | null) ||
-    (id === "nav-resume" ? (document.querySelector('a[href="/resume"]') as HTMLElement | null) : null)
-  );
+  const direct = (document.getElementById(id) as HTMLElement | null) ||
+    (document.querySelector(`[data-highlight-id="${id}"]`) as HTMLElement | null);
+  if (direct) return direct;
+  if (id === "nav-resume") {
+    // There can be TWO resume links: the desktop nav (hidden on mobile) and the
+    // mobile menu link (hidden on desktop). Pick whichever is actually visible so
+    // the spotlight box lands on the real, on-screen element instead of a 0×0 one.
+    const links = Array.from(document.querySelectorAll('a[href="/resume"]')) as HTMLElement[];
+    return links.find(isVisible) || links[0] || null;
+  }
+  return null;
 }
 
 interface Rect { top: number; left: number; width: number; height: number }
@@ -78,8 +90,11 @@ export default function AssistantTutorial() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
-  /* Narrate one step: show the caption, speak it aloud, and karaoke-highlight words. */
-  const narrate = useCallback((text: string, myRun: number) => new Promise<void>((resolve) => {
+  /* Narrate one step: show the caption, speak it aloud, and karaoke-highlight words.
+     `audioSrc` is an optional PRERECORDED clip — the tour script is fixed, so we serve
+     a static MP3 (zero ElevenLabs tokens). If it's missing/fails we fall back to live TTS,
+     and if that fails too, to a timed word cadence. Live TTS is reserved for real Q&A. */
+  const narrate = useCallback((text: string, myRun: number, audioSrc?: string) => new Promise<void>((resolve) => {
     const w = text.split(/\s+/);
     setCaption(text);
     setWords(w);
@@ -104,27 +119,38 @@ export default function AssistantTutorial() {
       }, 260);
     };
 
-    // The tour ALWAYS narrates aloud (independent of the chat read-aloud setting).
-    fetch("/api/voice/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) })
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((blob) => {
-        if (myRun !== runIdRef.current) return done();
-        if (!blob) return timedFallback();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        const sync = () => {
-          if (myRun !== runIdRef.current) return;
-          const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
-          const p = d > 0 ? audio.currentTime / d : 0;
-          setWordIdx(Math.min(w.length - 1, Math.floor(p * w.length)));
-          if (!audio.ended) requestAnimationFrame(sync);
-        };
-        audio.onended = () => { setWordIdx(w.length - 1); URL.revokeObjectURL(url); done(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); timedFallback(); };
-        audio.play().then(() => requestAnimationFrame(sync)).catch(() => { URL.revokeObjectURL(url); timedFallback(); });
-      })
-      .catch(() => timedFallback());
+    // Play an audio URL with karaoke sync; onFail handles a missing/broken source.
+    const playUrl = (url: string, revoke: boolean, onFail: () => void) => {
+      if (myRun !== runIdRef.current) { if (revoke) URL.revokeObjectURL(url); return done(); }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      const sync = () => {
+        if (myRun !== runIdRef.current) return;
+        const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
+        const p = d > 0 ? audio.currentTime / d : 0;
+        setWordIdx(Math.min(w.length - 1, Math.floor(p * w.length)));
+        if (!audio.ended) requestAnimationFrame(sync);
+      };
+      audio.onended = () => { setWordIdx(w.length - 1); if (revoke) URL.revokeObjectURL(url); done(); };
+      audio.onerror = () => { if (revoke) URL.revokeObjectURL(url); onFail(); };
+      audio.play().then(() => requestAnimationFrame(sync)).catch(() => { if (revoke) URL.revokeObjectURL(url); onFail(); });
+    };
+
+    // Live ElevenLabs synthesis (used only when no prerecorded clip is available).
+    const fetchTts = () => {
+      fetch("/api/voice/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) })
+        .then((r) => (r.ok ? r.blob() : null))
+        .then((blob) => {
+          if (myRun !== runIdRef.current) return done();
+          if (!blob) return timedFallback();
+          playUrl(URL.createObjectURL(blob), true, timedFallback);
+        })
+        .catch(() => timedFallback());
+    };
+
+    // Prefer the prerecorded clip; fall back to live TTS, then to a timed cadence.
+    if (audioSrc) playUrl(audioSrc, false, fetchTts);
+    else fetchTts();
   }), []);
 
   useEffect(() => {
@@ -135,7 +161,9 @@ export default function AssistantTutorial() {
       // Minimize the chat so the spotlight + captions take the stage.
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
-      for (const step of STEPS) {
+      for (let si = 0; si < STEPS.length; si++) {
+        const step = STEPS[si];
+        const stepAudio = `/tour-audio/step-${si}.mp3`;
         if (myRun !== runIdRef.current) break;
 
         if (step.kind === "intro") {
@@ -151,7 +179,16 @@ export default function AssistantTutorial() {
             window.dispatchEvent(new CustomEvent("mdcran:open-nav"));
             await wait(500);
           }
-          const el = findTarget(step.target);
+          let el = findTarget(step.target);
+          // Mobile menu animates in — wait until the resume link is actually visible
+          // (otherwise we'd box a 0×0 hidden element and no highlight appears).
+          if (isNav && mobile) {
+            for (let tries = 0; tries < 8 && !isVisible(el); tries++) {
+              await wait(120);
+              if (myRun !== runIdRef.current) break;
+              el = findTarget(step.target);
+            }
+          }
           if (el) {
             if (!isNav) el.scrollIntoView({ behavior: "smooth", block: "center" });
             await wait(isNav ? 250 : 750);
@@ -161,7 +198,7 @@ export default function AssistantTutorial() {
             targetElRef.current = null;
             setSpot(null);
           }
-          await narrate(step.text, myRun);
+          await narrate(step.text, myRun, stepAudio);
           if (isNav && mobile) window.dispatchEvent(new CustomEvent("mdcran:close-nav"));
           if (myRun !== runIdRef.current) break;
           await wait(350);
@@ -177,7 +214,7 @@ export default function AssistantTutorial() {
           window.scrollTo({ top: startY, behavior: "smooth" });
         }
 
-        await narrate(step.text, myRun);
+        await narrate(step.text, myRun, stepAudio);
         if (myRun !== runIdRef.current) break;
         await wait(350);
       }

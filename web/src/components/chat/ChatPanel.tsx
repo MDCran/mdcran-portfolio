@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines, Compass, Lock } from "lucide-react";
+import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, Compass, AudioLines } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
@@ -276,13 +276,6 @@ export default function ChatPanel() {
       .catch(() => {});
     return () => { active = false; };
   }, [open]);
-
-  /* Voice CONVERSATION mode needs SpeechRecognition (Chrome/Edge/Safari). Lock it otherwise. */
-  const [voiceModeSupported, setVoiceModeSupported] = useState(false);
-  useEffect(() => {
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-    setVoiceModeSupported(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition));
-  }, []);
 
   /* Keep the chat's speaker toggle in sync with the accessibility "speak aloud" pref. */
   useEffect(() => {
@@ -743,6 +736,33 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/\s*__THEME:[\w-]+__\s*/g, " ");
           }
 
+          // Text-size marker → drive the accessibility text scale
+          const textSizeMatch = cleaned.match(/__TEXTSIZE:(normal|small|large|larger|largest)__/);
+          if (textSizeMatch) {
+            hasMarkers = true;
+            const scale = { small: 0.9, normal: 1, large: 1.15, larger: 1.3, largest: 1.5 }[textSizeMatch[1]] ?? 1;
+            cleaned = cleaned.replace(/\s*__TEXTSIZE:[a-z]+__\s*/g, " ");
+            window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { textScale: scale } }));
+          }
+
+          // Accessibility marker → constrained set of preference toggles
+          const a11yMatches = [...cleaned.matchAll(/__ACCESS:([a-z-]+)__/g)].map((m) => m[1]);
+          if (a11yMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__ACCESS:[a-z-]+__\s*/g, " ");
+            for (const a of a11yMatches) {
+              const detail: Record<string, unknown> = {};
+              if (a === "reset") detail.reset = true;
+              else if (a === "motion-reduce") detail.motion = "reduce";
+              else if (a === "motion-allow") detail.motion = "allow";
+              else if (a === "readaloud-on") detail.speakAloud = true;
+              else if (a === "readaloud-off") detail.speakAloud = false;
+              else if (a.startsWith("cb-")) detail.colorblind = a.slice(3) === "none" ? "none" : a.slice(3);
+              else if (a.startsWith("cursor-")) detail.cursor = a.slice(7);
+              if (Object.keys(detail).length) window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail }));
+            }
+          }
+
           // Navigation marker (explicit)
           const navMatch = cleaned.match(/__NAV:(\/.+?)__/);
           if (navMatch) {
@@ -1109,33 +1129,22 @@ export default function ChatPanel() {
               </button>
 
               {voiceEnabled && (
-                voiceModeSupported ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent("mdcran:toggle-voice"));
-                      window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // close the text panel
-                    }}
-                    className={`flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
-                      isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
-                    }`}
-                    style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }}
-                    title="Start voice conversation"
-                    aria-label="Start voice conversation"
-                  >
-                    <AudioLines size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
-                    <span className="text-[9px] uppercase tracking-[0.15em]">Voice</span>
-                  </button>
-                ) : (
-                  <span
-                    className={`flex h-7 items-center gap-1.5 px-2 rounded-sm border cursor-not-allowed opacity-60 ${isLight ? 'border-black/10 text-black/35' : 'border-white/10 text-white/35'}`}
-                    title="Voice conversation isn't supported in this browser. Try Chrome, Edge, or Safari."
-                    aria-label="Voice conversation unavailable in this browser"
-                  >
-                    <Lock size={12} />
-                    <span className="text-[9px] uppercase tracking-[0.15em]">Voice</span>
-                  </span>
-                )
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // close the text panel
+                    window.dispatchEvent(new CustomEvent("mdcran:toggle-voice")); // open voice chat
+                  }}
+                  className={`flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
+                    isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
+                  }`}
+                  style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }}
+                  title="Switch to voice conversation"
+                  aria-label="Switch to voice conversation"
+                >
+                  <AudioLines size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
+                  <span className="text-[9px] uppercase tracking-[0.15em]">Voice</span>
+                </button>
               )}
               {voiceEnabled && (
                 <button

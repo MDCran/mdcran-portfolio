@@ -9,7 +9,8 @@
     "lint": "eslint",
     "seed:content": "tsx scripts/seed-content.ts",
     "migrate:cdn-urls": "tsx scripts/migrate-cdn-asset-urls.ts",
-    "sync:cdn-to-r2": "tsx scripts/sync-cdn-to-r2.ts"
+    "sync:cdn-to-r2": "tsx scripts/sync-cdn-to-r2.ts",
+    "gen:tour-audio": "node scripts/generate-tour-audio.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
