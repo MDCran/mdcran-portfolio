@@ -33,8 +33,16 @@ export default function ChatBubble() {
   /* Sync with custom event so ChatPanel can also close/open */
   useEffect(() => {
     const onToggle = () => setChatOpen((prev) => !prev);
+    const onOpen = () => setChatOpen(true);
+    const onClose = () => setChatOpen(false);
     window.addEventListener(TOGGLE_EVENT, onToggle);
-    return () => window.removeEventListener(TOGGLE_EVENT, onToggle);
+    window.addEventListener("mdcran:chat-open", onOpen);
+    window.addEventListener("mdcran:chat-close", onClose);
+    return () => {
+      window.removeEventListener(TOGGLE_EVENT, onToggle);
+      window.removeEventListener("mdcran:chat-open", onOpen);
+      window.removeEventListener("mdcran:chat-close", onClose);
+    };
   }, []);
 
   /* Show greeting popup on first visit */

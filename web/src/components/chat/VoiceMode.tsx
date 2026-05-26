@@ -75,6 +75,9 @@ export default function VoiceMode() {
   const [wave, setWave] = useState<number[]>(() => new Array(48).fill(0)); // mic time-domain bars
   const [interrupted, setInterrupted] = useState(false); // brief "go ahead" indicator on barge-in
   const [showTips, setShowTips] = useState(false); // tutorial prompt suggestions
+  const [captionWords, setCaptionWords] = useState<string[]>([]); // bottom-middle karaoke of the spoken reply
+  const [captionIdx, setCaptionIdx] = useState(-1);
+  const captionRafRef = useRef<number | null>(null);
 
   // Audio / recognition refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -158,6 +161,9 @@ export default function VoiceMode() {
   const speak = useCallback(async (text: string): Promise<void> => {
     const clean = stripForSpeech(text);
     if (!clean) return;
+    const capWords = clean.split(/\s+/);
+    setCaptionWords(capWords);
+    setCaptionIdx(0);
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
@@ -187,7 +193,16 @@ export default function VoiceMode() {
 
       await new Promise<void>((resolve) => {
         let done = false;
-        const finish = () => { if (done) return; done = true; interruptTtsRef.current = null; URL.revokeObjectURL(url); resolve(); };
+        const stopKaraoke = () => { if (captionRafRef.current) cancelAnimationFrame(captionRafRef.current); captionRafRef.current = null; };
+        const finish = () => { if (done) return; done = true; stopKaraoke(); interruptTtsRef.current = null; URL.revokeObjectURL(url); resolve(); };
+        // Karaoke-highlight the caption words synced to the audio position.
+        const karaoke = () => {
+          const a = audioElRef.current;
+          if (!a) return;
+          const d = a.duration && isFinite(a.duration) ? a.duration : capWords.length * 0.34;
+          setCaptionIdx(Math.min(capWords.length - 1, Math.floor((a.currentTime / Math.max(d, 0.1)) * capWords.length)));
+          if (!a.ended) captionRafRef.current = requestAnimationFrame(karaoke);
+        };
         // Allow barge-in to cut playback short.
         interruptTtsRef.current = () => {
         try { audio.pause(); } catch { /* */ }
@@ -197,9 +212,9 @@ export default function VoiceMode() {
         setPhaseSafe("listening");
         finish();
       };
-        audio.onended = finish;
+        audio.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
         audio.onerror = finish;
-        audio.play().catch(() => finish());
+        audio.play().then(() => { captionRafRef.current = requestAnimationFrame(karaoke); }).catch(() => finish());
       });
     } catch {
       /* ignore */
@@ -251,6 +266,8 @@ export default function VoiceMode() {
     // user can barge in over the assistant and be heard from the first word.
     setInterim("");
     setShowTips(false);
+    setCaptionWords([]);
+    setCaptionIdx(-1);
     setPhaseSafe("thinking");
     setTurns((prev) => [...prev, { role: "user", text: clean }]);
 
@@ -430,6 +447,9 @@ export default function VoiceMode() {
     setWave(new Array(48).fill(0));
     setInterrupted(false);
     setShowTips(false);
+    setCaptionWords([]);
+    setCaptionIdx(-1);
+    if (captionRafRef.current) { cancelAnimationFrame(captionRafRef.current); captionRafRef.current = null; }
   }, [open]);
 
   const close = () => setOpen(false);
@@ -444,7 +464,6 @@ export default function VoiceMode() {
     phase === "thinking" ? "Thinking…" :
     phase === "speaking" ? `${AGENT_NAME} is speaking…` :
     "Voice unavailable";
-  const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant")?.text ?? "";
 
   return createPortal(
     <AnimatePresence>
@@ -566,22 +585,63 @@ export default function VoiceMode() {
             </motion.div>
           )}
 
-          {/* Live transcript / reply */}
+          {/* Live transcript (your speech) / status — the assistant's reply is captioned at the bottom */}
           <div className="mt-6 w-full max-w-lg px-6 text-center min-h-[60px]">
             {phase === "error" ? (
               <p className="text-sm text-white/50">
                 {supported
-                  ? "Microphone access is needed for voice mode."
-                  : "Your browser doesn't support live voice transcription. Try Chrome, Edge, or Safari — or use the mic button in the chat panel."}
+                  ? "I need microphone access for voice mode. Allow the mic in your browser, then reopen voice mode."
+                  : "Live voice isn't available in this browser. Try Chrome, Edge, or Safari — or use the mic button in the chat panel."}
               </p>
             ) : interim ? (
               <p className="text-base text-white/80 font-jb">{interim}</p>
-            ) : lastAssistant ? (
-              <p className="text-sm text-white/55 font-jb leading-relaxed">{lastAssistant}</p>
-            ) : (
-              <p className="text-sm text-white/30 font-jb">Say something — ask about Michael&apos;s work, projects, or how to navigate the site.</p>
-            )}
+            ) : captionWords.length === 0 ? (
+              <p className="text-sm text-white/30 font-jb">Say something — ask about my work, projects, or where to find anything.</p>
+            ) : null}
           </div>
+
+          {/* Bottom-middle karaoke caption of what the assistant is saying */}
+          <AnimatePresence>
+            {captionWords.length > 0 && !showTips && (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.3 }}
+                className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
+              >
+                <div
+                  className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)",
+                    background: "rgba(6,6,8,0.82)",
+                    backdropFilter: "blur(10px)",
+                    WebkitBackdropFilter: "blur(10px)",
+                    boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
+                  }}
+                >
+                  {captionWords.map((word, i) => {
+                    const isCurrent = i === captionIdx;
+                    const spoken = i <= captionIdx;
+                    return (
+                      <span
+                        key={i}
+                        style={
+                          isCurrent
+                            ? { color: "#fff", fontWeight: 700, textShadow: "0 0 12px rgba(255,255,255,0.85), 0 0 22px color-mix(in srgb, var(--theme-primary, #ef4242) 60%, transparent)" }
+                            : spoken
+                              ? { color: "rgba(255,255,255,0.82)" }
+                              : { color: "rgba(255,255,255,0.34)" }
+                        }
+                      >
+                        {word}{i < captionWords.length - 1 ? " " : ""}
+                      </span>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Tutorial: example prompts (first use + replayable) */}
           <AnimatePresence>

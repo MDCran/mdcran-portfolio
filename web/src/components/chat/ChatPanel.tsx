@@ -471,11 +471,19 @@ export default function ChatPanel() {
     return () => clearTimeout(t);
   }, [open]);
 
-  /* Listen for toggle events from ChatBubble */
+  /* Listen for toggle + explicit open/close events (e.g. from the tour) */
   useEffect(() => {
     const onToggle = () => setOpen((prev) => !prev);
+    const onOpen = () => setOpen(true);
+    const onClose = () => setOpen(false);
     window.addEventListener(TOGGLE_EVENT, onToggle);
-    return () => window.removeEventListener(TOGGLE_EVENT, onToggle);
+    window.addEventListener("mdcran:chat-open", onOpen);
+    window.addEventListener("mdcran:chat-close", onClose);
+    return () => {
+      window.removeEventListener(TOGGLE_EVENT, onToggle);
+      window.removeEventListener("mdcran:chat-open", onOpen);
+      window.removeEventListener("mdcran:chat-close", onClose);
+    };
   }, []);
 
   /* ESC to close */
