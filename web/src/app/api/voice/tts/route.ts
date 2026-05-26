@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // ElevenLabs "Rachel" — overridable via env
+const DEFAULT_VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael — overridable via ELEVENLABS_VOICE_ID
 const DEFAULT_MODEL = "eleven_turbo_v2_5"; // low-latency conversational model
 
 function voiceId(): string {
