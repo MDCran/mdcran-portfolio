@@ -25,6 +25,8 @@ export default function MapWidget() {
       <img
         src={assetUrl("/cdn/WEB_ASSETS/MAP/orlando-map.png")}
         alt="Orlando, FL"
+        loading="lazy"
+        decoding="async"
         className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-70 transition-opacity duration-300"
         style={{ filter: "saturate(0.5) brightness(0.6)" }}
       />
