@@ -8,6 +8,7 @@ import ScrollProgress from "@/components/shared/ScrollProgress";
 import CookieConsent from "@/components/shared/CookieConsent";
 import ExternalLinkGuard from "@/components/shared/ExternalLinkGuard";
 import MoodEngine from "@/components/shared/MoodEngine";
+import IdentityTracker from "@/components/shared/IdentityTracker";
 import KeyboardShortcuts from "@/components/shared/KeyboardShortcuts";
 import ChatBubble from "@/components/chat/ChatBubble";
 import ThemeOverlay from "@/components/shared/ThemeOverlay";
@@ -194,6 +195,7 @@ export default function GlobalChrome() {
       <CookieConsent />
       <ExternalLinkGuard />
       <MoodEngine />
+      <IdentityTracker />
     </>
   );
 }

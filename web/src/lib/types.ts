@@ -762,6 +762,30 @@ export interface SiteContent {
   rizzTargetName?: string;  // personalize /rizz page with a name
 }
 
+// ─── Personal Identity (device fingerprinting) ────────────
+export interface IdentityDevice {
+  serial: string;          // stable device fingerprint hash
+  ip?: string | null;
+  browser?: string;
+  os?: string;
+  device?: string;         // desktop | mobile | tablet
+  gpu?: string;            // WebGL renderer
+  screen?: string;         // e.g. "1920x1080@2"
+  timezone?: string;
+  language?: string;
+  userAgent?: string;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+export interface Identity {
+  id: string;
+  name: string;
+  devices: IdentityDevice[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Meeting booking ──────────────────────────────────────
 export interface BookingMeetingType {
   id: string;
