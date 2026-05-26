@@ -49,6 +49,10 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const [brandLogoUrl, setBrandLogoUrl] = useState("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"password" | "setup" | "code">("password");
+  const [qr, setQr] = useState("");
+  const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -82,31 +86,45 @@ export default function AdminLoginPage() {
       setError("Password required.");
       return;
     }
+    if ((step === "code" || step === "setup") && !/^\d{6}$/.test(code.trim())) {
+      setError("Enter the 6-digit code from your authenticator.");
+      return;
+    }
     setLoading(true);
     setError("");
-
-    // Brief delay for UX
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 300));
 
     try {
       const res = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, code: code.trim() || undefined }),
       });
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
       if (res.ok) {
         router.push("/admin/dashboard");
-      } else {
-        const next = attempts + 1;
-        setAttempts(next);
-        if (next >= 5) {
-          setError("Too many attempts. Please try again later.");
-        } else {
-          setError(`Invalid credentials. ${5 - next} attempt${5 - next === 1 ? "" : "s"} remaining.`);
-        }
-        setPassword("");
-        setLoading(false);
+        return;
       }
+      if (data.setup) {
+        setStep("setup");
+        setQr(typeof data.qr === "string" ? data.qr : "");
+        setSecret(typeof data.secret === "string" ? data.secret : "");
+        setError(typeof data.error === "string" ? data.error : "");
+        setLoading(false);
+        return;
+      }
+      if (data.needCode) {
+        setStep("code");
+        setError(typeof data.error === "string" ? data.error : "");
+        setLoading(false);
+        return;
+      }
+      // Bad password (still at the password step).
+      const next = attempts + 1;
+      setAttempts(next);
+      setError(next >= 5 ? "Too many attempts. Please try again later." : `Invalid credentials. ${5 - next} attempt${5 - next === 1 ? "" : "s"} remaining.`);
+      setPassword("");
+      setLoading(false);
     } catch {
       setError("Connection error. Please try again.");
       setLoading(false);
@@ -215,6 +233,34 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
+            {/* 2FA setup QR */}
+            {step === "setup" && (
+              <div className="rounded-sm border border-white/10 bg-white/3 p-4 text-center space-y-2">
+                <p className="text-[10px] tracking-[0.2em] uppercase text-[#ef4242]">Set up 2FA</p>
+                <p className="text-[11px] text-white/45 leading-relaxed">Scan with Google Authenticator / Authy, then enter the 6-digit code. This is required on every future login.</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {qr && <img src={qr} alt="2FA QR code" className="mx-auto rounded-sm bg-white p-1" width={180} height={180} />}
+                {secret && <p className="text-[10px] text-white/30 break-all font-mono">Manual key: {secret}</p>}
+              </div>
+            )}
+
+            {/* 2FA code field */}
+            {(step === "setup" || step === "code") && (
+              <div>
+                <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-2">Authentication Code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+                  placeholder="6-digit code"
+                  autoFocus
+                  className="w-full h-11 bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-4 text-white text-sm tracking-[0.4em] text-center placeholder:tracking-normal placeholder:text-white/20 outline-none transition-all"
+                />
+              </div>
+            )}
+
             {/* Error */}
             <AnimatePresence>
               {error && (
@@ -249,6 +295,10 @@ export default function AdminLoginPage() {
                     />
                     Authenticating
                   </>
+                ) : step === "setup" ? (
+                  "Verify & Enable 2FA"
+                ) : step === "code" ? (
+                  "Verify Code"
                 ) : (
                   "Access Dashboard"
                 )}
