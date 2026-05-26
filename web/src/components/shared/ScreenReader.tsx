@@ -216,11 +216,18 @@ export function useScreenReader() {
 
   const getVoice = useCallback((): SpeechSynthesisVoice | null => {
     const voices = speechSynthesis.getVoices();
-    const david = voices.find((v) => /david/i.test(v.name));
-    if (david) return david;
-    const english = voices.find((v) => v.lang.startsWith("en"));
-    if (english) return english;
-    return voices[0] ?? null;
+    if (!voices.length) return null;
+    const byName = (re: RegExp) => voices.find((v) => re.test(v.name));
+    // Prefer modern, natural-sounding voices; otherwise the OS default screen-reader voice.
+    return (
+      byName(/google us english/i) ||
+      byName(/(natural|samantha|aria|jenny|ava|guy|microsoft .* online)/i) ||
+      voices.find((v) => v.default && v.lang.startsWith("en")) ||
+      voices.find((v) => v.lang === "en-US") ||
+      voices.find((v) => v.lang.startsWith("en")) ||
+      voices.find((v) => v.default) ||
+      null
+    );
   }, []);
 
   const clearHighlight = useCallback(() => {

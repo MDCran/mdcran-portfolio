@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Invalid request." }, { status: 400 });
 
-  const { typeId, duration, start, name, email, phone, message, consent } = body as Record<string, unknown>;
+  const { typeId, duration, start, name, email, phone, subject, message, consent } = body as Record<string, unknown>;
   if (!consent) return Response.json({ error: "Consent is required." }, { status: 400 });
 
   const meetingType = config.meetingTypes.find((t) => t.id === typeId && t.enabled);
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   const cleanEmail = normalizeEmail(typeof email === "string" ? email : "");
   const cleanPhone = normalizePhone(typeof phone === "string" ? phone : "");
   const cleanMessage = String(message ?? "").trim().slice(0, 2000);
+  const cleanSubject = String(subject ?? "").trim().slice(0, 200);
   if (!cleanName) return Response.json({ error: "Name is required." }, { status: 400 });
   if (!cleanEmail || !isValidEmail(cleanEmail)) return Response.json({ error: "A valid email is required." }, { status: 400 });
   if (cleanPhone && !isValidPhoneNumber(cleanPhone)) return Response.json({ error: "Enter a valid phone number." }, { status: 400 });
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     name: cleanName,
     email: cleanEmail,
     phone: cleanPhone || undefined,
+    subject: cleanSubject || undefined,
     message: cleanMessage || undefined,
   });
 

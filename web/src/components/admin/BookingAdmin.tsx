@@ -18,10 +18,17 @@ export default function BookingAdmin() {
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Raw text drafts for the durations inputs so commas can be typed freely.
+  const [durationDrafts, setDurationDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/admin/booking").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.config) setConfig(d.config);
+      if (d?.config) {
+        // Drop blackout ranges that have already fully passed.
+        const today = new Date().toISOString().slice(0, 10);
+        const blackouts = (d.config.blackouts ?? []).filter((b: { end?: string }) => !b.end || b.end >= today);
+        setConfig({ ...d.config, blackouts });
+      }
       if (Array.isArray(d?.bookings)) setBookings(d.bookings);
     }).catch(() => {});
   }, []);
@@ -43,7 +50,7 @@ export default function BookingAdmin() {
   const setType = (id: string, p: Partial<BookingMeetingType>) =>
     setConfig((c) => c ? { ...c, meetingTypes: c.meetingTypes.map((t) => t.id === id ? { ...t, ...p } : t) } : c);
 
-  const addType = () => patch({ meetingTypes: [...config.meetingTypes, { id: uid(), name: "Consultation", description: "", location: "Google Meet", durations: [30], enabled: true }] });
+  const addType = () => patch({ meetingTypes: [...config.meetingTypes, { id: uid(), name: "", description: "", location: "Google Meet", durations: [30], enabled: true }] });
   const addBlackout = () => patch({ blackouts: [...config.blackouts, { start: "", end: "", label: "" }] });
 
   return (
@@ -167,9 +174,15 @@ export default function BookingAdmin() {
                   <span className={label}>Durations (minutes, comma-separated)</span>
                   <input
                     className={input}
-                    value={t.durations.join(", ")}
-                    onChange={(e) => setType(t.id, { durations: e.target.value.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n) && n > 0) })}
+                    value={durationDrafts[t.id] ?? t.durations.join(", ")}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setDurationDrafts((d) => ({ ...d, [t.id]: raw }));
+                      setType(t.id, { durations: raw.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n) && n > 0) });
+                    }}
+                    onBlur={() => setDurationDrafts((d) => { const n = { ...d }; delete n[t.id]; return n; })}
                     placeholder="30, 60"
+                    inputMode="numeric"
                   />
                 </div>
               </div>

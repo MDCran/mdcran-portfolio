@@ -84,7 +84,7 @@ export default function ScrollProgress() {
         boxShadow: read ? "0 0 18px rgba(239,66,66,0.5)" : "0 6px 20px rgba(0,0,0,0.4)",
       }}
     >
-      <svg width="44" height="44" viewBox="0 0 44 44" className="absolute inset-0 -rotate-90">
+      <svg viewBox="0 0 44 44" preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full -rotate-90">
         <circle cx="22" cy="22" r={R} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2.5" />
         <circle
           cx="22"

@@ -139,7 +139,11 @@ export default async function RootLayout({
         <ThemeProvider>
           <AnnouncementBanner banner={layoutContent?.announcementBanner} />
           <div className="relative z-[1] w-full min-h-screen flex flex-col">
-            {children}
+            {/* Color-blind filters apply here only — the fixed chrome below stays unfiltered
+                so it doesn't break position:fixed (chat, accessibility menu, etc.). */}
+            <div data-cb-content className="flex w-full flex-1 flex-col">
+              {children}
+            </div>
             <GlobalChrome />
             <VisitorTracker />
             <AnalyticsTracker />

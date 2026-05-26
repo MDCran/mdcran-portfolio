@@ -638,3 +638,14 @@ html[data-theme]:not(#_) [class*="bg-\[\#ef4242\]"],
 html[data-theme]:not(#_) [class*="bg-\[\#ef4242\]"] * {
   color: var(--on-accent, #ffffff) !important;
 }
+
+/* Accessibility-menu selected pills sit on a faint accent TINT over the page bg, so the
+   text must contrast the page (white on dark themes, black on light) — not the accent. */
+html[data-theme]:not(#_) .a11y-seg-active {
+  background-color: color-mix(in srgb, var(--theme-primary, #ef4242) 14%, transparent) !important;
+  border-color: color-mix(in srgb, var(--theme-primary, #ef4242) 45%, transparent) !important;
+  color: #ffffff !important;
+}
+html[data-theme="light"]:not(#_) .a11y-seg-active {
+  color: #111111 !important;
+}

@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, AlertCircle, Loader2, Clock, MapPin, CalendarDays, ChevronRight } from "lucide-react";
+import { CheckCircle, AlertCircle, Loader2, Clock, MapPin, CalendarDays, ChevronRight, ChevronLeft } from "lucide-react";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 interface PublicMeetingType { id: string; name: string; description: string; location: string; durations: number[] }
 interface PublicConfig { enabled: boolean; timezone: string; minNoticeDays: number; maxAdvanceDays: number; meetingTypes: PublicMeetingType[] }
@@ -30,7 +33,8 @@ export default function BookMeeting() {
   const [slot, setSlot] = useState<{ start: string; label: string } | null>(null);
   const [tz, setTz] = useState("America/New_York");
 
-  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "", consent: false });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", subject: "", message: "", consent: false });
+  const [viewMonth, setViewMonth] = useState<{ y: number; m: number } | null>(null); // calendar month being shown
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState<{ start: string; typeName: string; location: string } | null>(null);
@@ -53,7 +57,11 @@ export default function BookMeeting() {
         if (d?.timezone) setTz(d.timezone);
         const ds: DaySlots[] = Array.isArray(d?.days) ? d.days : [];
         setDays(ds);
-        if (ds.length) setActiveDay(ds[0].date);
+        setActiveDay(null);
+        if (ds.length) {
+          const [yy, mm] = ds[0].date.split("-").map(Number);
+          setViewMonth({ y: yy, m: mm });
+        }
       })
       .catch(() => setDays([]))
       .finally(() => setLoadingSlots(false));
@@ -120,6 +128,14 @@ export default function BookMeeting() {
   }
 
   const activeDayObj = days?.find((d) => d.date === activeDay);
+  const availableDates = useMemo(() => new Set((days ?? []).map((d) => d.date)), [days]);
+  // First/last available months bound the calendar's prev/next navigation.
+  const monthBounds = useMemo(() => {
+    if (!days || days.length === 0) return null;
+    const first = days[0].date, last = days[days.length - 1].date;
+    return { first: { y: +first.slice(0, 4), m: +first.slice(5, 7) }, last: { y: +last.slice(0, 4), m: +last.slice(5, 7) } };
+  }, [days]);
+  const monthKey = (y: number, m: number) => y * 12 + (m - 1);
 
   return (
     <div className="space-y-8">
@@ -171,30 +187,79 @@ export default function BookMeeting() {
             <div className="flex items-center gap-2 text-sm text-white/40 py-6"><Loader2 size={16} className="animate-spin" /> Finding open times…</div>
           ) : !days || days.length === 0 ? (
             <p className="text-sm text-white/40 py-4">No open times in the next {config.maxAdvanceDays} days. Try the Contact tab instead.</p>
-          ) : (
-            <div className="space-y-4">
-              {/* Day selector */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {days.map((d) => (
-                  <button key={d.date} type="button" onClick={() => { setActiveDay(d.date); setSlot(null); }}
-                    className={`shrink-0 px-3 py-2 rounded-sm border text-xs transition-colors ${activeDay === d.date ? "border-[#ef4242]/50 bg-[#ef4242]/10 text-white" : "border-white/10 text-white/50 hover:text-white"}`}>
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-              {/* Slots */}
-              {activeDayObj && (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                  {activeDayObj.slots.map((s) => (
-                    <button key={s.start} type="button" onClick={() => setSlot(s)}
-                      className={`py-2 rounded-sm border text-xs transition-colors ${slot?.start === s.start ? "border-[#ef4242] bg-[#ef4242] text-white" : "border-white/10 text-white/70 hover:border-white/30"}`}>
-                      {s.label}
-                    </button>
-                  ))}
+          ) : viewMonth && monthBounds ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Calendar */}
+              <div className="rounded-sm border border-white/8 bg-white/2 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    disabled={monthKey(viewMonth.y, viewMonth.m) <= monthKey(monthBounds.first.y, monthBounds.first.m)}
+                    onClick={() => setViewMonth((v) => { if (!v) return v; const d = new Date(v.y, v.m - 2, 1); return { y: d.getFullYear(), m: d.getMonth() + 1 }; })}
+                    className="flex h-7 w-7 items-center justify-center rounded-sm text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed"
+                    aria-label="Previous month"
+                  ><ChevronLeft size={15} /></button>
+                  <span className="text-sm text-white">{MONTHS[viewMonth.m - 1]} {viewMonth.y}</span>
+                  <button
+                    type="button"
+                    disabled={monthKey(viewMonth.y, viewMonth.m) >= monthKey(monthBounds.last.y, monthBounds.last.m)}
+                    onClick={() => setViewMonth((v) => { if (!v) return v; const d = new Date(v.y, v.m, 1); return { y: d.getFullYear(), m: d.getMonth() + 1 }; })}
+                    className="flex h-7 w-7 items-center justify-center rounded-sm text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed"
+                    aria-label="Next month"
+                  ><ChevronRight size={15} /></button>
                 </div>
-              )}
+                <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-white/30">
+                  {DOW.map((d) => <div key={d} className="py-1">{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-0.5">
+                  {(() => {
+                    const firstDow = new Date(viewMonth.y, viewMonth.m - 1, 1).getDay();
+                    const daysInMonth = new Date(viewMonth.y, viewMonth.m, 0).getDate();
+                    const cells: (number | null)[] = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+                    return cells.map((day, i) => {
+                      if (day === null) return <div key={`b${i}`} />;
+                      const dateStr = `${viewMonth.y}-${String(viewMonth.m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                      const avail = availableDates.has(dateStr);
+                      const isSel = activeDay === dateStr;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          disabled={!avail}
+                          onClick={() => { setActiveDay(dateStr); setSlot(null); }}
+                          className={`flex h-9 items-center justify-center rounded-sm text-xs transition-colors ${
+                            isSel ? "bg-[#ef4242] text-white font-semibold"
+                              : avail ? "text-white hover:bg-white/10" : "text-white/20 cursor-not-allowed"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Time slots for the chosen day */}
+              <div className="rounded-sm border border-white/8 bg-white/2 p-4">
+                {!activeDayObj ? (
+                  <p className="text-sm text-white/35 py-6 text-center">Pick a highlighted day to see open times.</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-white/45 mb-3">{activeDayObj.label}</p>
+                    <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                      {activeDayObj.slots.map((s) => (
+                        <button key={s.start} type="button" onClick={() => setSlot(s)}
+                          className={`py-2 rounded-sm border text-xs transition-colors ${slot?.start === s.start ? "border-[#ef4242] bg-[#ef4242] text-white" : "border-white/10 text-white/70 hover:border-white/30"}`}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -207,11 +272,29 @@ export default function BookMeeting() {
           >
             <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">Your details</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input className={fieldCls} placeholder="Name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-              <input className={fieldCls} type="email" placeholder="Email *" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+              <div>
+                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Name <span className="text-[#ef4242]">*</span></label>
+                <input className={fieldCls} placeholder="Your name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Email <span className="text-[#ef4242]">*</span></label>
+                <input className={fieldCls} type="email" placeholder="your@email.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+              </div>
             </div>
-            <input className={fieldCls} type="tel" placeholder="Phone (optional)" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            <textarea className={`${fieldCls} h-auto py-3 resize-none`} rows={4} placeholder="What would you like to talk about?" value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Phone</label>
+                <input className={fieldCls} type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Subject</label>
+                <input className={fieldCls} placeholder="What is this about?" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Message</label>
+              <textarea className={`${fieldCls} h-auto py-3 resize-none`} rows={4} placeholder="Anything you'd like me to know before the meeting?" value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))} />
+            </div>
 
             <label className="flex items-start gap-3 cursor-pointer group">
               <div className="relative shrink-0 mt-0.5">
@@ -231,9 +314,14 @@ export default function BookMeeting() {
               <div className="flex items-center gap-2 text-xs text-[#ef8a8a]"><AlertCircle size={13} /> {error}</div>
             )}
 
+            {slot && type && (
+              <p className="text-xs text-white/45">
+                Booking <span className="text-white/75">{type.name}</span> · {new Date(slot.start).toLocaleString("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ({tz.replace("_", " ")})
+              </p>
+            )}
             <button type="submit" disabled={status === "sending"}
               className="w-full h-12 flex items-center justify-center gap-2 bg-[#ef4242] text-white text-sm tracking-wider uppercase rounded-sm hover:bg-[#dd3030] transition-all shadow-[0_0_20px_rgba(239,66,66,0.3)] hover:shadow-[0_0_30px_rgba(239,66,66,0.5)] disabled:opacity-40 disabled:cursor-not-allowed">
-              {status === "sending" ? <><Loader2 size={16} className="animate-spin" /> Booking…</> : <><CalendarDays size={15} /> Confirm Booking</>}
+              {status === "sending" ? <><Loader2 size={16} className="animate-spin" /> Booking…</> : <><CalendarDays size={15} /> Book</>}
             </button>
           </motion.form>
         )}

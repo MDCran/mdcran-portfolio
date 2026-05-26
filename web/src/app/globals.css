@@ -467,9 +467,11 @@ html[data-motion="reduce"] *::after {
   scroll-behavior: auto !important;
 }
 
-html[data-colorblind="deuteranopia"] body { filter: url(#cb-deuteranopia); }
-html[data-colorblind="protanopia"] body { filter: url(#cb-protanopia); }
-html[data-colorblind="tritanopia"] body { filter: url(#cb-tritanopia); }
+/* Filter only the page-content wrapper, NOT the fixed chrome (navbar/chat/accessibility) —
+   a CSS filter on an ancestor breaks position:fixed descendants (they'd disappear). */
+html[data-colorblind="deuteranopia"] [data-cb-content] { filter: url(#cb-deuteranopia); }
+html[data-colorblind="protanopia"] [data-cb-content] { filter: url(#cb-protanopia); }
+html[data-colorblind="tritanopia"] [data-cb-content] { filter: url(#cb-tritanopia); }
 
 html[data-cursor="large"], html[data-cursor="large"] * {
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'%3E%3Cpath fill='white' stroke='black' stroke-width='1' d='M5 2l14 8-6 1.5L16 18l-2.5 1L10 12l-5 4z'/%3E%3C/svg%3E") 4 2, auto;
