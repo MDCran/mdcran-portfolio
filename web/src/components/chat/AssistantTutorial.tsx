@@ -24,11 +24,13 @@ const PAGE_TREE = [
 ];
 
 type Step =
+  | { kind: "intro"; text: string }
   | { kind: "spot"; target: string; text: string }
   | { kind: "tree"; text: string }
   | { kind: "return"; text: string };
 
 const STEPS: Step[] = [
+  { kind: "intro", text: "Hey — I'm Michael, your AI assistant, here to walk you through my portfolio. Let me give you the quick tour." },
   { kind: "spot", target: "about", text: "First up, this is where you can get to know me — a quick intro to who I am and what I do." },
   { kind: "spot", target: "featured", text: "These are some of my most renowned projects, the work I'm honestly proudest of." },
   { kind: "spot", target: "clients", text: "And here are the clients and creators I've gotten to work with over the years." },
@@ -133,11 +135,17 @@ export default function AssistantTutorial() {
     const run = async () => {
       const myRun = ++runIdRef.current;
       const startY = window.scrollY;
+      // Minimize the chat so the spotlight + captions take the stage.
+      window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
       for (const step of STEPS) {
         if (myRun !== runIdRef.current) break;
 
-        if (step.kind === "spot") {
+        if (step.kind === "intro") {
+          targetElRef.current = null;
+          setSpot(null);
+          setShowTree(false);
+        } else if (step.kind === "spot") {
           setShowTree(false);
           const el = findTarget(step.target);
           if (el) {
@@ -172,6 +180,8 @@ export default function AssistantTutorial() {
         setShowTree(false);
         setCaption(null);
         setWordIdx(-1);
+        // Reopen the chat now that the tour has wrapped up.
+        window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
       }
     };
 
