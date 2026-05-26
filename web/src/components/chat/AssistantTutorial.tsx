@@ -195,13 +195,18 @@ export default function AssistantTutorial() {
           }
           if (el) {
             if (!isNav) {
-              // Manual centering — smooth scrollIntoView({block:"center"}) is unreliable on
-              // mobile for tall sections. Compute the absolute target and clamp it.
+              // Center the section in the band BETWEEN the top nav and the bottom
+              // caption so it's fully visible and never hidden behind the caption.
+              // (Plain scrollIntoView centers in the whole viewport, which on mobile
+              // tucks the lower half under the caption.)
               const r = el.getBoundingClientRect();
               const vh = window.innerHeight;
-              const targetY = r.height > vh * 0.85
-                ? window.scrollY + r.top - 72                   // tall section: align near top
-                : window.scrollY + r.top - (vh - r.height) / 2; // otherwise center it
+              const topInset = 80;     // nav clearance
+              const bottomInset = 180; // caption + breathing room
+              const avail = Math.max(120, vh - topInset - bottomInset);
+              const targetY = r.height >= avail
+                ? window.scrollY + r.top - topInset                       // tall: align under the nav
+                : window.scrollY + r.top - topInset - (avail - r.height) / 2; // center in the band
               window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
             }
             await wait(isNav ? 250 : 750);

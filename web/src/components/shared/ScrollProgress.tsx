@@ -58,10 +58,23 @@ export default function ScrollProgress() {
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
+    // The page height grows as lazy/below-the-fold content mounts — recompute the
+    // progress whenever the document size changes so the ring stays accurate.
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => onScroll());
+      ro.observe(document.body);
+    }
+    // A couple of early re-checks cover image decode / font / data settling.
+    const t1 = window.setTimeout(update, 600);
+    const t2 = window.setTimeout(update, 1800);
     update();
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      if (ro) ro.disconnect();
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [pathname]);
