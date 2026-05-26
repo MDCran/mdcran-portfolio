@@ -251,20 +251,37 @@ export default function KeyboardShortcuts() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-6 top-6 z-[9999] w-[min(332px,calc(100vw-3rem))] rounded-sm p-4 backdrop-blur-xl"
+            className="fixed left-6 top-6 z-[9999] w-[min(332px,calc(100vw-3rem))] rounded-sm p-4 backdrop-blur-xl relative overflow-hidden"
             style={{
-              border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
-              backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)',
-              boxShadow: '0 8px 36px color-mix(in srgb, var(--theme-text, #fff) 12%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 22%, transparent)',
+              backgroundColor: 'color-mix(in srgb, #080808 92%, var(--theme-primary, #ef4242))',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.55), 0 0 30px color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent)',
             }}
           >
+            {/* Grid overlay */}
             <div
-              className="mb-3 text-[11px] uppercase tracking-[0.22em]"
+              className="absolute inset-0 pointer-events-none opacity-80"
+              style={{
+                backgroundImage:
+                  "linear-gradient(color-mix(in srgb, var(--theme-primary, #ef4242) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--theme-primary, #ef4242) 5%, transparent) 1px, transparent 1px)",
+                backgroundSize: "24px 24px",
+              }}
+            />
+            {/* Radial glow */}
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at top right, color-mix(in srgb, var(--theme-primary, #ef4242) 16%, transparent) 0%, transparent 60%)" }} />
+            {/* Corner brackets */}
+            <div className="absolute top-0 left-0 h-6 w-6 border-l border-t pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 55%, transparent)' }} />
+            <div className="absolute top-0 right-0 h-6 w-6 border-r border-t pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 55%, transparent)' }} />
+            <div className="absolute bottom-0 left-0 h-6 w-6 border-l border-b pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }} />
+            <div className="absolute bottom-0 right-0 h-6 w-6 border-r border-b pointer-events-none" style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }} />
+
+            <div
+              className="relative z-10 mb-3 text-[11px] uppercase tracking-[0.22em]"
               style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 55%, transparent)' }}
             >
               Keyboard Shortcuts
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="relative z-10 grid grid-cols-1 gap-2">
               {DISPLAY_SHORTCUTS.map((shortcut) => (
                 <div
                   key={`${shortcut.label}-${shortcut.keys.join("-")}`}
@@ -311,9 +328,9 @@ export default function KeyboardShortcuts() {
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="fixed left-6 top-6 z-[9999] hidden max-w-[calc(100vw-3rem)] overflow-hidden rounded-sm px-3 py-2 backdrop-blur-xl md:block"
             style={{
-              border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
-              backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 5%, transparent)',
-              boxShadow: '0 8px 30px color-mix(in srgb, var(--theme-text, #fff) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 18%, transparent)',
+              backgroundColor: 'color-mix(in srgb, #0a0a0a 88%, var(--theme-primary, #ef4242))',
+              boxShadow: '0 16px 44px rgba(0,0,0,0.5)',
             }}
           >
             <div className="flex items-center gap-2">

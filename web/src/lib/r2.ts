@@ -1,12 +1,17 @@
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   type _Object,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { getDb } from "./mongodb";
 
 const R2_BUCKET = process.env.R2_BUCKET;
 const R2_ENDPOINT = process.env.R2_ENDPOINT;
@@ -241,6 +246,111 @@ export async function copyR2Asset(oldKey: string, newKey: string) {
 export async function renameR2Asset(oldKey: string, newKey: string) {
   await copyR2Asset(oldKey, newKey);
   await deleteR2Asset(oldKey);
+}
+
+/* ─── Asset kind classification ─────────────────────────── */
+export type AssetKind = "image" | "video" | "document" | "other";
+export function classifyKind(name: string): AssetKind {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (["jpg", "jpeg", "png", "webp", "gif", "svg", "avif", "bmp", "ico"].includes(ext)) return "image";
+  if (["mp4", "mov", "webm", "mkv", "avi", "m4v"].includes(ext)) return "video";
+  if (["pdf", "doc", "docx", "txt", "md", "csv", "xls", "xlsx", "ppt", "pptx", "json"].includes(ext)) return "document";
+  return "other";
+}
+
+/* ─── Object metadata (HeadObject) ──────────────────────── */
+export async function headR2Asset(key: string) {
+  const trimmed = key.trim().replace(/^\/+/, "");
+  const res = await getClient().send(new HeadObjectCommand({ Bucket: R2_BUCKET!, Key: trimmed }));
+  return {
+    key: trimmed,
+    contentType: res.ContentType ?? "application/octet-stream",
+    size: res.ContentLength ?? 0,
+    lastModified: res.LastModified?.toISOString(),
+    etag: res.ETag?.replace(/"/g, ""),
+  };
+}
+
+/* ─── Presigned GET URL (for "private" assets) ──────────── */
+export async function presignR2Get(key: string, expiresIn = 3600): Promise<string> {
+  const trimmed = key.trim().replace(/^\/+/, "");
+  // Cast bridges any minor @aws-sdk version skew between client-s3 and the presigner.
+  return getSignedUrl(
+    getClient() as unknown as Parameters<typeof getSignedUrl>[0],
+    new GetObjectCommand({ Bucket: R2_BUCKET!, Key: trimmed }) as unknown as Parameters<typeof getSignedUrl>[1],
+    { expiresIn }
+  );
+}
+
+/* ─── Replace an asset in place (same key) ──────────────── */
+export async function replaceR2Asset(key: string, file: File) {
+  const trimmed = key.trim().replace(/^\/+/, "");
+  const body = Buffer.from(await file.arrayBuffer());
+  const contentType = contentTypeFor(trimmed, file.type || undefined);
+  await getClient().send(
+    new PutObjectCommand({ Bucket: R2_BUCKET!, Key: trimmed, Body: body, ContentType: contentType, ContentLength: body.length })
+  );
+  return { key: trimmed, publicUrl: publicUrlForKey(trimmed), size: body.length, contentType };
+}
+
+/* ─── Bucket-wide stats ─────────────────────────────────── */
+export async function getR2Stats() {
+  const r2 = getClient();
+  let total = 0, bytes = 0, images = 0, videos = 0, documents = 0, others = 0;
+  let token: string | undefined;
+  do {
+    const res = await r2.send(new ListObjectsV2Command({ Bucket: R2_BUCKET!, ContinuationToken: token }));
+    for (const item of res.Contents ?? []) {
+      if (!item.Key || item.Key.endsWith("/.keep")) continue;
+      total++;
+      bytes += item.Size ?? 0;
+      const kind = classifyKind(item.Key);
+      if (kind === "image") images++;
+      else if (kind === "video") videos++;
+      else if (kind === "document") documents++;
+      else others++;
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return { total, bytes, images, videos, documents, others };
+}
+
+/* ─── Mongo-backed asset metadata (alt, uuid, status, visibility) ─── */
+export interface R2AssetMeta {
+  key: string;
+  uuid: string;
+  alt?: string;
+  status?: "live" | "draft" | "archived";
+  visibility?: "public" | "private";
+  updatedAt?: string;
+}
+
+export async function getR2Meta(key: string): Promise<R2AssetMeta> {
+  const db = await getDb();
+  const doc = await db.collection("r2Meta").findOne<R2AssetMeta>({ key }, { projection: { _id: 0 } });
+  if (doc) return doc;
+  // Create a stable uuid on first access.
+  const created: R2AssetMeta = { key, uuid: randomUUID(), status: "live", visibility: "public" };
+  await db.collection("r2Meta").updateOne({ key }, { $setOnInsert: created }, { upsert: true });
+  return created;
+}
+
+export async function saveR2Meta(key: string, patch: Partial<R2AssetMeta>): Promise<R2AssetMeta> {
+  const db = await getDb();
+  const existing = await getR2Meta(key);
+  const merged = { ...existing, ...patch, key, updatedAt: new Date().toISOString() };
+  await db.collection("r2Meta").updateOne({ key }, { $set: merged }, { upsert: true });
+  return merged;
+}
+
+/** Move metadata when a key is renamed. */
+export async function moveR2Meta(oldKey: string, newKey: string): Promise<void> {
+  const db = await getDb();
+  const doc = await db.collection("r2Meta").findOne({ key: oldKey });
+  if (doc) {
+    await db.collection("r2Meta").updateOne({ key: newKey }, { $set: { ...doc, _id: undefined, key: newKey } }, { upsert: true });
+    await db.collection("r2Meta").deleteOne({ key: oldKey });
+  }
 }
 
 export async function createR2Folder(prefix: string, folderName: string) {

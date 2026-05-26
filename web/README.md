@@ -20,6 +20,47 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Environment Variables
+
+Create a `.env.local` file (git-ignored) with the keys you need:
+
+```bash
+# Database
+MONGODB_URI=...
+MONGODB_DB=...
+
+# Admin auth
+JWT_SECRET=...
+ADMIN_PASSWORD_HASH=...   # or ADMIN_PASSWORD
+
+# AI chat assistant — Claude (Anthropic) is primary; OpenRouter/OpenAI are fallbacks
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-opus-4-7    # optional; e.g. claude-haiku-4-5 for a faster/cheaper widget
+OPENROUTER_API_KEY=...             # fallback (defaults to a Claude model)
+OPENROUTER_MODEL=anthropic/claude-3.5-sonnet  # optional fallback model
+OPENAI_API_KEY=sk-...              # optional fallback
+OPENAI_MODEL=gpt-4o-mini           # optional fallback model
+
+# ElevenLabs voice (TTS replies + microphone speech-to-text)
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=...            # optional, defaults to the "Rachel" voice
+ELEVENLABS_MODEL=eleven_turbo_v2_5 # optional TTS model
+ELEVENLABS_STT_MODEL=scribe_v1     # optional STT model
+
+# GitHub contributions calendar (home "By the Numbers" section)
+GITHUB_TOKEN=ghp_...               # PAT with read access to contributions
+GITHUB_USERNAME=mdcran             # optional, defaults to mdcran
+```
+
+The chat tries Claude (Anthropic SDK, streaming + prompt caching) first, then
+OpenRouter, then OpenAI. If none are set it returns a "not configured" response.
+The assistant can also drive the UI — it emits invisible directives that the
+frontend executes: navigate, highlight, zoom-and-focus, glassmorphism emphasize,
+and reset. The voice controls (speaker toggle, mic, and the full **Voice mode**
+overlay with the audio-reactive circle + live transcription) only appear when
+`ELEVENLABS_API_KEY` is configured. Live voice transcription uses the browser's
+SpeechRecognition API (Chrome/Edge/Safari); replies are spoken via ElevenLabs.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

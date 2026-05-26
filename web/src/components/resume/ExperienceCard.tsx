@@ -45,7 +45,7 @@ function formatTimelineDate(date?: string): string {
 function ClientAvatar({ client }: { client: Client }) {
   if (client.avatarUrl) {
     return (
-      <div className="relative group shrink-0">
+      <div className="relative group/avatar shrink-0">
         <Link
           href={`/clients/${client.id}`}
           className="relative block w-7 h-7 rounded-full overflow-hidden border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110"
@@ -58,7 +58,7 @@ function ClientAvatar({ client }: { client: Client }) {
             unoptimized={shouldBypassImageOptimization(client.avatarUrl)}
           />
         </Link>
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
           <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
             {client.name}
           </div>
@@ -75,14 +75,14 @@ function ClientAvatar({ client }: { client: Client }) {
     .toUpperCase();
 
   return (
-    <div className="relative group shrink-0">
+    <div className="relative group/avatar shrink-0">
       <Link
         href={`/clients/${client.id}`}
         className="block w-7 h-7 rounded-full border border-white/15 hover:border-[rgba(239,66,66,0.4)] transition-all duration-200 hover:scale-110 bg-white/8 flex items-center justify-center"
       >
         <span className="text-[9px] text-white/60 font-mono">{initials}</span>
       </Link>
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 pointer-events-none opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
         <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
           {client.name}
         </div>
@@ -144,7 +144,18 @@ export default function ExperienceCard({
 
         <div className={`p-5 sm:p-6 ${hasHighlights ? "pb-10" : ""}`}>
           <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-            <div>
+            <div className="flex items-start gap-3">
+              {exp.companyLogo && (
+                <Image
+                  src={imageAssetSrc(exp.companyLogo) ?? exp.companyLogo}
+                  alt={exp.companyName}
+                  width={40}
+                  height={40}
+                  unoptimized={shouldBypassImageOptimization(exp.companyLogo)}
+                  className="h-10 w-10 rounded-sm object-cover border border-white/10 shrink-0 mt-0.5"
+                />
+              )}
+              <div>
               <h3 className="font-nord text-lg md:text-xl text-white tracking-wide">{exp.role}</h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-sm md:text-base text-[#ef4242]">{exp.companyName}</span>
@@ -158,6 +169,7 @@ export default function ExperienceCard({
                     <ExternalLink size={11} />
                   </a>
                 )}
+              </div>
               </div>
             </div>
             <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">

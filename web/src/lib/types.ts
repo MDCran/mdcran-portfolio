@@ -166,16 +166,44 @@ export interface Skill {
   icon?: string;
 }
 
+// Metadata for a skill category (label + icon), ordered for display.
+export interface SkillCategoryMeta {
+  id: string;     // stable id matching Skill.category
+  label: string;  // display label
+  icon?: string;  // lucide icon name from the shared registry
+}
+
+// ─── Resume profile (editable personal/contact info) ──────
+export interface ResumeProfile {
+  fullName: string;
+  title: string;
+  location: string;
+  email: string;
+  linkedinUrl: string;
+  githubUrl: string;
+  pdfUrl: string;   // uploaded resume PDF (R2 url) — Download button hidden when empty
+  sectionOrder?: string[]; // order of the resume's main-column sections
+}
+
+export const RESUME_SECTIONS = ["experience", "featured", "education", "volunteer"] as const;
+export const RESUME_SECTION_LABELS: Record<string, string> = {
+  experience: "Work Experience",
+  featured: "Featured Work",
+  education: "Education",
+  volunteer: "Volunteer",
+};
+
 // ─── Certification ────────────────────────────────────────
 export interface Certification {
   id: string;
   name: string;
   issuer: string;
-  issuerLogo?: string;
-  date: string;     // "MM-YYYY"
-  expiryDate?: string;
-  credentialUrl?: string;
-  credentialId?: string;
+  issuerLogo?: string;       // logo
+  date: string;              // "MM-YYYY" — issued
+  expiryDate?: string;       // expires
+  credentialUrl?: string;    // verification url
+  credentialId?: string;     // credential id
+  description?: string;
 }
 
 // ─── Award ───────────────────────────────────────────────
@@ -183,9 +211,11 @@ export interface Award {
   id: string;
   name: string;
   issuer?: string;
-  issuerUrl?: string;
-  date: string;  // "MM-YYYY"
+  issuerUrl?: string;        // link
+  date: string;              // "MM-YYYY" — received date
   description?: string;
+  logo?: string;             // icon / logo / badge
+  requirements?: string[];   // requirements bullets
 }
 
 // ─── Club / Organization ──────────────────────────────────
@@ -193,27 +223,63 @@ export interface ClubMembership {
   id: string;
   name: string;
   logo?: string;
-  role?: string;
-  startDate?: string;   // "MM-YYYY"
-  endDate?: string;     // "MM-YYYY"
+  role?: string;             // role / status
+  startDate?: string;        // "MM-YYYY"
+  endDate?: string;          // "MM-YYYY"
   description?: string;
-  url?: string;
+  url?: string;              // website
 }
 
 // ─── Education ────────────────────────────────────────────
+// Degree levels offered in the admin program editor (free-text fallback allowed).
+export const DEGREE_LEVELS = [
+  "None",
+  "High School Diploma",
+  "Certificate",
+  "Associate of Arts",
+  "Associate of Science",
+  "Bachelor of Science",
+  "Bachelor of Arts",
+  "Bachelor of Fine Arts",
+  "Bachelor of Business Administration",
+  "Master of Arts",
+  "Master of Science",
+  "Master of Fine Arts",
+  "Master of Business Administration",
+  "Doctor of Philosophy",
+  "Doctor of Medicine",
+  "Juris Doctor",
+  "Doctor of Education",
+] as const;
+
+export interface EducationProgram {
+  id: string;
+  name: string;              // program name
+  degreeLevel?: string;      // one of DEGREE_LEVELS (or custom)
+  field?: string;            // field of study
+  description?: string;
+  startDate?: string;        // "MM-YYYY"
+  endDate?: string;          // "MM-YYYY"
+  logo?: string;             // program logo
+}
+
 export interface Education {
   id: string;
   institution: string;
-  institutionLogo?: string;
-  degree: string;
+  institutionLogo?: string;  // logo
+  degree: string;            // kept for backward-compat / summary
   field?: string;
-  startDate: string;  // "MM-YYYY"
-  endDate?: string;   // "MM-YYYY"
+  startDate: string;         // "MM-YYYY"
+  endDate?: string;          // "MM-YYYY"
   current?: boolean;
   location?: string;
   gpa?: string;
-  description?: string;
-  highlights?: string[];
+  description?: string;       // markdown supported
+  highlights?: string[];      // bullet point list
+  url?: string;               // website
+  programs?: EducationProgram[];
+  linkedAwardIds?: string[];  // awards tied to this education
+  linkedClubIds?: string[];   // organizations tied to this education
 }
 
 // ─── Subscribe / Campaign ─────────────────────────────────
@@ -300,12 +366,22 @@ export type ArticleSectionType =
   | "button"
   | "pdf";
 
+export interface ImageTag {
+  id: string;
+  x: number;           // 0–100 (% of image width)
+  y: number;           // 0–100 (% of image height)
+  label: string;
+  link?: string;       // optional URL the tag links to
+}
+
 export interface ArticleSection {
   type: ArticleSectionType;
   content?: string;    // markdown text / code / quote text / button URL
   caption?: string;
   src?: string;        // single image or PDF src
   images?: (string | ImageAsset)[];   // gallery images
+  imageTags?: ImageTag[];             // positioned tags for a single image
+  galleryTags?: ImageTag[][];         // positioned tags per gallery image (indexed)
   youtubeId?: string;  // embedded video
   language?: string;   // code block language
   alt?: string;
@@ -587,6 +663,30 @@ export interface SiteContentSectionIntro {
   ctaHref?: string;
 }
 
+export interface SiteContentStatMetric {
+  key: string;          // matches the live metric key (totalFollowers, totalProjectViews, totalProjects, yearsActive)
+  label: string;
+  description: string;
+}
+
+export interface SiteContentStats {
+  eyebrow: string;
+  metrics: SiteContentStatMetric[];
+}
+
+export interface SiteContentBanner {
+  enabled: boolean;
+  message: string;
+  icon?: string;                       // lucide icon name from the shared registry
+  bgColor: string;                     // hex background
+  textColor: string;                   // hex text/icon color
+  align: "left" | "center" | "right";
+  ctaLabel?: string;
+  ctaHref?: string;
+  startsAt?: string;                   // ISO datetime — show from (optional)
+  endsAt?: string;                     // ISO datetime — stop showing (optional)
+}
+
 export interface SiteContentFooterLinkGroup {
   title: string;
   links: SiteContentActionLink[];
@@ -639,8 +739,11 @@ export interface SiteContent {
   featuredArticleIds: string[];   // ordered list of article IDs shown on home page
   featuredWorkOrder: string[];    // unified order of project + article IDs for featured work section
   featuredClientIds: string[];    // ordered list of client IDs shown on home page
+  announcementBanner: SiteContentBanner;
   homeHero: SiteContentHero;
   homeAbout: SiteContentAbout;
+  homeStats: SiteContentStats;
+  homeTimeline: SiteContentSectionIntro;
   homeServices: SiteContentPageBlock;
   homeFeaturedWork: SiteContentSectionIntro;
   homeClients: SiteContentSectionIntro;
@@ -655,4 +758,57 @@ export interface SiteContent {
   termsPage: SiteContentLegalPage;
   privacyPage: SiteContentLegalPage;
   rizzTargetName?: string;  // personalize /rizz page with a name
+}
+
+// ─── Meeting booking ──────────────────────────────────────
+export interface BookingMeetingType {
+  id: string;
+  name: string;                 // "Consultation"
+  description?: string;
+  location: string;             // "Google Meet" | "Zoom" | "In-Person" | custom
+  durations: number[];          // minutes, e.g. [30, 60]
+  enabled: boolean;
+}
+
+export interface BookingDayHours {
+  enabled: boolean;             // is this weekday bookable
+  start: string;                // "09:00" (24h, business timezone)
+  end: string;                  // "17:00"
+}
+
+export interface BookingBlackout {
+  start: string;                // "YYYY-MM-DD" inclusive
+  end: string;                  // "YYYY-MM-DD" inclusive
+  label?: string;
+}
+
+export interface BookingConfig {
+  enabled: boolean;
+  icalUrl: string;              // private/public .ics feed (admin-only, never sent to clients)
+  timezone: string;             // IANA, e.g. "America/New_York"
+  hours: BookingDayHours[];     // length 7, indexed by Date.getDay() (0 = Sunday)
+  blockHolidays: boolean;       // block US federal holidays
+  minNoticeDays: number;        // earliest bookable day = today + this many days
+  maxAdvanceDays: number;       // latest bookable day = today + this many days
+  maxPerDay: number;            // max site-booked meetings per day
+  bufferMinutes: number;        // min gap between meetings
+  slotIntervalMinutes: number;  // slot granularity (e.g. 30)
+  blackouts: BookingBlackout[]; // vacation / unavailable ranges
+  meetingTypes: BookingMeetingType[];
+}
+
+export interface BookingRecord {
+  id: string;
+  typeId: string;
+  typeName: string;
+  durationMinutes: number;
+  location: string;
+  start: string;                // ISO (UTC)
+  end: string;                  // ISO (UTC)
+  name: string;
+  email: string;
+  phone?: string;
+  message?: string;
+  createdAt: string;            // ISO
+  status: "confirmed" | "cancelled";
 }

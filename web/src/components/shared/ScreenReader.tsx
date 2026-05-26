@@ -238,14 +238,25 @@ export function useScreenReader() {
   }, [clearHighlight]);
 
   const toggle = useCallback(() => {
+    const announce = (text: string) => {
+      if (typeof speechSynthesis === "undefined") return;
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const v = getVoice();
+      if (v) u.voice = v;
+      u.rate = 1; u.pitch = 1; u.volume = volumeRef.current ?? 1;
+      speechSynthesis.speak(u);
+    };
     if (enabled) {
       stop();
       setEnabled(false);
+      announce("Narrator off");
     } else {
       if (typeof speechSynthesis !== "undefined") speechSynthesis.getVoices();
       setEnabled(true);
+      announce("Narrator on");
     }
-  }, [enabled, stop]);
+  }, [enabled, stop, getVoice]);
 
   const restartAtVolume = useCallback((newVol: number) => {
     if (typeof speechSynthesis === "undefined" || !utteranceRef.current) return;
@@ -396,13 +407,27 @@ interface ScreenReaderPopupsProps {
 export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, onStop, onVolumeUp, onVolumeDown }: ScreenReaderPopupsProps) {
   const [selectedText, setSelectedText] = useState("");
   const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string; imageSrc?: string } | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const popupTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Right-click context menu for selected text (always active, not just when screen reader enabled)
   useEffect(() => {
     function handleContextMenu(e: MouseEvent) {
+      // Image right-click → offer Copy / Download image.
+      const imgEl = (e.target as HTMLElement | null)?.closest?.("img") as HTMLImageElement | null;
+      if (imgEl && (imgEl.currentSrc || imgEl.src)) {
+        e.preventDefault();
+        savedRangeRef.current = null;
+        setContextMenu({
+          x: Math.min(e.clientX, window.innerWidth - 180),
+          y: Math.min(e.clientY, window.innerHeight - 110),
+          text: "",
+          imageSrc: imgEl.currentSrc || imgEl.src,
+        });
+        return;
+      }
+
       const sel = window.getSelection();
       const text = sel?.toString().trim() ?? "";
       if (text.length < 2) {
@@ -605,6 +630,73 @@ export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, 
             minWidth: "150px",
           }}
         >
+          {contextMenu.imageSrc ? (
+            <>
+              {/* Copy image */}
+              <button
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[11px] tracking-wider transition-colors cursor-pointer"
+                style={{ color: "color-mix(in srgb, var(--theme-text, #fff) 70%, transparent)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                onClick={async () => {
+                  const src = contextMenu.imageSrc!;
+                  setContextMenu(null);
+                  try {
+                    const res = await fetch(src, { mode: "cors" });
+                    const blob = await res.blob();
+                    let out = blob;
+                    if (blob.type !== "image/png") {
+                      const bitmap = await createImageBitmap(blob);
+                      const canvas = document.createElement("canvas");
+                      canvas.width = bitmap.width; canvas.height = bitmap.height;
+                      canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+                      out = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b as Blob), "image/png"));
+                    }
+                    await navigator.clipboard.write([new ClipboardItem({ "image/png": out })]);
+                  } catch {
+                    try { await navigator.clipboard.writeText(contextMenu.imageSrc!); } catch { /* */ }
+                  }
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+                </svg>
+                Copy image
+              </button>
+
+              <div className="h-px" style={{ backgroundColor: "color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)" }} />
+
+              {/* Download image */}
+              <button
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[11px] tracking-wider transition-colors cursor-pointer"
+                style={{ color: "var(--cranberry, #ef4242)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--cranberry, #ef4242) 8%, transparent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                onClick={async () => {
+                  const src = contextMenu.imageSrc!;
+                  setContextMenu(null);
+                  try {
+                    const res = await fetch(src, { mode: "cors" });
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = (src.split("/").pop() || "image").split("?")[0] || "image";
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 1500);
+                  } catch {
+                    window.open(src, "_blank", "noopener,noreferrer");
+                  }
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download image
+              </button>
+            </>
+          ) : (
+          <>
           {/* Copy */}
           <button
             className="flex w-full items-center gap-2.5 px-3 py-2.5 text-[11px] tracking-wider transition-colors cursor-pointer"
@@ -647,6 +739,8 @@ export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, 
             </svg>
             Read Aloud
           </button>
+          </>
+          )}
         </div>
       )}
     </>

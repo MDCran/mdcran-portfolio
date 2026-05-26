@@ -6,12 +6,16 @@ import {
   getCertifications,
   getAwards,
   getClubs,
+  getResumeProfile,
+  getSkillCategories,
   saveExperiences,
   saveEducations,
   saveSkills,
   saveCertifications,
   saveAwards,
   saveClubs,
+  saveResumeProfile,
+  saveSkillCategories,
 } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 
@@ -19,14 +23,17 @@ export async function GET() {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const [experiences, educations, skills, certifications, awards, clubs] = await Promise.all([
-    getExperiences(),
-    getEducations(),
-    getSkills(),
-    getCertifications(),
-    getAwards(),
-    getClubs(),
-  ]);
+  const [experiences, educations, skills, certifications, awards, clubs, profile, skillCategories] =
+    await Promise.all([
+      getExperiences(),
+      getEducations(),
+      getSkills(),
+      getCertifications(),
+      getAwards(),
+      getClubs(),
+      getResumeProfile(),
+      getSkillCategories(),
+    ]);
   const legacyEducation =
     educations.length > 0
       ? educations
@@ -46,14 +53,24 @@ export async function GET() {
             highlights: experience.highlights,
           }));
 
-  return NextResponse.json({ experiences, educations: legacyEducation, skills, certifications, awards, clubs });
+  return NextResponse.json({
+    experiences,
+    educations: legacyEducation,
+    skills,
+    certifications,
+    awards,
+    clubs,
+    profile,
+    skillCategories,
+  });
 }
 
 export async function PUT(req: NextRequest) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { experiences, educations, skills, certifications, awards, clubs } = await req.json();
+  const { experiences, educations, skills, certifications, awards, clubs, profile, skillCategories } =
+    await req.json();
   await Promise.all([
     experiences !== undefined ? saveExperiences(experiences) : Promise.resolve(),
     educations !== undefined ? saveEducations(educations) : Promise.resolve(),
@@ -61,6 +78,8 @@ export async function PUT(req: NextRequest) {
     certifications !== undefined ? saveCertifications(certifications) : Promise.resolve(),
     awards !== undefined ? saveAwards(awards) : Promise.resolve(),
     clubs !== undefined ? saveClubs(clubs) : Promise.resolve(),
+    profile !== undefined ? saveResumeProfile(profile) : Promise.resolve(),
+    skillCategories !== undefined ? saveSkillCategories(skillCategories) : Promise.resolve(),
   ]);
   return NextResponse.json({ ok: true });
 }

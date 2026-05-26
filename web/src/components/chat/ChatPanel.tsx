@@ -2,19 +2,33 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, MessageCircle } from "lucide-react";
+import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines, Compass, Lock } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
+import { readVisitorMemory, getDaypart, rememberTopic } from "@/lib/visitor-memory";
 
 const TOGGLE_EVENT = "mdcran:toggle-chat";
 const MAX_MESSAGES = 20;
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const INACTIVITY_CHECK_MS = 15_000; // check every 15s
 
-const AGENT_NAME = "Cosmo";
+const AGENT_NAME = "Michael";
 
 function pickAgentName(): string {
   return AGENT_NAME;
+}
+
+/** Strip markdown + action markers so only natural speech is sent to TTS. */
+function stripForSpeech(text: string): string {
+  return text
+    .replace(/__[A-Z]+:[^_]*__/g, " ")
+    .replace(/__[A-Z]+__/g, " ")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Render basic markdown: **bold**, *italic*, [text](url) */
@@ -86,12 +100,30 @@ interface Message {
   content: string;
   autoNavigated?: boolean;
   pendingHighlight?: string;
+  images?: string[];
+  projectCards?: string[];
 }
 
+/** Extract unique external (http) URLs from an assistant message — both markdown links and bare URLs. */
+function extractExternalLinks(text: string): string[] {
+  const urls = new Set<string>();
+  const mdLink = /\[[^\]]+\]\((https?:\/\/[^)]+)\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = mdLink.exec(text)) !== null) urls.add(m[1]);
+  // Bare URLs not already inside a markdown link
+  const bare = /(?<!\]\()(?<!["'])https?:\/\/[^\s)<>"']+/g;
+  let b: RegExpExecArray | null;
+  while ((b = bare.exec(text)) !== null) urls.add(b[0].replace(/[.,;:]+$/, ""));
+  return Array.from(urls).slice(0, 3);
+}
+
+const ChatProjectCard = dynamicImport(() => import("@/components/chat/ChatProjectCard"), { ssr: false });
+const ChatLinkPreview = dynamicImport(() => import("@/components/chat/ChatLinkPreview"), { ssr: false });
+
 const SUGGESTIONS = [
-  "Who is Michael?",
-  "What kind of work does he do?",
-  "Is he for hire?",
+  "What kind of work do you do?",
+  "Show me your best project",
+  "Are you available for hire?",
 ];
 
 function TypingIndicator() {
@@ -207,13 +239,115 @@ export default function ChatPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  /* ── Voice (ElevenLabs TTS + STT) ── */
+  const [voiceEnabled, setVoiceEnabled] = useState(true); // optimistic — buttons show instantly; probe corrects if unconfigured
+  const [voiceOn, setVoiceOn] = useState(() => {           // user toggle for spoken replies — defaults ON
+    try { return typeof window === "undefined" ? true : localStorage.getItem("mdcran_voice_on") !== "0"; } catch { return true; }
+  });
+  const [speaking, setSpeaking] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const voiceOnRef = useRef(false);
+  voiceOnRef.current = voiceOn;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  /* Confirm voice availability in the background; correct the optimistic default if unconfigured. */
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    fetch("/api/voice/tts")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (active && d) setVoiceEnabled(Boolean(d.enabled)); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [open]);
+
+  /* Voice CONVERSATION mode needs SpeechRecognition (Chrome/Edge/Safari). Lock it otherwise. */
+  const [voiceModeSupported, setVoiceModeSupported] = useState(false);
+  useEffect(() => {
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+    setVoiceModeSupported(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition));
+  }, []);
+
+  /* Keep the chat's speaker toggle in sync with the accessibility "speak aloud" pref. */
+  useEffect(() => {
+    const onA11y = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { speakAloud?: boolean } | undefined;
+      if (detail && typeof detail.speakAloud === "boolean") setVoiceOn(detail.speakAloud);
+    };
+    window.addEventListener("mdcran:a11y", onA11y);
+    return () => window.removeEventListener("mdcran:a11y", onA11y);
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setSpeaking(false);
+  }, []);
+
+  /* Synthesize + play a reply via ElevenLabs (only when voice is toggled on). */
+  const speak = useCallback(async (text: string) => {
+    if (!voiceOnRef.current) return;
+    const clean = stripForSpeech(text);
+    if (!clean) return;
+    try {
+      const res = await fetch("/api/voice/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (audioRef.current) audioRef.current.pause();
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      setSpeaking(true);
+      await audio.play();
+    } catch {
+      setSpeaking(false);
+    }
+  }, []);
+
+  const isFirstVisit = (() => {
+    try { return typeof window !== "undefined" && !localStorage.getItem("mdcran_tutorial_done"); } catch { return false; }
+  })();
+
   const welcomeText = (() => {
+    if (isFirstVisit) {
+      return `Hey, I'm ${agentName} — welcome to my portfolio! I can walk you through my work, show off my most renowned projects, tell you about the clients and teams I've worked with, dig into my resume and experience, and even take you to any page you want to see. Want a quick tour, or is there something specific you're looking for?`;
+    }
+    // Returning visitors get a warmer, memory-aware welcome.
+    const mem = readVisitorMemory();
+    const part = getDaypart();
+    const timeHi = part === "morning" ? "Good morning" : part === "evening" ? "Good evening" : part === "night" ? "Hey, up late" : "Hey there";
+    if (mem.returning) {
+      const backGreetings = mem.daysSinceLast >= 1
+        ? [
+            `${timeHi}! Welcome back — good to see you again. What can I help you with this time?`,
+            `Hey, you're back! Want to pick up where you left off, or check out something new?`,
+            `Welcome back! It's been a little while. Anything new you'd like to see in my work?`,
+          ]
+        : [
+            `${timeHi} again! What else can I show you?`,
+            `Back for more? Happy to keep going — what would you like to dig into?`,
+            `Hey again! Ask me anything else about my work or the portfolio.`,
+          ];
+      const idx = (mem.visits + agentName.length) % backGreetings.length;
+      return backGreetings[idx];
+    }
     const greetings = [
-      `Hey! I'm ${agentName}, Michael's portfolio assistant. Ask me anything about his work, skills, or services.`,
-      `Hi there! ${agentName} here. What would you like to know about Michael's work?`,
-      `Hey, I'm ${agentName}! Happy to help you learn more about Michael and what he does.`,
-      `Welcome! I'm ${agentName} — feel free to ask me anything about Michael's portfolio.`,
-      `Hi! ${agentName} here, ready to chat. What can I help you with?`,
+      `Hey! I'm ${agentName} — ask me anything about my work, skills, or services.`,
+      `Hi there! What would you like to know about my work?`,
+      `Hey, I'm ${agentName}! Happy to show you around my portfolio.`,
+      `Welcome! Feel free to ask me anything — or I can give you a quick tour.`,
+      `Hi! Ready to chat. What can I help you with?`,
     ];
     // Pick based on agent name hash so same agent = same greeting
     const hash = agentName.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -248,6 +382,11 @@ export default function ChatPanel() {
       setWelcomeStep(4);
       welcomeCompletedRef.current = true;
       lastAgentMessageRef.current = Date.now();
+      // First-time visitors get the guided tour synced to the greeting.
+      if (isFirstVisit) {
+        try { localStorage.setItem("mdcran_tutorial_done", "1"); } catch { /* */ }
+        push(setTimeout(() => { if (!cancelled) window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")); }, 1200));
+      }
     }, messageDelay));
 
     /* Safety: if stuck at connecting for 8s, show error then retry */
@@ -321,6 +460,13 @@ export default function ChatPanel() {
         abortRef.current.abort();
         abortRef.current = null;
       }
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      setSpeaking(false);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      setRecording(false);
+      setTranscribing(false);
     }, 500);
     return () => clearTimeout(t);
   }, [open]);
@@ -363,6 +509,19 @@ export default function ChatPanel() {
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
   };
 
+  /* Replay the guided tour on demand — runs from the home page. */
+  const replayTour = useCallback(() => {
+    const tourMsg = `Sure — here's the quick tour! I'll walk you through the highlights of the page and show you around. Watch the screen — and you can ask me anything along the way.`;
+    setMessages((prev) => {
+      const base = prev.filter((m) => m.content !== "__INACTIVITY__");
+      return [...base, { role: "assistant", content: tourMsg }];
+    });
+    lastAgentMessageRef.current = Date.now();
+    const onHome = pathname === "/";
+    if (!onHome) router.push("/");
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), onHome ? 400 : 1100);
+  }, [pathname, router]);
+
   const handleSend = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim();
     if (!text || streaming || reconnectStep > 0) return;
@@ -384,6 +543,7 @@ export default function ChatPanel() {
     }
 
     const userMsg: Message = { role: "user", content: text };
+    rememberTopic(text);
     // Filter out system-type messages before sending to API
     const cleanMessages = messages.filter((m) =>
       m.content !== "__INACTIVITY__" &&
@@ -410,20 +570,25 @@ export default function ChatPanel() {
         abortRef.current = controller;
 
         let accumulated = "";
+        let streamErrorDetail = "";
         const streamStartTime = Date.now();
 
         try {
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: nextMessages, currentPage: pathname, agentName }),
+            body: JSON.stringify({ messages: nextMessages.map(({ role, content }) => ({ role, content })), currentPage: pathname, agentName, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
             signal: controller.signal,
           });
 
           if (!res.ok) {
+            const errData = await res.json().catch(() => null) as { error?: string; detail?: string } | null;
+            if (errData?.detail) console.warn("[chat] server error:", errData.detail);
             const errorMsg = res.status === 429
               ? "You've reached the message limit for today. Check back in a bit!"
-              : "Sorry, something went wrong. Please try again.";
+              : errData?.detail
+                ? `Sorry — the assistant errored: ${errData.detail}`
+                : (errData?.error || "Sorry, something went wrong. Please try again.");
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {
@@ -457,6 +622,10 @@ export default function ChatPanel() {
 
                 try {
                   const parsed = JSON.parse(payload);
+                  if (parsed.error) {
+                    streamErrorDetail = parsed.detail || parsed.error;
+                    if (parsed.detail) console.warn("[chat] stream error:", parsed.detail);
+                  }
                   if (parsed.text) {
                     /* Ensure typing dots show for at least 1s before text starts */
                     if (accumulated.length === 0) {
@@ -471,7 +640,8 @@ export default function ChatPanel() {
                       // Strip any complete or in-progress action markers from display
                       // Use space-aware replacement to avoid joining words across marker boundaries
                       const display = accumulated
-                        .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")  // complete markers → single space
+                        .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")  // complete arg markers → single space
+                        .replace(/\s*__[A-Z]+__\s*/g, " ")       // complete no-arg markers (e.g. __RESETZOOM__)
                         .replace(/\s*__[A-Z]+:[^\n]*$/g, "")     // partial marker at end (still streaming)
                         .replace(/\s*__[A-Z]*$/g, "")             // partial opening __
                         .replace(/  +/g, " ")                      // collapse double spaces
@@ -533,6 +703,15 @@ export default function ChatPanel() {
           let hasMarkers = false;
           let didNavigate = false;
           let pendingHighlightTarget: string | undefined;
+          let projectCards: string[] | undefined;
+
+          // Project card markers
+          const cardMatches = [...cleaned.matchAll(/__PROJECTCARD:([\w-]+)__/g)].map((m) => m[1]);
+          if (cardMatches.length) {
+            hasMarkers = true;
+            projectCards = cardMatches.slice(0, 2);
+            cleaned = cleaned.replace(/\s*__PROJECTCARD:[\w-]+__\s*/g, " ");
+          }
 
           // Theme change marker
           const themeMatch = cleaned.match(/__THEME:([\w-]+)__/);
@@ -563,6 +742,31 @@ export default function ChatPanel() {
                 }, 800);
               }
             }, 600);
+          }
+
+          // Zoom + focus marker
+          const zoomMatch = cleaned.match(/__ZOOM:(.+?)__/);
+          if (zoomMatch) {
+            hasMarkers = true;
+            const zoomTarget = zoomMatch[1];
+            cleaned = cleaned.replace(/\s*__ZOOM:.+?__\s*/g, " ");
+            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:zoom", { detail: zoomTarget })), 300);
+          }
+
+          // Emphasize (glassmorphism pop) marker
+          const emphMatch = cleaned.match(/__EMPHASIZE:(.+?)__/);
+          if (emphMatch) {
+            hasMarkers = true;
+            const emphTarget = emphMatch[1];
+            cleaned = cleaned.replace(/\s*__EMPHASIZE:.+?__\s*/g, " ");
+            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:emphasize", { detail: emphTarget })), 300);
+          }
+
+          // Reset zoom / emphasis marker (no argument)
+          if (/__RESETZOOM__/.test(cleaned)) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__RESETZOOM__\s*/g, " ");
+            window.dispatchEvent(new CustomEvent("mdcran:resetzoom"));
           }
 
           // Highlight marker — extract before auto-nav fallback so we know if one exists
@@ -623,7 +827,7 @@ export default function ChatPanel() {
           }
 
           // Update the displayed message with markers stripped + flags
-          if (hasMarkers || didNavigate || pendingHighlightTarget) {
+          if (hasMarkers || didNavigate || pendingHighlightTarget || projectCards) {
             cleaned = cleaned.replace(/  +/g, " ").trim();
             setMessages((prev) => {
               const updated = [...prev];
@@ -632,6 +836,7 @@ export default function ChatPanel() {
                 content: cleaned,
                 autoNavigated: didNavigate,
                 pendingHighlight: pendingHighlightTarget,
+                projectCards,
               };
               return updated;
             });
@@ -639,7 +844,20 @@ export default function ChatPanel() {
         }
 
         /* Got a real response */
-        if (accumulated.replace(/__[A-Z]+:.+?__/g, "").trim()) break;
+        if (accumulated.replace(/__[A-Z]+:.+?__/g, "").trim()) {
+          void speak(accumulated);
+          break;
+        }
+
+        /* Stream surfaced an explicit error — show it (don't burn retries silently) */
+        if (streamErrorDetail) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: "assistant", content: `Sorry — the assistant errored: ${streamErrorDetail}` };
+            return updated;
+          });
+          break;
+        }
 
         /* Blank response — retry if attempts remain */
         if (attempt < MAX_RETRIES - 1) {
@@ -664,7 +882,50 @@ export default function ChatPanel() {
       setStreaming(false);
       lastAgentMessageRef.current = Date.now();
     }
-  }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName]);
+  }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak]);
+
+  /* ── Microphone recording → ElevenLabs STT → send transcript ── */
+  const startRecording = useCallback(async () => {
+    if (recording || transcribing || streaming) return;
+    stopSpeaking();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+        if (blob.size === 0) return;
+        setTranscribing(true);
+        try {
+          const fd = new FormData();
+          fd.set("file", blob, "recording.webm");
+          const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
+          const data = await res.json().catch(() => null);
+          const transcript = typeof data?.text === "string" ? data.text.trim() : "";
+          if (transcript) void handleSend(transcript);
+        } catch {
+          /* ignore */
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch {
+      /* mic permission denied or unavailable */
+      setRecording(false);
+    }
+  }, [recording, transcribing, streaming, stopSpeaking, handleSend]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setRecording(false);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -695,7 +956,7 @@ export default function ChatPanel() {
             filter: ["blur(0px)", "blur(1px)", "blur(0px)", "blur(7px)"],
           }}
           transition={{ duration: 0.48, times: [0, 0.42, 0.7, 1], ease: "easeOut" }}
-          className="fixed bottom-20 right-6 z-50 flex flex-col w-[min(calc(100vw-2rem),22rem)] max-h-[80vh]"
+          className="fixed bottom-20 right-6 z-[70] flex flex-col w-[min(calc(100vw-2rem),22rem)] max-h-[80vh]"
         >
           <div
             className={`relative flex flex-col h-full overflow-hidden rounded-sm border backdrop-blur-xl ${
@@ -750,7 +1011,7 @@ export default function ChatPanel() {
 
             {/* Header */}
             <div
-              className="relative z-10 px-5 py-3 flex items-center gap-3"
+              className="relative z-10 pl-5 pr-12 py-3 flex items-center gap-2"
               style={{ borderBottom: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)' }}
             >
               <div
@@ -768,12 +1029,75 @@ export default function ChatPanel() {
                   Chat
                 </span>
               </div>
-              <span
-                className="text-[10px] uppercase tracking-[0.22em]"
-                style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 22%, transparent)' }}
+
+              {/* Replay guided tour */}
+              <button
+                type="button"
+                onClick={replayTour}
+                className={`ml-auto flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
+                  isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
+                }`}
+                title="Replay the guided tour"
+                aria-label="Replay the guided tour"
               >
-                AI Assistant
-              </span>
+                <Compass size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
+                <span className="text-[9px] uppercase tracking-[0.15em]">Tour</span>
+              </button>
+
+              {voiceEnabled && (
+                voiceModeSupported ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent("mdcran:toggle-voice"));
+                      window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // close the text panel
+                    }}
+                    className={`flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
+                      isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
+                    }`}
+                    style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }}
+                    title="Start voice conversation"
+                    aria-label="Start voice conversation"
+                  >
+                    <AudioLines size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
+                    <span className="text-[9px] uppercase tracking-[0.15em]">Voice</span>
+                  </button>
+                ) : (
+                  <span
+                    className={`flex h-7 items-center gap-1.5 px-2 rounded-sm border cursor-not-allowed opacity-60 ${isLight ? 'border-black/10 text-black/35' : 'border-white/10 text-white/35'}`}
+                    title="Voice conversation isn't supported in this browser. Try Chrome, Edge, or Safari."
+                    aria-label="Voice conversation unavailable in this browser"
+                  >
+                    <Lock size={12} />
+                    <span className="text-[9px] uppercase tracking-[0.15em]">Voice</span>
+                  </span>
+                )
+              )}
+              {voiceEnabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVoiceOn((v) => {
+                      const next = !v;
+                      if (v) stopSpeaking();
+                      try { localStorage.setItem("mdcran_voice_on", next ? "1" : "0"); } catch { /* */ }
+                      return next;
+                    });
+                  }}
+                  className={`flex h-7 w-7 items-center justify-center rounded-sm border transition-colors cursor-pointer ${
+                    isLight ? 'border-black/10 hover:border-black/25' : 'border-white/10 hover:border-white/25'
+                  }`}
+                  style={voiceOn ? { color: 'var(--theme-primary, #ef4242)', borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 45%, transparent)' } : { color: 'color-mix(in srgb, var(--theme-text, #fff) 35%, transparent)' }}
+                  title={voiceOn ? "Voice replies on" : "Voice replies off"}
+                  aria-label={voiceOn ? "Turn voice replies off" : "Turn voice replies on"}
+                >
+                  {voiceOn ? (
+                    <Volume2 size={13} className={speaking ? "animate-pulse" : ""} />
+                  ) : (
+                    <VolumeX size={13} />
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Messages */}
@@ -924,18 +1248,26 @@ export default function ChatPanel() {
                       {msg.role === "assistant" && isWelcome && i === 0 ? (
                         <TypewriterText text={welcomeText} onComplete={() => setWelcomeTyped(true)} />
                       ) : msg.role === "assistant" ? (
-                        renderChatMarkdown(
-                          msg.content === "__WELCOME__" ? welcomeText : msg.content,
-                          (href) => {
-                            router.push(href);
-                            if (msg.pendingHighlight) {
-                              setTimeout(() => {
-                                window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: msg.pendingHighlight }));
-                              }, 1200);
-                            }
-                          },
-                          !msg.autoNavigated,
-                        )
+                        <>
+                          {renderChatMarkdown(
+                            msg.content === "__WELCOME__" ? welcomeText : msg.content,
+                            (href) => {
+                              router.push(href);
+                              if (msg.pendingHighlight) {
+                                setTimeout(() => {
+                                  window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: msg.pendingHighlight }));
+                                }, 1200);
+                              }
+                            },
+                            !msg.autoNavigated,
+                          )}
+                          {msg.projectCards?.map((pid) => (
+                            <ChatProjectCard key={pid} projectId={pid} onNavigate={(href) => router.push(href)} />
+                          ))}
+                          {extractExternalLinks(msg.content === "__WELCOME__" ? "" : msg.content).map((u) => (
+                            <ChatLinkPreview key={u} url={u} />
+                          ))}
+                        </>
                       ) : (
                         msg.content
                       )}
@@ -1010,6 +1342,26 @@ export default function ChatPanel() {
                       : 'text-white placeholder:text-white/25'
                   }`}
                 />
+                {voiceEnabled && (
+                  <button
+                    onClick={() => (recording ? stopRecording() : startRecording())}
+                    disabled={streaming || transcribing || reconnectStep > 0 || (welcomeStep > 0 && !welcomeTyped)}
+                    style={recording ? { color: '#ef4444' } : { color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }}
+                    className={`h-7 w-7 rounded-sm flex items-center justify-center cursor-pointer transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                      isLight ? 'hover:bg-black/5' : 'hover:bg-white/5'
+                    }`}
+                    aria-label={recording ? "Stop recording" : "Record voice message"}
+                    title={recording ? "Stop and send" : "Speak"}
+                  >
+                    {transcribing ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : recording ? (
+                      <Square size={13} className="animate-pulse" fill="#ef4444" />
+                    ) : (
+                      <Mic size={14} />
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() => handleSend()}
                   disabled={streaming || reconnectStep > 0 || !input.trim() || (welcomeStep > 0 && !welcomeTyped)}

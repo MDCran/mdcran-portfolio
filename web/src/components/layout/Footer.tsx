@@ -6,6 +6,7 @@ import Link from "next/link";
 import { assetUrl } from "@/lib/utils";
 import { Mail, Github } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import FooterLoadTime from "@/components/layout/FooterLoadTime";
 import type { SiteContent } from "@/lib/types";
 import { defaultSiteContent } from "@/lib/site-content";
 
@@ -30,7 +31,21 @@ export default function Footer() {
   }, []);
 
   const footer = siteContent.footer;
-  const bottomLinks = footer.bottomLinks.filter((link) => link.href !== "/about");
+  // Collapse Terms / Privacy / Cookies into a single "Legal" link (regardless of saved content).
+  const isLegacyLegal = (href: string, label: string) =>
+    /\/(terms|privacy|cookies?)/i.test(href) || /\b(terms|privacy|cookie)\b/i.test(label);
+  const bottomLinks = (() => {
+    const kept = footer.bottomLinks.filter((link) => link.href !== "/about" && !isLegacyLegal(link.href, link.label));
+    if (!kept.some((l) => l.href === "/legal")) {
+      kept.unshift({ label: "Legal", href: "/legal" });
+    }
+    return kept;
+  })();
+  // Also sanitize the link-group columns so they don't list Terms/Privacy separately.
+  const linkGroups = footer.linkGroups.map((section) => {
+    const links = section.links.filter((l) => !isLegacyLegal(l.href, l.label));
+    return { ...section, links };
+  });
 
   return (
     <footer className="border-t border-white/7">
@@ -86,7 +101,7 @@ export default function Footer() {
             </div>
           </div>
 
-          {footer.linkGroups.map((section) => (
+          {linkGroups.filter((s) => s.links.length > 0).map((section) => (
             <div key={section.title}>
               <h4 className="font-nord text-xs tracking-widest uppercase text-white/70 mb-4">
                 {section.title}
@@ -110,9 +125,7 @@ export default function Footer() {
         <Separator className="my-8 bg-white/6" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs text-white/25">
-          <span>
-            © {new Date().getFullYear()} {footer.copyrightText}
-          </span>
+          <span>© {new Date().getFullYear()} {footer.copyrightText}</span>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {bottomLinks.map((link) => (
               <Link
@@ -125,6 +138,8 @@ export default function Footer() {
             ))}
           </div>
         </div>
+        {/* Load time — its own line so it never shifts the copyright/links row */}
+        <div className="mt-3 text-[10px] text-white/15"><FooterLoadTime /></div>
       </div>
     </footer>
   );

@@ -45,8 +45,7 @@ const SEARCHABLE_PAGES: SearchablePage[] = [
   { title: "Contact", href: "/contact", keywords: ["contact", "email", "message", "hire"] },
   { title: "Terminal", href: "/terminal", keywords: ["terminal", "cli", "command", "shell", "crt"] },
   { title: "CoreTV", href: "/coretv", keywords: ["coretv", "investor", "core", "tv", "streaming"] },
-  { title: "Terms of Service", href: "/terms", keywords: ["terms", "tos", "legal", "service"] },
-  { title: "Privacy Policy", href: "/privacy", keywords: ["privacy", "policy", "data", "legal"] },
+  { title: "Legal", href: "/legal", keywords: ["legal", "terms", "tos", "privacy", "policy", "cookies", "data", "service"] },
   { title: "Unsubscribe", href: "/unsubscribe", keywords: ["unsubscribe", "opt-out", "email", "sms", "notifications"] },
   { title: "GitHub", href: "https://github.com/mdcran", keywords: ["github", "code", "repository", "source", "profile", "mdcran"] },
   { title: "LinkedIn", href: "https://www.linkedin.com/in/mdcran/", keywords: ["linkedin", "professional", "network", "profile", "work", "mdcran"] },
@@ -376,6 +375,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
 
             <Link
               href="/resume"
+              data-highlight-id="nav-resume"
               className="hidden sm:flex h-10 px-6 items-center text-[11px] tracking-widest uppercase font-medium bg-[var(--cranberry)] text-white rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)] hover:shadow-[0_0_30px_rgba(239,66,66,0.45)]"
             >
               Resume

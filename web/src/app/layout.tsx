@@ -4,6 +4,8 @@ import "./theme-effects.css";
 import GlobalChrome from "@/components/layout/GlobalChrome";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import VisitorTracker from "@/components/visitor/VisitorTracker";
+import AnalyticsTracker from "@/components/analytics/AnalyticsTracker";
+import AnnouncementBanner from "@/components/layout/AnnouncementBanner";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import { getSiteContent } from "@/lib/db";
 import { assetUrl } from "@/lib/utils";
@@ -99,12 +101,13 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const websiteJsonLd = buildWebsiteJsonLd();
   const personJsonLd = buildPersonJsonLd();
   const serviceJsonLd = buildProfessionalServiceJsonLd();
+  const layoutContent = await getSiteContent().catch(() => null);
 
   return (
     <html lang="en" className="dark scroll-smooth" data-theme="dark" suppressHydrationWarning>
@@ -134,10 +137,12 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
         />
         <ThemeProvider>
+          <AnnouncementBanner banner={layoutContent?.announcementBanner} />
           <div className="relative z-[1] w-full min-h-screen flex flex-col">
             {children}
             <GlobalChrome />
             <VisitorTracker />
+            <AnalyticsTracker />
           </div>
         </ThemeProvider>
       </body>

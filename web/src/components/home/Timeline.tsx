@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import Link from "next/link";
-import type { Experience } from "@/lib/types";
+import type { Experience, SiteContentSectionIntro } from "@/lib/types";
 
 function parseDate(d: string): number {
   // Handles "MM-YYYY" and "YYYY-MM" and "YYYY-MM-DD"
@@ -22,6 +22,7 @@ function extractYear(d: string): string {
 
 interface TimelineProps {
   experiences: Experience[];
+  content?: SiteContentSectionIntro;
 }
 
 // Fallback tags for experiences that don't have timelineTags in the DB yet
@@ -35,7 +36,7 @@ function getTimelineTags(job: Experience) {
   return FALLBACK_TAGS[job.id] ?? [];
 }
 
-export default function Timeline({ experiences }: TimelineProps) {
+export default function Timeline({ experiences, content }: TimelineProps) {
   const END_FUTURE = Date.now() + 999999999;
   const jobs = experiences
     .filter((e) => e.type === "job" || e.type === "volunteer")
@@ -96,8 +97,8 @@ export default function Timeline({ experiences }: TimelineProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="text-[11px] tracking-[0.25em] uppercase text-[#ef4242] mb-2">Career</p>
-            <h2 className="font-nord text-2xl sm:text-3xl text-white tracking-wider">Experience</h2>
+            <p className="text-[11px] tracking-[0.25em] uppercase text-[#ef4242] mb-2">{content?.eyebrow || "Career"}</p>
+            <h2 className="font-nord text-2xl sm:text-3xl text-white tracking-wider">{content?.title || "Experience"}</h2>
           </div>
           <Link
             href="/resume"

@@ -5,7 +5,30 @@ import PageHeader from "@/components/shared/PageHeader";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import { ArrowRight } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
-import { getSiteContent } from "@/lib/db";
+import { getSiteContent, getProjects, getArticles, getClients } from "@/lib/db";
+import { projectUrl, imageAssetSrc } from "@/lib/utils";
+import { effectiveProjectDate } from "@/lib/project-date";
+import WorkTable, { type WorkRow } from "@/components/work/WorkTable";
+
+function labelFromSlug(slug: string): string {
+  return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Parse the mixed date formats (MM-YYYY, MM-DD-YYYY, YYYY-MM-DD) to epoch + label. */
+function parseDate(raw?: string): { sort: number; label?: string } {
+  if (!raw) return { sort: 0 };
+  const s = raw.trim();
+  let y = 0, m = 1, d = 1;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { const [yy, mm, dd] = s.split("-"); y = +yy; m = +mm; d = +dd; }
+  else if (/^\d{2}-\d{2}-\d{4}$/.test(s)) { const [mm, dd, yy] = s.split("-"); y = +yy; m = +mm; d = +dd; }
+  else if (/^\d{2}-\d{4}$/.test(s)) { const [mm, yy] = s.split("-"); y = +yy; m = +mm; }
+  else return { sort: 0, label: s };
+  const dt = new Date(y, m - 1, d);
+  const label = dt.toLocaleDateString("en-US", { month: "short", year: "numeric", ...(d > 1 ? { day: "numeric" } : {}) });
+  return { sort: dt.getTime(), label };
+}
+
+const STATUS_LABELS: Record<string, string> = { free: "Free", for_sale: "For sale", unavailable: "Unavailable" };
 
 export async function generateMetadata() {
   const siteContent = await getSiteContent();
@@ -19,9 +42,53 @@ export async function generateMetadata() {
 }
 
 export default async function WorkPage() {
-  const siteContent = await getSiteContent();
+  const [siteContent, projects, articles, clients] = await Promise.all([
+    getSiteContent(),
+    getProjects({ refreshVideoViews: false }),
+    getArticles(),
+    getClients(),
+  ]);
   const header = siteContent.workPage;
   const sections = header.cards ?? [];
+
+  const clientMap = new Map(clients.map((c) => [c.id, c.name]));
+  const rows: WorkRow[] = [
+    ...projects.map((p): WorkRow => {
+      const dt = parseDate(effectiveProjectDate(p));
+      const clientNames = (p.clientIds ?? []).map((id) => clientMap.get(id)).filter(Boolean) as string[];
+      return {
+        id: p.id,
+        type: "project",
+        title: p.title,
+        category: p.category,
+        categoryLabel: labelFromSlug(p.category),
+        subcategory: p.subcategory,
+        url: projectUrl(p.category, p.slug, p.subcategory),
+        dateLabel: dt.label,
+        sortDate: dt.sort,
+        status: STATUS_LABELS[p.pricing?.status ?? ""] ?? undefined,
+        clients: clientNames.join(", ") || undefined,
+        thumb: imageAssetSrc(p.coverImage),
+        tags: p.tags,
+      };
+    }),
+    ...articles.map((a): WorkRow => {
+      const dt = parseDate(a.publishDate);
+      return {
+        id: a.id,
+        type: "article",
+        title: a.title,
+        category: a.category,
+        categoryLabel: labelFromSlug(a.category),
+        url: `/articles/${a.slug}`,
+        dateLabel: dt.label,
+        sortDate: dt.sort,
+        clients: undefined,
+        thumb: imageAssetSrc(a.coverImage),
+        tags: a.tags,
+      };
+    }),
+  ];
 
   return (
     <>
@@ -91,6 +158,8 @@ export default async function WorkPage() {
             </section>
           ))}
         </div>
+
+        <WorkTable rows={rows} />
       </main>
       <Footer />
     </>

@@ -2,8 +2,16 @@
 
 import Link from "next/link";
 import ExperienceCard from "@/components/resume/ExperienceCard";
+import ProjectCard from "@/components/shared/ProjectCard";
+import ArticleCard from "@/components/shared/ArticleCard";
 import PageHeader from "@/components/shared/PageHeader";
-import type { Experience, Education, Skill, Certification, Award, ClubMembership, Client } from "@/lib/types";
+import type {
+  Experience, Education, Skill, Certification, Award, ClubMembership, Client,
+  ResumeProfile, SkillCategoryMeta, Project, Article,
+} from "@/lib/types";
+import { RESUME_SECTIONS } from "@/lib/types";
+import { resolveSkillIcon } from "@/lib/skill-icons";
+import { imageAssetSrc } from "@/lib/utils";
 import {
   Briefcase,
   Heart,
@@ -17,15 +25,19 @@ import {
   Github,
   Linkedin,
   Mail,
+  MapPin,
   Star,
   Sparkles,
+  type LucideIcon,
 } from "lucide-react";
 
 
-const skillCategoryMeta: Record<string, { label: string; icon: typeof Code2 }> = {
+// Legacy fallback metadata for categories not configured in the DB.
+const legacyCategoryMeta: Record<string, { label: string; icon: LucideIcon }> = {
   technology: { label: "Technology", icon: Code2 },
   creative: { label: "Creative", icon: Palette },
   language: { label: "Languages", icon: Globe },
+  languages: { label: "Languages", icon: Globe },
   ai: { label: "AI", icon: Sparkles },
   other: { label: "Other", icon: Users },
 };
@@ -62,6 +74,9 @@ interface ResumeContentProps {
   awards: Award[];
   clubs: ClubMembership[];
   clientsById: Map<string, Client>;
+  profile: ResumeProfile;
+  skillCategoryMeta: SkillCategoryMeta[];
+  featuredWork?: ({ type: "project"; project: Project } | { type: "article"; article: Article })[];
 }
 
 export default function ResumeContent({
@@ -76,7 +91,36 @@ export default function ResumeContent({
   awards,
   clubs,
   clientsById,
+  profile,
+  skillCategoryMeta,
+  featuredWork = [],
 }: ResumeContentProps) {
+
+  // Resolve label + icon for a category: configured metadata wins, then legacy, then humanize.
+  const categoryMetaById = new Map(skillCategoryMeta.map((c) => [c.id, c]));
+  function metaFor(category: string): { label: string; icon: LucideIcon } {
+    const configured = categoryMetaById.get(category);
+    if (configured) {
+      return {
+        label: configured.label || humanizeCategory(category),
+        icon: resolveSkillIcon(configured.icon, legacyCategoryMeta[category.toLowerCase()]?.icon ?? Users),
+      };
+    }
+    const legacy = legacyCategoryMeta[category.toLowerCase()];
+    return legacy ?? { label: humanizeCategory(category), icon: Users };
+  }
+
+  // Order categories by configured metadata first, then any remaining.
+  const orderedCategories = [
+    ...skillCategoryMeta.map((c) => c.id).filter((id) => skillCategories.includes(id)),
+    ...skillCategories.filter((c) => !categoryMetaById.has(c)),
+  ];
+  const resumePdfHref = profile.pdfUrl?.trim() || "";
+  const sectionOrder = profile.sectionOrder?.length ? profile.sectionOrder : [...RESUME_SECTIONS];
+  const orderOf = (id: string) => {
+    const i = sectionOrder.indexOf(id);
+    return i === -1 ? 99 : i;
+  };
 
   return (
     <>
@@ -86,53 +130,67 @@ export default function ResumeContent({
         description={header.description}
         breadcrumbs={[{ label: "Resume" }]}
         actions={
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <a
-                href="https://www.linkedin.com/in/mdcran/"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open LinkedIn profile"
-                className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
-              >
-                <Linkedin size={13} />
-              </a>
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  LinkedIn
+          <div className="flex items-center gap-3 flex-wrap">
+            {profile.location && (
+              <div className="flex items-center gap-1.5 text-xs text-white/40 mr-1">
+                <MapPin size={13} className="text-[#ef4242]" />
+                <span>{profile.location}</span>
+              </div>
+            )}
+            {profile.linkedinUrl && (
+              <div className="relative group">
+                <a
+                  href={profile.linkedinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open LinkedIn profile"
+                  className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+                >
+                  <Linkedin size={13} />
+                </a>
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    LinkedIn
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="relative group">
-              <a
-                href="https://github.com/mdcran"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open GitHub profile"
-                className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
-              >
-                <Github size={13} />
-              </a>
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  GitHub
+            )}
+            {profile.githubUrl && (
+              <div className="relative group">
+                <a
+                  href={profile.githubUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open GitHub profile"
+                  className="flex items-center justify-center h-9 w-9 border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+                >
+                  <Github size={13} />
+                </a>
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="rounded px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    GitHub
+                  </div>
                 </div>
               </div>
-            </div>
-            <a
-              href="/Michael_Cran_Resume.pdf"
-              download
-              className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors shadow-[0_0_20px_rgba(239,66,66,0.3)]"
-            >
-              Download PDF
-            </a>
-            <a
-              href="mailto:mdcranberry@gmail.com"
-              className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
-            >
-              <Mail size={13} />
-              Contact Me
-            </a>
+            )}
+            {resumePdfHref && (
+              <a
+                href={resumePdfHref}
+                download
+                className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors shadow-[0_0_20px_rgba(239,66,66,0.3)]"
+              >
+                Download PDF
+              </a>
+            )}
+            {profile.email && (
+              <a
+                href={`mailto:${profile.email}`}
+                className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase border border-white/15 text-white/60 rounded-sm hover:border-[rgba(239,66,66,0.4)] hover:text-white transition-colors"
+              >
+                <Mail size={13} />
+                Contact Me
+              </a>
+            )}
           </div>
         }
       />
@@ -140,9 +198,9 @@ export default function ResumeContent({
       <main className="content-container py-14 md:py-16">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12 items-start">
-          <div className="lg:col-span-2 space-y-14 pt-0">
+          <div className="lg:col-span-2 flex flex-col gap-14 pt-0">
             {/* Work Experience - always shown */}
-            <section id="experience" data-highlight-id="experience">
+            <section id="experience" data-highlight-id="experience" style={{ order: orderOf("experience") }}>
               <div className="flex items-center gap-3 mb-9">
                 <Briefcase size={16} className="text-[#ef4242]" />
                 <h2 className="font-nord text-xl text-white tracking-wider">Work Experience</h2>
@@ -160,39 +218,51 @@ export default function ResumeContent({
               </div>
             </section>
 
-            {/* Renowned Projects - always shown */}
-            {renownedProjects.length > 0 && (
-              <section id="renowned-projects" data-highlight-id="renowned-projects">
+            {/* Renowned / Featured Work — featured projects + articles (home-page style) */}
+            {(featuredWork.length > 0 || renownedProjects.length > 0) && (
+              <section id="renowned-projects" data-highlight-id="renowned-projects" style={{ order: orderOf("featured") }}>
                 <div className="flex items-center justify-between mb-9">
                   <div className="flex items-center gap-3">
                     <Star size={16} className="text-[#ef4242]" />
-                    <h2 className="font-nord text-xl text-white tracking-wider">Renowned Projects</h2>
+                    <h2 className="font-nord text-xl text-white tracking-wider">Featured Work</h2>
                   </div>
                   <Link
-                    href="/#featured"
+                    href="/work"
                     className="flex items-center gap-1.5 text-[10px] tracking-widest uppercase text-white/30 hover:text-[#ef4242] transition-colors"
                   >
-                    View Featured Work
+                    View All Work
                     <ExternalLink size={10} />
                   </Link>
                 </div>
-                <div className="space-y-0">
-                  {renownedProjects.map((experience, index) => (
-                    <ExperienceCard
-                      key={experience.id}
-                      exp={experience}
-                      clientsById={clientsById}
-                      isFirstInSection={index === 0}
-                      isLastInSection={index === renownedProjects.length - 1}
-                    />
-                  ))}
-                </div>
+                {featuredWork.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {featuredWork.map((entry, i) =>
+                      entry.type === "project" ? (
+                        <ProjectCard key={entry.project.id} project={entry.project} index={i} />
+                      ) : (
+                        <ArticleCard key={entry.article.id} article={entry.article} index={i} />
+                      )
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-0">
+                    {renownedProjects.map((experience, index) => (
+                      <ExperienceCard
+                        key={experience.id}
+                        exp={experience}
+                        clientsById={clientsById}
+                        isFirstInSection={index === 0}
+                        isLastInSection={index === renownedProjects.length - 1}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             )}
 
             {/* Education - always shown */}
             {derivedEducations.length > 0 && (
-              <section id="education" data-highlight-id="education">
+              <section id="education" data-highlight-id="education" style={{ order: orderOf("education") }}>
                 <div className="flex items-center gap-3 mb-9">
                   <GraduationCap size={16} className="text-[#ef4242]" />
                   <h2 className="font-nord text-xl text-white tracking-wider">Education</h2>
@@ -205,6 +275,8 @@ export default function ResumeContent({
                         id: education.id,
                         type: "job",
                         companyName: education.institution,
+                        companyLogo: education.institutionLogo,
+                        companyUrl: education.url,
                         role: education.field ? `${education.degree} in ${education.field}` : education.degree,
                         startDate: education.startDate,
                         endDate: education.endDate,
@@ -213,7 +285,14 @@ export default function ResumeContent({
                         description:
                           education.description?.trim() ||
                           (education.gpa ? `GPA: ${education.gpa}` : "Academic background"),
-                        highlights: education.highlights,
+                        highlights: [
+                          ...(education.programs ?? []).map((p) => {
+                            const lvl = [p.degreeLevel, p.field].filter(Boolean).join(" in ");
+                            const dates = p.startDate ? ` (${p.startDate}${p.endDate ? `–${p.endDate}` : ""})` : "";
+                            return [p.name, lvl].filter(Boolean).join(" — ") + dates;
+                          }),
+                          ...(education.highlights ?? []),
+                        ].filter(Boolean),
                       }}
                       clientsById={clientsById}
                       isFirstInSection={index === 0}
@@ -226,7 +305,7 @@ export default function ResumeContent({
 
             {/* Volunteer */}
             {volunteerWork.length > 0 && (
-              <section id="volunteer" data-highlight-id="volunteer">
+              <section id="volunteer" data-highlight-id="volunteer" style={{ order: orderOf("volunteer") }}>
                 <div className="flex items-center gap-3 mb-9">
                   <Heart size={16} className="text-[#ef4242]" />
                   <h2 className="font-nord text-xl text-white tracking-wider">Volunteer</h2>
@@ -254,11 +333,10 @@ export default function ResumeContent({
                 <h2 className="font-nord text-base text-white tracking-wider">Skills</h2>
               </div>
               <div className="space-y-4">
-                {skillCategories.map((category) => {
+                {orderedCategories.map((category) => {
                   const categorySkills = skills.filter((s) => s.category === category);
                   if (!categorySkills.length) return null;
-                  const normalized = category.toLowerCase();
-                  const meta = skillCategoryMeta[normalized] ?? { label: humanizeCategory(category), icon: Users };
+                  const meta = metaFor(category);
                   const Icon = meta.icon;
                   return (
                     <div key={category}>
@@ -267,14 +345,18 @@ export default function ResumeContent({
                         <span className="text-[10px] tracking-widest uppercase text-white/40">{meta.label}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {categorySkills.map((skill) => (
-                          <span
-                            key={skill.name}
-                            className="text-[10px] px-2 py-0.5 rounded-sm border border-white/10 bg-white/5 text-white/60 hover:text-white/80 hover:border-white/20 transition-colors"
-                          >
-                            {skill.name}
-                          </span>
-                        ))}
+                        {categorySkills.map((skill) => {
+                          const SkillIconCmp = skill.icon ? resolveSkillIcon(skill.icon) : null;
+                          return (
+                            <span
+                              key={skill.name}
+                              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-sm border border-white/10 bg-white/5 text-white/60 hover:text-white/80 hover:border-white/20 transition-colors"
+                            >
+                              {SkillIconCmp && <SkillIconCmp size={10} className="text-[#ef4242]/70" />}
+                              {skill.name}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -293,12 +375,22 @@ export default function ResumeContent({
                   {certifications.map((cert) => (
                     <div key={cert.id} className="group">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="text-xs text-white/80 group-hover:text-white transition-colors leading-snug mb-0.5">
-                            {cert.name}
+                        <div className="flex items-start gap-2.5">
+                          {cert.issuerLogo && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={imageAssetSrc(cert.issuerLogo) ?? cert.issuerLogo} alt="" className="h-7 w-7 rounded-sm object-cover border border-white/10 shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <div className="text-xs text-white/80 group-hover:text-white transition-colors leading-snug mb-0.5">
+                              {cert.name}
+                            </div>
+                            <div className="text-[11px] text-[#ef4242]">{cert.issuer}</div>
+                            <div className="text-[10px] text-white/25 mt-0.5">
+                              {formatMonthYear(cert.date)}{cert.expiryDate ? ` · expires ${formatMonthYear(cert.expiryDate)}` : ""}
+                            </div>
+                            {cert.credentialId && <div className="text-[10px] text-white/25">ID: {cert.credentialId}</div>}
+                            {cert.description && <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{cert.description}</div>}
                           </div>
-                          <div className="text-[11px] text-[#ef4242]">{cert.issuer}</div>
-                          <div className="text-[10px] text-white/25 mt-0.5">{formatMonthYear(cert.date)}</div>
                         </div>
                         {cert.credentialUrl && (
                           <a
@@ -326,13 +418,35 @@ export default function ResumeContent({
                 </div>
                 <div className="space-y-4">
                   {awards.map((award) => (
-                    <div key={award.id}>
-                      <div className="text-xs text-white/80 leading-snug mb-0.5">{award.name}</div>
-                      {award.issuer && <div className="text-[11px] text-[#ef4242]">{award.issuer}</div>}
-                      {award.description && (
-                        <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{award.description}</div>
+                    <div key={award.id} className="flex items-start gap-2.5">
+                      {award.logo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imageAssetSrc(award.logo) ?? award.logo} alt="" className="h-7 w-7 rounded-sm object-cover border border-white/10 shrink-0 mt-0.5" />
                       )}
-                      <div className="text-[10px] text-white/25 mt-0.5">{formatMonthYear(award.date)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-xs text-white/80 leading-snug mb-0.5">{award.name}</div>
+                          {award.issuerUrl && (
+                            <a href={award.issuerUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 text-white/20 hover:text-[#ef4242] transition-colors">
+                              <ExternalLink size={11} />
+                            </a>
+                          )}
+                        </div>
+                        {award.issuer && <div className="text-[11px] text-[#ef4242]">{award.issuer}</div>}
+                        {award.description && (
+                          <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{award.description}</div>
+                        )}
+                        {award.requirements && award.requirements.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {award.requirements.map((req, i) => (
+                              <li key={i} className="text-[11px] text-white/40 flex items-start gap-1.5">
+                                <span className="text-[#ef4242] mt-0.5">·</span>{req}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="text-[10px] text-white/25 mt-0.5">{formatMonthYear(award.date)}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -348,19 +462,30 @@ export default function ResumeContent({
                 </div>
                 <div className="space-y-4">
                   {clubs.map((club) => (
-                    <div key={club.id}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs text-white/80 leading-snug">{club.name}</div>
-                        {club.url && (
-                          <a href={club.url} target="_blank" rel="noopener noreferrer" className="text-white/20 hover:text-[#ef4242] transition-colors">
-                            <ExternalLink size={11} />
-                          </a>
+                    <div key={club.id} className="flex items-start gap-2.5">
+                      {club.logo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imageAssetSrc(club.logo) ?? club.logo} alt="" className="h-7 w-7 rounded-sm object-cover border border-white/10 shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs text-white/80 leading-snug">{club.name}</div>
+                          {club.url && (
+                            <a href={club.url} target="_blank" rel="noopener noreferrer" className="text-white/20 hover:text-[#ef4242] transition-colors">
+                              <ExternalLink size={11} />
+                            </a>
+                          )}
+                        </div>
+                        {club.role && <div className="text-[11px] text-[#ef4242]">{club.role}</div>}
+                        {(club.startDate || club.endDate) && (
+                          <div className="text-[10px] text-white/25 mt-0.5">
+                            {formatMonthYear(club.startDate)}{club.endDate ? ` – ${formatMonthYear(club.endDate)}` : club.startDate ? " – Present" : ""}
+                          </div>
+                        )}
+                        {club.description && (
+                          <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{club.description}</div>
                         )}
                       </div>
-                      {club.role && <div className="text-[11px] text-[#ef4242]">{club.role}</div>}
-                      {club.description && (
-                        <div className="text-[11px] text-white/35 mt-1 leading-relaxed">{club.description}</div>
-                      )}
                     </div>
                   ))}
                 </div>

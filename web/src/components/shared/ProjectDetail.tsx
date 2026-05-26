@@ -28,6 +28,11 @@ import BeforeAfterSlider from "@/components/shared/BeforeAfterSlider";
 import type { ArticleSection, Client, Project } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
 import SmartImage from "@/components/shared/SmartImage";
+import TaggableImage from "@/components/shared/TaggableImage";
+import AuthorByline from "@/components/shared/AuthorByline";
+import LiveVideoViews from "@/components/shared/LiveVideoViews";
+import { projectReadMinutes } from "@/lib/read-time";
+import { effectiveProjectDate } from "@/lib/project-date";
 
 interface ProjectDetailProps {
   project: Project;
@@ -210,9 +215,8 @@ export default function ProjectDetail({
                             <Play size={11} className="text-[var(--cranberry)] shrink-0" />
                             <p className="truncate">{video.title}</p>
                           </div>
-                          <span className="shrink-0 inline-flex items-center gap-1.5 text-white/35 text-xs">
-                            <Eye size={11} className="shrink-0" />
-                            {(video.viewCount ?? 0).toLocaleString()}
+                          <span className="shrink-0 text-xs">
+                            <LiveVideoViews youtubeId={video.youtubeId} initial={video.viewCount} compact />
                           </span>
                         </div>
                       </div>
@@ -222,14 +226,12 @@ export default function ProjectDetail({
               </section>
             )}
 
-            {project.publishDate && (
-              <section>
-                <div className="flex items-center gap-2 text-xs text-white/45 border-t border-white/8 pt-5">
-                  <Calendar size={12} className="text-[var(--cranberry)]" />
-                  <span>Published {formatProjectDate(project.publishDate)}</span>
-                </div>
-              </section>
-            )}
+            <section>
+              <div className="flex items-center gap-2 text-xs text-white/45 border-t border-white/8 pt-5">
+                <Calendar size={12} className="text-[var(--cranberry)]" />
+                <span>Published {formatProjectDate(effectiveProjectDate(project))}</span>
+              </div>
+            </section>
 
             <section className="border-t border-white/8 pt-5">
               <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
@@ -373,9 +375,8 @@ export default function ProjectDetail({
                           </span>
                         </span>
                       </a>
-                      <span className="shrink-0 inline-flex items-center gap-1.5 text-white/35">
-                        <Eye size={11} />
-                        {formatViewCount(video.viewCount)}
+                      <span className="shrink-0">
+                        <LiveVideoViews youtubeId={video.youtubeId} initial={video.viewCount} />
                       </span>
                     </div>
                   ))}
@@ -484,6 +485,9 @@ export default function ProjectDetail({
                         <div className="text-sm text-white/80 group-hover:text-white transition-colors leading-snug line-clamp-2">
                           {rel.title}
                         </div>
+                        {rel.description && (
+                          <p className="text-[11px] text-white/40 mt-1 leading-relaxed line-clamp-2">{rel.description}</p>
+                        )}
                         {rel.tags && rel.tags.length > 0 && (
                           <div className="text-[10px] text-white/30 mt-1">{rel.tags.slice(0, 2).join(" · ")}</div>
                         )}
@@ -755,6 +759,9 @@ function HeroContent({
           {project.description}
         </p>
       )}
+      <div className="mb-4">
+        <AuthorByline date={effectiveProjectDate(project)} minutes={projectReadMinutes(project)} size="md" />
+      </div>
       {project.pricing.status !== "unavailable" && (
         <div className="flex items-center flex-wrap gap-3">
           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-widest uppercase rounded-sm border ${pricingColor[project.pricing.status]}`}>
@@ -850,12 +857,14 @@ function ProjectSection({
       );
     case "image":
       return section.src ? (
-        <SmartImage
-          src={section.src}
-          alt={section.alt ?? ""}
-          caption={section.caption}
-          onClick={() => onImageClick(imageOffset)}
-        />
+        <TaggableImage tags={section.imageTags}>
+          <SmartImage
+            src={section.src}
+            alt={section.alt ?? ""}
+            caption={section.caption}
+            onClick={() => onImageClick(imageOffset)}
+          />
+        </TaggableImage>
       ) : null;
     case "gallery":
       return (
@@ -941,6 +950,8 @@ function ProjectSection({
             href={section.content}
             target={section.content.startsWith("http") ? "_blank" : undefined}
             rel={section.content.startsWith("http") ? "noopener noreferrer" : undefined}
+            data-track="content_link_click"
+            data-track-meta={JSON.stringify({ label: section.label, href: section.content })}
             className="inline-flex items-center gap-2 h-11 px-7 bg-[#ef4242] text-white text-sm tracking-wider uppercase rounded-sm hover:bg-[#dd3030] transition-colors duration-200 shadow-[0_0_20px_rgba(239,66,66,0.3)]"
           >
             {section.label}
