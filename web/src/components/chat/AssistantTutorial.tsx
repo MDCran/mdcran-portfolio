@@ -55,6 +55,7 @@ export default function AssistantTutorial() {
   const [caption, setCaption] = useState<string | null>(null);
   const [words, setWords] = useState<string[]>([]);
   const [wordIdx, setWordIdx] = useState(-1);
+  const [running, setRunning] = useState(false);
 
   const runIdRef = useRef(0);
   const targetElRef = useRef<HTMLElement | null>(null);
@@ -130,6 +131,7 @@ export default function AssistantTutorial() {
     const run = async () => {
       const myRun = ++runIdRef.current;
       const startY = window.scrollY;
+      setRunning(true);
       // Minimize the chat so the spotlight + captions take the stage.
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
@@ -187,6 +189,7 @@ export default function AssistantTutorial() {
         setShowTree(false);
         setCaption(null);
         setWordIdx(-1);
+        setRunning(false);
         // Reopen the chat now that the tour has wrapped up.
         window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
       }
@@ -200,6 +203,18 @@ export default function AssistantTutorial() {
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
   }, [narrate]);
+
+  const endTour = () => {
+    runIdRef.current++; // cancel the in-flight run loop
+    if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
+    targetElRef.current = null;
+    setSpot(null);
+    setShowTree(false);
+    setCaption(null);
+    setWordIdx(-1);
+    setRunning(false);
+    window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
+  };
 
   // Padded spotlight rect, clamped to the viewport.
   const pad = 14;
@@ -221,6 +236,22 @@ export default function AssistantTutorial() {
 
   return (
     <>
+      {/* End-tour button */}
+      <AnimatePresence>
+        {running && (
+          <motion.button
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            onClick={endTour}
+            className="fixed top-5 right-5 z-[75] inline-flex items-center gap-1.5 rounded-sm border border-white/20 bg-black/70 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/70 backdrop-blur-md hover:text-white hover:border-white/40 transition-colors"
+            aria-label="End tour"
+          >
+            End tour
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Spotlight — four blurred panels leave the target sharp (z below the chat) */}
       <AnimatePresence>
         {box && (
