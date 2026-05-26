@@ -46,17 +46,21 @@ function isVisible(el: HTMLElement | null): boolean {
 }
 
 function findTarget(id: string): HTMLElement | null {
-  const direct = (document.getElementById(id) as HTMLElement | null) ||
-    (document.querySelector(`[data-highlight-id="${id}"]`) as HTMLElement | null);
-  if (direct) return direct;
+  // Prefer a VISIBLE match. The desktop nav resume link carries
+  // data-highlight-id="nav-resume" but is hidden on mobile (rect collapses to the
+  // top-left corner) — returning it would spotlight the wrong spot. So we skip
+  // hidden matches and look for the on-screen element (e.g. the mobile menu link).
+  const byId = document.getElementById(id) as HTMLElement | null;
+  if (isVisible(byId)) return byId;
+  const byAttr = document.querySelector(`[data-highlight-id="${id}"]`) as HTMLElement | null;
+  if (isVisible(byAttr)) return byAttr;
   if (id === "nav-resume") {
-    // There can be TWO resume links: the desktop nav (hidden on mobile) and the
-    // mobile menu link (hidden on desktop). Pick whichever is actually visible so
-    // the spotlight box lands on the real, on-screen element instead of a 0×0 one.
     const links = Array.from(document.querySelectorAll('a[href="/resume"]')) as HTMLElement[];
-    return links.find(isVisible) || links[0] || null;
+    const vis = links.find(isVisible);
+    if (vis) return vis;
   }
-  return null;
+  // Fall back to any match even if not yet laid out (the caller retries until visible).
+  return byId || byAttr || (id === "nav-resume" ? (document.querySelector('a[href="/resume"]') as HTMLElement | null) : null);
 }
 
 interface Rect { top: number; left: number; width: number; height: number }
@@ -190,7 +194,16 @@ export default function AssistantTutorial() {
             }
           }
           if (el) {
-            if (!isNav) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            if (!isNav) {
+              // Manual centering — smooth scrollIntoView({block:"center"}) is unreliable on
+              // mobile for tall sections. Compute the absolute target and clamp it.
+              const r = el.getBoundingClientRect();
+              const vh = window.innerHeight;
+              const targetY = r.height > vh * 0.85
+                ? window.scrollY + r.top - 72                   // tall section: align near top
+                : window.scrollY + r.top - (vh - r.height) / 2; // otherwise center it
+              window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+            }
             await wait(isNav ? 250 : 750);
             if (myRun !== runIdRef.current) break;
             targetElRef.current = el;

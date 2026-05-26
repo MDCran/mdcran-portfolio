@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, Compass, AudioLines } from "lucide-react";
+import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
@@ -329,6 +329,18 @@ export default function ChatPanel() {
     if (isFirstVisit) {
       return `Hey, I'm ${agentName} — welcome to my portfolio! I can walk you through my work, show off my most renowned projects, tell you about the clients and teams I've worked with, dig into my resume and experience, and even take you to any page you want to see. Want a quick tour, or is there something specific you're looking for?`;
     }
+    // Already greeted earlier in THIS browser session → don't say "welcome back" again.
+    // Just pick the chat back up naturally.
+    const greetedThisSession = (() => { try { return typeof window !== "undefined" && sessionStorage.getItem("mdcran_greeted_session") === "1"; } catch { return false; } })();
+    if (greetedThisSession) {
+      const conts = [
+        "What else can I help you with?",
+        "What would you like to look at next?",
+        "Back to it — what can I show you?",
+        "Ask me anything else about my work.",
+      ];
+      return conts[agentName.length % conts.length];
+    }
     // Returning visitors get a warmer, memory-aware welcome.
     const mem = readVisitorMemory();
     const part = getDaypart();
@@ -388,6 +400,7 @@ export default function ChatPanel() {
       setWelcomeStep(4);
       welcomeCompletedRef.current = true;
       lastAgentMessageRef.current = Date.now();
+      try { sessionStorage.setItem("mdcran_greeted_session", "1"); } catch { /* */ }
       // (The tour is triggered by the chat bubble's first click — see ChatBubble — not here.)
       if (isFirstVisit) {
         try { localStorage.setItem("mdcran_tutorial_done", "1"); } catch { /* */ }
@@ -522,19 +535,6 @@ export default function ChatPanel() {
   const handleClose = () => {
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
   };
-
-  /* Replay the guided tour on demand — runs from the home page. */
-  const replayTour = useCallback(() => {
-    const tourMsg = `Sure — here's the quick tour! I'll walk you through the highlights of the page and show you around. Watch the screen — and you can ask me anything along the way.`;
-    setMessages((prev) => {
-      const base = prev.filter((m) => m.content !== "__INACTIVITY__");
-      return [...base, { role: "assistant", content: tourMsg }];
-    });
-    lastAgentMessageRef.current = Date.now();
-    const onHome = pathname === "/";
-    if (!onHome) router.push("/");
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), onHome ? 400 : 1100);
-  }, [pathname, router]);
 
   const handleSend = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim();
@@ -1114,28 +1114,14 @@ export default function ChatPanel() {
                 </span>
               </div>
 
-              {/* Replay guided tour */}
-              <button
-                type="button"
-                onClick={replayTour}
-                className={`ml-auto flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
-                  isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
-                }`}
-                title="Replay the guided tour"
-                aria-label="Replay the guided tour"
-              >
-                <Compass size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
-                <span className="text-[9px] uppercase tracking-[0.15em]">Tour</span>
-              </button>
-
               {voiceEnabled && (
                 <button
                   type="button"
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // close the text panel
-                    window.dispatchEvent(new CustomEvent("mdcran:toggle-voice")); // open voice chat
+                    window.dispatchEvent(new CustomEvent("mdcran:voice-open")); // open voice chat
                   }}
-                  className={`flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
+                  className={`ml-auto flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
                     isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
                   }`}
                   style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }}
@@ -1143,7 +1129,7 @@ export default function ChatPanel() {
                   aria-label="Switch to voice conversation"
                 >
                   <AudioLines size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
-                  <span className="text-[9px] uppercase tracking-[0.15em]">Voice</span>
+                  <span className="text-[9px] uppercase tracking-[0.15em]">Switch to voice</span>
                 </button>
               )}
               {voiceEnabled && (

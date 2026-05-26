@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, AudioLines, Bot } from "lucide-react";
+import { MessageCircle, AudioLines, Bot, Compass } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/lib/ThemeContext";
 import { getDaypart } from "@/lib/visitor-memory";
@@ -132,6 +132,11 @@ export default function ChatBubble() {
     setMenuOpen(false);
     window.dispatchEvent(new CustomEvent("mdcran:voice-open"));
   };
+  const chooseTour = () => {
+    setMenuOpen(false);
+    markToured();
+    window.dispatchEvent(new CustomEvent("mdcran:run-tutorial"));
+  };
 
   return (
     <div className="fixed bottom-6 right-6 z-[70]">
@@ -251,6 +256,20 @@ export default function ChatBubble() {
                   <span className="flex flex-col">
                     <span className="text-[12px] text-white/85 font-jb">Text chat</span>
                     <span className="text-[10px] text-white/40 font-jb">Type your questions</span>
+                  </span>
+                </button>
+
+                {/* Tour option */}
+                <button
+                  type="button"
+                  onClick={chooseTour}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm border border-white/10 bg-white/4 hover:border-white/25 transition-colors text-left cursor-pointer"
+                  title="Take a guided tour"
+                >
+                  <Compass size={16} style={{ color: "var(--theme-primary, #ef4242)" }} />
+                  <span className="flex flex-col">
+                    <span className="text-[12px] text-white/85 font-jb">Take a tour</span>
+                    <span className="text-[10px] text-white/40 font-jb">Guided walkthrough</span>
                   </span>
                 </button>
               </div>
