@@ -318,7 +318,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
           {/* ── Actions ── */}
           <div className="flex items-center gap-1.5 sm:gap-2 z-10 shrink-0">
             {/* LinkedIn */}
-            <div className="relative group hidden md:flex">
+            <div className="relative group hidden md:flex" data-highlight-id="nav-linkedin">
               <a
                 href="https://www.linkedin.com/in/mdcran/"
                 target="_blank"
@@ -337,7 +337,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
               </div>
             </div>
             {/* GitHub */}
-            <div className="relative group hidden md:flex">
+            <div className="relative group hidden md:flex" data-highlight-id="nav-github">
               <a
                 href="https://github.com/mdcran"
                 target="_blank"

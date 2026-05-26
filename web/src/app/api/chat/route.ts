@@ -352,6 +352,10 @@ Use these EXACT markers at the END of your response (after your visible text, on
 
    HOME PAGE section IDs: hero, stats, about, timeline, services, featured, clients, visitor-map, cta
 
+   HEADER SOCIAL ICONS (present on every page on desktop): nav-linkedin, nav-github
+   - If the user asks about LinkedIn ("what's your LinkedIn", "are you on LinkedIn"), point them to it and highlight the icon: __HIGHLIGHT:nav-linkedin__
+   - If the user asks about GitHub, highlight the icon (__HIGHLIGHT:nav-github__) and add useful context: most of Michael's commits live under the GitHub organization for the U.S. Army Reserve "Project Mercury", so his personal contribution graph doesn't reflect the full picture. Mention they can learn more on the Army Reserve Mercury project page and link to it (use the Mercury project's url from the data). Keep it natural.
+
    PROJECT PAGE: The main content has data-highlight-id matching the project's [id]. Clients section: __HIGHLIGHT:project-clients__
 
 3. LINK + HIGHLIGHT (navigate to a DIFFERENT page and highlight something specific):
