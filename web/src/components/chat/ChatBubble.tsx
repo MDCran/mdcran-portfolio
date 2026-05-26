@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, AudioLines } from "lucide-react";
+import { MessageCircle, AudioLines, Bot } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/lib/ThemeContext";
 import { getDaypart } from "@/lib/visitor-memory";
@@ -22,6 +22,8 @@ function markToured(): void {
 
 export default function ChatBubble() {
   const [chatOpen, setChatOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // voice-vs-text chooser
   const [showGreeting, setShowGreeting] = useState(false);
   const [nudge, setNudge] = useState<null | "rage" | "hesitation">(null);
   const [calm, setCalm] = useState(false); // calmer presence in the evening/night
@@ -54,15 +56,21 @@ export default function ChatBubble() {
   /* Sync with custom event so ChatPanel can also close/open */
   useEffect(() => {
     const onToggle = () => setChatOpen((prev) => !prev);
-    const onOpen = () => setChatOpen(true);
+    const onOpen = () => { setChatOpen(true); setMenuOpen(false); };
     const onClose = () => setChatOpen(false);
+    const onVoiceOpen = () => { setVoiceOpen(true); setMenuOpen(false); };
+    const onVoiceClose = () => setVoiceOpen(false);
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:chat-open", onOpen);
     window.addEventListener("mdcran:chat-close", onClose);
+    window.addEventListener("mdcran:voice-state-open", onVoiceOpen);
+    window.addEventListener("mdcran:voice-state-close", onVoiceClose);
     return () => {
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:chat-open", onOpen);
       window.removeEventListener("mdcran:chat-close", onClose);
+      window.removeEventListener("mdcran:voice-state-open", onVoiceOpen);
+      window.removeEventListener("mdcran:voice-state-close", onVoiceClose);
     };
   }, []);
 
@@ -102,17 +110,31 @@ export default function ChatBubble() {
     setShowGreeting(false);
     setNudge(null);
     try { window.localStorage.setItem(GREETING_STORAGE_KEY, "true"); } catch { /* ignore */ }
-    // First time ever opening the chat → run the guided tour first (it reopens the chat at the end).
-    if (!chatOpen && !hasToured()) {
+    // First time ever clicking → run the guided tour first (it opens the chat at the end).
+    if (!chatOpen && !voiceOpen && !hasToured()) {
       markToured();
+      setMenuOpen(false);
       window.dispatchEvent(new CustomEvent("mdcran:run-tutorial"));
       return;
     }
-    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
+    // If a mode is already open, the bubble closes it.
+    if (chatOpen) { window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); return; }
+    if (voiceOpen) { window.dispatchEvent(new CustomEvent("mdcran:voice-close")); return; }
+    // Otherwise toggle the voice-vs-text chooser.
+    setMenuOpen((m) => !m);
+  };
+
+  const chooseText = () => {
+    setMenuOpen(false);
+    window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
+  };
+  const chooseVoice = () => {
+    setMenuOpen(false);
+    window.dispatchEvent(new CustomEvent("mdcran:voice-open"));
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[70] flex items-end gap-3">
+    <div className="fixed bottom-6 right-6 z-[70]">
       {/* Greeting popup with waving character */}
       <AnimatePresence>
         {showGreeting && !chatOpen && (
@@ -175,81 +197,125 @@ export default function ChatBubble() {
         )}
       </AnimatePresence>
 
-      {/* Voice conversation button — its own icon, sits to the LEFT of the chat bubble */}
-      {voiceEnabled && (
-        <motion.button
-          onClick={() => {
-            setShowGreeting(false);
-            setNudge(null);
-            if (chatOpen) window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
-            window.dispatchEvent(new CustomEvent("mdcran:toggle-voice"));
-          }}
-          whileHover={{ scale: voiceSupported ? 1.1 : 1 }}
-          whileTap={{ scale: voiceSupported ? 0.95 : 1 }}
-          style={{
-            backgroundColor: voiceSupported
-              ? "color-mix(in srgb, var(--theme-primary, #ef4242) 14%, #0a0a0a)"
-              : "color-mix(in srgb, var(--theme-primary, #ef4242) 6%, #0a0a0a)",
-            color: voiceSupported ? "var(--theme-primary, #ef4242)" : "rgba(255,255,255,0.4)",
-            border: "1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 40%, transparent)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-            cursor: voiceSupported ? "pointer" : "not-allowed",
-          }}
-          className="relative h-12 w-12 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
-          aria-label="Start voice conversation"
-          title={voiceSupported ? "Talk to me — voice conversation" : "Voice needs Chrome, Edge, or Safari"}
-        >
-          <AudioLines size={17} />
-        </motion.button>
-      )}
+      {/* Voice-vs-text chooser — appears above the bubble on click */}
+      <AnimatePresence>
+        {menuOpen && !chatOpen && !voiceOpen && (
+          <>
+            {/* Click-away backdrop */}
+            <div className="fixed inset-0" onClick={() => setMenuOpen(false)} aria-hidden />
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute bottom-16 right-0 w-56"
+            >
+              <div
+                className="relative rounded-sm border bg-[#080808]/95 backdrop-blur-xl p-2.5 space-y-1.5"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)",
+                  boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 24px color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent)",
+                }}
+              >
+                <p className="text-[9px] uppercase tracking-[0.2em] text-white/35 px-1 pb-0.5">How would you like to chat?</p>
 
-      {/* Chat button + its pulse ring (wrapped so the ring tracks the bubble only) */}
-      <div className="relative h-12 w-12">
-        <AnimatePresence>
-          {(nudge && !chatOpen) && (
-            <motion.span
-              key="nudge-pulse"
-              className="absolute inset-0 rounded-full"
-              style={{ backgroundColor: "rgba(239,66,66,0.5)" }}
-              animate={{ scale: [1, 1.7, 1.7], opacity: [0.7, 0.1, 0] }}
-              transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut" }}
-              aria-hidden
-            />
-          )}
-          {!chatOpen && !nudge && (
-            <motion.span
-              key="pulse"
-              className="absolute inset-0 rounded-full"
-              style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)' }}
-              initial={{ scale: 1, opacity: 0.6 }}
-              animate={{
-                scale: calm ? [1, 1.35, 1.35] : [1, 1.6, 1.6],
-                opacity: calm ? [0.32, 0.08, 0] : [0.6, 0.15, 0],
-              }}
-              transition={{
-                duration: calm ? 3.2 : 2,
-                repeat: Infinity,
-                ease: "easeOut",
-              }}
-              aria-hidden
-            />
-          )}
-        </AnimatePresence>
+                {/* Voice option */}
+                {voiceEnabled && (
+                  <button
+                    type="button"
+                    onClick={voiceSupported ? chooseVoice : undefined}
+                    disabled={!voiceSupported}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm border transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 22%, transparent)",
+                      backgroundColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 8%, transparent)",
+                    }}
+                    title={voiceSupported ? "Talk out loud" : "Voice needs Chrome, Edge, or Safari"}
+                  >
+                    <AudioLines size={16} style={{ color: "var(--theme-primary, #ef4242)" }} />
+                    <span className="flex flex-col">
+                      <span className="text-[12px] text-white/85 font-jb">Voice chat</span>
+                      <span className="text-[10px] text-white/40 font-jb">{voiceSupported ? "Talk out loud" : "Unsupported browser"}</span>
+                    </span>
+                  </button>
+                )}
 
-        <motion.button
-          onClick={dispatchToggle}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
-          className="relative h-12 w-12 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
-          aria-label={chatOpen ? "Close chat" : "Open chat"}
-        >
-          {/* Always the chat bubble icon — closing is handled by the panel's own X */}
-          <span className="flex items-center justify-center">
-            <MessageCircle size={16} />
+                {/* Text option */}
+                <button
+                  type="button"
+                  onClick={chooseText}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-sm border border-white/10 bg-white/4 hover:border-white/25 transition-colors text-left cursor-pointer"
+                  title="Type your questions"
+                >
+                  <MessageCircle size={16} className="text-white/70" />
+                  <span className="flex flex-col">
+                    <span className="text-[12px] text-white/85 font-jb">Text chat</span>
+                    <span className="text-[10px] text-white/40 font-jb">Type your questions</span>
+                  </span>
+                </button>
+              </div>
+              {/* Arrow pointing to the bubble */}
+              <div
+                className="absolute -bottom-1.5 right-5 w-3 h-3 rotate-45 bg-[#080808]/95 border-r border-b"
+                style={{ borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Pulse ring */}
+      <AnimatePresence>
+        {(nudge && !chatOpen && !voiceOpen) && (
+          <motion.span
+            key="nudge-pulse"
+            className="absolute inset-0 rounded-full"
+            style={{ backgroundColor: "rgba(239,66,66,0.5)" }}
+            animate={{ scale: [1, 1.7, 1.7], opacity: [0.7, 0.1, 0] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut" }}
+            aria-hidden
+          />
+        )}
+        {!chatOpen && !voiceOpen && !nudge && !menuOpen && (
+          <motion.span
+            key="pulse"
+            className="absolute inset-0 rounded-full"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)' }}
+            initial={{ scale: 1, opacity: 0.6 }}
+            animate={{
+              scale: calm ? [1, 1.35, 1.35] : [1, 1.6, 1.6],
+              opacity: calm ? [0.32, 0.08, 0] : [0.6, 0.15, 0],
+            }}
+            transition={{
+              duration: calm ? 3.2 : 2,
+              repeat: Infinity,
+              ease: "easeOut",
+            }}
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Assistant button — a head with a voice/waveform badge */}
+      <motion.button
+        onClick={dispatchToggle}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
+        className="relative h-12 w-12 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
+        aria-label={chatOpen || voiceOpen ? "Close assistant" : "Open assistant"}
+      >
+        <span className="relative flex items-center justify-center">
+          <Bot size={19} />
+          {/* Voice badge in the corner so it reads as a talking assistant */}
+          <span
+            className="absolute -bottom-1.5 -right-2 flex items-center justify-center h-[15px] w-[15px] rounded-full"
+            style={{ backgroundColor: iconColor, color: "var(--theme-primary, #ef4242)" }}
+          >
+            <AudioLines size={9} strokeWidth={2.5} />
           </span>
-        </motion.button>
-      </div>
+        </span>
+      </motion.button>
     </div>
   );
 }

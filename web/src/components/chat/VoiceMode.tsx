@@ -103,9 +103,22 @@ export default function VoiceMode() {
   /* Toggle from the chat panel / bubble */
   useEffect(() => {
     const onToggle = () => setOpen((o) => !o);
+    const onOpen = () => setOpen(true);
+    const onClose = () => setOpen(false);
     window.addEventListener(TOGGLE_EVENT, onToggle);
-    return () => window.removeEventListener(TOGGLE_EVENT, onToggle);
+    window.addEventListener("mdcran:voice-open", onOpen);
+    window.addEventListener("mdcran:voice-close", onClose);
+    return () => {
+      window.removeEventListener(TOGGLE_EVENT, onToggle);
+      window.removeEventListener("mdcran:voice-open", onOpen);
+      window.removeEventListener("mdcran:voice-close", onClose);
+    };
   }, []);
+
+  /* Broadcast open/close so the chat bubble can track which mode is active. */
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(open ? "mdcran:voice-state-open" : "mdcran:voice-state-close"));
+  }, [open]);
 
   /* ── Drive the reactive orb amplitude; handle barge-in ── */
   const startMeter = useCallback(() => {
