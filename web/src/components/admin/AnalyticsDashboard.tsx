@@ -92,10 +92,29 @@ function Heatmap() {
   useEffect(() => { if (!path && pages.length) setPath(pages[0]); }, [pages, path]);
 
   const syncHeight = () => {
+    const measure = () => {
+      try {
+        const doc = iframeRef.current?.contentDocument;
+        if (!doc) return;
+        const h = Math.max(
+          doc.documentElement?.scrollHeight ?? 0,
+          doc.body?.scrollHeight ?? 0,
+          doc.documentElement?.offsetHeight ?? 0,
+        );
+        if (h > 0) setFrameHeight(Math.max(600, h));
+      } catch { /* same-site, shouldn't throw */ }
+    };
+    // Measure now and again as the page hydrates / images + lazy content load.
+    measure();
+    [200, 600, 1200, 2400, 4000].forEach((ms) => window.setTimeout(measure, ms));
     try {
       const doc = iframeRef.current?.contentDocument;
-      if (doc) setFrameHeight(Math.max(600, doc.documentElement.scrollHeight));
-    } catch { /* cross-origin shouldn't happen (same site) */ }
+      if (doc && "ResizeObserver" in window) {
+        const ro = new ResizeObserver(() => measure());
+        ro.observe(doc.documentElement);
+        window.setTimeout(() => ro.disconnect(), 8000);
+      }
+    } catch { /* */ }
   };
 
   const points = (data?.points ?? []).filter((p) => filter === "all" || p.type === filter);
