@@ -263,6 +263,10 @@ export default function VoiceMode() {
       cleaned = cleaned.replace(/\s*__RESETZOOM__\s*/g, " ");
       window.dispatchEvent(new CustomEvent("mdcran:resetzoom"));
     }
+    if (/__PROJECTTOUR__/.test(cleaned)) {
+      cleaned = cleaned.replace(/\s*__PROJECTTOUR__\s*/g, " ");
+      setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
+    }
     const hl = cleaned.match(/__HIGHLIGHT:(.+?)__/);
     if (hl) {
       cleaned = cleaned.replace(/\s*__HIGHLIGHT:.+?__\s*/g, " ");

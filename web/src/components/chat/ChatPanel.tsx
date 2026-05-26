@@ -836,6 +836,13 @@ export default function ChatPanel() {
             window.dispatchEvent(new CustomEvent("mdcran:resetzoom"));
           }
 
+          // Guided multi-page projects walkthrough (no argument)
+          if (/__PROJECTTOUR__/.test(cleaned)) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__PROJECTTOUR__\s*/g, " ");
+            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
+          }
+
           // Highlight marker — extract before auto-nav fallback so we know if one exists
           const highlightMatch = cleaned.match(/__HIGHLIGHT:(.+?)__/);
           if (highlightMatch) {

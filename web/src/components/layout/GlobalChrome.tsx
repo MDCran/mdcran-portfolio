@@ -37,6 +37,11 @@ const AssistantTutorial = dynamic(
   { ssr: false },
 );
 
+const ProjectsTour = dynamic(
+  () => import("@/components/chat/ProjectsTour"),
+  { ssr: false },
+);
+
 const GhostCursor = dynamic(
   () => import("@/components/chat/GhostCursor"),
   { ssr: false },
@@ -188,6 +193,7 @@ export default function GlobalChrome() {
       <ChatPanel />
       <VoiceMode />
       <AssistantTutorial />
+      <ProjectsTour />
       <GhostCursor />
       <ThemeOverlay />
       <ThemeEffectsOverlay />
