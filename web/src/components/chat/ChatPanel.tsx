@@ -241,8 +241,8 @@ export default function ChatPanel() {
 
   /* ── Voice (ElevenLabs TTS + STT) ── */
   const [voiceEnabled, setVoiceEnabled] = useState(true); // optimistic — buttons show instantly; probe corrects if unconfigured
-  const [voiceOn, setVoiceOn] = useState(() => {           // user toggle for spoken replies — defaults ON
-    try { return typeof window === "undefined" ? true : localStorage.getItem("mdcran_voice_on") !== "0"; } catch { return true; }
+  const [voiceOn, setVoiceOn] = useState(() => {           // user toggle for spoken replies — defaults OFF
+    try { return typeof window !== "undefined" && localStorage.getItem("mdcran_voice_on") === "1"; } catch { return false; }
   });
   const [speaking, setSpeaking] = useState(false);
   const [recording, setRecording] = useState(false);

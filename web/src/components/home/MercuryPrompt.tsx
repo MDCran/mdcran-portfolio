@@ -5,7 +5,6 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Star, X } from "lucide-react";
 
-const REVEAL_DELAY_MS = 2000;
 const COUNTDOWN_SECONDS = 15;
 const COLLAPSE_DELAY_MS = 220;
 const REDACTION_TRIGGER_SECONDS = 1;
@@ -116,28 +115,14 @@ export default function MercuryPrompt() {
 
   useEffect(() => {
     if (isVisible || isCollapsed) return;
-
-    const hasSeenPrompt = window.localStorage.getItem(STORAGE_KEY) === "true";
-    if (hasSeenPrompt || isSmallScreen) {
-      const seenTimer = window.setTimeout(() => {
-        setIsCollapsed(true);
-        setShowCollapsedTrigger(true);
-      }, 0);
-
-      if (!hasSeenPrompt && isSmallScreen) {
-        window.localStorage.setItem(STORAGE_KEY, "true");
-      }
-
-      return () => window.clearTimeout(seenTimer);
-    }
-
-    const timer = window.setTimeout(() => {
-      startExpand();
-      window.localStorage.setItem(STORAGE_KEY, "true");
-    }, REVEAL_DELAY_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [isVisible, isCollapsed, isSmallScreen, startExpand]);
+    // Never auto-pop on visit — start collapsed. The user can open it from the Resume button.
+    const seenTimer = window.setTimeout(() => {
+      setIsCollapsed(true);
+      setShowCollapsedTrigger(true);
+      try { window.localStorage.setItem(STORAGE_KEY, "true"); } catch { /* */ }
+    }, 0);
+    return () => window.clearTimeout(seenTimer);
+  }, [isVisible, isCollapsed]);
 
   useEffect(() => {
     if (!isVisible || isClosing || isRedacting) return;
