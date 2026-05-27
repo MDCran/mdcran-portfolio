@@ -81,7 +81,7 @@ export async function claimDevice(opts: { serial: string; identityId?: string; n
   const identity: Identity = { id, name, devices: [device], createdAt: nowIso(), updatedAt: nowIso() };
   await db.collection<Identity>(COLL).insertOne(identity);
   // Clean up any now-empty identities left after the pull.
-  await db.collection<Identity>(COLL).deleteMany({ devices: { $size: 0 } });
+  await db.collection<Identity>(COLL).deleteMany({ devices: { $size: 0 }, createdByAdmin: { $ne: true } });
   return identity;
 }
 
@@ -89,7 +89,7 @@ export async function disownDevice(serial: string, identityId?: string): Promise
   const db = await getDb();
   const filter = identityId ? { id: identityId } : { "devices.serial": serial };
   await db.collection<Identity>(COLL).updateMany(filter, { $pull: { devices: { serial } }, $set: { updatedAt: nowIso() } });
-  await db.collection<Identity>(COLL).deleteMany({ devices: { $size: 0 } });
+  await db.collection<Identity>(COLL).deleteMany({ devices: { $size: 0 }, createdByAdmin: { $ne: true } });
 }
 
 export async function findIdentityById(id: string): Promise<Identity | null> {
@@ -99,6 +99,22 @@ export async function findIdentityById(id: string): Promise<Identity | null> {
 }
 
 /* ── Admin ── */
+/** Pre-create a named identity with no devices yet, so the admin can hand out a
+ *  tracking link (?identity=<id>). Flagged so the empty-identity cleanup won't wipe it. */
+export async function createIdentity(name: string): Promise<Identity> {
+  const db = await getDb();
+  const identity: Identity = {
+    id: randomUUID(),
+    name: (name ?? "").trim().slice(0, 60) || "Guest",
+    devices: [],
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    createdByAdmin: true,
+  };
+  await db.collection<Identity>(COLL).insertOne(identity);
+  return identity;
+}
+
 export async function renameIdentity(id: string, name: string): Promise<void> {
   const db = await getDb();
   await db.collection<Identity>(COLL).updateOne({ id }, { $set: { name: name.trim().slice(0, 60), updatedAt: nowIso() } });
@@ -112,7 +128,7 @@ export async function deleteIdentity(id: string): Promise<void> {
 export async function removeDeviceFromIdentity(id: string, serial: string): Promise<void> {
   const db = await getDb();
   await db.collection<Identity>(COLL).updateOne({ id }, { $pull: { devices: { serial } }, $set: { updatedAt: nowIso() } });
-  await db.collection<Identity>(COLL).deleteMany({ devices: { $size: 0 } });
+  await db.collection<Identity>(COLL).deleteMany({ devices: { $size: 0 }, createdByAdmin: { $ne: true } });
 }
 
 /** Merge source identities into a target (devices combined, dedup by serial). Sources are deleted. */

@@ -38,6 +38,17 @@ export default function PersonalIdentity() {
     return () => { active = false; };
   }, []);
 
+  // If this device was just bound via a ?identity=... tracking link, show the
+  // name immediately (no refresh).
+  useEffect(() => {
+    const onClaimed = (e: Event) => {
+      const d = (e as CustomEvent).detail as { name?: string; identityId?: string } | undefined;
+      if (d?.name) { setName(d.name); setIdentityId(d.identityId ?? null); setEditing(false); setLoading(false); }
+    };
+    window.addEventListener("mdcran:identity-claimed", onClaimed);
+    return () => window.removeEventListener("mdcran:identity-claimed", onClaimed);
+  }, []);
+
   const claim = async (opts: { name?: string; identityId?: string }) => {
     if (!fp) return;
     setSaving(true);

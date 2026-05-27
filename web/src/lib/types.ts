@@ -784,6 +784,9 @@ export interface Identity {
   devices: IdentityDevice[];
   createdAt: string;
   updatedAt: string;
+  /** Pre-created by the admin (e.g. to hand out a tracking link). Exempt from the
+   *  empty-identity cleanup so it survives until someone claims it via the link. */
+  createdByAdmin?: boolean;
 }
 
 // ─── Meeting booking ──────────────────────────────────────
