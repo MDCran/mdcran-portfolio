@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   return buildSeoMetadata({
-    title: "The Bar — Spin for your drink",
-    description: "Can't decide what to drink? Spin the wheel and let fate (and a power meter) decide.",
+    title: "Bar Roulette",
+    description: "Can't decide what to drink? Pull the slot and let fate (and a power meter) decide.",
     path: "/bar",
   });
 }

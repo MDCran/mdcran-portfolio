@@ -8,13 +8,38 @@ import type { BarDrinkCategory } from "@/lib/types";
 
 interface PoolItem { label: string; color: string; category: BarDrinkCategory }
 
-const ITEM_H = 66;          // px per reel row
-const ROWS = 5;             // visible rows
-const CENTER = 2;           // centered row index
+const ITEM_H = 66;          // px per drum face
 const PREFS_KEY = "mdcran_bar_prefs_v1";
 const CUSTOM_CAT: BarDrinkCategory = { id: "__custom", name: "Your Picks", color: "#a855f7", description: "Your own addition to the lineup — no take-backs.", options: [] };
 
 interface Prefs { selected: string[]; disabled: string[]; custom: string[] }
+
+/** Lighten/darken a hex color by `amt` (-255..255) for gradient depth. */
+function shade(hex: string, amt: number): string {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  const r = Math.max(0, Math.min(255, ((n >> 16) & 255) + amt));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt));
+  const b = Math.max(0, Math.min(255, (n & 255) + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+/** A chasing row of marquee bulbs (gold), faster while spinning. */
+function Bulbs({ className, fast }: { className?: string; fast?: boolean }) {
+  return (
+    <div className={className}>
+      {Array.from({ length: 9 }).map((_, i) => (
+        <motion.span
+          key={i}
+          className="h-1.5 w-1.5 rounded-full"
+          style={{ background: "#facc15" }}
+          animate={{ opacity: [0.2, 1, 0.2], boxShadow: ["0 0 0px #facc15", "0 0 8px #facc15", "0 0 0px #facc15"] }}
+          transition={{ duration: fast ? 0.5 : 1, repeat: Infinity, delay: i * (fast ? 0.05 : 0.12), ease: "easeInOut" }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function BarWheelClient({ categories }: { categories: BarDrinkCategory[] }) {
   const allIds = useMemo(() => categories.map((c) => c.id), [categories]);
@@ -59,11 +84,14 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
     return out;
   }, [catList, prefs.selected, prefs.disabled]);
 
-  // Slot reel
+  // 3D slot drum
   const controls = useAnimationControls();
-  const [reel, setReel] = useState<PoolItem[]>([]);
+  const [faces, setFaces] = useState<PoolItem[]>([]);
+  const rotRef = useRef(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<PoolItem | null>(null);
+  const faceAngle = faces.length ? 360 / faces.length : 90;
+  const radius = Math.round((ITEM_H / 2) / Math.tan((Math.PI / 180) * (faceAngle / 2))) || ITEM_H;
 
   // Power meter
   const [power, setPower] = useState(0);
@@ -71,41 +99,48 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
   const holdRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
-  useEffect(() => { if (pool.length && reel.length === 0) setReel(pool.slice(0, ROWS + 2)); }, [pool, reel.length]);
+  // (Re)build the drum faces in a shuffled order whenever the pool changes.
+  useEffect(() => {
+    if (!pool.length) { setFaces([]); return; }
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
+    setFaces(shuffled);
+  }, [pool]);
 
   const stopCharge = useCallback(() => { if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; }, []);
   useEffect(() => () => stopCharge(), [stopCharge]);
 
   const spin = useCallback(async (p: number) => {
-    if (pool.length === 0 || spinning) return;
+    if (faces.length === 0 || spinning) return;
     setResult(null);
     setCharging(false);
     setSpinning(true);
-    // Build a long sequence of random drinks ending on the winner.
-    const len = 22 + Math.round(p * 46);
-    const seq: PoolItem[] = [];
-    for (let i = 0; i < len - 1; i++) seq.push(pool[Math.floor(Math.random() * pool.length)]);
-    const winner = pool[Math.floor(Math.random() * pool.length)];
-    seq.push(winner);
-    setReel(seq);
-
-    const winnerIndex = seq.length - 1;
+    const N = faces.length;
+    const fa = 360 / N;
+    const winner = Math.floor(Math.random() * N);
+    const turns = 4 + Math.round(p * 8);
+    // Land face `winner` at the front (net rotation ≡ 0): rot ≡ -winner*fa.
+    const base = rotRef.current;
+    const targetMod = ((-winner * fa) % 360 + 360) % 360;
+    const currentMod = ((base % 360) + 360) % 360;
+    let delta = targetMod - currentMod; if (delta < 0) delta += 360;
+    const target = base + turns * 360 + delta;
+    rotRef.current = target;
     const duration = 3 + p * 4.5;
-    await controls.set({ y: CENTER * ITEM_H });          // start with item 0 centered
-    await controls.start({ y: (CENTER - winnerIndex) * ITEM_H, transition: { duration, ease: [0.12, 0.62, 0.08, 1] } });
-    setResult(winner);
+    await controls.start({ rotateX: target, transition: { duration, ease: [0.1, 0.6, 0.06, 1] } });
+    setResult(faces[winner]);
     setSpinning(false);
     setPower(0);
-  }, [pool, spinning, controls]);
+  }, [faces, spinning, controls]);
 
   const beginCharge = useCallback(() => {
-    if (spinning || pool.length === 0) return;
+    if (spinning || faces.length === 0) return;
     setResult(null);
     setCharging(true);
     holdRef.current = performance.now();
     const tick = () => { setPower(Math.min(1, (performance.now() - holdRef.current) / 1400)); rafRef.current = requestAnimationFrame(tick); };
     rafRef.current = requestAnimationFrame(tick);
-  }, [spinning, pool.length]);
+  }, [spinning, faces.length]);
   const releaseCharge = useCallback(() => { if (!charging) return; stopCharge(); void spin(Math.max(0.08, power)); }, [charging, power, spin, stopCharge]);
 
   const toggleCat = (id: string) => setPrefs((p) => ({ ...p, selected: p.selected.includes(id) ? p.selected.filter((x) => x !== id) : [...p.selected, id] }));
@@ -121,7 +156,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-md flex-col items-center px-5 py-10">
         <p className="text-[11px] uppercase tracking-[0.3em] text-[#ef4242]/80">MDCran Presents</p>
-        <h1 className="mt-2 font-nord text-4xl sm:text-5xl text-white" style={{ textShadow: "0 0 30px rgba(239,66,66,0.35)" }}>The Bar</h1>
+        <h1 className="mt-2 whitespace-nowrap text-center font-nord text-[clamp(1.9rem,9vw,3rem)] leading-none text-white" style={{ textShadow: "0 0 30px rgba(239,66,66,0.35)" }}>Bar Roulette</h1>
         <p className="mt-3 text-center text-sm leading-relaxed text-white/50">Pick your lineup, then pull the lever — hold to charge and let the slot decide your fate.</p>
 
         {/* Category multi-select */}
@@ -183,23 +218,57 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
           )}
         </AnimatePresence>
 
-        {/* Slot machine */}
-        <div className="relative mt-7 w-full max-w-[300px]">
-          <div className="rounded-md border-2 p-3" style={{ borderColor: "#ef424255", background: "linear-gradient(#140e11,#0a0708)", boxShadow: "0 0 50px rgba(239,66,66,0.15), inset 0 0 30px rgba(0,0,0,0.6)" }}>
-            <div className="relative overflow-hidden rounded-sm bg-black/60" style={{ height: ROWS * ITEM_H }}>
-              {/* Payline window */}
-              <div className="pointer-events-none absolute inset-x-0 z-20" style={{ top: CENTER * ITEM_H, height: ITEM_H, borderTop: "2px solid #ef4242", borderBottom: "2px solid #ef4242", background: "rgba(239,66,66,0.08)", boxShadow: "0 0 24px rgba(239,66,66,0.3)" }} />
-              {/* Fade top/bottom */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[88px]" style={{ background: "linear-gradient(#0a0708,transparent)" }} />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[88px]" style={{ background: "linear-gradient(transparent,#0a0708)" }} />
-              {/* Reel strip */}
-              <motion.div animate={controls} initial={{ y: CENTER * ITEM_H }} className="absolute inset-x-0 top-0" style={{ filter: spinning ? "blur(1.2px)" : "none" }}>
-                {reel.map((it, i) => (
-                  <div key={i} className="flex items-center justify-center px-3 text-center" style={{ height: ITEM_H }}>
-                    <span className="font-nord text-[15px] leading-tight" style={{ color: it.color, textShadow: `0 0 14px ${it.color}55` }}>{it.label}</span>
-                  </div>
-                ))}
-              </motion.div>
+        {/* Slot machine — 3D drum cabinet */}
+        <div className="relative mt-7 w-full max-w-[310px]">
+          {/* Cabinet */}
+          <div
+            className="relative rounded-2xl p-4"
+            style={{
+              background: "linear-gradient(160deg,#2a1216,#160b0e 55%,#0a0608)",
+              border: "2px solid #facc1555",
+              boxShadow: `0 0 ${spinning ? 70 : charging ? 40 : 28}px rgba(239,66,66,${spinning ? 0.45 : 0.22}), inset 0 0 40px rgba(0,0,0,0.7), 0 20px 60px rgba(0,0,0,0.6)`,
+              transition: "box-shadow 0.3s",
+            }}
+          >
+            {/* Marquee bulbs */}
+            <div className="pointer-events-none absolute inset-0">
+              <Bulbs className="absolute left-5 right-5 top-1.5 flex justify-between" fast={spinning} />
+              <Bulbs className="absolute left-5 right-5 bottom-1.5 flex justify-between" fast={spinning} />
+            </div>
+
+            <div className="mb-2 text-center font-nord text-[11px] uppercase tracking-[0.3em] text-[#facc15]" style={{ textShadow: "0 0 10px #facc1577" }}>★ Lucky Pour ★</div>
+
+            {/* 3D drum scene */}
+            <div className="relative overflow-hidden rounded-md" style={{ height: ITEM_H * 3, background: "radial-gradient(circle at 50% 50%,#161013,#070506)", boxShadow: "inset 0 0 30px rgba(0,0,0,0.9)" }}>
+              {/* edge fades */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[72px]" style={{ background: "linear-gradient(#070506,transparent)" }} />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[72px]" style={{ background: "linear-gradient(transparent,#070506)" }} />
+              {/* payline */}
+              <div className="pointer-events-none absolute inset-x-2 z-30" style={{ top: ITEM_H, height: ITEM_H, borderTop: "2px solid #ef4242", borderBottom: "2px solid #ef4242", boxShadow: `0 0 ${spinning ? 34 : 20}px rgba(239,66,66,${spinning ? 0.6 : 0.35})`, borderRadius: 6, transition: "box-shadow 0.2s" }} />
+              {/* glass glare */}
+              <div className="pointer-events-none absolute inset-0 z-30" style={{ background: "linear-gradient(105deg,rgba(255,255,255,0.08),transparent 40%)" }} />
+
+              <div className="absolute inset-x-2" style={{ top: ITEM_H, height: ITEM_H, perspective: 1000 }}>
+                <motion.div animate={controls} initial={{ rotateX: 0 }} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d" }}>
+                  {faces.map((it, i) => (
+                    <div
+                      key={i}
+                      className="absolute inset-0 flex items-center justify-center px-3 text-center"
+                      style={{
+                        height: ITEM_H,
+                        transform: `rotateX(${i * faceAngle}deg) translateZ(${radius}px)`,
+                        backfaceVisibility: "hidden",
+                        borderRadius: 6,
+                        background: `linear-gradient(135deg, ${it.color}, ${shade(it.color, -60)})`,
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -6px 14px rgba(0,0,0,0.35)",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                      }}
+                    >
+                      <span className="font-nord text-[14px] leading-tight text-white" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}>{it.label}</span>
+                    </div>
+                  ))}
+                </motion.div>
+              </div>
             </div>
           </div>
           {pool.length === 0 && <p className="mt-2 text-center text-[11px] text-white/40">Select at least one category to load the slot.</p>}
