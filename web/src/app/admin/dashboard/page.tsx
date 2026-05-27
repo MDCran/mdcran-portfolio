@@ -115,8 +115,6 @@ type NavSection =
   | "identities"
   | "status";
 
-const SKILL_CATEGORY_OPTIONS = ["technology", "creative", "languages", "other"] as const;
-
 const DEFAULT_RESUME_PROFILE: ResumeProfile = {
   fullName: "Michael Cran",
   title: "Software Engineer & Developer",
@@ -505,7 +503,7 @@ function ActionLinkListEditor({
       <div className="space-y-2">
         {items.map((item, index) => (
           <div
-            key={`${item.label}-${item.href}-${index}`}
+            key={index}
             draggable
             onDragStart={() => setDragIndex(index)}
             onDragOver={(e) => e.preventDefault()}
@@ -7736,9 +7734,10 @@ export default function AdminDashboard() {
                     </div>
 
                     {(() => {
+                      // Only the categories the admin actually made + ones already in use —
+                      // no hardcoded defaults cluttering the list.
                       const categoryOptions = Array.from(new Set([
                         ...skillCategories.map((c) => c.id),
-                        ...SKILL_CATEGORY_OPTIONS,
                         ...skills.map((s) => s.category),
                       ].filter(Boolean)));
                       const labelFor = (id: string) =>
@@ -7786,7 +7785,7 @@ export default function AdminDashboard() {
                         </div>
                         {skills.map((skill, idx) => (
                           <div
-                            key={`${skill.name}-${idx}`}
+                            key={idx}
                             draggable
                             onDragStart={() => setDraggedResumeItem({ list: "skills", index: idx })}
                             onDragOver={(e) => e.preventDefault()}
