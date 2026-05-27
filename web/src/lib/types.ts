@@ -760,6 +760,7 @@ export interface SiteContent {
   termsPage: SiteContentLegalPage;
   privacyPage: SiteContentLegalPage;
   rizzTargetName?: string;  // personalize /rizz page with a name
+  rizzEnabled?: boolean;    // when false, /rizz returns 404
 }
 
 // ─── Personal Identity (device fingerprinting) ────────────

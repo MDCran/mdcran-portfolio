@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -190,6 +190,24 @@ const QUESTION_STEPS = [
   "Win You Over",
 ] as const;
 
+/** Format a phone number nicely as the user types — US style (XXX) XXX-XXXX with
+ *  an optional +1, and a graceful + prefix for international numbers. */
+function formatPhone(input: string): string {
+  const startsPlus = input.trimStart().startsWith("+");
+  const digits = input.replace(/\D/g, "");
+  if (!digits) return startsPlus ? "+" : "";
+  // Explicit international (+) or longer-than-US → just keep a clean + prefix.
+  if (startsPlus || digits.length > 11) return "+" + digits;
+
+  let n = digits;
+  let cc = "";
+  if (n.length === 11 && n[0] === "1") { cc = "+1 "; n = n.slice(1); }
+  const a = n.slice(0, 3), b = n.slice(3, 6), c = n.slice(6, 10);
+  if (n.length <= 3) return cc ? `${cc}(${a}` : a;
+  if (n.length <= 6) return `${cc}(${a}) ${b}`;
+  return `${cc}(${a}) ${b}-${c}`;
+}
+
 function isValidPhoneNumber(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return false;
@@ -214,7 +232,6 @@ export default function RizzPageClient({ targetName }: { targetName?: string }) 
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [redirectCountdown, setRedirectCountdown] = useState(10);
   const [form, setForm] = useState({
     name: "",
     nickname: "",
@@ -396,26 +413,6 @@ export default function RizzPageClient({ targetName }: { targetName?: string }) 
   const progress = ((formStep + 1) / QUESTION_STEPS.length) * 100;
   const isOptionalStep = formStep === 2;
 
-  useEffect(() => {
-    if (stage !== "success") {
-      setRedirectCountdown(10);
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setRedirectCountdown((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval);
-          router.push("/");
-          return 0;
-        }
-
-        return current - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [router, stage]);
 
   return (
     <main className="min-h-screen">
@@ -580,8 +577,8 @@ export default function RizzPageClient({ targetName }: { targetName?: string }) 
                         autoComplete="tel"
                         className="h-11 w-full rounded-sm border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:border-[#ef4242]"
                         value={form.phone}
-                        onChange={(event) => updateField("phone", event.target.value)}
-                        placeholder="How I am supposed to plan this"
+                        onChange={(event) => updateField("phone", formatPhone(event.target.value))}
+                        placeholder="(555) 123-4567"
                       />
                     </label>
                   )}
@@ -728,9 +725,13 @@ export default function RizzPageClient({ targetName }: { targetName?: string }) 
                     : "I officially have no excuse to mess this up now."
                   }
                 </p>
-                <p className="mt-4 text-[10px] text-center tracking-[0.14em] text-white/30">
-                  Redirecting in {redirectCountdown} seconds...
-                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="mx-auto mt-7 inline-flex h-11 items-center justify-center rounded-sm bg-[#ef4242] px-6 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  Go to Home Page
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
