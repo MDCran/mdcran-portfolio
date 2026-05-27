@@ -1,11 +1,15 @@
 import { NextRequest } from "next/server";
 import { limitVoiceLike } from "@/lib/api-rate-limit";
 
-const DEFAULT_VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael — overridable via ELEVENLABS_VOICE_ID
-const DEFAULT_MODEL = "eleven_turbo_v2_5"; // low-latency conversational model
+// Pinned so the text-chat read-aloud and the AI voice chat sound EXACTLY like the
+// guided tour (same enthusiastic Michael voice + model). Not env-overridable on
+// purpose — an env mismatch was making live replies use a different voice than the
+// prerecorded tour clips.
+const VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael (matches public/tour-audio)
+const MODEL = "eleven_turbo_v2_5";
 
 function voiceId(): string {
-  return process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+  return VOICE_ID;
 }
 
 /* GET — lets the client know whether voice is available without exposing keys. */
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         text: clipped,
-        model_id: process.env.ELEVENLABS_MODEL || DEFAULT_MODEL,
+        model_id: MODEL,
         // Lower stability + higher style = more expressive, enthusiastic delivery (not monotone).
         voice_settings: { stability: 0.32, similarity_boost: 0.85, style: 0.65, use_speaker_boost: true },
       }),

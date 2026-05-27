@@ -30,8 +30,10 @@ const STEP_TEXTS = [
   "And that's the quick tour! Ask me anything, and I'll show you around.",
 ];
 
-const DEFAULT_VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael
-const DEFAULT_MODEL = "eleven_turbo_v2_5";
+// Pinned to match the live TTS route exactly (src/app/api/voice/tts/route.ts) so the
+// tour and the chat/voice replies are the same voice. Not env-overridable on purpose.
+const VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael
+const MODEL = "eleven_turbo_v2_5";
 
 /** Minimal .env.local loader (no dependency) so the script "just works" locally. */
 async function loadEnvLocal() {

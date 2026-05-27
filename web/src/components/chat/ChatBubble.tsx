@@ -26,6 +26,7 @@ export default function ChatBubble() {
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // voice-vs-text chooser
+  const [attention, setAttention] = useState(false); // blink: a read-aloud reply is waiting
   const [showGreeting, setShowGreeting] = useState(false);
   const [nudge, setNudge] = useState<null | "rage" | "hesitation">(null);
   const [calm, setCalm] = useState(false); // calmer presence in the evening/night
@@ -62,17 +63,23 @@ export default function ChatBubble() {
     const onClose = () => setChatOpen(false);
     const onVoiceOpen = () => { setVoiceOpen(true); setMenuOpen(false); };
     const onVoiceClose = () => setVoiceOpen(false);
+    const onAttention = () => setAttention(true);   // a read-aloud reply finished while minimized
+    const onChatOpen = () => setAttention(false);   // returning to the chat clears it
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:chat-open", onOpen);
     window.addEventListener("mdcran:chat-close", onClose);
     window.addEventListener("mdcran:voice-state-open", onVoiceOpen);
     window.addEventListener("mdcran:voice-state-close", onVoiceClose);
+    window.addEventListener("mdcran:chat-attention", onAttention);
+    window.addEventListener("mdcran:chat-open", onChatOpen);
     return () => {
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:chat-open", onOpen);
       window.removeEventListener("mdcran:chat-close", onClose);
       window.removeEventListener("mdcran:voice-state-open", onVoiceOpen);
       window.removeEventListener("mdcran:voice-state-close", onVoiceClose);
+      window.removeEventListener("mdcran:chat-attention", onAttention);
+      window.removeEventListener("mdcran:chat-open", onChatOpen);
     };
   }, []);
 
@@ -130,6 +137,7 @@ export default function ChatBubble() {
   const dispatchToggle = () => {
     setShowGreeting(false);
     setNudge(null);
+    setAttention(false);
     try { window.localStorage.setItem(GREETING_STORAGE_KEY, "true"); } catch { /* ignore */ }
     // First time ever clicking → run the guided tour first (it opens the chat at the end).
     if (!chatOpen && !voiceOpen && !hasToured()) {
@@ -351,6 +359,16 @@ export default function ChatBubble() {
           <span className="flex items-center justify-center">
             <Bot size={18} />
           </span>
+          {/* Blinking dot: a read-aloud reply is waiting — tap to pick the chat back up */}
+          {attention && (
+            <motion.span
+              className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2"
+              style={{ backgroundColor: "#22c55e", borderColor: "#0a0a0a", boxShadow: "0 0 8px #22c55e" }}
+              animate={{ opacity: [1, 0.25, 1], scale: [1, 0.85, 1] }}
+              transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+              aria-hidden
+            />
+          )}
         </motion.button>
       )}
     </div>
