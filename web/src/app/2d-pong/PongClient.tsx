@@ -440,7 +440,12 @@ export default function PongClient() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [resetBall]);
 
-  const press = (k: keyof typeof heldRef.current, v: boolean) => () => { heldRef.current[k] = v; };
+  // On press-down, capture the pointer + preventDefault so a held finger keeps
+  // controlling the paddle on iOS/Android (no scroll, no early cancel on slight move).
+  const press = (k: keyof typeof heldRef.current, v: boolean) => (e: React.PointerEvent) => {
+    if (v) { e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* */ } }
+    heldRef.current[k] = v;
+  };
   const ctrlBtn = "flex-1 flex items-center justify-center rounded-sm border border-white/15 bg-white/[0.06] active:bg-white/20 text-white/80 text-2xl font-bold select-none touch-none";
 
   // Not a phone (or still checking) → show the message and redirect home.

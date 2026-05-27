@@ -18,7 +18,7 @@ export const PERSON_ALIASES = [
   PERSON_FULL_NAME,
   "Michael D Cran",
 ] as const;
-export const DEFAULT_SITE_ICON = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png")!;
+export const DEFAULT_SITE_ICON = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png")!;
 export const DEFAULT_OG_IMAGE = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png")!;
 export const DEFAULT_SOCIAL_TITLE = "Michael Cran | MDCran";
 export const DEFAULT_SOCIAL_DESCRIPTION =

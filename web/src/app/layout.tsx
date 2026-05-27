@@ -32,7 +32,8 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteContent = await getSiteContent().catch(() => null);
-  const faviconUrl = assetUrl(siteContent?.faviconUrl) ?? DEFAULT_SITE_ICON;
+  // Favicon matches the navbar profile mark: explicit faviconUrl → brand logo → red default.
+  const faviconUrl = assetUrl(siteContent?.faviconUrl || siteContent?.brandLogoUrl) ?? DEFAULT_SITE_ICON;
 
   return {
     metadataBase: new URL(SITE_URL),

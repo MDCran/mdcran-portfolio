@@ -1444,7 +1444,7 @@ function ProjectModal({
           <button type="button" onClick={addGalleryImage} className={btnOutline}>+ Add Image</button>
         </Field>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field>
             <Label>Pricing Status</Label>
             <select className={inputCls} value={pricingStatus} onChange={(e) => setPricingStatus(e.target.value as ProjectStatus)}>
@@ -4811,7 +4811,7 @@ export default function AdminDashboard() {
         </header>
 
         {/* Content */}
-        <div className="flex-1 px-8 py-8 max-w-[1400px] w-full mx-auto">
+        <div className="flex-1 px-4 sm:px-8 py-6 sm:py-8 max-w-[1400px] w-full mx-auto">
 
           {/* Section intro header */}
           <div className="mb-7">
@@ -4826,7 +4826,7 @@ export default function AdminDashboard() {
           {activeSection === "dashboard" && (
             <div className="space-y-8">
               {/* Summary cards */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 {[
                   { label: "Total Projects", value: projects.length },
                   { label: "Total Articles", value: articles.length },
@@ -6291,7 +6291,7 @@ export default function AdminDashboard() {
                 return (
                   <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                     <p className="font-nord text-sm text-white">{label}</p>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <div>
                         <Label>Eyebrow</Label>
                         <input
@@ -6487,7 +6487,7 @@ export default function AdminDashboard() {
 
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Code Page Header</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <Label>Eyebrow</Label>
                     <input

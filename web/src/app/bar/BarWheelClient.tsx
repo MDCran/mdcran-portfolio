@@ -181,7 +181,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
       if (boundary !== lastBoundary) {
         lastBoundary = boundary;
         const at = prog * duration * 1000;
-        tickTimersRef.current.push(window.setTimeout(() => { try { navigator.vibrate?.(8); } catch { /* */ } playClick(); }, at));
+        tickTimersRef.current.push(window.setTimeout(() => { try { navigator.vibrate?.(13); } catch { /* */ } playClick(); }, at));
       }
     }
 
@@ -206,13 +206,19 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
     setCharging(true);
     holdRef.current = performance.now();
     let flashed = false;
+    let lastVibe = 0;
+    try { navigator.vibrate?.(12); } catch { /* */ } // initial kick
     const tick = () => {
-      const pw = Math.min(1, (performance.now() - holdRef.current) / 1400);
+      const now = performance.now();
+      const pw = Math.min(1, (now - holdRef.current) / 1400);
       setPower(pw);
       setChargeTier(pw < 0.33 ? 1 : pw < 0.66 ? 2 : 3);
       // Subtle cabinet shimmer that intensifies with charge.
       if (cabinetRef.current) { const mag = pw * 3.2; cabinetRef.current.style.transform = `translate(${(Math.random() - 0.5) * mag}px, ${(Math.random() - 0.5) * mag}px)`; }
-      if (pw >= 0.99 && !flashed) { flashed = true; setLedFlash(true); try { navigator.vibrate?.(20); } catch { /* */ } window.setTimeout(() => setLedFlash(false), 120); }
+      // Buzz the phone faster as the charge climbs (Android; iOS ignores vibrate).
+      const interval = 170 - pw * 130; // 170ms → 40ms
+      if (now - lastVibe > interval) { lastVibe = now; try { navigator.vibrate?.(pw > 0.8 ? 16 : 9); } catch { /* */ } }
+      if (pw >= 0.99 && !flashed) { flashed = true; setLedFlash(true); try { navigator.vibrate?.(35); } catch { /* */ } window.setTimeout(() => setLedFlash(false), 120); }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -336,9 +342,11 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
             <div className="h-full rounded-full transition-[width] duration-75" style={{ width: `${power * 100}%`, background: "linear-gradient(90deg,#22c55e,#f59e0b 60%,#ef4242)" }} />
           </div>
           <button type="button" disabled={spinning || pool.length === 0}
-            onPointerDown={(e) => { e.preventDefault(); beginCharge(); }} onPointerUp={releaseCharge} onPointerLeave={() => { if (charging) releaseCharge(); }} onPointerCancel={() => { if (charging) releaseCharge(); }}
-            className="mt-4 h-12 w-full rounded-sm bg-[#ef4242] font-nord text-sm uppercase tracking-[0.2em] text-white transition-all disabled:opacity-40 active:scale-[0.98]"
-            style={{ boxShadow: charging ? `0 0 ${10 + power * 44}px rgba(239,66,66,${0.4 + power * 0.5})` : "0 4px 14px rgba(239,66,66,0.3)" }}>
+            onContextMenu={(e) => e.preventDefault()}
+            onPointerDown={(e) => { e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* */ } beginCharge(); }}
+            onPointerUp={releaseCharge} onPointerCancel={() => { if (charging) releaseCharge(); }}
+            className="mt-4 h-12 w-full touch-none select-none rounded-sm bg-[#ef4242] font-nord text-sm uppercase tracking-[0.2em] text-white transition-all disabled:opacity-40 active:scale-[0.98]"
+            style={{ boxShadow: charging ? `0 0 ${10 + power * 44}px rgba(239,66,66,${0.4 + power * 0.5})` : "0 4px 14px rgba(239,66,66,0.3)", WebkitTouchCallout: "none", WebkitUserSelect: "none" }}>
             {spinning ? "Good luck…" : charging ? "Release to pull!" : "Hold to charge"}
           </button>
         </div>
