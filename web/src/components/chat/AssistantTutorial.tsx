@@ -225,17 +225,36 @@ export default function AssistantTutorial() {
               }
               window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
             };
+            // Featured projects + clients get a gentle pan through their items.
+            const isPan = step.target === "featured" || step.target === "clients";
             if (!isNav) {
               centerInBand(el);
               await wait(450);
               if (myRun !== runIdRef.current) break;
-              centerInBand(el); // corrective pass once things have settled
-              await wait(350);
+              if (!isPan) { centerInBand(el); await wait(350); } else { await wait(150); }
             } else {
               await wait(250);
             }
             if (myRun !== runIdRef.current) break;
             targetElRef.current = el;
+            if (isPan) {
+              // Smooth-scroll from the top of the section to the bottom while narrating,
+              // so all the projects / clients glide past inside the spotlight.
+              const node = el;
+              const r0 = node.getBoundingClientRect();
+              const startY = Math.max(0, window.scrollY + r0.top - 76);
+              const endY = Math.max(startY, window.scrollY + r0.top + r0.height - window.innerHeight + 48);
+              const t0 = performance.now();
+              const PAN_MS = 5200;
+              const panStep = () => {
+                if (myRun !== runIdRef.current) return;
+                const p = Math.min(1, (performance.now() - t0) / PAN_MS);
+                const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+                window.scrollTo({ top: startY + (endY - startY) * eased });
+                if (p < 1) requestAnimationFrame(panStep);
+              };
+              if (endY - startY > 40) { window.scrollTo({ top: startY }); setTimeout(() => { if (myRun === runIdRef.current) requestAnimationFrame(panStep); }, 400); }
+            }
           } else {
             targetElRef.current = null;
             setSpot(null);
@@ -323,7 +342,7 @@ export default function AssistantTutorial() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             onClick={endTour}
-            className="fixed top-5 right-5 z-[75] inline-flex items-center gap-1.5 rounded-sm border border-white/20 bg-black/70 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/70 backdrop-blur-md hover:text-white hover:border-white/40 transition-colors"
+            className="fixed top-5 left-5 z-[75] inline-flex items-center gap-1.5 rounded-sm border border-white/20 bg-black/70 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/70 backdrop-blur-md hover:text-white hover:border-white/40 transition-colors"
             aria-label="End tour"
           >
             End tour

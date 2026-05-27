@@ -339,9 +339,10 @@ export default function ChatPanel() {
     const stopKaraoke = () => { if (capRafRef.current) cancelAnimationFrame(capRafRef.current); capRafRef.current = null; };
     const endCaption = () => {
       stopKaraoke(); setCapWords([]); setCapIdx(-1);
-      // On mobile: DON'T reopen the chat. Stay minimized and blink the bubble so the
-      // user knows to tap it to pick up where they left off.
-      if (isMobile && minimizedRef.current) window.dispatchEvent(new CustomEvent("mdcran:chat-attention"));
+      // Mobile: stay minimized + blink the bubble so the user taps to pick up where they
+      // left off. Desktop: reopen the chat automatically once it's done talking.
+      if (isMobile) { if (minimizedRef.current) window.dispatchEvent(new CustomEvent("mdcran:chat-attention")); }
+      else setMinimized(false);
     };
     try {
       const res = await fetch("/api/voice/tts", {
@@ -355,10 +356,11 @@ export default function ChatPanel() {
       if (audioRef.current) audioRef.current.pause();
       const audio = new Audio(url);
       audioRef.current = audio;
-      // Show the caption + minimize on mobile right as audio starts.
+      // Show the caption + hide the chat (any screen) right as audio starts, so the
+      // reply is read over the page; it reopens (desktop) or blinks the bubble (mobile).
       setCapWords(words);
       setCapIdx(0);
-      if (isMobile) setMinimized(true);
+      setMinimized(true);
       const sync = () => {
         const a = audioRef.current;
         if (!a) return;
@@ -637,12 +639,10 @@ export default function ChatPanel() {
     setInput("");
     setStreaming(true);
 
-    // Read-aloud on mobile: minimize NOW so the reply doesn't visibly type into the
-    // chat first — the user just sees the page + the spoken caption. Text still fills
-    // the hidden panel for when they tap back in.
-    if (voiceOnRef.current && typeof window !== "undefined" && window.innerWidth < 768) {
-      setMinimized(true);
-    }
+    // Read-aloud: minimize NOW (any screen) so the reply doesn't visibly type into the
+    // chat first — the user just sees the page + the spoken caption. The panel reopens
+    // when it's done talking (desktop) or blinks the bubble to tap back in (mobile).
+    if (voiceOnRef.current) setMinimized(true);
 
     /* Placeholder assistant message for streaming */
     const assistantMsg: Message = { role: "assistant", content: "" };
