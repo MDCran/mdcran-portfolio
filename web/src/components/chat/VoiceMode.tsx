@@ -70,6 +70,7 @@ export default function VoiceMode() {
   const [supported, setSupported] = useState(true);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [interim, setInterim] = useState("");
+  const [userSaid, setUserSaid] = useState(""); // last transcribed question (shown at top)
   const [turns, setTurns] = useState<Turn[]>([]);
   const [amplitude, setAmplitude] = useState(0); // 0..1 drives the reactive orb
   const [interrupted, setInterrupted] = useState(false); // brief "go ahead" indicator on barge-in
@@ -309,6 +310,7 @@ export default function VoiceMode() {
     setCaptionWords([]);
     setCaptionIdx(-1);
     setPhaseSafe("thinking");
+    setUserSaid(clean); // show what they asked at the top (esp. on the STT fallback path)
     setTurns((prev) => [...prev, { role: "user", text: clean }]);
 
     const history = [...turnsRef.current, { role: "user" as const, text: clean }]
@@ -316,12 +318,14 @@ export default function VoiceMode() {
       .map((t) => ({ role: t.role, content: t.text }));
 
     let accumulated = "";
+    let friendly = "Sorry, I had trouble responding just now.";
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
       });
+      if (res.status === 429) { friendly = "You've hit the message limit for now — give it a little while and try again."; throw new Error("limit"); }
       if (!res.ok || !res.body) throw new Error("chat failed");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -349,7 +353,7 @@ export default function VoiceMode() {
         }
       }
     } catch {
-      accumulated = "Sorry, I had trouble responding just now.";
+      accumulated = friendly;
       setTurns((prev) => [...prev, { role: "assistant", text: accumulated }]);
     }
 
@@ -371,6 +375,7 @@ export default function VoiceMode() {
     audioElRef.current = null;
 
     sendingRef.current = false;
+    setUserSaid(""); // clear the shown question once the reply is done
     if (openRef.current) {
       setPhaseSafe("listening");
       try { recRef.current?.start(); } catch { /* already running */ }
@@ -536,6 +541,7 @@ export default function VoiceMode() {
     bargeFramesRef.current = 0;
     setAmplitude(0);
     setInterim("");
+    setUserSaid("");
     setInterrupted(false);
     setShowTips(false);
     setCaptionWords([]);
@@ -597,9 +603,9 @@ export default function VoiceMode() {
             )}
           </AnimatePresence>
 
-          {/* What the USER is saying (live transcription) / errors — top middle */}
+          {/* What the USER is saying (live transcription / transcribed question) / errors — top middle */}
           <AnimatePresence>
-            {(interim || phase === "error") && !showTips && (
+            {(interim || userSaid || phase === "error") && !showTips && (
               <motion.div
                 initial={{ opacity: 0, y: -14 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -618,7 +624,7 @@ export default function VoiceMode() {
                 >
                   {phase === "error"
                     ? <span className="text-white/55">{supported ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
-                    : <span className="text-white/90">{interim}</span>}
+                    : <span className="text-white/90">{interim || userSaid}</span>}
                 </div>
               </motion.div>
             )}

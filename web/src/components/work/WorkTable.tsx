@@ -130,25 +130,25 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
           <table className="w-full border-collapse text-left">
             <thead className="bg-[#0c0c0e]">
               <tr className="text-[10px] uppercase tracking-[0.15em] text-white/40">
-                <th className="px-4 py-3 font-medium">
+                <th className="px-3 sm:px-4 py-3 font-medium">
                   <button onClick={() => toggleSort("title")} className="inline-flex items-center gap-1.5 hover:text-white">Title <SortIcon k="title" /></button>
                 </th>
-                <th className="px-4 py-3 font-medium hidden sm:table-cell">
+                <th className="px-3 sm:px-4 py-3 font-medium hidden sm:table-cell">
                   <button onClick={() => toggleSort("type")} className="inline-flex items-center gap-1.5 hover:text-white">Type <SortIcon k="type" /></button>
                 </th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">
+                <th className="px-3 sm:px-4 py-3 font-medium hidden md:table-cell">
                   <button onClick={() => toggleSort("category")} className="inline-flex items-center gap-1.5 hover:text-white">Category <SortIcon k="category" /></button>
                 </th>
-                <th className="px-4 py-3 font-medium">
+                <th className="px-3 sm:px-4 py-3 font-medium hidden sm:table-cell">
                   <button onClick={() => toggleSort("date")} className="inline-flex items-center gap-1.5 hover:text-white">Date <SortIcon k="date" /></button>
                 </th>
-                <th className="px-4 py-3 font-medium text-right">Link</th>
+                <th className="px-3 sm:px-4 py-3 font-medium text-right">Link</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
                 <tr key={`${r.type}-${r.id}`} className="group border-t border-white/6 transition-colors hover:bg-white/[0.03]">
-                  <td className="px-4 py-3">
+                  <td className="px-3 sm:px-4 py-3">
                     <Link href={r.url} className="flex items-center gap-3">
                       <span className="relative h-10 w-14 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-white/[0.04]">
                         {r.thumb ? (
@@ -159,30 +159,35 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
                           </span>
                         )}
                       </span>
-                      <span className="text-sm text-white/85 group-hover:text-white">{r.title}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm text-white/85 group-hover:text-white">{r.title}</span>
+                        {/* On phones the Date/Type columns are hidden, so surface them here */}
+                        <span className="mt-0.5 block text-[10px] uppercase tracking-wider text-white/35 sm:hidden">{r.type}{r.dateLabel ? ` · ${r.dateLabel}` : ""}</span>
+                      </span>
                     </Link>
                   </td>
-                  <td className="px-4 py-3 hidden sm:table-cell">
+                  <td className="px-3 sm:px-4 py-3 hidden sm:table-cell">
                     <span className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[10px] uppercase tracking-wider ${r.type === "article" ? "bg-sky-500/10 text-sky-300" : "bg-[var(--cranberry,#ef4242)]/12 text-[var(--cranberry,#ef4242)]"}`}>
                       {r.type === "article" ? <FileText size={10} /> : <FolderGit2 size={10} />}
                       {r.type}
                     </span>
                   </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-xs text-white/55">{r.categoryLabel}</td>
-                  <td className="px-4 py-3 text-xs text-white/50 whitespace-nowrap">{r.dateLabel ?? "—"}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-3 sm:px-4 py-3 hidden md:table-cell text-xs text-white/55">{r.categoryLabel}</td>
+                  <td className="px-3 sm:px-4 py-3 hidden sm:table-cell text-xs text-white/50 whitespace-nowrap">{r.dateLabel ?? "—"}</td>
+                  <td className="px-3 sm:px-4 py-3 text-right">
                     <Link
                       href={r.url}
-                      className="inline-flex items-center gap-1.5 rounded-sm border border-[var(--cranberry,#ef4242)]/40 bg-[var(--cranberry,#ef4242)]/10 px-3 py-1.5 text-[11px] uppercase tracking-wider text-[var(--cranberry,#ef4242)] transition-colors hover:bg-[var(--cranberry,#ef4242)]/20 hover:text-white whitespace-nowrap"
+                      aria-label={`View ${r.title}`}
+                      className="inline-flex items-center gap-1.5 rounded-sm border border-[var(--cranberry,#ef4242)]/40 bg-[var(--cranberry,#ef4242)]/10 px-2.5 sm:px-3 py-1.5 text-[11px] uppercase tracking-wider text-[var(--cranberry,#ef4242)] transition-colors hover:bg-[var(--cranberry,#ef4242)]/20 hover:text-white whitespace-nowrap"
                     >
-                      View Now <ArrowRight size={12} />
+                      <span className="hidden sm:inline">View Now</span> <ArrowRight size={12} />
                     </Link>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-14 text-center text-sm text-white/40">No work matches your search.</td>
+                  <td colSpan={5} className="px-4 py-14 text-center text-sm text-white/40">No work matches your search.</td>
                 </tr>
               )}
             </tbody>
