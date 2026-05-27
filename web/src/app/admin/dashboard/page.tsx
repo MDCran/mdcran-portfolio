@@ -4714,8 +4714,8 @@ export default function AdminDashboard() {
             }}
           />
           {/* Row 1 — brand, title, search, actions */}
-          <div className="relative h-14 px-6 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-[200px] shrink-0">
+          <div className="relative h-14 px-3 sm:px-6 flex items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 min-w-0 sm:min-w-[200px] shrink">
               <span className="font-nord text-base text-white tracking-wide">
                 MDCran<span className="text-[#ef4242]">.admin</span>
               </span>
@@ -4725,7 +4725,7 @@ export default function AdminDashboard() {
                 <h1 className="font-nord text-sm text-white">{sectionTitles[activeSection]}</h1>
               </div>
             </div>
-          <div className="flex-1 flex justify-center px-6">
+          <div className="hidden md:flex flex-1 justify-center px-6">
             <div className="relative w-full max-w-xl">
               <input
                 className="w-full h-10 rounded-sm border border-white/10 bg-white/4 px-4 text-sm text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors"
@@ -4763,7 +4763,7 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-            <div className="flex items-center gap-2 min-w-[200px] justify-end shrink-0">
+            <div className="flex items-center gap-2 min-w-0 sm:min-w-[200px] justify-end shrink-0">
               <a
                 href="https://mdcran.com"
                 target="_blank"
@@ -5063,7 +5063,7 @@ export default function AdminDashboard() {
                 <button className={btnRed} onClick={() => setProjectModal({ open: true })}>+ New Project</button>
               </div>
               {/* Filter bar */}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
                   placeholder="Search projects…"
@@ -5095,7 +5095,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* Table */}
-              <div className="border border-white/8 rounded-sm overflow-hidden">
+              <div className="border border-white/8 rounded-sm overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
@@ -5199,7 +5199,7 @@ export default function AdminDashboard() {
                 <p className="text-xs text-white/35">Write and manage articles, with rich sections and media.</p>
                 <button className={btnRed} onClick={() => setArticleModal({ open: true })}>+ New Article</button>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
                   placeholder="Search articles…"
@@ -5219,7 +5219,7 @@ export default function AdminDashboard() {
                 <span className="text-xs text-white/30 self-center ml-auto">{filteredArticles.length} articles</span>
               </div>
 
-              <div className="border border-white/8 rounded-sm overflow-hidden">
+              <div className="border border-white/8 rounded-sm overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
@@ -5305,7 +5305,7 @@ export default function AdminDashboard() {
                 <p className="text-xs text-white/35">Manage clients and the people you&apos;ve worked with.</p>
                 <button className={btnRed} onClick={() => setClientModal({ open: true })}>+ New Client</button>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
                   placeholder="Search clients..."
@@ -5422,7 +5422,7 @@ export default function AdminDashboard() {
                   {filteredContacts.length} contacts
                 </span>
               </div>
-              <div className="border border-white/8 rounded-sm overflow-hidden">
+              <div className="border border-white/8 rounded-sm overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
@@ -5510,7 +5510,7 @@ export default function AdminDashboard() {
                   {filteredRateLimits.length} records
                 </span>
               </div>
-              <div className="border border-white/8 rounded-sm overflow-hidden">
+              <div className="border border-white/8 rounded-sm overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
@@ -5612,7 +5612,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {chatRateLimitEntries.length > 0 ? (
-                  <div className="border border-white/8 rounded-sm overflow-hidden">
+                  <div className="border border-white/8 rounded-sm overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead className="bg-white/2 border-b border-white/8">
                         <tr>
@@ -7214,7 +7214,7 @@ export default function AdminDashboard() {
                 <p className="text-xs text-white/35">Compose and send email or SMS campaigns.</p>
                 <button className={btnRed} onClick={() => setCampaignModal({ open: true })}>+ Compose</button>
               </div>
-              <div className="border border-white/8 rounded-sm overflow-hidden">
+              <div className="border border-white/8 rounded-sm overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
@@ -7332,7 +7332,7 @@ export default function AdminDashboard() {
                 <span className="text-[10px] text-white/25">Sets the name on /rizz page title</span>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <input
                   className={`${inputCls} max-w-xs`}
                   placeholder="Search rizz submissions..."
@@ -7351,7 +7351,7 @@ export default function AdminDashboard() {
                 </select>
                 <span className="text-xs text-white/30 self-center ml-auto">{filteredRizzEntries.length} entries</span>
               </div>
-              <div className="border border-white/8 rounded-sm overflow-hidden">
+              <div className="border border-white/8 rounded-sm overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-white/2 border-b border-white/8">
                     <tr>
@@ -7422,7 +7422,7 @@ export default function AdminDashboard() {
                 <p className="text-white/30 text-xs">Loading resume data…</p>
               ) : (
                 <>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <input
                       className={`${inputCls} max-w-sm`}
                       placeholder="Search resume..."
@@ -8368,7 +8368,7 @@ function AdminVisitorsSection() {
 
   return (
     <div className="space-y-6">
-      <div className="border border-white/8 rounded-sm overflow-hidden">
+      <div className="border border-white/8 rounded-sm overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-white/2 border-b border-white/8">
             <tr>
@@ -8401,7 +8401,7 @@ function AdminVisitorsSection() {
           </button>
         </div>
         {(data?.adjustments ?? []).length > 0 && (
-          <div className="border border-white/8 rounded-sm overflow-hidden mt-3">
+          <div className="border border-white/8 rounded-sm overflow-x-auto mt-3">
             <table className="w-full text-xs">
               <thead className="bg-white/2 border-b border-white/8">
                 <tr>
