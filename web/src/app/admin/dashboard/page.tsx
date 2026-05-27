@@ -56,6 +56,7 @@ import type {
   EducationProgram,
 } from "@/lib/types";
 import { DEGREE_LEVELS, RESUME_SECTIONS, RESUME_SECTION_LABELS } from "@/lib/types";
+import { flagEmoji } from "@/lib/flag";
 import { defaultSiteContent } from "@/lib/site-content";
 import { SKILL_ICON_NAMES, SkillIcon } from "@/lib/skill-icons";
 import { assetUrl } from "@/lib/utils";
@@ -104,6 +105,7 @@ type NavSection =
   | "sessions"
   | "contacts"
   | "rate-limits"
+  | "ai"
   | "contact-form-entries"
   | "campaigns"
   | "rizz"
@@ -3175,8 +3177,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     const VALID_SECTIONS: NavSection[] = [
       "dashboard", "projects", "articles", "clients", "r2-assets", "site-content",
-      "resume", "analytics", "sessions", "contacts", "rate-limits", "contact-form-entries", "campaigns",
-      "rizz", "visitors", "status",
+      "resume", "analytics", "sessions", "contacts", "rate-limits", "ai", "contact-form-entries", "campaigns",
+      "rizz", "visitors", "booking", "identities", "status",
     ];
     const applyHash = () => {
       const hash = window.location.hash.replace(/^#/, "");
@@ -4482,6 +4484,7 @@ export default function AdminDashboard() {
     { key: "sessions", label: "Sessions" },
     { key: "contacts", label: "Contacts" },
     { key: "rate-limits", label: "Rate Limits" },
+    { key: "ai", label: "AI Assistant" },
     { key: "contact-form-entries", label: "Messages", unreadCount: unreadMessages },
     { key: "campaigns", label: "Compose" },
     { key: "rizz", label: "Rizz" },
@@ -4651,6 +4654,7 @@ export default function AdminDashboard() {
     sessions: "Sessions",
     contacts: "Contacts",
     "rate-limits": "Rate Limits",
+    ai: "AI Assistant",
     "contact-form-entries": "Messages",
     campaigns: "Compose",
     rizz: "Rizz",
@@ -4672,6 +4676,7 @@ export default function AdminDashboard() {
     sessions: "Live visitors and tabs — control, refresh, redirect, kill or blacklist in real time.",
     contacts: "Subscribers collected across the site.",
     "rate-limits": "Inspect and clear API and chat rate-limit records.",
+    ai: "Everything the AI assistant knows — site context plus your own prompting and guidance.",
     "contact-form-entries": "Messages submitted through the contact form.",
     campaigns: "Compose and send email or SMS campaigns.",
     rizz: "Submissions from the Rizz experience.",
@@ -5602,39 +5607,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Admin-authored AI context */}
-                <div className="border border-white/8 rounded-sm p-4 space-y-2">
-                  <div>
-                    <p className="font-nord text-sm text-white">Assistant Context</p>
-                    <p className="text-xs text-white/35">
-                      Extra knowledge for the AI assistant (e.g. current availability, rates philosophy, talking points for recruiters). This is treated as authoritative and injected into the assistant&apos;s instructions. Do NOT put anything secret here — visitors can ask the AI questions that draw on it. Backend, tracking, and tap/view algorithms stay private automatically.
-                    </p>
-                  </div>
-                  <textarea
-                    value={chatRateLimitConfig.extraContext ?? ""}
-                    onChange={(e) => setChatRateLimitConfig((prev) => ({ ...prev, extraContext: e.target.value }))}
-                    rows={6}
-                    maxLength={8000}
-                    placeholder="e.g. Michael is currently open to full-time roles starting June 2026. He's especially interested in full-stack and platform engineering work…"
-                    className="w-full rounded-sm border border-white/10 bg-white/4 px-3 py-2 text-xs text-white outline-none focus:border-white/30 resize-y font-jb leading-relaxed"
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-white/30">{(chatRateLimitConfig.extraContext ?? "").length} / 8000</span>
-                    <button
-                      className={btnOutline}
-                      onClick={async () => {
-                        await fetch("/api/chat", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify(chatRateLimitConfig),
-                        });
-                      }}
-                    >
-                      Save Context
-                    </button>
-                  </div>
-                </div>
-
                 {chatRateLimitEntries.length > 0 ? (
                   <div className="border border-white/8 rounded-sm overflow-hidden">
                     <table className="w-full text-xs">
@@ -5671,6 +5643,69 @@ export default function AdminDashboard() {
                 ) : (
                   <p className="text-xs text-white/25 text-center py-4">No active chat rate limit entries.</p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeSection === "ai" && (
+            <div className="space-y-6">
+              {/* What the assistant already knows (read-only, from the live site data) */}
+              <div className="rounded-sm border border-white/8 bg-white/[0.02] p-5 space-y-3">
+                <div>
+                  <p className="font-nord text-sm text-white">What the assistant knows</p>
+                  <p className="text-xs text-white/35 mt-0.5">The AI is grounded in your live site data — it&apos;s rebuilt on every message, so edits elsewhere in the admin update it automatically.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    ["Projects", "Every project — title, description, category, clients, GitHub, view counts."],
+                    ["Articles", "All articles, excerpts, and section anchors it can scroll to."],
+                    ["Clients", "Clients/creators and what Michael did with them."],
+                    ["Resume & experience", "Roles, dates, education, skills, certifications, awards, organizations."],
+                    ["Site map & pages", "Every page URL — it can navigate, highlight, zoom, and run the projects walkthrough."],
+                    ["Controls", "Theme switching, text size, accessibility toggles, contact + meeting booking."],
+                    ["Visitor context", "Time of day, returning vs. new, recent topics — used only to colour tone."],
+                    ["Voice", "Reads replies aloud in Michael's voice; same voice powers the tour and voice chat."],
+                  ].map(([t, d]) => (
+                    <div key={t} className="rounded-sm border border-white/6 bg-white/[0.02] px-3 py-2">
+                      <p className="text-[11px] text-white/70 font-medium">{t}</p>
+                      <p className="text-[10px] text-white/35 leading-relaxed mt-0.5">{d}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/25">Backend, tracking, tap/view algorithms, and this admin stay private automatically — the assistant refuses to reveal them.</p>
+              </div>
+
+              {/* Admin-authored AI context / prompting */}
+              <div className="rounded-sm border border-white/8 bg-white/[0.02] p-5 space-y-2">
+                <div>
+                  <p className="font-nord text-sm text-white">Your context &amp; prompting</p>
+                  <p className="text-xs text-white/35">
+                    Extra knowledge + guidance for the assistant (e.g. current availability, what to emphasize to recruiters, how to steer answers). Treated as authoritative and injected into its instructions. Do NOT put anything secret here — visitors can draw on it through the chat.
+                  </p>
+                </div>
+                <textarea
+                  value={chatRateLimitConfig.extraContext ?? ""}
+                  onChange={(e) => setChatRateLimitConfig((prev) => ({ ...prev, extraContext: e.target.value }))}
+                  rows={10}
+                  maxLength={8000}
+                  placeholder="e.g. Michael is currently open to full-time roles starting June 2026. He's especially interested in full-stack and platform engineering work. When recruiters ask about availability, mention he can start within two weeks…"
+                  className="w-full rounded-sm border border-white/10 bg-white/4 px-3 py-2 text-xs text-white outline-none focus:border-white/30 resize-y font-jb leading-relaxed"
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-white/30">{(chatRateLimitConfig.extraContext ?? "").length} / 8000</span>
+                  <button
+                    className={btnOutline}
+                    onClick={async () => {
+                      await fetch("/api/chat", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(chatRateLimitConfig),
+                      });
+                    }}
+                  >
+                    Save Context
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -8233,7 +8268,7 @@ function AdminVisitorsSection() {
           <tbody>
             {(data?.counts ?? []).map((c) => (
               <tr key={c.country} className="border-b border-white/5 last:border-0 hover:bg-white/3">
-                <td className="px-3 py-2 text-white/75">{c.countryName}</td>
+                <td className="px-3 py-2 text-white/75"><span className="mr-1.5">{flagEmoji(c.country)}</span>{c.countryName}</td>
                 <td className="px-3 py-2 text-white/40">{c.country}</td>
                 <td className="px-3 py-2 text-right text-white/60">{c.count}</td>
               </tr>
@@ -8266,7 +8301,7 @@ function AdminVisitorsSection() {
               <tbody>
                 {(data?.adjustments ?? []).map((adj) => (
                   <tr key={adj.id} className="border-b border-white/5 last:border-0 hover:bg-white/3">
-                    <td className="px-3 py-2 text-white/75">{adj.countryName} ({adj.country})</td>
+                    <td className="px-3 py-2 text-white/75"><span className="mr-1.5">{flagEmoji(adj.country)}</span>{adj.countryName} ({adj.country})</td>
                     <td className="px-3 py-2 text-right text-white/60">+{adj.addedCount}</td>
                     <td className="px-3 py-2 text-right">
                       <button onClick={() => handleDelete(adj.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
