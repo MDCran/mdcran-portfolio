@@ -449,21 +449,6 @@ export default function PongClient() {
     if (v) { e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* */ } }
     heldRef.current[k] = v;
   };
-  // Not a phone (or still checking) → show the message and redirect home.
-  if (blocked !== false) {
-    return (
-      <main className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[#06060a] px-8 text-center text-white">
-        {blocked && (
-          <>
-            <p className="font-nord text-2xl">The 2D Pong is for mobile phones only.</p>
-            <p className="text-sm text-white/50">Open mdcran.com/2d-pong on your phone. Taking you home…</p>
-            <Link href="/" className="mt-2 h-10 rounded-sm bg-[#ef4242] px-5 text-sm font-medium leading-10 text-white">Go home now</Link>
-          </>
-        )}
-      </main>
-    );
-  }
-
   const cornerBtn = "absolute z-20 flex h-[80px] w-[44%] items-center justify-center rounded-xl border border-white/15 bg-white/[0.05] text-3xl font-bold text-white/70 active:bg-white/20 active:text-white select-none touch-none";
 
   return (
@@ -474,6 +459,19 @@ export default function PongClient() {
     >
       {/* The court fills the entire screen */}
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+      {/* Phone-only gate — overlay (canvas still mounts behind it so the game inits). */}
+      {blocked !== false && (
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-[#06060a] px-8 text-center">
+          {blocked && (
+            <>
+              <p className="font-nord text-2xl">The 2D Pong is for mobile phones only.</p>
+              <p className="text-sm text-white/50">Open mdcran.com/2d-pong on your phone. Taking you home…</p>
+              <Link href="/" className="mt-2 h-10 rounded-sm bg-[#ef4242] px-5 text-sm font-medium leading-10 text-white">Go home now</Link>
+            </>
+          )}
+        </div>
+      )}
 
       {landscape && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-[#06060a] px-8 text-center">
