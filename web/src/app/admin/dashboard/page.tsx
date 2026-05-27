@@ -109,6 +109,7 @@ type NavSection =
   | "contact-form-entries"
   | "campaigns"
   | "rizz"
+  | "bar"
   | "visitors"
   | "booking"
   | "identities"
@@ -3178,7 +3179,7 @@ export default function AdminDashboard() {
     const VALID_SECTIONS: NavSection[] = [
       "dashboard", "projects", "articles", "clients", "r2-assets", "site-content",
       "resume", "analytics", "sessions", "contacts", "rate-limits", "ai", "contact-form-entries", "campaigns",
-      "rizz", "visitors", "booking", "identities", "status",
+      "rizz", "bar", "visitors", "booking", "identities", "status",
     ];
     const applyHash = () => {
       const hash = window.location.hash.replace(/^#/, "");
@@ -4488,6 +4489,7 @@ export default function AdminDashboard() {
     { key: "contact-form-entries", label: "Messages", unreadCount: unreadMessages },
     { key: "campaigns", label: "Compose" },
     { key: "rizz", label: "Rizz" },
+    { key: "bar", label: "Bar" },
     { key: "visitors", label: "Visitors" },
     { key: "booking", label: "Booking" },
     { key: "identities", label: "Identities" },
@@ -4658,6 +4660,7 @@ export default function AdminDashboard() {
     "contact-form-entries": "Messages",
     campaigns: "Compose",
     rizz: "Rizz",
+    bar: "Bar",
     visitors: "Visitors",
     booking: "Booking",
     identities: "Identities",
@@ -4680,6 +4683,7 @@ export default function AdminDashboard() {
     "contact-form-entries": "Messages submitted through the contact form.",
     campaigns: "Compose and send email or SMS campaigns.",
     rizz: "Submissions from the Rizz experience.",
+    bar: "Enable the /bar drink roulette and customize the wheel.",
     visitors: "Live visitor analytics and adjustments.",
     booking: "Calendar-backed meeting booking, business hours, and meeting types.",
     identities: "Recognized visitors by device fingerprint — rename, merge, link, or remove.",
@@ -8070,6 +8074,68 @@ export default function AdminDashboard() {
           {activeSection === "sessions" && (
             <SessionsControl />
           )}
+
+          {activeSection === "bar" && (() => {
+            const cats = siteContent.barCategories ?? [];
+            const setCats = (next: typeof cats) => setSiteContent((prev) => ({ ...prev, barCategories: next }));
+            const updateCat = (i: number, patch: Partial<(typeof cats)[number]>) => setCats(cats.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+            const saveBar = async (payload: typeof siteContent) => {
+              await fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            };
+            return (
+              <div className="space-y-4">
+                {/* Enable / disable /bar */}
+                <div className="flex items-center justify-between gap-3 border border-white/8 rounded-sm p-4 bg-white/2">
+                  <div>
+                    <p className="font-nord text-sm text-white flex items-center gap-2">
+                      <span className={`inline-block h-2 w-2 rounded-full ${siteContent.barEnabled ? "bg-emerald-400" : "bg-white/20"}`} />
+                      /bar page is {siteContent.barEnabled ? "LIVE" : "OFF (404)"}
+                    </p>
+                    <p className="text-xs text-white/35 mt-0.5">The drink roulette. When off, /bar returns Not Found.</p>
+                  </div>
+                  <button
+                    className={siteContent.barEnabled ? btnOutlineRed : "inline-flex items-center justify-center px-4 h-9 text-xs font-medium bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors"}
+                    onClick={async () => { const next = { ...siteContent, barEnabled: !siteContent.barEnabled }; setSiteContent(next); await saveBar(next); }}
+                  >
+                    {siteContent.barEnabled ? "Disable /bar" : "Enable /bar"}
+                  </button>
+                </div>
+
+                {/* Wheel customization */}
+                <div className="space-y-3">
+                  {cats.map((cat, i) => (
+                    <div key={cat.id} className="border border-white/8 rounded-sm p-4 bg-white/2 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={cat.color} onChange={(e) => updateCat(i, { color: e.target.value })} className="h-8 w-10 rounded-sm border border-white/10 bg-transparent cursor-pointer" title="Segment color" />
+                        <input className={`${inputCls} flex-1`} value={cat.name} placeholder="Category name" onChange={(e) => updateCat(i, { name: e.target.value })} />
+                        <button className={btnOutlineRed} onClick={() => setCats(cats.filter((_, idx) => idx !== i))}>Remove</button>
+                      </div>
+                      <textarea className={`${inputCls} w-full resize-y`} rows={2} value={cat.description} placeholder="Shown when a drink from this category is landed on" onChange={(e) => updateCat(i, { description: e.target.value })} />
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] tracking-widest uppercase text-white/35">Drinks</p>
+                        {cat.options.map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <input className={`${inputCls} flex-1`} value={opt} onChange={(e) => updateCat(i, { options: cat.options.map((o, k) => (k === oi ? e.target.value : o)) })} />
+                            <button className="text-white/30 hover:text-[#ef4242] text-xs px-2" onClick={() => updateCat(i, { options: cat.options.filter((_, k) => k !== oi) })}>✕</button>
+                          </div>
+                        ))}
+                        <button className={btnOutline} onClick={() => updateCat(i, { options: [...cat.options, "New drink"] })}>+ Add drink</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-3">
+                    <button className={btnOutline} onClick={() => setCats([...cats, { id: (crypto.randomUUID?.() ?? String(Date.now())), name: "New Category", color: "#a855f7", description: "", options: ["New drink"] }])}>+ Add category</button>
+                    <button
+                      className="inline-flex items-center justify-center px-4 h-9 text-xs font-medium bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors ml-auto"
+                      onClick={async () => { await saveBar(siteContent); }}
+                    >
+                      Save wheel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {activeSection === "visitors" && (
             <AdminVisitorsSection />
