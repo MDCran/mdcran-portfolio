@@ -157,7 +157,9 @@ export default function PongClient() {
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
     return () => { window.removeEventListener("resize", onResize); window.removeEventListener("orientationchange", onResize); };
-  }, []);
+    // Re-run once the game canvas actually mounts (blocked → false), otherwise the
+    // canvas is null during the block-check screen and never gets sized.
+  }, [blocked]);
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
@@ -438,7 +440,8 @@ export default function PongClient() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [resetBall]);
+    // Depend on `blocked` so the loop starts after the canvas mounts (blocked → false).
+  }, [resetBall, blocked]);
 
   // On press-down, capture the pointer + preventDefault so a held finger keeps
   // controlling the paddle on iOS/Android (no scroll, no early cancel on slight move).
