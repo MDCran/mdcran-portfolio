@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ──────────────────────────────────────────────────────────────
@@ -45,8 +46,11 @@ interface FieldOrb { x: number; y: number; r: number; type: Orb }
 type Side = "top" | "bottom";
 
 export default function PongClient() {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  // null = checking, true = desktop (blocked), false = phone (allowed)
+  const [blocked, setBlocked] = useState<boolean | null>(null);
 
   const [scoreP1, setScoreP1] = useState(0);
   const [scoreP2, setScoreP2] = useState(0);
@@ -125,6 +129,16 @@ export default function PongClient() {
     runningRef.current = true;
     setRunning(true);
   }, [resetBall]);
+
+  // Phone-only: a coarse pointer on a small screen. Anything else → bounce home.
+  useEffect(() => {
+    const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+    const small = Math.min(window.innerWidth, window.innerHeight) <= 640;
+    if (coarse && small) { setBlocked(false); return; }
+    setBlocked(true);
+    const t = window.setTimeout(() => router.push("/"), 2800);
+    return () => window.clearTimeout(t);
+  }, [router]);
 
   useEffect(() => {
     const onResize = () => {
@@ -428,6 +442,21 @@ export default function PongClient() {
 
   const press = (k: keyof typeof heldRef.current, v: boolean) => () => { heldRef.current[k] = v; };
   const ctrlBtn = "flex-1 flex items-center justify-center rounded-sm border border-white/15 bg-white/[0.06] active:bg-white/20 text-white/80 text-2xl font-bold select-none touch-none";
+
+  // Not a phone (or still checking) → show the message and redirect home.
+  if (blocked !== false) {
+    return (
+      <main className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[#06060a] px-8 text-center text-white">
+        {blocked && (
+          <>
+            <p className="font-nord text-2xl">The 2D Pong is for mobile phones only.</p>
+            <p className="text-sm text-white/50">Open mdcran.com/2d-pong on your phone. Taking you home…</p>
+            <Link href="/" className="mt-2 h-10 rounded-sm bg-[#ef4242] px-5 text-sm font-medium leading-10 text-white">Go home now</Link>
+          </>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main
