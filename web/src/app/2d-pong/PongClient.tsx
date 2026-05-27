@@ -94,7 +94,7 @@ export default function PongClient() {
   const quakeEndRef = useRef(0);
 
   const PAD_H = 12;
-  const PAD_INSET = 70;
+  const PAD_INSET = 100; // keep paddles clear of the corner control buttons
 
   const padWidth = (side: Side, now: number) => {
     const s = scaleRef.current[side];
@@ -446,8 +446,6 @@ export default function PongClient() {
     if (v) { e.preventDefault(); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* */ } }
     heldRef.current[k] = v;
   };
-  const ctrlBtn = "flex-1 flex items-center justify-center rounded-sm border border-white/15 bg-white/[0.06] active:bg-white/20 text-white/80 text-2xl font-bold select-none touch-none";
-
   // Not a phone (or still checking) → show the message and redirect home.
   if (blocked !== false) {
     return (
@@ -463,121 +461,107 @@ export default function PongClient() {
     );
   }
 
+  const cornerBtn = "absolute z-20 flex h-[80px] w-[44%] items-center justify-center rounded-xl border border-white/15 bg-white/[0.05] text-3xl font-bold text-white/70 active:bg-white/20 active:text-white select-none touch-none";
+
   return (
     <main
+      ref={wrapRef}
       className="fixed inset-0 overflow-hidden bg-[#06060a] text-white"
       style={{ touchAction: "none", overscrollBehavior: "none", filter: inverted ? "invert(1) hue-rotate(180deg)" : "none", transition: "filter 0.15s" }}
     >
+      {/* The court fills the entire screen */}
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
       {landscape && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-[#06060a] px-8 text-center">
-          <p className="font-nord text-2xl">Rotate to portrait</p>
-          <p className="text-sm text-white/50">Hold the phone upright between both players.</p>
+          <p className="font-nord text-2xl">Turn the phone upright</p>
+          <p className="text-sm text-white/50">Hold it vertically between you — a player at each end.</p>
         </div>
       )}
 
-      <div className="flex h-full w-full flex-col">
-        <div className="flex h-[70px] flex-none gap-2 px-3 py-2" style={{ transform: "rotate(180deg)" }}>
-          <button className={ctrlBtn} aria-label="P2 left" onPointerDown={press("tl", true)} onPointerUp={press("tl", false)} onPointerLeave={press("tl", false)} onPointerCancel={press("tl", false)}>◀</button>
-          <div className="flex items-center px-2 text-[11px] uppercase tracking-widest text-[#38bdf8]">P2 · {scoreP2}</div>
-          <button className={ctrlBtn} aria-label="P2 right" onPointerDown={press("tr", true)} onPointerUp={press("tr", false)} onPointerLeave={press("tr", false)} onPointerCancel={press("tr", false)}>▶</button>
-        </div>
+      {/* P2 (top) controls — rotated to face that player */}
+      <button style={{ transform: "rotate(180deg)" }} className={`${cornerBtn} left-2 top-2`} aria-label="P2 left" onPointerDown={press("tl", true)} onPointerUp={press("tl", false)} onPointerCancel={press("tl", false)}>◀</button>
+      <button style={{ transform: "rotate(180deg)" }} className={`${cornerBtn} right-2 top-2`} aria-label="P2 right" onPointerDown={press("tr", true)} onPointerUp={press("tr", false)} onPointerCancel={press("tr", false)}>▶</button>
+      {/* P1 (bottom) controls */}
+      <button className={`${cornerBtn} left-2 bottom-2`} aria-label="P1 left" onPointerDown={press("bl", true)} onPointerUp={press("bl", false)} onPointerCancel={press("bl", false)}>◀</button>
+      <button className={`${cornerBtn} right-2 bottom-2`} aria-label="P1 right" onPointerDown={press("br", true)} onPointerUp={press("br", false)} onPointerCancel={press("br", false)}>▶</button>
 
-        <div ref={wrapRef} className="relative flex-1">
-          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      {/* Scores at each end */}
+      <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 text-[12px] uppercase tracking-widest text-[#38bdf8]" style={{ transform: "translateX(-50%) rotate(180deg)" }}>P2 · {scoreP2}</div>
+      <div className="pointer-events-none absolute left-1/2 bottom-2 z-20 -translate-x-1/2 text-[12px] uppercase tracking-widest text-[#ef4242]">P1 · {scoreP1}</div>
 
-          <div className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 -rotate-90 origin-left">
-            <span className="whitespace-nowrap rounded-sm bg-black/50 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/55 backdrop-blur-sm">
-              {mode !== "none" ? `${MODE_LABELS[mode]} · ${countdown}s` : nextMode !== "none" ? `Incoming: ${MODE_LABELS[nextMode]} in ${countdown}s` : running ? `Next chaos: ${countdown}s` : "Ready"}
-            </span>
-          </div>
-
-          {/* Active effect timers — stacked on the right edge */}
-          <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex max-h-[70vh] -translate-y-1/2 flex-col gap-1.5 overflow-hidden">
-            {hud.map((fx) => (
-              <div key={fx.key} className="flex items-center gap-1.5 rounded-sm bg-black/55 px-2 py-1 backdrop-blur-sm" style={{ border: `1px solid ${fx.color}55` }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: fx.color, boxShadow: `0 0 6px ${fx.color}` }} />
-                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: fx.color }}>{fx.label}</span>
-                <span className="text-[10px] font-mono text-white/70 tabular-nums">{fx.secs}s</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Full-screen flash when a mode/power-up fires */}
-          <AnimatePresence>
-            {flash && (
-              <motion.div
-                key={flash.id}
-                initial={{ opacity: 0.85 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-                onAnimationComplete={() => setFlash((f) => (f?.id === flash.id ? null : f))}
-                className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
-                style={{ background: `radial-gradient(circle at center, ${flash.color}55, ${flash.color}10 60%, transparent)` }}
-              >
-                <motion.span
-                  initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1.1, opacity: 1 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="font-nord text-3xl uppercase tracking-[0.18em] text-white"
-                  style={{ textShadow: `0 0 30px ${flash.color}` }}
-                >
-                  {flash.label}
-                </motion.span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Orb pickup banner */}
-          <AnimatePresence>
-            {orbBanner && (
-              <motion.div
-                key={orbBanner.id}
-                initial={{ opacity: 0, y: 10, scale: 0.8 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }}
-                transition={{ duration: 0.3 }}
-                onAnimationComplete={() => window.setTimeout(() => setOrbBanner((b) => (b?.id === orbBanner.id ? null : b)), 900)}
-                className="pointer-events-none absolute left-1/2 top-[38%] z-10 -translate-x-1/2"
-              >
-                <span className="rounded-sm px-3 py-1 font-nord text-sm uppercase tracking-[0.18em]" style={{ background: "rgba(0,0,0,0.5)", color: orbBanner.color, textShadow: `0 0 16px ${orbBanner.color}` }}>{orbBanner.label}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {mode !== "none" && (
-              <motion.div key={mode} initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.2 }} className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-                <span className="font-nord text-xl uppercase tracking-[0.18em] text-white" style={{ textShadow: "0 0 24px rgba(239,66,66,0.7)" }}>{mode === "invert" ? "REVERSE!" : MODE_LABELS[mode]}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {!running && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black/70 px-8 text-center backdrop-blur-sm">
-                {winner ? (
-                  <>
-                    <p className="font-nord text-3xl" style={{ color: winner === 1 ? "#ef4242" : "#38bdf8" }}>Player {winner} wins!</p>
-                    <p className="text-sm text-white/50">{scoreP1} — {scoreP2}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-nord text-3xl">2D Pong</p>
-                    <p className="max-w-xs text-sm leading-relaxed text-white/55">Hold the phone upright between you. Each player taps ◀ ▶ on their end. Grab the glowing orbs, survive the chaos. First to {WIN_SCORE} wins.</p>
-                  </>
-                )}
-                <div className="flex gap-3">
-                  <button onClick={startMatch} className="h-11 rounded-sm bg-[#ef4242] px-6 text-sm font-medium text-white">{winner ? "Play again" : "Start game"}</button>
-                  {winner && <button onClick={() => { setWinner(null); scoreRef.current = { p1: 0, p2: 0 }; setScoreP1(0); setScoreP2(0); }} className="h-11 rounded-sm border border-white/20 px-5 text-sm text-white/70">Reset score</button>}
-                </div>
-                <Link href="/" className="text-[11px] uppercase tracking-[0.18em] text-white/30">← Home</Link>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="flex h-[70px] flex-none gap-2 px-3 py-2">
-          <button className={ctrlBtn} aria-label="P1 left" onPointerDown={press("bl", true)} onPointerUp={press("bl", false)} onPointerLeave={press("bl", false)} onPointerCancel={press("bl", false)}>◀</button>
-          <div className="flex items-center px-2 text-[11px] uppercase tracking-widest text-[#ef4242]">P1 · {scoreP1}</div>
-          <button className={ctrlBtn} aria-label="P1 right" onPointerDown={press("br", true)} onPointerUp={press("br", false)} onPointerLeave={press("br", false)} onPointerCancel={press("br", false)}>▶</button>
-        </div>
+      {/* Event countdown — middle, on the left edge */}
+      <div className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 -rotate-90 origin-left">
+        <span className="whitespace-nowrap rounded-sm bg-black/50 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/55 backdrop-blur-sm">
+          {mode !== "none" ? `${MODE_LABELS[mode]} · ${countdown}s` : nextMode !== "none" ? `Incoming: ${MODE_LABELS[nextMode]} in ${countdown}s` : running ? `Next chaos: ${countdown}s` : "Ready"}
+        </span>
       </div>
+
+      {/* Active effect timers — right edge */}
+      <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex max-h-[60vh] -translate-y-1/2 flex-col gap-1.5 overflow-hidden">
+        {hud.map((fx) => (
+          <div key={fx.key} className="flex items-center gap-1.5 rounded-sm bg-black/55 px-2 py-1 backdrop-blur-sm" style={{ border: `1px solid ${fx.color}55` }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: fx.color, boxShadow: `0 0 6px ${fx.color}` }} />
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: fx.color }}>{fx.label}</span>
+            <span className="text-[10px] font-mono text-white/70 tabular-nums">{fx.secs}s</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Full-screen flash when a mode/power-up fires */}
+      <AnimatePresence>
+        {flash && (
+          <motion.div key={flash.id} initial={{ opacity: 0.85 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}
+            onAnimationComplete={() => setFlash((f) => (f?.id === flash.id ? null : f))}
+            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+            style={{ background: `radial-gradient(circle at center, ${flash.color}55, ${flash.color}10 60%, transparent)` }}>
+            <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1.1, opacity: 1 }} transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }} className="font-nord text-3xl uppercase tracking-[0.18em] text-white" style={{ textShadow: `0 0 30px ${flash.color}` }}>{flash.label}</motion.span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Orb pickup banner */}
+      <AnimatePresence>
+        {orbBanner && (
+          <motion.div key={orbBanner.id} initial={{ opacity: 0, y: 10, scale: 0.8 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }} transition={{ duration: 0.3 }}
+            onAnimationComplete={() => window.setTimeout(() => setOrbBanner((b) => (b?.id === orbBanner.id ? null : b)), 900)}
+            className="pointer-events-none absolute left-1/2 top-[40%] z-10 -translate-x-1/2">
+            <span className="rounded-sm px-3 py-1 font-nord text-sm uppercase tracking-[0.18em]" style={{ background: "rgba(0,0,0,0.5)", color: orbBanner.color, textShadow: `0 0 16px ${orbBanner.color}` }}>{orbBanner.label}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {mode !== "none" && (
+          <motion.div key={mode} initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.2 }} className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+            <span className="font-nord text-xl uppercase tracking-[0.18em] text-white" style={{ textShadow: "0 0 24px rgba(239,66,66,0.7)" }}>{mode === "invert" ? "REVERSE!" : MODE_LABELS[mode]}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Start / winner overlay */}
+      <AnimatePresence>
+        {!running && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-5 bg-black/75 px-8 text-center backdrop-blur-sm">
+            {winner ? (
+              <>
+                <p className="font-nord text-3xl" style={{ color: winner === 1 ? "#ef4242" : "#38bdf8" }}>Player {winner} wins!</p>
+                <p className="text-sm text-white/50">{scoreP1} — {scoreP2}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-nord text-4xl">2D PONG</p>
+                <p className="max-w-[15rem] text-sm leading-relaxed text-white/55">Phone upright, a player at each end. Tap the ◀ ▶ corners to move your paddle. First to {WIN_SCORE}.</p>
+              </>
+            )}
+            <div className="flex gap-3">
+              <button onClick={startMatch} className="h-12 rounded-sm bg-[#ef4242] px-7 font-nord text-sm uppercase tracking-[0.15em] text-white">{winner ? "Play again" : "Start game"}</button>
+              {winner && <button onClick={() => { setWinner(null); scoreRef.current = { p1: 0, p2: 0 }; setScoreP1(0); setScoreP2(0); }} className="h-12 rounded-sm border border-white/20 px-5 text-sm text-white/70">Reset score</button>}
+            </div>
+            <Link href="/" className="text-[11px] uppercase tracking-[0.18em] text-white/30">← Home</Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
