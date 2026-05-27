@@ -88,7 +88,7 @@ export default function VoiceMode() {
   const rafRef = useRef<number | null>(null);
   const recRef = useRef<SpeechRec | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const ttsSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const ttsSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const bargeFramesRef = useRef(0);       // consecutive frames of user speech during TTS
   const interruptTtsRef = useRef<(() => void) | null>(null); // stops current TTS playback
 
@@ -180,7 +180,8 @@ export default function VoiceMode() {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  /* ── Speak a reply via ElevenLabs; circle reacts to the audio ── */
+  /* ── Speak a reply via ElevenLabs. Plays through Web Audio (decoded buffer) so it
+     isn't blocked by mobile autoplay the way a plain <audio>.play() is. ── */
   const speak = useCallback(async (text: string): Promise<void> => {
     const clean = stripForSpeech(text);
     if (!clean) return;
@@ -194,25 +195,18 @@ export default function VoiceMode() {
         body: JSON.stringify({ text: clean }),
       });
       if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.crossOrigin = "anonymous";
-      audioElRef.current = audio;
-
-      // Route TTS through its own analyser so the circle reacts to the agent's voice
-      // (kept separate from the mic analyser so barge-in detection stays clean).
+      const arr = await res.arrayBuffer();
       const ctx = audioCtxRef.current;
-      if (ctx && ttsAnalyserRef.current) {
-        try {
-          const src = ctx.createMediaElementSource(audio);
-          ttsSourceRef.current = src;
-          src.connect(ttsAnalyserRef.current);
-          ttsAnalyserRef.current.connect(ctx.destination);
-        } catch {
-          /* fallback: just play */
-        }
-      }
+      if (!ctx) return;
+      try { await ctx.resume(); } catch { /* */ }
+      let audioBuf: AudioBuffer;
+      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { return; }
+      const analyser = ttsAnalyserRef.current;
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      if (analyser) { src.connect(analyser); analyser.connect(ctx.destination); } else { src.connect(ctx.destination); }
+      ttsSourceRef.current = src;
+      const dur = audioBuf.duration || capWords.length * 0.34;
 
       await new Promise<void>((resolve) => {
         let done = false;
@@ -222,32 +216,27 @@ export default function VoiceMode() {
           done = true;
           stopKaraoke();
           interruptTtsRef.current = null;
-          URL.revokeObjectURL(url);
-          // Reply finished — clear the bottom caption so it doesn't linger.
           setCaptionWords([]);
           setCaptionIdx(-1);
+          try { src.disconnect(); } catch { /* */ }
           resolve();
         };
-        // Karaoke-highlight the caption words synced to the audio position.
+        const startedAt = ctx.currentTime;
         const karaoke = () => {
-          const a = audioElRef.current;
-          if (!a) return;
-          const d = a.duration && isFinite(a.duration) ? a.duration : capWords.length * 0.34;
-          setCaptionIdx(Math.min(capWords.length - 1, Math.floor((a.currentTime / Math.max(d, 0.1)) * capWords.length)));
-          if (!a.ended) captionRafRef.current = requestAnimationFrame(karaoke);
+          const el = ctx.currentTime - startedAt;
+          setCaptionIdx(Math.min(capWords.length - 1, Math.floor((el / Math.max(dur, 0.1)) * capWords.length)));
+          if (el < dur) captionRafRef.current = requestAnimationFrame(karaoke);
         };
-        // Allow barge-in to cut playback short.
         interruptTtsRef.current = () => {
-        try { audio.pause(); } catch { /* */ }
-        setInterrupted(true);
-        setTimeout(() => setInterrupted(false), 1400);
-        // Flip to listening immediately so the recognizer's results start flowing.
-        setPhaseSafe("listening");
-        finish();
-      };
-        audio.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
-        audio.onerror = finish;
-        audio.play().then(() => { captionRafRef.current = requestAnimationFrame(karaoke); }).catch(() => finish());
+          try { src.stop(); } catch { /* */ }
+          setInterrupted(true);
+          setTimeout(() => setInterrupted(false), 1400);
+          setPhaseSafe("listening");
+          finish();
+        };
+        src.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
+        try { src.start(); captionRafRef.current = requestAnimationFrame(karaoke); }
+        catch { finish(); }
       });
     } catch {
       /* ignore */
@@ -676,10 +665,11 @@ export default function VoiceMode() {
               </button>
             </div>
 
-            {/* The orb (tap to interrupt while it's speaking) */}
+            {/* The orb — tap to interrupt while speaking, otherwise tap to exit voice chat */}
             <button
-              onClick={() => { if (phase === "speaking") interruptTtsRef.current?.(); }}
-              aria-label={phase === "speaking" ? "Tap to interrupt" : "Voice assistant"}
+              onClick={() => { if (phase === "speaking") interruptTtsRef.current?.(); else close(); }}
+              aria-label={phase === "speaking" ? "Tap to interrupt" : "Tap to exit voice chat"}
+              title={phase === "speaking" ? "Tap to interrupt" : "Tap to exit voice chat"}
               className="relative flex h-16 w-16 items-center justify-center rounded-full"
               style={{ boxShadow: `0 8px 28px rgba(0,0,0,0.45), 0 0 ${18 + amplitude * 60}px color-mix(in srgb, ${orbColor} 55%, transparent)` }}
             >
