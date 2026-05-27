@@ -383,32 +383,39 @@ export const defaultSiteContent: SiteContent = {
   barEnabled: false,
   barCategories: [
     {
+      id: "staples",
+      name: "The Staples",
+      color: "#0ea5e9",
+      description: "The bread-and-butter pours every bar has on hand. Never a wrong answer.",
+      options: ["Beer / House Lager", "Vodka Soda", "Rum & Coke", "Whiskey & Coke", "Jack & Coke", "Vodka Cranberry", "House Red Wine", "House White Wine"],
+    },
+    {
       id: "classics",
       name: "The Classics",
       color: "#22c55e",
       description: "Safe, crowd-pleasing options. Perfect if you just met someone and want a normal, high-quality drink order.",
-      options: ["Espresso Martini", "Spicy Margarita", "Gin & Tonic"],
+      options: ["Espresso Martini", "Spicy Margarita", "Gin & Tonic", "Old Fashioned", "Moscow Mule", "Long Island Iced Tea"],
     },
     {
       id: "wild-cards",
       name: "The Wild Cards",
       color: "#f59e0b",
       description: "Instantly elevates the energy of the night. It locks in a decision so nobody can back out.",
-      options: ["Bartender's Choice", "Lemon Drop Shot", "Tequila Shot"],
+      options: ["Bartender's Choice", "Lemon Drop Shot", "Tequila Shot", "Fireball Shot", "Jägerbomb"],
     },
     {
       id: "chaotic-fails",
       name: "The Chaotic Fails",
       color: "#ef4242",
       description: "The risk factor. Having one or two genuinely funny/bad options on the wheel makes spinning it actually thrilling.",
-      options: ["Warm Well Tequila", "Malört (or a local terrible shot)", "A cup of straight pickle juice"],
+      options: ["Warm Well Tequila", "Malört (or a local terrible shot)", "A cup of straight pickle juice", "Wells Vodka, neat"],
     },
     {
       id: "stay-hydrated",
       name: "The Stay Hydrated",
       color: "#38bdf8",
       description: "A hilarious mood-killer option that is actually incredibly useful if it's getting late and someone needs a break.",
-      options: ["Liquid Death / Water", "Red Bull / Energy Drink", "Club Soda with Lime"],
+      options: ["Water", "Red Bull / Energy Drink", "Club Soda with Lime", "Coke / Soda"],
     },
   ],
 };
