@@ -182,17 +182,19 @@ export default function GlobalChrome() {
     );
   }
 
-  // The Rizz experience hides the AI assistant entirely.
-  const hideAssistant = pathname.startsWith("/rizz");
+  // The Rizz and Bar experiences hide the floating buttons (assistant, scroll-to-top,
+  // accessibility) so nothing covers the full-screen game/slot. (/2d-pong is fully
+  // chromeless above.)
+  const hideFunChrome = ["/rizz", "/bar"].some((p) => pathname.startsWith(p));
 
   return (
     <>
       <StatusBanner />
       <TerminalExperience />
       <KeyboardShortcuts />
-      <AccessibilityMenu />
-      <ScrollProgress />
-      {!hideAssistant && (
+      {!hideFunChrome && <AccessibilityMenu />}
+      {!hideFunChrome && <ScrollProgress />}
+      {!hideFunChrome && (
         <>
           <ChatBubble />
           <ChatPanel />

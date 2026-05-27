@@ -12,7 +12,7 @@ import { assetUrl } from "@/lib/utils";
    Shows ONCE per browser session (sessionStorage) so navigating back to the
    home page from elsewhere is instant — no loader, no flash. */
 const SESSION_KEY = "mdcran_home_intro_shown";
-const FALLBACK_LOGO = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png") || "/logo.svg";
+const FALLBACK_LOGO = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png") || "/logo.svg";
 
 export default function HomeLoader() {
   // Always render on the first paint (SSR + first client render) so there's no
