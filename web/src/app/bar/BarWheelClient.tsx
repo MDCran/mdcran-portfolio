@@ -127,6 +127,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
   const holdRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const cabinetRef = useRef<HTMLDivElement | null>(null);
+  const barFillRef = useRef<HTMLDivElement | null>(null); // driven directly each frame
   const audioRef = useRef<AudioContext | null>(null);
   const tickTimersRef = useRef<number[]>([]);
   const winnerTimerRef = useRef<number | null>(null);
@@ -213,6 +214,9 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
       const now = performance.now();
       const pw = Math.min(1, (now - holdRef.current) / 1400);
       setPower(pw);
+      // Drive the fill width straight on the DOM so it grows smoothly during the hold,
+      // independent of React's render timing on touch devices.
+      if (barFillRef.current) barFillRef.current.style.width = `${pw * 100}%`;
       setChargeTier(pw < 0.33 ? 1 : pw < 0.66 ? 2 : 3);
       // Subtle cabinet shimmer that intensifies with charge.
       if (cabinetRef.current) { const mag = pw * 3.2; cabinetRef.current.style.transform = `translate(${(Math.random() - 0.5) * mag}px, ${(Math.random() - 0.5) * mag}px)`; }
@@ -225,7 +229,14 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
     rafRef.current = requestAnimationFrame(tick);
   }, [spinning, faces.length]);
 
-  const releaseCharge = useCallback(() => { if (!charging) return; stopCharge(); setChargeTier(0); void spin(Math.max(0.08, power)); }, [charging, power, spin, stopCharge]);
+  const releaseCharge = useCallback(() => {
+    if (!charging) return;
+    stopCharge();
+    setChargeTier(0);
+    const p = Math.max(0.08, power);
+    if (barFillRef.current) barFillRef.current.style.width = "0%"; // empty the meter as the pull fires
+    void spin(p);
+  }, [charging, power, spin, stopCharge]);
 
   const toggleCat = (id: string) => setPrefs((p) => ({ ...p, selected: p.selected.includes(id) ? p.selected.filter((x) => x !== id) : [...p.selected, id] }));
   const toggleDrink = (catId: string, opt: string) => { const key = `${catId}::${opt}`; setPrefs((p) => ({ ...p, disabled: p.disabled.includes(key) ? p.disabled.filter((x) => x !== key) : [...p.disabled, key] })); };
@@ -340,7 +351,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
             <span>{spinning ? "Rolling…" : charging ? `${Math.round(power * 100)}%` : "Hold to charge"}</span>
           </div>
           <div className="relative h-5 w-full overflow-hidden rounded-full border border-white/12 bg-white/5">
-            <div className="h-full rounded-full transition-[width] duration-75" style={{ width: `${power * 100}%`, background: "linear-gradient(90deg,#22c55e,#f59e0b 60%,#ef4242)" }} />
+            <div ref={barFillRef} className="h-full rounded-full" style={{ width: `${power * 100}%`, background: "linear-gradient(90deg,#22c55e,#f59e0b 60%,#ef4242)" }} />
           </div>
           <button type="button" disabled={spinning || pool.length === 0}
             onContextMenu={(e) => e.preventDefault()}
