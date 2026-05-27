@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2, Link2, GitMerge, Check, X, Pencil, Loader2, Fingerprint } from "lucide-react";
+import { Trash2, Link2, GitMerge, Check, X, Pencil, Loader2, Fingerprint, UserPlus } from "lucide-react";
 import type { Identity } from "@/lib/types";
 
 const SITE = "https://mdcran.com";
@@ -14,6 +14,7 @@ export default function IdentitiesAdmin() {
   const [linkPath, setLinkPath] = useState("/");
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [newName, setNewName] = useState("");
 
   const load = () => fetch("/api/admin/identities").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.identities) setIdentities(d.identities); }).catch(() => {});
   useEffect(() => { load(); }, []);
@@ -47,6 +48,19 @@ export default function IdentitiesAdmin() {
     const url = `${SITE}${linkPath.startsWith("/") ? linkPath : `/${linkPath}`}?identity=${id}`;
     navigator.clipboard.writeText(url).then(() => { setCopied(id); setTimeout(() => setCopied(null), 1500); }).catch(() => {});
   };
+  // Pre-create a named identity (e.g. "Cole"), then hand out its tracking link —
+  // whoever opens it gets their device registered to that name.
+  const create = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setBusy(true);
+    const r = await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", name }) })
+      .then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    setNewName("");
+    await load();
+    setBusy(false);
+    if (r?.identity?.id) copyLink(r.identity.id); // auto-copy the new tracking link
+  };
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   if (!identities) return <p className="text-xs text-white/30">Loading identities…</p>;
@@ -58,14 +72,29 @@ export default function IdentitiesAdmin() {
           <p className="font-nord text-base text-white flex items-center gap-2"><Fingerprint size={16} className="text-[var(--cranberry)]" /> Identities</p>
           <p className="text-xs text-white/35 mt-0.5">Recognized visitors by device fingerprint. Select 2+ to merge.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <input value={linkPath} onChange={(e) => setLinkPath(e.target.value)} placeholder="/ (link target path)" className="h-8 w-40 rounded-sm border border-white/10 bg-white/4 px-2 text-xs text-white outline-none focus:border-white/30" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <input value={linkPath} onChange={(e) => setLinkPath(e.target.value)} placeholder="/ (link target path)" className="h-8 w-36 rounded-sm border border-white/10 bg-white/4 px-2 text-xs text-white outline-none focus:border-white/30" />
           {selected.size >= 2 && (
             <button onClick={merge} disabled={busy} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-[var(--cranberry)]/40 text-[var(--cranberry)] text-[11px] hover:bg-[var(--cranberry)]/10">
               <GitMerge size={13} /> Merge {selected.size}
             </button>
           )}
         </div>
+      </div>
+
+      {/* Create a named identity, then copy its tracking link to hand out. */}
+      <div className="flex items-center gap-2 rounded-sm border border-white/8 bg-white/2 p-2.5">
+        <UserPlus size={15} className="text-[var(--cranberry)] ml-0.5" />
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") create(); }}
+          placeholder='New identity name (e.g. "Cole")'
+          className="h-8 flex-1 rounded-sm border border-white/10 bg-white/4 px-2 text-sm text-white outline-none focus:border-white/30"
+        />
+        <button onClick={create} disabled={busy || !newName.trim()} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-sm bg-[var(--cranberry)] text-white text-[11px] font-medium disabled:opacity-40 hover:opacity-90">
+          <UserPlus size={13} /> Create & copy link
+        </button>
       </div>
 
       {identities.length === 0 && <p className="text-xs text-white/30">No identities yet.</p>}

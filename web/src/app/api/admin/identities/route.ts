@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
-import { getIdentities, renameIdentity, deleteIdentity, removeDeviceFromIdentity, mergeIdentities } from "@/lib/identity";
+import { getIdentities, renameIdentity, deleteIdentity, removeDeviceFromIdentity, mergeIdentities, createIdentity } from "@/lib/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,11 @@ export async function DELETE(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json().catch(() => null) as { action?: string; id?: string; serial?: string; targetId?: string; sourceIds?: string[] } | null;
+  const body = await req.json().catch(() => null) as { action?: string; id?: string; serial?: string; targetId?: string; sourceIds?: string[]; name?: string } | null;
+  if (body?.action === "create" && typeof body.name === "string" && body.name.trim()) {
+    const identity = await createIdentity(body.name);
+    return NextResponse.json({ ok: true, identity });
+  }
   if (body?.action === "remove-device" && body.id && body.serial) {
     await removeDeviceFromIdentity(body.id, body.serial);
     return NextResponse.json({ ok: true });
