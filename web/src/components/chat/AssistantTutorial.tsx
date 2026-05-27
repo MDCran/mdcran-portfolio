@@ -108,7 +108,9 @@ export default function AssistantTutorial() {
     const done = () => {
       if (finished) return;
       finished = true;
-      if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
+      // Pause but KEEP the element — reusing one unlocked <audio> lets later steps
+      // play on mobile (a fresh Audio() created after an await is blocked by autoplay).
+      if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
       resolve();
     };
 
@@ -124,20 +126,26 @@ export default function AssistantTutorial() {
     };
 
     // Play an audio URL with karaoke sync; onFail handles a missing/broken source.
+    // Reuse ONE <audio> element so it stays "unlocked" after the first gesture-driven
+    // play — otherwise mobile blocks every step after the intro and it goes silent.
     const playUrl = (url: string, revoke: boolean, onFail: () => void) => {
       if (myRun !== runIdRef.current) { if (revoke) URL.revokeObjectURL(url); return done(); }
-      const audio = new Audio(url);
-      audioRef.current = audio;
+      if (!audioRef.current) audioRef.current = new Audio();
+      const audio = audioRef.current;
+      const cleanupUrl = () => { if (revoke) { try { URL.revokeObjectURL(url); } catch { /* */ } } };
       const sync = () => {
-        if (myRun !== runIdRef.current) return;
+        if (myRun !== runIdRef.current || audioRef.current !== audio) return;
         const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
         const p = d > 0 ? audio.currentTime / d : 0;
         setWordIdx(Math.min(w.length - 1, Math.floor(p * w.length)));
         if (!audio.ended) requestAnimationFrame(sync);
       };
-      audio.onended = () => { setWordIdx(w.length - 1); if (revoke) URL.revokeObjectURL(url); done(); };
-      audio.onerror = () => { if (revoke) URL.revokeObjectURL(url); onFail(); };
-      audio.play().then(() => requestAnimationFrame(sync)).catch(() => { if (revoke) URL.revokeObjectURL(url); onFail(); });
+      audio.onended = () => { setWordIdx(w.length - 1); cleanupUrl(); done(); };
+      audio.onerror = () => { cleanupUrl(); onFail(); };
+      try { audio.pause(); } catch { /* */ }
+      audio.src = url;
+      try { audio.currentTime = 0; } catch { /* */ }
+      audio.play().then(() => requestAnimationFrame(sync)).catch(() => { cleanupUrl(); onFail(); });
     };
 
     // Live ElevenLabs synthesis (used only when no prerecorded clip is available).
@@ -202,12 +210,19 @@ export default function AssistantTutorial() {
             const centerInBand = (node: HTMLElement) => {
               const r = node.getBoundingClientRect();
               const vh = window.innerHeight;
-              const topInset = 80;     // nav clearance
-              const bottomInset = 180; // caption + breathing room
-              const avail = Math.max(120, vh - topInset - bottomInset);
-              const targetY = r.height >= avail
-                ? window.scrollY + r.top - topInset                       // tall: align under the nav
-                : window.scrollY + r.top - topInset - (avail - r.height) / 2; // center in the band
+              const topInset = 76; // nav clearance
+              let targetY: number;
+              if (mobile) {
+                // On phones, bring the section's TOP (its title) just under the nav so
+                // the section reads top-down and isn't hidden behind the caption.
+                targetY = window.scrollY + r.top - topInset;
+              } else {
+                const bottomInset = 180; // caption + breathing room
+                const avail = Math.max(120, vh - topInset - bottomInset);
+                targetY = r.height >= avail
+                  ? window.scrollY + r.top - topInset
+                  : window.scrollY + r.top - topInset - (avail - r.height) / 2;
+              }
               window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
             };
             if (!isNav) {
