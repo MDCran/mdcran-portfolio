@@ -8,7 +8,6 @@ import type { BarDrinkCategory } from "@/lib/types";
 
 interface PoolItem { label: string; color: string; category: BarDrinkCategory }
 
-const ITEM_H = 66;          // px per drum face
 const PREFS_KEY = "mdcran_bar_prefs_v1";
 const CUSTOM_CAT: BarDrinkCategory = { id: "__custom", name: "Your Picks", color: "#a855f7", description: "Your own addition to the lineup — no take-backs.", options: [] };
 
@@ -24,11 +23,11 @@ function shade(hex: string, amt: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-/** A chasing row of marquee bulbs (gold), faster while spinning. */
-function Bulbs({ className, fast }: { className?: string; fast?: boolean }) {
+/** A chasing line of marquee bulbs (gold), faster while spinning. */
+function Bulbs({ className, fast, vertical }: { className?: string; fast?: boolean; vertical?: boolean }) {
   return (
     <div className={className}>
-      {Array.from({ length: 9 }).map((_, i) => (
+      {Array.from({ length: vertical ? 5 : 9 }).map((_, i) => (
         <motion.span
           key={i}
           className="h-1.5 w-1.5 rounded-full"
@@ -90,8 +89,16 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
   const rotRef = useRef(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<PoolItem | null>(null);
+  // Face height scales with the phone so the drum dominates the screen.
+  const [faceH, setFaceH] = useState(112);
+  useEffect(() => {
+    const calc = () => setFaceH(Math.round(Math.max(92, Math.min(150, window.innerHeight * 0.2))));
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
   const faceAngle = faces.length ? 360 / faces.length : 90;
-  const radius = Math.round((ITEM_H / 2) / Math.tan((Math.PI / 180) * (faceAngle / 2))) || ITEM_H;
+  const radius = Math.round((faceH / 2) / Math.tan((Math.PI / 180) * (faceAngle / 2))) || faceH;
 
   // Power meter
   const [power, setPower] = useState(0);
@@ -219,55 +226,58 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
         </AnimatePresence>
 
         {/* Slot machine — 3D drum cabinet */}
-        <div className="relative mt-7 w-full max-w-[310px]">
-          {/* Cabinet */}
+        <div className="relative mt-6 w-full max-w-[340px]">
+          {/* Outer gilded frame */}
           <div
-            className="relative rounded-2xl p-4"
-            style={{
-              background: "linear-gradient(160deg,#2a1216,#160b0e 55%,#0a0608)",
-              border: "2px solid #facc1555",
-              boxShadow: `0 0 ${spinning ? 70 : charging ? 40 : 28}px rgba(239,66,66,${spinning ? 0.45 : 0.22}), inset 0 0 40px rgba(0,0,0,0.7), 0 20px 60px rgba(0,0,0,0.6)`,
-              transition: "box-shadow 0.3s",
-            }}
+            className="relative rounded-[26px] p-[3px]"
+            style={{ background: "linear-gradient(160deg,#f9d976,#b8860b 30%,#3a2607 60%,#facc15 100%)", boxShadow: `0 0 ${spinning ? 80 : charging ? 46 : 30}px rgba(239,66,66,${spinning ? 0.5 : 0.22}), 0 26px 70px rgba(0,0,0,0.7)`, transition: "box-shadow 0.3s" }}
           >
-            {/* Marquee bulbs */}
-            <div className="pointer-events-none absolute inset-0">
-              <Bulbs className="absolute left-5 right-5 top-1.5 flex justify-between" fast={spinning} />
-              <Bulbs className="absolute left-5 right-5 bottom-1.5 flex justify-between" fast={spinning} />
-            </div>
+            {/* Cabinet body */}
+            <div className="relative overflow-hidden rounded-[23px] px-6 py-4" style={{ background: "linear-gradient(160deg,#241015,#140a0d 55%,#080507)", boxShadow: "inset 0 2px 0 rgba(255,255,255,0.12), inset 0 0 50px rgba(0,0,0,0.7)" }}>
+              {/* Marquee bulbs — all four sides */}
+              <div className="pointer-events-none absolute inset-0">
+                <Bulbs className="absolute left-6 right-6 top-2 flex justify-between" fast={spinning} />
+                <Bulbs className="absolute left-6 right-6 bottom-2 flex justify-between" fast={spinning} />
+                <Bulbs vertical className="absolute left-2 top-8 bottom-8 flex flex-col justify-between" fast={spinning} />
+                <Bulbs vertical className="absolute right-2 top-8 bottom-8 flex flex-col justify-between" fast={spinning} />
+              </div>
 
-            <div className="mb-2 text-center font-nord text-[11px] uppercase tracking-[0.3em] text-[#facc15]" style={{ textShadow: "0 0 10px #facc1577" }}>★ Lucky Pour ★</div>
+              <div className="mb-3 text-center font-nord text-[12px] uppercase tracking-[0.34em] text-[#facc15]" style={{ textShadow: "0 0 14px #facc15aa" }}>★ Lucky Pour ★</div>
 
-            {/* 3D drum scene */}
-            <div className="relative overflow-hidden rounded-md" style={{ height: ITEM_H * 3, background: "radial-gradient(circle at 50% 50%,#161013,#070506)", boxShadow: "inset 0 0 30px rgba(0,0,0,0.9)" }}>
-              {/* edge fades */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[72px]" style={{ background: "linear-gradient(#070506,transparent)" }} />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[72px]" style={{ background: "linear-gradient(transparent,#070506)" }} />
-              {/* payline */}
-              <div className="pointer-events-none absolute inset-x-2 z-30" style={{ top: ITEM_H, height: ITEM_H, borderTop: "2px solid #ef4242", borderBottom: "2px solid #ef4242", boxShadow: `0 0 ${spinning ? 34 : 20}px rgba(239,66,66,${spinning ? 0.6 : 0.35})`, borderRadius: 6, transition: "box-shadow 0.2s" }} />
-              {/* glass glare */}
-              <div className="pointer-events-none absolute inset-0 z-30" style={{ background: "linear-gradient(105deg,rgba(255,255,255,0.08),transparent 40%)" }} />
+              {/* 3D drum scene */}
+              <div className="relative overflow-hidden rounded-lg" style={{ height: faceH * 3, background: "radial-gradient(ellipse at 50% 40%,#1b1216,#060406)", boxShadow: "inset 0 0 44px rgba(0,0,0,0.95), inset 0 0 8px rgba(250,204,21,0.12)" }}>
+                {/* edge fades */}
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-20" style={{ height: faceH, background: "linear-gradient(#060406,transparent)" }} />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20" style={{ height: faceH, background: "linear-gradient(transparent,#060406)" }} />
+                {/* payline */}
+                <div className="pointer-events-none absolute inset-x-2 z-30" style={{ top: faceH, height: faceH, borderTop: "2px solid #ef4242", borderBottom: "2px solid #ef4242", boxShadow: `0 0 ${spinning ? 40 : 22}px rgba(239,66,66,${spinning ? 0.65 : 0.35})`, borderRadius: 8, transition: "box-shadow 0.2s" }} />
+                {/* payline arrows */}
+                <div className="pointer-events-none absolute right-1 z-30 text-[#ef4242]" style={{ top: faceH * 1.5 - 9, textShadow: "0 0 10px #ef4242" }}>◀</div>
+                <div className="pointer-events-none absolute left-1 z-30 text-[#ef4242]" style={{ top: faceH * 1.5 - 9, textShadow: "0 0 10px #ef4242" }}>▶</div>
+                {/* curved glass glare */}
+                <div className="pointer-events-none absolute inset-0 z-30" style={{ background: "linear-gradient(100deg,rgba(255,255,255,0.12),transparent 38%), radial-gradient(ellipse at 50% 0%,rgba(255,255,255,0.08),transparent 55%)" }} />
 
-              <div className="absolute inset-x-2" style={{ top: ITEM_H, height: ITEM_H, perspective: 1000 }}>
-                <motion.div animate={controls} initial={{ rotateX: 0 }} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d" }}>
-                  {faces.map((it, i) => (
-                    <div
-                      key={i}
-                      className="absolute inset-0 flex items-center justify-center px-3 text-center"
-                      style={{
-                        height: ITEM_H,
-                        transform: `rotateX(${i * faceAngle}deg) translateZ(${radius}px)`,
-                        backfaceVisibility: "hidden",
-                        borderRadius: 6,
-                        background: `linear-gradient(135deg, ${it.color}, ${shade(it.color, -60)})`,
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -6px 14px rgba(0,0,0,0.35)",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                      }}
-                    >
-                      <span className="font-nord text-[14px] leading-tight text-white" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}>{it.label}</span>
-                    </div>
-                  ))}
-                </motion.div>
+                <div className="absolute inset-x-2" style={{ top: faceH, height: faceH, perspective: 1200 }}>
+                  <motion.div animate={controls} initial={{ rotateX: 0 }} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d" }}>
+                    {faces.map((it, i) => (
+                      <div
+                        key={i}
+                        className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center"
+                        style={{
+                          height: faceH,
+                          transform: `rotateX(${i * faceAngle}deg) translateZ(${radius}px)`,
+                          backfaceVisibility: "hidden",
+                          borderRadius: 8,
+                          background: `linear-gradient(150deg, ${shade(it.color, 30)}, ${it.color} 45%, ${shade(it.color, -70)})`,
+                          boxShadow: "inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -10px 20px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.15)",
+                        }}
+                      >
+                        <span className="mb-1 inline-block h-1 w-8 rounded-full bg-white/40" />
+                        <span className="font-nord text-[clamp(15px,4.6vw,20px)] leading-tight text-white" style={{ textShadow: "0 2px 4px rgba(0,0,0,0.7)" }}>{it.label}</span>
+                      </div>
+                    ))}
+                  </motion.div>
+                </div>
               </div>
             </div>
           </div>
