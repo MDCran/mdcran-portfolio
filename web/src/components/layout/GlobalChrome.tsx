@@ -47,7 +47,7 @@ const GhostCursor = dynamic(
   { ssr: false },
 );
 
-const CHROMELESS_PREFIXES = ["/admin", "/githubprofile"];
+const CHROMELESS_PREFIXES = ["/admin", "/githubprofile", "/2d-pong"];
 const MINIMAL_CHROME_PREFIXES = ["/visitor-map"];
 
 function applyHighlight(el: HTMLElement) {
