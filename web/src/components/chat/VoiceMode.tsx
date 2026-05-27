@@ -10,7 +10,6 @@ import { readVisitorMemory, getDaypart } from "@/lib/visitor-memory";
 
 const TOGGLE_EVENT = "mdcran:toggle-voice";
 const AGENT_NAME = "Michael";
-const VOICE_TUTORIAL_KEY = "mdcran_voice_tutorial_done";
 
 /* Example prompts the tutorial nudges first-time users to try. */
 const TUTORIAL_PROMPTS = [
@@ -412,7 +411,7 @@ export default function VoiceMode() {
         micSourceRef.current = micSource;
         micSource.connect(analyser);
         startMeter();
-        try { if (!localStorage.getItem(VOICE_TUTORIAL_KEY)) { setShowTips(true); localStorage.setItem(VOICE_TUTORIAL_KEY, "1"); } } catch { /* */ }
+        // Tips no longer auto-open — the user opens them with the ? button.
 
         if (!useVad && SR) {
           // ── Live SpeechRecognition (Chrome / Edge / Safari desktop) ──
@@ -652,16 +651,12 @@ export default function VoiceMode() {
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
-            {/* Controls row */}
+            {/* Controls row — the mic orb below ends voice mode (tap when idle). */}
             <div className="flex items-center gap-1.5">
               <span className="rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
               <button onClick={() => setShowTips((s) => !s)} title="Example questions" aria-label="Example questions"
                 className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-black/50 text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors">
                 <HelpCircle size={13} />
-              </button>
-              <button onClick={close} title="Exit voice mode" aria-label="Exit voice mode"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-black/50 text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors">
-                <X size={14} />
               </button>
             </div>
 
