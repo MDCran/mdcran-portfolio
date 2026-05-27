@@ -38,8 +38,8 @@ export default function ClientCard({ client, index = 0, className, projectCount 
       id={`client-${client.id}`}
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0, margin: "0px 0px 100px 0px" }}
-      transition={{ duration: 0.5, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+      viewport={{ once: true, amount: 0, margin: "0px 0px 240px 0px" }}
+      transition={{ duration: 0.32, delay: Math.min(index, 7) * 0.035, ease: [0.22, 1, 0.36, 1] }}
       className={cn("group relative", className)}
     >
       <div className="relative rounded-sm border border-white/7 bg-white/2 backdrop-blur-sm overflow-hidden transition-all duration-300 group-hover:border-[rgba(239,66,66,0.25)] group-hover:bg-white/4 group-hover:shadow-[0_12px_32px_rgba(0,0,0,0.3)] h-full flex flex-col">
