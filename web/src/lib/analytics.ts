@@ -29,6 +29,52 @@ function labelLocalIp(ip: string | null | undefined): string | null {
 
 export type SessionCommand = { action: "kill" | "refresh" | "redirect" | "block"; path?: string };
 
+/* ─── Storage management (admin) ────────────────────────── */
+// The log collections that accumulate over time and can be cleared to free space.
+// (ipBlacklist is config, not a log, so it's intentionally excluded.)
+const LOG_COLLECTIONS = ["aSessions", "aPageviews", "aEvents", "aHeat"] as const;
+
+export interface AnalyticsStorage {
+  totalBytes: number;
+  totalCount: number;
+  collections: { name: string; bytes: number; count: number }[];
+}
+
+/** On-disk size + document counts for the analytics/session log collections. */
+export async function getAnalyticsStorage(): Promise<AnalyticsStorage> {
+  const db = await getDb();
+  let totalBytes = 0;
+  let totalCount = 0;
+  const collections: { name: string; bytes: number; count: number }[] = [];
+  for (const name of LOG_COLLECTIONS) {
+    try {
+      const s = (await db.command({ collStats: name })) as { storageSize?: number; size?: number; count?: number };
+      const bytes = s.storageSize ?? s.size ?? 0;
+      const count = s.count ?? 0;
+      totalBytes += bytes;
+      totalCount += count;
+      collections.push({ name, bytes, count });
+    } catch {
+      collections.push({ name, bytes: 0, count: 0 }); // collection may not exist yet
+    }
+  }
+  return { totalBytes, totalCount, collections };
+}
+
+/** Wipe all session/analytics log documents to reclaim space. Keeps config
+ *  (blacklist) intact; live sessions simply repopulate as visitors return. */
+export async function clearAnalyticsLogs(): Promise<{ deleted: number }> {
+  const db = await getDb();
+  let deleted = 0;
+  for (const name of LOG_COLLECTIONS) {
+    try {
+      const r = await db.collection(name).deleteMany({});
+      deleted += r.deletedCount ?? 0;
+    } catch { /* collection may not exist */ }
+  }
+  return { deleted };
+}
+
 /* ─── Ingest ────────────────────────────────────────────── */
 export async function recordAnalytics(payload: TrackPayload, ip: string, userAgent: string | null): Promise<{ commands: SessionCommand[] }> {
   if (!payload?.sessionId || !payload?.visitorId || !Array.isArray(payload.events)) return { commands: [] };
