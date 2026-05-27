@@ -7275,6 +7275,27 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "rizz" && (
             <div className="space-y-4">
+              {/* Enable / disable public access to /rizz (404 when off) */}
+              <div className="flex items-center justify-between gap-3 border border-white/8 rounded-sm p-4 bg-white/2">
+                <div>
+                  <p className="font-nord text-sm text-white flex items-center gap-2">
+                    <span className={`inline-block h-2 w-2 rounded-full ${siteContent.rizzEnabled ? "bg-emerald-400" : "bg-white/20"}`} />
+                    /rizz page is {siteContent.rizzEnabled ? "LIVE" : "OFF (404)"}
+                  </p>
+                  <p className="text-xs text-white/35 mt-0.5">When off, visiting /rizz returns Not Found until you turn it back on.</p>
+                </div>
+                <button
+                  className={siteContent.rizzEnabled ? btnOutlineRed : "inline-flex items-center justify-center px-4 h-9 text-xs font-medium bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors"}
+                  onClick={async () => {
+                    const next = { ...siteContent, rizzEnabled: !siteContent.rizzEnabled };
+                    setSiteContent(next);
+                    await fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+                  }}
+                >
+                  {siteContent.rizzEnabled ? "Disable /rizz" : "Enable /rizz"}
+                </button>
+              </div>
+
               {/* Rizz personalization name */}
               <div className="flex items-end gap-3 border border-white/8 rounded-sm p-4 bg-white/2">
                 <div className="flex-1 max-w-xs">
