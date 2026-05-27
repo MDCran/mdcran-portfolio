@@ -20,6 +20,7 @@ export default function HomeLoader() {
   const [show, setShow] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const [logo, setLogo] = useState(FALLBACK_LOGO);
+  const [status, setStatus] = useState("Connecting to the database");
 
   useEffect(() => {
     let seen = false;
@@ -27,19 +28,46 @@ export default function HomeLoader() {
     if (seen) { setShow(false); return; } // returning within the session — skip instantly
     try { sessionStorage.setItem(SESSION_KEY, "1"); } catch { /* */ }
 
-    // Swap in the real favicon/brand mark if configured (non-blocking).
+    let cancelled = false;
+    let outTimer: ReturnType<typeof setTimeout>;
+    let dataReady = false;
+    let minHeld = false;
+    let left = false;
+    const beginLeave = () => { if (left || cancelled) return; left = true; setLeaving(true); outTimer = setTimeout(() => { if (!cancelled) setShow(false); }, 750); };
+    const maybeLeave = () => { if (dataReady && minHeld) beginLeave(); };
+
+    // Brand mark.
     fetch("/api/data/site-content")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { const u = d?.faviconUrl || d?.brandLogoUrl; if (u) setLogo(assetUrl(u) || FALLBACK_LOGO); })
+      .then((d) => { const u = d?.faviconUrl || d?.brandLogoUrl; if (!cancelled && u) setLogo(assetUrl(u) || FALLBACK_LOGO); })
       .catch(() => {});
 
-    // Hold for the reveal, then peel away. Cut short once the window fully loads.
-    let outTimer: ReturnType<typeof setTimeout>;
-    const beginLeave = () => { setLeaving(true); outTimer = setTimeout(() => setShow(false), 750); };
-    const holdTimer = setTimeout(beginLeave, 2200);
-    const onLoad = () => { /* keep a minimum so it doesn't blink */ };
-    window.addEventListener("load", onLoad);
-    return () => { clearTimeout(holdTimer); clearTimeout(outTimer); window.removeEventListener("load", onLoad); };
+    // Warm the data the "By the Numbers" / Stats section needs so it's ready on reveal.
+    Promise.allSettled([
+      fetch("/api/metrics").catch(() => {}),
+      fetch("/api/data/site-content").catch(() => {}),
+    ]).then(() => { if (cancelled) return; dataReady = true; setStatus("Loading your experience"); maybeLeave(); });
+
+    // Eagerly preload the home page's images (incl. below-the-fold lazy ones) while the
+    // loader is up — it renders behind, so the <img> tags are in the DOM to warm.
+    const preloadImages = () => {
+      try {
+        const seenUrls = new Set<string>();
+        document.querySelectorAll("img").forEach((img) => {
+          const s = (img as HTMLImageElement).currentSrc || img.getAttribute("src");
+          if (s && !s.startsWith("data:") && !seenUrls.has(s)) { seenUrls.add(s); const pre = new Image(); pre.src = s; }
+        });
+      } catch { /* */ }
+    };
+    const pl1 = setTimeout(preloadImages, 400);
+    const pl2 = setTimeout(preloadImages, 1500);
+
+    // Hold the loader a minimum so it doesn't blink, and a hard cap so a slow/failed
+    // fetch never traps the user.
+    const minTimer = setTimeout(() => { minHeld = true; maybeLeave(); }, 1600);
+    const capTimer = setTimeout(beginLeave, 4000);
+
+    return () => { cancelled = true; clearTimeout(outTimer); clearTimeout(minTimer); clearTimeout(capTimer); clearTimeout(pl1); clearTimeout(pl2); };
   }, []);
 
   return (
@@ -114,14 +142,17 @@ export default function HomeLoader() {
               </motion.div>
             </div>
 
-            {/* Tagline — spacing opens up as it settles */}
+            {/* Live status — what it's doing (connecting, loading) with animated dots */}
             <motion.p
-              initial={{ opacity: 0, letterSpacing: "0.05em", y: 8 }}
-              animate={{ opacity: 1, letterSpacing: "0.42em", y: 0 }}
-              transition={{ delay: 0.5, duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-7 text-[10px] sm:text-[11px] uppercase text-white/55 font-jb pl-[0.42em]"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="mt-7 flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.28em] text-white/55 font-jb"
             >
-              Shaping the experience
+              <span>{status}</span>
+              {[0, 1, 2].map((i) => (
+                <motion.span key={i} className="inline-block" animate={{ opacity: [0.2, 1, 0.2] }} transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}>.</motion.span>
+              ))}
             </motion.p>
 
             {/* Thin progress bar */}
