@@ -194,12 +194,13 @@ export default function AssistantTutorial() {
             }
           }
           if (el) {
-            if (!isNav) {
-              // Center the section in the band BETWEEN the top nav and the bottom
-              // caption so it's fully visible and never hidden behind the caption.
-              // (Plain scrollIntoView centers in the whole viewport, which on mobile
-              // tucks the lower half under the caption.)
-              const r = el.getBoundingClientRect();
+            // Center the section in the band BETWEEN the top nav and the bottom caption
+            // so it's fully visible and never hidden behind the caption. (Plain
+            // scrollIntoView centers in the whole viewport, which on mobile tucks the
+            // lower half under the caption.) Re-run after a beat to correct for any
+            // layout shift as images/content settle.
+            const centerInBand = (node: HTMLElement) => {
+              const r = node.getBoundingClientRect();
               const vh = window.innerHeight;
               const topInset = 80;     // nav clearance
               const bottomInset = 180; // caption + breathing room
@@ -208,8 +209,16 @@ export default function AssistantTutorial() {
                 ? window.scrollY + r.top - topInset                       // tall: align under the nav
                 : window.scrollY + r.top - topInset - (avail - r.height) / 2; // center in the band
               window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+            };
+            if (!isNav) {
+              centerInBand(el);
+              await wait(450);
+              if (myRun !== runIdRef.current) break;
+              centerInBand(el); // corrective pass once things have settled
+              await wait(350);
+            } else {
+              await wait(250);
             }
-            await wait(isNav ? 250 : 750);
             if (myRun !== runIdRef.current) break;
             targetElRef.current = el;
           } else {

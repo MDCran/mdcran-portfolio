@@ -145,10 +145,22 @@ export default function VoiceMode() {
       rms = Math.sqrt(rms / time.length);
 
       // Barge-in: sustained mic energy while the assistant is speaking → user interrupted.
+      // Echo guard: the assistant's voice leaks into the mic, so require the mic level to
+      // clearly EXCEED the assistant's current output (plus a floor). Otherwise the AI's
+      // own voice falsely triggers barge-in and gets transcribed as if the user spoke.
       if (speaking) {
-        if (rms > 0.08) bargeFramesRef.current++;
+        let ttsLevel = 0;
+        if (ttsAnalyserRef.current) {
+          const td = new Uint8Array(ttsAnalyserRef.current.fftSize);
+          ttsAnalyserRef.current.getByteTimeDomainData(td);
+          let s = 0;
+          for (let i = 0; i < td.length; i++) { const v = (td[i] - 128) / 128; s += v * v; }
+          ttsLevel = Math.sqrt(s / td.length);
+        }
+        const bargeThreshold = Math.max(0.16, ttsLevel * 1.7 + 0.06);
+        if (rms > bargeThreshold) bargeFramesRef.current++;
         else bargeFramesRef.current = Math.max(0, bargeFramesRef.current - 1);
-        if (bargeFramesRef.current > 8) {
+        if (bargeFramesRef.current > 12) {
           bargeFramesRef.current = 0;
           interruptTtsRef.current?.();
         }

@@ -335,7 +335,12 @@ export default function ChatPanel() {
     const words = clean.split(/\s+/);
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const stopKaraoke = () => { if (capRafRef.current) cancelAnimationFrame(capRafRef.current); capRafRef.current = null; };
-    const endCaption = () => { stopKaraoke(); setCapWords([]); setCapIdx(-1); if (isMobile) setMinimized(false); };
+    const endCaption = () => {
+      stopKaraoke(); setCapWords([]); setCapIdx(-1);
+      // On mobile: DON'T reopen the chat. Stay minimized and blink the bubble so the
+      // user knows to tap it to pick up where they left off.
+      if (isMobile && minimizedRef.current) window.dispatchEvent(new CustomEvent("mdcran:chat-attention"));
+    };
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
@@ -629,6 +634,13 @@ export default function ChatPanel() {
     setMessages((prev) => [...prev.filter((m) => m.content !== "__INACTIVITY__"), userMsg]);
     setInput("");
     setStreaming(true);
+
+    // Read-aloud on mobile: minimize NOW so the reply doesn't visibly type into the
+    // chat first — the user just sees the page + the spoken caption. Text still fills
+    // the hidden panel for when they tap back in.
+    if (voiceOnRef.current && typeof window !== "undefined" && window.innerWidth < 768) {
+      setMinimized(true);
+    }
 
     /* Placeholder assistant message for streaming */
     const assistantMsg: Message = { role: "assistant", content: "" };
