@@ -294,11 +294,13 @@ export default function ChatPanel() {
     return () => { active = false; };
   }, [open]);
 
-  /* Voice CONVERSATION needs SpeechRecognition (Chrome/Edge/Safari) on top of TTS. */
+  /* Voice conversation works in any modern browser — SpeechRecognition where present,
+     otherwise MediaRecorder + server STT. Just needs a mic. */
   const [speechSupported, setSpeechSupported] = useState(true);
   useEffect(() => {
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-    setSpeechSupported(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition));
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown; MediaRecorder?: unknown };
+    const canCapture = Boolean(navigator.mediaDevices?.getUserMedia);
+    setSpeechSupported(canCapture && Boolean(w.SpeechRecognition || w.webkitSpeechRecognition || w.MediaRecorder));
   }, []);
   const voiceAvailable = voiceEnabled && speechSupported;
 

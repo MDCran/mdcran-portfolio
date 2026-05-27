@@ -46,8 +46,11 @@ export default function ChatBubble() {
 
   /* Probe whether voice (ElevenLabs) is configured + supported, to decide if the mic button shows. */
   useEffect(() => {
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-    setVoiceSupported(Boolean(w.SpeechRecognition || w.webkitSpeechRecognition));
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown; MediaRecorder?: unknown };
+    // Voice works in every modern browser now: live SpeechRecognition where available,
+    // else MediaRecorder + server STT. Just need a mic + one of the two.
+    const canCapture = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
+    setVoiceSupported(canCapture && Boolean(w.SpeechRecognition || w.webkitSpeechRecognition || w.MediaRecorder));
     let active = true;
     fetch("/api/voice/tts")
       .then((r) => (r.ok ? r.json() : null))

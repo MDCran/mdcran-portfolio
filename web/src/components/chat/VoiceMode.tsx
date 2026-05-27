@@ -98,6 +98,12 @@ export default function VoiceMode() {
   const pendingFinalRef = useRef("");
   const sendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendingRef = useRef(false); // guard against overlapping replies (no double-answer)
+  // Cross-browser fallback (Firefox / Brave / iOS where SpeechRecognition is missing or
+  // unreliable): record with MediaRecorder + voice-activity detection, transcribe server-side.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const vadChunksRef = useRef<Blob[]>([]);
+  const vadRafRef = useRef<number | null>(null);
+  const vadRecordingRef = useRef(false);
   const openRef = useRef(false);
   openRef.current = open;
 
@@ -371,13 +377,18 @@ export default function VoiceMode() {
     }
   }, [pathname, runDirectives, speak, setPhaseSafe]);
 
-  /* ── Open: set up mic, analyser, recognition ── */
+  /* ── Open: set up mic, analyser, and either SpeechRecognition or the
+     MediaRecorder+STT fallback (so it works in Safari, Firefox, Brave, Chrome). ── */
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
 
     const SR = getSpeechRecognition();
-    if (!SR) { setSupported(false); setPhaseSafe("error"); return; }
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const isBrave = typeof navigator !== "undefined" && Boolean((navigator as unknown as { brave?: unknown }).brave);
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (typeof navigator !== "undefined" && navigator.platform === "MacIntel" && (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints! > 1);
+    // SR on iOS/Brave is missing or unreliable → use the recorder fallback there.
+    const useVad = !SR || isBrave || isIOS;
 
     setPhaseSafe("connecting");
     setTurns([]);
@@ -385,7 +396,6 @@ export default function VoiceMode() {
 
     (async () => {
       try {
-        // Echo cancellation keeps the assistant's own voice out of the mic so barge-in is reliable.
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
@@ -395,6 +405,7 @@ export default function VoiceMode() {
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ctx = new Ctx();
         audioCtxRef.current = ctx;
+        try { await ctx.resume(); } catch { /* */ }
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
         analyser.smoothingTimeConstant = 0.75;
@@ -405,60 +416,102 @@ export default function VoiceMode() {
         ttsAnalyserRef.current = ttsAnalyser;
         const micSource = ctx.createMediaStreamSource(stream);
         micSourceRef.current = micSource;
-        micSource.connect(analyser); // not connected to destination → no mic feedback
+        micSource.connect(analyser);
         startMeter();
-
-        // Speech recognition
-        const rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-US";
-        rec.onresult = (e: SREvent) => {
-          // Ignore everything unless we're actively listening (this discards any TTS
-          // bleed during thinking/speaking; barge-in flips us to "listening" first).
-          if (phaseRef.current !== "listening") return;
-          let interimText = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const r = e.results[i];
-            const txt = r[0]?.transcript ?? "";
-            if (r.isFinal) {
-              pendingFinalRef.current = (pendingFinalRef.current + " " + txt).trim();
-            } else {
-              interimText += txt;
-            }
-          }
-          setInterim(interimText);
-          // Debounce: send after a natural pause once we have final text.
-          if (pendingFinalRef.current) {
-            if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
-            sendTimerRef.current = setTimeout(() => {
-              const toSend = pendingFinalRef.current.trim();
-              pendingFinalRef.current = "";
-              if (toSend) void sendToAgent(toSend);
-            }, 1100);
-          }
-        };
-        rec.onerror = () => { /* transient (no-speech, aborted) — onend will restart */ };
-        rec.onend = () => {
-          // Keep the recognizer alive across listening/thinking/speaking so barge-in works;
-          // only stays down when closed, connecting, or errored.
-          if (openRef.current && phaseRef.current !== "connecting" && phaseRef.current !== "error") {
-            try { rec.start(); } catch { /* */ }
-          }
-        };
-        recRef.current = rec;
-        setPhaseSafe("listening");
-        try { rec.start(); } catch { /* */ }
-        // First-time voice users get example prompts to try.
         try { if (!localStorage.getItem(VOICE_TUTORIAL_KEY)) { setShowTips(true); localStorage.setItem(VOICE_TUTORIAL_KEY, "1"); } } catch { /* */ }
+
+        if (!useVad && SR) {
+          // ── Live SpeechRecognition (Chrome / Edge / Safari desktop) ──
+          const rec = new SR();
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.lang = "en-US";
+          rec.onresult = (e: SREvent) => {
+            if (phaseRef.current !== "listening") return;
+            let interimText = "";
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+              const r = e.results[i];
+              const txt = r[0]?.transcript ?? "";
+              if (r.isFinal) pendingFinalRef.current = (pendingFinalRef.current + " " + txt).trim();
+              else interimText += txt;
+            }
+            setInterim(interimText);
+            if (pendingFinalRef.current) {
+              if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+              sendTimerRef.current = setTimeout(() => {
+                const toSend = pendingFinalRef.current.trim();
+                pendingFinalRef.current = "";
+                if (toSend) void sendToAgent(toSend);
+              }, 1100);
+            }
+          };
+          rec.onerror = () => { /* transient */ };
+          rec.onend = () => { if (openRef.current && phaseRef.current !== "connecting" && phaseRef.current !== "error") { try { rec.start(); } catch { /* */ } } };
+          recRef.current = rec;
+          setPhaseSafe("listening");
+          try { rec.start(); } catch { /* */ }
+        } else {
+          // ── MediaRecorder + voice-activity detection + server STT (works everywhere) ──
+          const buf = new Uint8Array(analyser.fftSize);
+          let silenceStart = 0;
+          let speechMs = 0;
+          let lastTs = performance.now();
+          const startRec = () => {
+            const s = micStreamRef.current; if (!s) return;
+            vadChunksRef.current = [];
+            let mr: MediaRecorder;
+            try { mr = new MediaRecorder(s); } catch { return; }
+            mr.ondataavailable = (e) => { if (e.data.size) vadChunksRef.current.push(e.data); };
+            mr.onstop = async () => {
+              vadRecordingRef.current = false;
+              const blob = new Blob(vadChunksRef.current, { type: mr.mimeType || "audio/webm" });
+              if (blob.size < 2000 || sendingRef.current) { if (openRef.current && phaseRef.current === "thinking") setPhaseSafe("listening"); return; }
+              setInterim("");
+              setPhaseSafe("thinking");
+              try {
+                const fd = new FormData(); fd.set("file", blob, "voice.webm");
+                const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
+                const data = await res.json().catch(() => null);
+                const t = typeof data?.text === "string" ? data.text.trim() : "";
+                if (t) await sendToAgent(t);
+                else if (openRef.current) setPhaseSafe("listening");
+              } catch { if (openRef.current) setPhaseSafe("listening"); }
+            };
+            mediaRecorderRef.current = mr;
+            vadRecordingRef.current = true;
+            mr.start();
+          };
+          const vad = () => {
+            if (!openRef.current) return;
+            const now = performance.now(); const dt = now - lastTs; lastTs = now;
+            analyser.getByteTimeDomainData(buf);
+            let rms = 0; for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; rms += v * v; } rms = Math.sqrt(rms / buf.length);
+            if (phaseRef.current === "listening") {
+              if (rms > 0.05) {
+                silenceStart = 0;
+                speechMs += dt;
+                if (!vadRecordingRef.current) startRec();
+              } else if (vadRecordingRef.current) {
+                if (!silenceStart) silenceStart = now;
+                // Stop after ~0.9s of silence, but only if we captured real speech.
+                else if (now - silenceStart > 900) {
+                  if (speechMs > 350) { try { mediaRecorderRef.current?.stop(); } catch { /* */ } }
+                  else { try { mediaRecorderRef.current?.stop(); } catch { /* */ } }
+                  speechMs = 0; silenceStart = 0;
+                }
+              }
+            }
+            vadRafRef.current = requestAnimationFrame(vad);
+          };
+          setPhaseSafe("listening");
+          vadRafRef.current = requestAnimationFrame(vad);
+        }
       } catch {
         if (!cancelled) { setSupported(false); setPhaseSafe("error"); }
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [open, startMeter, sendToAgent, setPhaseSafe]);
 
   /* ── Teardown on close ── */
@@ -468,6 +521,9 @@ export default function VoiceMode() {
     pendingFinalRef.current = "";
     sendingRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (vadRafRef.current) { cancelAnimationFrame(vadRafRef.current); vadRafRef.current = null; }
+    if (mediaRecorderRef.current) { try { if (mediaRecorderRef.current.state !== "inactive") mediaRecorderRef.current.stop(); } catch { /* */ } mediaRecorderRef.current = null; }
+    vadRecordingRef.current = false;
     if (recRef.current) { try { recRef.current.abort(); } catch { /* */ } recRef.current = null; }
     if (audioElRef.current) { try { audioElRef.current.pause(); } catch { /* */ } audioElRef.current = null; }
     if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((t) => t.stop()); micStreamRef.current = null; }
