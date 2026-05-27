@@ -380,4 +380,35 @@ export const defaultSiteContent: SiteContent = {
       },
     ],
   },
+  barEnabled: false,
+  barCategories: [
+    {
+      id: "classics",
+      name: "The Classics",
+      color: "#22c55e",
+      description: "Safe, crowd-pleasing options. Perfect if you just met someone and want a normal, high-quality drink order.",
+      options: ["Espresso Martini", "Spicy Margarita", "Gin & Tonic"],
+    },
+    {
+      id: "wild-cards",
+      name: "The Wild Cards",
+      color: "#f59e0b",
+      description: "Instantly elevates the energy of the night. It locks in a decision so nobody can back out.",
+      options: ["Bartender's Choice", "Lemon Drop Shot", "Tequila Shot"],
+    },
+    {
+      id: "chaotic-fails",
+      name: "The Chaotic Fails",
+      color: "#ef4242",
+      description: "The risk factor. Having one or two genuinely funny/bad options on the wheel makes spinning it actually thrilling.",
+      options: ["Warm Well Tequila", "Malört (or a local terrible shot)", "A cup of straight pickle juice"],
+    },
+    {
+      id: "stay-hydrated",
+      name: "The Stay Hydrated",
+      color: "#38bdf8",
+      description: "A hilarious mood-killer option that is actually incredibly useful if it's getting late and someone needs a break.",
+      options: ["Liquid Death / Water", "Red Bull / Energy Drink", "Club Soda with Lime"],
+    },
+  ],
 };

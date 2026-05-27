@@ -761,6 +761,17 @@ export interface SiteContent {
   privacyPage: SiteContentLegalPage;
   rizzTargetName?: string;  // personalize /rizz page with a name
   rizzEnabled?: boolean;    // when false, /rizz returns 404
+  barEnabled?: boolean;     // when false, /bar returns 404
+  barCategories?: BarDrinkCategory[]; // the drink roulette wheel content
+}
+
+/** A category of drinks on the /bar roulette wheel. */
+export interface BarDrinkCategory {
+  id: string;
+  name: string;
+  color: string;        // hex used for the wheel segments
+  description: string;  // shown when a drink from this category is landed on
+  options: string[];    // individual drinks (each becomes a wheel segment)
 }
 
 // ─── Personal Identity (device fingerprinting) ────────────
