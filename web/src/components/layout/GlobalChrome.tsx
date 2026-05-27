@@ -182,6 +182,9 @@ export default function GlobalChrome() {
     );
   }
 
+  // The Rizz experience hides the AI assistant entirely.
+  const hideAssistant = pathname.startsWith("/rizz");
+
   return (
     <>
       <StatusBanner />
@@ -189,11 +192,15 @@ export default function GlobalChrome() {
       <KeyboardShortcuts />
       <AccessibilityMenu />
       <ScrollProgress />
-      <ChatBubble />
-      <ChatPanel />
-      <VoiceMode />
-      <AssistantTutorial />
-      <ProjectsTour />
+      {!hideAssistant && (
+        <>
+          <ChatBubble />
+          <ChatPanel />
+          <VoiceMode />
+          <AssistantTutorial />
+          <ProjectsTour />
+        </>
+      )}
       <GhostCursor />
       <ThemeOverlay />
       <ThemeEffectsOverlay />
