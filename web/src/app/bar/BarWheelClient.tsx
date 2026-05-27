@@ -279,7 +279,9 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
                 <div className="pointer-events-none absolute inset-0 z-30" style={{ background: "linear-gradient(100deg,rgba(255,255,255,0.12),transparent 38%), radial-gradient(ellipse at 50% 0%,rgba(255,255,255,0.08),transparent 55%)" }} />
 
                 <div className="absolute inset-x-2" style={{ top: CENTER * faceH, height: faceH, perspective: 1300 }}>
-                  <motion.div animate={controls} initial={{ rotateX: 0 }} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d", filter: spinning ? "blur(5px)" : "none" }}>
+                  {/* NOTE: never put a CSS `filter` on this element — filters flatten
+                      transform-style:preserve-3d and the drum goes blank mid-spin. */}
+                  <motion.div animate={controls} initial={{ rotateX: 0 }} style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d" }}>
                     {faces.map((it, i) => {
                       const isWinner = lockedIndex === i;
                       const dimmed = lockedIndex !== null && !isWinner;
