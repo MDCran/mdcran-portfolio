@@ -8101,35 +8101,60 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                {/* Wheel customization */}
-                <div className="space-y-3">
-                  {cats.map((cat, i) => (
-                    <div key={cat.id} className="border border-white/8 rounded-sm p-4 bg-white/2 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <input type="color" value={cat.color} onChange={(e) => updateCat(i, { color: e.target.value })} className="h-8 w-10 rounded-sm border border-white/10 bg-transparent cursor-pointer" title="Segment color" />
-                        <input className={`${inputCls} flex-1`} value={cat.name} placeholder="Category name" onChange={(e) => updateCat(i, { name: e.target.value })} />
-                        <button className={btnOutlineRed} onClick={() => setCats(cats.filter((_, idx) => idx !== i))}>Remove</button>
-                      </div>
-                      <textarea className={`${inputCls} w-full resize-y`} rows={2} value={cat.description} placeholder="Shown when a drink from this category is landed on" onChange={(e) => updateCat(i, { description: e.target.value })} />
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] tracking-widest uppercase text-white/35">Drinks</p>
-                        {cat.options.map((opt, oi) => (
-                          <div key={oi} className="flex items-center gap-2">
-                            <input className={`${inputCls} flex-1`} value={opt} onChange={(e) => updateCat(i, { options: cat.options.map((o, k) => (k === oi ? e.target.value : o)) })} />
-                            <button className="text-white/30 hover:text-[#ef4242] text-xs px-2" onClick={() => updateCat(i, { options: cat.options.filter((_, k) => k !== oi) })}>✕</button>
+                {/* Slot lineup customization */}
+                <div>
+                  <div className="mb-3">
+                    <p className="font-nord text-sm text-white">Slot Machine Lineup</p>
+                    <p className="text-xs text-white/35 mt-0.5">These categories and drinks fill the /bar slot machine. Each drink is one slot result; the description shows when a player lands on a drink from that category. Visitors can pick which categories to include and add their own — this is the master list.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {cats.map((cat, i) => (
+                      <div key={cat.id} className="rounded-sm border border-white/10 bg-white/[0.03] p-4 space-y-4" style={{ borderLeft: `3px solid ${cat.color}` }}>
+                        {/* Header row: color + name */}
+                        <div className="flex items-end gap-3">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] tracking-[0.16em] uppercase text-white/40">Color</label>
+                            <input type="color" value={cat.color} onChange={(e) => updateCat(i, { color: e.target.value })} className="h-10 w-12 rounded-sm border border-white/12 bg-transparent cursor-pointer p-0.5" title="Category color" />
                           </div>
-                        ))}
-                        <button className={btnOutline} onClick={() => updateCat(i, { options: [...cat.options, "New drink"] })}>+ Add drink</button>
+                          <div className="flex-1 space-y-1.5">
+                            <label className="block text-[10px] tracking-[0.16em] uppercase text-white/40">Category name</label>
+                            <input className="h-10 w-full rounded-sm border border-white/12 bg-white/5 px-3.5 text-sm text-white outline-none transition-colors focus:border-white/30 placeholder:text-white/25" value={cat.name} placeholder="e.g. The Classics" onChange={(e) => updateCat(i, { name: e.target.value })} />
+                          </div>
+                          <button className={`${btnOutlineRed} h-10`} onClick={() => setCats(cats.filter((_, idx) => idx !== i))}>Remove</button>
+                        </div>
+
+                        {/* Description */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] tracking-[0.16em] uppercase text-white/40">Description <span className="text-white/25 normal-case tracking-normal">— shown when a player lands on this category</span></label>
+                          <textarea className="w-full resize-y rounded-sm border border-white/12 bg-white/5 px-3.5 py-2.5 text-sm leading-relaxed text-white outline-none transition-colors focus:border-white/30 placeholder:text-white/25" rows={2} value={cat.description} placeholder="Safe, crowd-pleasing options…" onChange={(e) => updateCat(i, { description: e.target.value })} />
+                        </div>
+
+                        {/* Drinks */}
+                        <div className="space-y-2">
+                          <label className="block text-[10px] tracking-[0.16em] uppercase text-white/40">Drinks <span className="text-white/25">({cat.options.length})</span></label>
+                          <div className="space-y-2">
+                            {cat.options.map((opt, oi) => (
+                              <div key={oi} className="flex items-center gap-2">
+                                <span className="text-[11px] text-white/25 w-5 text-right tabular-nums">{oi + 1}.</span>
+                                <input className="h-9 flex-1 rounded-sm border border-white/12 bg-white/5 px-3.5 text-sm text-white outline-none transition-colors focus:border-white/30 placeholder:text-white/25" value={opt} placeholder="Drink name" onChange={(e) => updateCat(i, { options: cat.options.map((o, k) => (k === oi ? e.target.value : o)) })} />
+                                <button className="flex h-9 w-9 items-center justify-center rounded-sm border border-white/10 text-white/30 hover:border-[#ef4242]/40 hover:text-[#ef4242] transition-colors" title="Remove drink" onClick={() => updateCat(i, { options: cat.options.filter((_, k) => k !== oi) })}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                          <button className={btnOutline} onClick={() => updateCat(i, { options: [...cat.options, "New drink"] })}>+ Add drink</button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-3">
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-3">
                     <button className={btnOutline} onClick={() => setCats([...cats, { id: (crypto.randomUUID?.() ?? String(Date.now())), name: "New Category", color: "#a855f7", description: "", options: ["New drink"] }])}>+ Add category</button>
                     <button
-                      className="inline-flex items-center justify-center px-4 h-9 text-xs font-medium bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors ml-auto"
+                      className="inline-flex items-center justify-center px-5 h-9 text-xs font-medium bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors ml-auto"
                       onClick={async () => { await saveBar(siteContent); }}
                     >
-                      Save wheel
+                      Save lineup
                     </button>
                   </div>
                 </div>
