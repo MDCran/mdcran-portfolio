@@ -134,8 +134,16 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
 
   useEffect(() => {
     if (!pool.length) { setFaces([]); return; }
-    const s = [...pool];
+    let s = [...pool];
     for (let i = s.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [s[i], s[j]] = [s[j], s[i]]; }
+    // The 3D drum needs enough faces to form a cylinder — with 1–2 drinks the geometry
+    // collapses (faceAngle ≥ 180° → radius 0/NaN) and shows nothing. Repeat the pool to
+    // a minimum so it always renders + spins (landing on a copy of the chosen drink).
+    const MIN_FACES = 8;
+    if (s.length < MIN_FACES) {
+      const base = [...s];
+      while (s.length < MIN_FACES) s = s.concat(base);
+    }
     setFaces(s);
   }, [pool]);
 

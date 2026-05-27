@@ -259,8 +259,8 @@ export default function ChatPanel() {
 
   /* ── Voice (ElevenLabs TTS + STT) ── */
   const [voiceEnabled, setVoiceEnabled] = useState(true); // optimistic — buttons show instantly; probe corrects if unconfigured
-  const [voiceOn, setVoiceOn] = useState(() => {           // user toggle for spoken replies — defaults OFF
-    try { return typeof window !== "undefined" && localStorage.getItem("mdcran_voice_on") === "1"; } catch { return false; }
+  const [voiceOn, setVoiceOn] = useState(() => {           // user toggle for spoken replies — defaults ON
+    try { if (typeof window === "undefined") return true; const v = localStorage.getItem("mdcran_voice_on"); return v === null ? true : v === "1"; } catch { return true; }
   });
   const [speaking, setSpeaking] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -276,6 +276,19 @@ export default function ChatPanel() {
   const [capWords, setCapWords] = useState<string[]>([]);
   const [capIdx, setCapIdx] = useState(-1);
   const capRafRef = useRef<number | null>(null);
+  // Web Audio context for TTS playback (plays reliably where <audio>.play() is autoplay-blocked).
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
+  const ensureAudioCtx = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (Ctx) audioCtxRef.current = new Ctx();
+      }
+      audioCtxRef.current?.resume?.().catch(() => {});
+    } catch { /* */ }
+    return audioCtxRef.current;
+  }, []);
   /* Non-destructive hide while reading on mobile (keeps the chat log intact). */
   const [minimized, setMinimized] = useState(false);
   const minimizedRef = useRef(false);
@@ -319,6 +332,8 @@ export default function ChatPanel() {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    try { ttsSrcRef.current?.stop(); } catch { /* */ }
+    ttsSrcRef.current = null;
     setSpeaking(false);
     if (capRafRef.current) { cancelAnimationFrame(capRafRef.current); capRafRef.current = null; }
     setCapWords([]);
@@ -350,34 +365,39 @@ export default function ChatPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: clean }),
       });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      // Show the caption + hide the chat (any screen) right as audio starts, so the
-      // reply is read over the page; it reopens (desktop) or blinks the bubble (mobile).
+      if (!res.ok) { endCaption(); return; }
+      const arr = await res.arrayBuffer();
+      const ctx = ensureAudioCtx();
+      if (!ctx) { endCaption(); return; }
+      try { await ctx.resume(); } catch { /* */ }
+      let audioBuf: AudioBuffer;
+      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { endCaption(); return; }
+      try { ttsSrcRef.current?.stop(); } catch { /* */ }
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(ctx.destination);
+      ttsSrcRef.current = src;
+      const dur = audioBuf.duration || words.length * 0.34;
+      // Show the caption + hide the chat right as audio starts, so the reply is read
+      // over the page; it reopens (desktop) or blinks the bubble (mobile) when done.
       setCapWords(words);
       setCapIdx(0);
       setMinimized(true);
-      const sync = () => {
-        const a = audioRef.current;
-        if (!a) return;
-        const d = a.duration && isFinite(a.duration) ? a.duration : words.length * 0.34;
-        setCapIdx(Math.min(words.length - 1, Math.floor((a.currentTime / Math.max(d, 0.1)) * words.length)));
-        if (!a.ended) capRafRef.current = requestAnimationFrame(sync);
-      };
-      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); endCaption(); };
-      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); endCaption(); };
       setSpeaking(true);
-      await audio.play();
-      capRafRef.current = requestAnimationFrame(sync);
+      const startedAt = ctx.currentTime;
+      const sync = () => {
+        const el = ctx.currentTime - startedAt;
+        setCapIdx(Math.min(words.length - 1, Math.floor((el / Math.max(dur, 0.1)) * words.length)));
+        if (el < dur) capRafRef.current = requestAnimationFrame(sync);
+      };
+      src.onended = () => { setSpeaking(false); endCaption(); };
+      try { src.start(); capRafRef.current = requestAnimationFrame(sync); }
+      catch { setSpeaking(false); endCaption(); }
     } catch {
       setSpeaking(false);
       endCaption();
     }
-  }, []);
+  }, [ensureAudioCtx]);
 
   const isFirstVisit = (() => {
     try { return typeof window !== "undefined" && !localStorage.getItem("mdcran_tutorial_done"); } catch { return false; }
@@ -639,10 +659,8 @@ export default function ChatPanel() {
     setInput("");
     setStreaming(true);
 
-    // Read-aloud: minimize NOW (any screen) so the reply doesn't visibly type into the
-    // chat first — the user just sees the page + the spoken caption. The panel reopens
-    // when it's done talking (desktop) or blinks the bubble to tap back in (mobile).
-    if (voiceOnRef.current) setMinimized(true);
+    // Read-aloud: unlock the audio context on this user gesture so TTS can play later.
+    if (voiceOnRef.current) ensureAudioCtx();
 
     /* Placeholder assistant message for streaming */
     const assistantMsg: Message = { role: "assistant", content: "" };
@@ -718,32 +736,28 @@ export default function ChatPanel() {
                         await new Promise((r) => setTimeout(r, 1000 - elapsed));
                       }
                     }
-                    /* Slow reveal: render one character at a time, hiding action markers */
-                    for (const char of parsed.text) {
-                      accumulated += char;
-                      // Strip any complete or in-progress action markers from display
-                      // Use space-aware replacement to avoid joining words across marker boundaries
-                      const display = accumulated
-                        .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")  // complete arg markers → single space
-                        .replace(/\s*__[A-Z]+__\s*/g, " ")       // complete no-arg markers (e.g. __RESETZOOM__)
-                        .replace(/\s*__[A-Z]+:[^\n]*$/g, "")     // partial marker at end (still streaming)
-                        .replace(/\s*__[A-Z]*$/g, "")             // partial opening __
-                        .replace(/  +/g, " ")                      // collapse double spaces
-                        .trim();
-                      setMessages((prev) => {
-                        const updated = [...prev];
-                        updated[updated.length - 1] = {
-                          role: "assistant",
-                          content: display,
-                        };
-                        return updated.slice(-MAX_MESSAGES);
-                      });
-                      // Don't delay rendering if we're inside a marker (invisible chars).
-                      // When reading aloud, skip the per-char delay so the bubble fills fast
-                      // and the spoken audio + karaoke caption start right as it writes.
-                      const inMarker = /__[A-Z]/.test(accumulated) && !/__[A-Z]+:.+?__\s*$/.test(accumulated);
-                      if (!inMarker && !voiceOnRef.current) {
-                        await new Promise((r) => setTimeout(r, 8));
+                    /* When reading aloud, keep the typing "…" dots showing (don't reveal
+                       the text) — we minimize + speak it after it's fully generated.
+                       Otherwise, slow-reveal one character at a time. */
+                    if (voiceOnRef.current) {
+                      accumulated += parsed.text; // accumulate silently; dots stay up
+                    } else {
+                      for (const char of parsed.text) {
+                        accumulated += char;
+                        const display = accumulated
+                          .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")
+                          .replace(/\s*__[A-Z]+__\s*/g, " ")
+                          .replace(/\s*__[A-Z]+:[^\n]*$/g, "")
+                          .replace(/\s*__[A-Z]*$/g, "")
+                          .replace(/  +/g, " ")
+                          .trim();
+                        setMessages((prev) => {
+                          const updated = [...prev];
+                          updated[updated.length - 1] = { role: "assistant", content: display };
+                          return updated.slice(-MAX_MESSAGES);
+                        });
+                        const inMarker = /__[A-Z]/.test(accumulated) && !/__[A-Z]+:.+?__\s*$/.test(accumulated);
+                        if (!inMarker) await new Promise((r) => setTimeout(r, 8));
                       }
                     }
                   }
@@ -782,6 +796,11 @@ export default function ChatPanel() {
           setDisconnected(true);
           return;
         }
+
+        // Reading aloud: the full reply is generated — hide the chat now (it was showing
+        // "…" dots) so the text doesn't flash in; the caption + voice take over, and it
+        // reopens (desktop) / blinks the bubble (mobile) when done.
+        if (voiceOnRef.current) setMinimized(true);
 
         /* Process action markers + auto-navigation from markdown links */
         {

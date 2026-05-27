@@ -25,7 +25,7 @@ interface A11yPrefs {
 }
 
 const DEFAULTS: A11yPrefs = {
-  textScale: 1, motion: "allow", colorblind: "none", cursor: "default", language: "en", speakAloud: false, aiTone: "friendly",
+  textScale: 1, motion: "allow", colorblind: "none", cursor: "default", language: "en", speakAloud: true, aiTone: "friendly",
 };
 const KEY = "mdcran_a11y";
 
