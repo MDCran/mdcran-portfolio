@@ -20,6 +20,15 @@ function timeAgo(iso: string) {
   return `${Math.floor(s / 3600)}h`;
 }
 
+function formatBytes(b: number) {
+  if (!b) return "0 B";
+  const u = ["B", "KB", "MB", "GB"];
+  const i = Math.min(u.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
+  return `${(b / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${u[i]}`;
+}
+
+interface Storage { totalBytes: number; totalCount: number; collections: { name: string; bytes: number; count: number }[] }
+
 async function post(body: unknown) {
   await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
@@ -33,14 +42,24 @@ export default function SessionsControl() {
     revalidateOnFocus: true,
     keepPreviousData: true,
   });
+  const { data: storage } = useSWR<Storage>("/api/admin/sessions?storage=1", fetcher, { refreshInterval: 30_000, revalidateOnFocus: false });
   const { mutate } = useSWRConfig();
   const refresh = () => mutate("/api/admin/sessions");
+  const refreshStorage = () => mutate("/api/admin/sessions?storage=1");
 
   const [busy, setBusy] = useState<string | null>(null);
   const act = async (key: string, body: unknown) => {
     setBusy(key);
     await post(body);
     await refresh();
+    setBusy(null);
+  };
+
+  const clearLogs = async () => {
+    if (!confirm("Clear ALL session logs (sessions, pageviews, events, heatmap)? This frees space and can't be undone. Live sessions will repopulate as visitors return.")) return;
+    setBusy("clear-logs");
+    await post({ action: "clear-logs" });
+    await Promise.all([refresh(), refreshStorage()]);
     setBusy(null);
   };
 
@@ -71,6 +90,29 @@ export default function SessionsControl() {
             <p className="font-nord text-2xl text-white">{c.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Log storage + clear */}
+      <div className={`${card} flex items-center justify-between gap-4 flex-wrap`}>
+        <div>
+          <p className="text-[10px] tracking-[0.18em] uppercase text-white/35 mb-1">Session Log Storage</p>
+          <p className="font-nord text-lg text-white">
+            {storage ? formatBytes(storage.totalBytes) : "…"}
+            {storage && <span className="text-white/35 text-sm font-sans"> · {storage.totalCount.toLocaleString()} records</span>}
+          </p>
+          {storage && (
+            <p className="text-[10px] text-white/30 mt-1">
+              {storage.collections.map((c) => `${c.name.replace(/^a/, "")} ${formatBytes(c.bytes)}`).join(" · ")}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={clearLogs}
+          disabled={busy === "clear-logs"}
+          className={`${btn} border-[#ef4242]/40 text-[#ef4242] hover:bg-[#ef4242]/10 disabled:opacity-40`}
+        >
+          {busy === "clear-logs" ? "Clearing…" : "Clear logs"}
+        </button>
       </div>
 
       <p className="text-[11px] text-white/35">
