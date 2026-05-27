@@ -47,9 +47,13 @@ const SEARCHABLE_PAGES: SearchablePage[] = [
   { title: "CoreTV", href: "/coretv", keywords: ["coretv", "investor", "core", "tv", "streaming"] },
   { title: "Legal", href: "/legal", keywords: ["legal", "terms", "tos", "privacy", "policy", "cookies", "data", "service"] },
   { title: "Unsubscribe", href: "/unsubscribe", keywords: ["unsubscribe", "opt-out", "email", "sms", "notifications"] },
+  { title: "2D Pong", href: "/2d-pong", keywords: ["pong", "2d pong", "game", "arcade", "ping pong", "play", "two player", "party"] },
   { title: "GitHub", href: "https://github.com/mdcran", keywords: ["github", "code", "repository", "source", "profile", "mdcran"] },
   { title: "LinkedIn", href: "https://www.linkedin.com/in/mdcran/", keywords: ["linkedin", "professional", "network", "profile", "work", "mdcran"] },
 ];
+
+// Only searchable while the admin has the page enabled.
+const BAR_PAGE: SearchablePage = { title: "Bar Roulette", href: "/bar", keywords: ["bar", "roulette", "drink", "drinks", "slot", "spin", "cocktail", "shots", "game"] };
 
 interface SearchResults {
   projects: Project[];
@@ -62,6 +66,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
   const { themeInfo } = useTheme();
   const isLight = themeInfo.id === "light";
   const [brandLogoUrl, setBrandLogoUrl] = useState("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_BLUE.png");
+  const [barEnabled, setBarEnabled] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -113,9 +118,9 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
     fetch("/api/data/site-content")
       .then((response) => (response.ok ? response.json() : null))
       .then((data: SiteContent | null) => {
-        if (!cancelled && data?.brandLogoUrl) {
-          setBrandLogoUrl(data.brandLogoUrl);
-        }
+        if (cancelled || !data) return;
+        if (data.brandLogoUrl) setBrandLogoUrl(data.brandLogoUrl);
+        setBarEnabled(Boolean(data.barEnabled));
       })
       .catch(() => {});
 
@@ -178,14 +183,15 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
         article.tags.some((tag) => tag.toLowerCase().includes(q)) ||
         article.category.includes(q)
     );
-    const pages = SEARCHABLE_PAGES.filter(
+    const searchable = barEnabled ? [...SEARCHABLE_PAGES, BAR_PAGE] : SEARCHABLE_PAGES;
+    const pages = searchable.filter(
       (page) =>
         page.title.toLowerCase().includes(q) ||
         page.keywords.some((kw) => kw.includes(q))
     );
 
     return { projects, clients, articles, pages };
-  }, [catalog, query]);
+  }, [catalog, query, barEnabled]);
 
   const totalResults = results.projects.length + results.clients.length + results.articles.length + results.pages.length;
 

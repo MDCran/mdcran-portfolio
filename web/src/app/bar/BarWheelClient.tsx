@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { Settings2, Plus, Check, X } from "lucide-react";
+import { haptic } from "@/lib/haptics";
 import type { BarDrinkCategory } from "@/lib/types";
 
 interface PoolItem { label: string; color: string; category: BarDrinkCategory }
@@ -181,7 +182,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
       if (boundary !== lastBoundary) {
         lastBoundary = boundary;
         const at = prog * duration * 1000;
-        tickTimersRef.current.push(window.setTimeout(() => { try { navigator.vibrate?.(13); } catch { /* */ } playClick(); }, at));
+        tickTimersRef.current.push(window.setTimeout(() => { haptic(13); playClick(); }, at));
       }
     }
 
@@ -190,7 +191,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
     setResult(faces[winner]);
     setLockedIndex(winner);
     setCelebrate(true);
-    try { navigator.vibrate?.([30, 40, 30]); } catch { /* */ }
+    haptic([30, 40, 30]);
     setSpinning(false);
     setPower(0);
     window.setTimeout(() => setCelebrate(false), 1500);
@@ -207,7 +208,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
     holdRef.current = performance.now();
     let flashed = false;
     let lastVibe = 0;
-    try { navigator.vibrate?.(12); } catch { /* */ } // initial kick
+    haptic(12); // initial kick
     const tick = () => {
       const now = performance.now();
       const pw = Math.min(1, (now - holdRef.current) / 1400);
@@ -217,8 +218,8 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
       if (cabinetRef.current) { const mag = pw * 3.2; cabinetRef.current.style.transform = `translate(${(Math.random() - 0.5) * mag}px, ${(Math.random() - 0.5) * mag}px)`; }
       // Buzz the phone faster as the charge climbs (Android; iOS ignores vibrate).
       const interval = 170 - pw * 130; // 170ms → 40ms
-      if (now - lastVibe > interval) { lastVibe = now; try { navigator.vibrate?.(pw > 0.8 ? 16 : 9); } catch { /* */ } }
-      if (pw >= 0.99 && !flashed) { flashed = true; setLedFlash(true); try { navigator.vibrate?.(35); } catch { /* */ } window.setTimeout(() => setLedFlash(false), 120); }
+      if (now - lastVibe > interval) { lastVibe = now; haptic(pw > 0.8 ? 16 : 9); }
+      if (pw >= 0.99 && !flashed) { flashed = true; setLedFlash(true); haptic(35); window.setTimeout(() => setLedFlash(false), 120); }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
