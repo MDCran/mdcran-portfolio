@@ -30,10 +30,13 @@ const STEP_TEXTS = [
   "And that's the quick tour! Ask me anything, and I'll show you around.",
 ];
 
-// Pinned to match the live TTS route exactly (src/app/api/voice/tts/route.ts) so the
-// tour and the chat/voice replies are the same voice. Not env-overridable on purpose.
-const VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael
-const MODEL = "eleven_turbo_v2_5";
+// Pinned to match the live TTS route (src/app/api/voice/tts/route.ts) so the tour and
+// the chat/voice replies sound the same. The live route prefers "Michael v2" but it's
+// a professional clone that 400s until its fine-tuning is restored, so we generate with
+// "Michael v1" (instant clone, always usable) — which is exactly what the live route
+// also falls back to today. If/when v2 is re-fine-tuned, set VOICE_ID to it and rerun.
+const VOICE_ID = "PqckR8cb9ShObzR6X8L0"; // Michael (v1) — instant clone
+const MODEL = "eleven_v3"; // ElevenLabs v3 — matches the live route's expressive model
 
 /** Minimal .env.local loader (no dependency) so the script "just works" locally. */
 async function loadEnvLocal() {
@@ -59,8 +62,12 @@ async function main() {
     console.error("✗ ELEVENLABS_API_KEY not set (env or web/.env.local). Aborting.");
     process.exit(1);
   }
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
-  const model = process.env.ELEVENLABS_MODEL || DEFAULT_MODEL;
+  // Use the pinned VOICE_ID (a guaranteed-usable instant clone). We deliberately do NOT
+  // read ELEVENLABS_VOICE_ID here — that's the LIVE route's primary, which may be a
+  // professional clone that can't synthesize until re-fine-tuned. Override via
+  // ELEVENLABS_TOUR_VOICE_ID only if you really mean to change the prerecorded clips.
+  const voiceId = process.env.ELEVENLABS_TOUR_VOICE_ID || VOICE_ID;
+  const model = process.env.ELEVENLABS_MODEL || MODEL;
   const outDir = join(ROOT, "public", "tour-audio");
   await mkdir(outDir, { recursive: true });
 
@@ -75,8 +82,8 @@ async function main() {
         body: JSON.stringify({
           text,
           model_id: model,
-          // Match the live route's expressive delivery so the tour sounds the same.
-          voice_settings: { stability: 0.32, similarity_boost: 0.85, style: 0.65, use_speaker_boost: true },
+          // Match the live route's v3 settings (numeric stability) so the tour sounds the same.
+          voice_settings: { stability: 0.5, similarity_boost: 0.9, use_speaker_boost: true },
         }),
       }
     );

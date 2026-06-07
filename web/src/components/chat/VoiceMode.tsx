@@ -48,7 +48,17 @@ function getSpeechRecognition(): (new () => SpeechRec) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-/** Strip markdown + action markers so only natural speech is sent to TTS. */
+/** ElevenLabs v3 audio tags (e.g. "[laughs]", "[warmly]") — spoken-only, hidden on screen.
+   Matches a short bracketed lowercase phrase NOT followed by "(" so markdown links survive. */
+const AUDIO_TAG_RE = /\s*\[[a-z][a-z'’ ]{0,28}\](?!\()/g;
+
+/** Remove v3 audio tags for anything shown on screen (chat text + karaoke caption). */
+function stripAudioTags(text: string): string {
+  return text.replace(AUDIO_TAG_RE, "").replace(/ {2,}/g, " ").replace(/ +([,.!?])/g, "$1").trim();
+}
+
+/** Strip markdown + action markers so only natural speech is sent to TTS. Audio tags are
+   intentionally KEPT here — ElevenLabs v3 needs them to shape the delivery. */
 function stripForSpeech(text: string): string {
   return text
     .replace(/__[A-Z]+:[^_]*__/g, " ")
@@ -181,25 +191,30 @@ export default function VoiceMode() {
 
   /* ── Speak a reply via ElevenLabs. Plays through Web Audio (decoded buffer) so it
      isn't blocked by mobile autoplay the way a plain <audio>.play() is. ── */
-  const speak = useCallback(async (text: string): Promise<void> => {
-    const clean = stripForSpeech(text);
-    if (!clean) return;
-    const capWords = clean.split(/\s+/);
+  const speak = useCallback(async (text: string, onStart?: () => void): Promise<void> => {
+    const clean = stripForSpeech(text); // keeps v3 audio tags for delivery
+    if (!clean) { onStart?.(); return; }
+    // The on-screen karaoke caption must not show the spoken-only audio tags.
+    const capWords = stripAudioTags(clean).split(/\s+/).filter(Boolean);
     setCaptionWords(capWords);
     setCaptionIdx(0);
+    // Fire the deferred on-page motions exactly once, the moment the voice starts (or, if
+    // synthesis fails, right away so the page still responds).
+    let started = false;
+    const fireStart = () => { if (!started) { started = true; try { onStart?.(); } catch { /* */ } } };
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: clean }),
       });
-      if (!res.ok) return;
+      if (!res.ok) { fireStart(); return; }
       const arr = await res.arrayBuffer();
       const ctx = audioCtxRef.current;
-      if (!ctx) return;
+      if (!ctx) { fireStart(); return; }
       try { await ctx.resume(); } catch { /* */ }
       let audioBuf: AudioBuffer;
-      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { return; }
+      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { fireStart(); return; }
       const analyser = ttsAnalyserRef.current;
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
@@ -234,17 +249,23 @@ export default function VoiceMode() {
           finish();
         };
         src.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
-        try { src.start(); captionRafRef.current = requestAnimationFrame(karaoke); }
-        catch { finish(); }
+        try { src.start(); fireStart(); captionRafRef.current = requestAnimationFrame(karaoke); }
+        catch { fireStart(); finish(); }
       });
     } catch {
-      /* ignore */
+      fireStart();
     }
   }, [setPhaseSafe]);
 
-  /* ── Parse action markers from a full reply and drive the UI ── */
-  const runDirectives = useCallback((full: string): string => {
+  /* ── Parse action markers from a reply. Navigation + theme fire immediately (so the
+     destination page is mounting while the audio loads), but the on-page motions —
+     scroll/highlight/zoom/emphasize — are DEFERRED and returned as `onSpeechStart` so
+     they fire the instant Michael actually starts talking. That way the page visibly
+     scrolls/spotlights "as he's saying it", instead of jumping before the voice plays. ── */
+  const runDirectives = useCallback((full: string): { cleaned: string; onSpeechStart: () => void } => {
     let cleaned = full;
+    const deferred: Array<() => void> = [];
+
     const theme = cleaned.match(/__THEME:([\w-]+)__/);
     if (theme) {
       const id = theme[1] as ThemeName;
@@ -255,32 +276,36 @@ export default function VoiceMode() {
     if (nav) {
       const path = nav[1];
       cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
-      setTimeout(() => router.push(path.split("#")[0] || "/"), 500);
+      setTimeout(() => router.push(path.split("#")[0] || "/"), 200); // navigate early
     }
     const zoom = cleaned.match(/__ZOOM:(.+?)__/);
     if (zoom) {
       cleaned = cleaned.replace(/\s*__ZOOM:.+?__\s*/g, " ");
-      setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:zoom", { detail: zoom[1] })), 400);
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:zoom", { detail: zoom[1] })));
     }
     const emph = cleaned.match(/__EMPHASIZE:(.+?)__/);
     if (emph) {
       cleaned = cleaned.replace(/\s*__EMPHASIZE:.+?__\s*/g, " ");
-      setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:emphasize", { detail: emph[1] })), 400);
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:emphasize", { detail: emph[1] })));
     }
     if (/__RESETZOOM__/.test(cleaned)) {
       cleaned = cleaned.replace(/\s*__RESETZOOM__\s*/g, " ");
-      window.dispatchEvent(new CustomEvent("mdcran:resetzoom"));
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:resetzoom")));
     }
     if (/__PROJECTTOUR__/.test(cleaned)) {
       cleaned = cleaned.replace(/\s*__PROJECTTOUR__\s*/g, " ");
-      setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")));
     }
     const hl = cleaned.match(/__HIGHLIGHT:(.+?)__/);
     if (hl) {
       cleaned = cleaned.replace(/\s*__HIGHLIGHT:.+?__\s*/g, " ");
-      setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: hl[1] })), 500);
+      // Give a freshly-navigated page a beat to mount before scrolling to the target.
+      deferred.push(() => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: hl[1] })), nav ? 500 : 0));
     }
-    return cleaned.replace(/\s+/g, " ").trim();
+    return {
+      cleaned: cleaned.replace(/\s+/g, " ").trim(),
+      onSpeechStart: () => { for (const fn of deferred) fn(); },
+    };
   }, [router, setTheme]);
 
   /* ── Send the transcript to Claude, then speak the reply ── */
@@ -311,7 +336,7 @@ export default function VoiceMode() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
+        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
       });
       if (res.status === 429) { friendly = "You've hit the message limit for now — give it a little while and try again."; throw new Error("limit"); }
       if (!res.ok || !res.body) throw new Error("chat failed");
@@ -330,7 +355,7 @@ export default function VoiceMode() {
             const parsed = JSON.parse(payload);
             if (parsed.text) {
               accumulated += parsed.text;
-              const shown = accumulated.replace(/__[A-Z]+:.+?__/g, "").replace(/__[A-Z]+__/g, "").trim();
+              const shown = stripAudioTags(accumulated.replace(/__[A-Z]+:.+?__/g, "").replace(/__[A-Z]+__/g, ""));
               setTurns((prev) => {
                 const next = [...prev];
                 next[next.length - 1] = { role: "assistant", text: shown };
@@ -352,10 +377,10 @@ export default function VoiceMode() {
       setPhaseSafe("speaking");
       await speak(msg);
     } else {
-      const cleaned = runDirectives(accumulated);
-      setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: cleaned }; return n; });
+      const { cleaned, onSpeechStart } = runDirectives(accumulated);
+      setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(cleaned) }; return n; });
       setPhaseSafe("speaking");
-      await speak(cleaned);
+      await speak(cleaned, onSpeechStart); // tags pass through to TTS; on-page motions fire when the voice starts
     }
 
     // Tear down the TTS audio graph node so the next utterance can rebuild it.

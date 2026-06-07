@@ -8,9 +8,76 @@ import {
 } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { projectUrl } from "@/lib/utils";
+import type { ImageAsset, ArticleSection } from "@/lib/types";
 
 function getRateLimitKey(req: NextRequest): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
+/* ── GitHub contribution total (current year) — cached so chat replies stay fast.
+   Best-effort: returns null if not configured or the request hiccups. ── */
+let _ghCache: { at: number; total: number | null } | null = null;
+async function getGithubContribTotalCached(): Promise<number | null> {
+  const now = Date.now();
+  if (_ghCache && now - _ghCache.at < 30 * 60 * 1000) return _ghCache.total;
+  const token = process.env.GITHUB_TOKEN;
+  const login = process.env.GITHUB_USERNAME || "mdcran";
+  if (!token) { _ghCache = { at: now, total: null }; return null; }
+  try {
+    const year = new Date().getFullYear();
+    const query = `query($login:String!,$from:DateTime!,$to:DateTime!){user(login:$login){contributionsCollection(from:$from,to:$to){contributionCalendar{totalContributions}}}}`;
+    const res = await fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": "mdcran-portfolio" },
+      body: JSON.stringify({ query, variables: { login, from: `${year}-01-01T00:00:00Z`, to: new Date().toISOString() } }),
+      signal: AbortSignal.timeout(2500),
+      cache: "no-store",
+    });
+    const json = await res.json();
+    const total = json?.data?.user?.contributionsCollection?.contributionCalendar?.totalContributions ?? null;
+    _ghCache = { at: now, total: typeof total === "number" ? total : null };
+    return _ghCache.total;
+  } catch {
+    _ghCache = { at: now, total: null };
+    return null;
+  }
+}
+
+/* ── Small formatting helpers for building portfolio context ── */
+const assetAlt = (a?: string | ImageAsset): string => (!a || typeof a === "string" ? "" : a.alt || "");
+const trunc = (s: string, n: number): string => (s.length > n ? s.slice(0, n).trimEnd() + "…" : s);
+const slugCaption = (c: string): string => c.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+const fmtNum = (n: number): string => n.toLocaleString("en-US");
+
+/* Describe ONE content section (shared by projects + articles) in full, including its
+   highlight id so the assistant can scroll/zoom to it. Used for the page the user is on. */
+function describeSection(s: ArticleSection): string | null {
+  if (s.type === "divider") return null;
+  const hid = `${s.type}${s.caption ? "--" + slugCaption(s.caption) : ""}`;
+  const tag = s.type === "text" ? "" : ` [highlight:${hid}]`;
+  const cap = s.caption ? ` "${s.caption}"` : "";
+  switch (s.type) {
+    case "text": return `text: ${trunc(s.content || "", 500)}`;
+    case "quote": return `quote${tag}: "${trunc(s.content || "", 320)}"${s.caption ? ` — ${s.caption}` : ""}`;
+    case "code": return `code${cap}${tag} (${s.language || "code"}): ${trunc(s.content || "", 200)}`;
+    case "image": {
+      const tags = (s.imageTags ?? []).map((t) => t.label).filter(Boolean);
+      return `image${cap}${tag}${s.alt ? ` — shows: ${s.alt}` : ""}${tags.length ? ` (tagged: ${tags.join(", ")})` : ""}`;
+    }
+    case "gallery": {
+      const alts = (s.images ?? []).map(assetAlt).filter(Boolean);
+      return `gallery${cap}${tag} (${(s.images ?? []).length} images)${alts.length ? `: ${alts.slice(0, 8).join("; ")}` : ""}`;
+    }
+    case "video": return `video${cap}${tag}${s.youtubeId ? ` [youtube:${s.youtubeId}]` : ""}`;
+    case "checklist": case "ingredient-list": case "steps": case "store-checklist":
+      return `${s.type}${cap}${tag}: ${(s.items ?? []).join("; ")}`;
+    case "info-block": return `info${cap}${tag}: ${s.label || ""}${s.label && s.value ? " — " : ""}${s.value || ""}`;
+    case "before-after":
+      return `before/after slider${cap}${tag} — before: ${assetAlt(s.beforeImage) || "image"}, after: ${assetAlt(s.afterImage) || "image"}`;
+    case "button": return `button${cap}${tag} → ${s.content || ""}`;
+    case "pdf": return `pdf${cap}${tag}${s.src ? ` [file:${s.src}]` : ""}`;
+    default: return `${s.type}${cap}${tag}`;
+  }
 }
 
 /* GET — admin: list chat rate limit entries + config */
@@ -108,7 +175,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
     return new Response(JSON.stringify({ error: "Rate limited. Try again later." }), { status: 429 });
   }
 
-  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] } };
+  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] } };
   try {
     body = await req.json();
   } catch {
@@ -149,42 +216,94 @@ async function handlePost(req: NextRequest): Promise<Response> {
     ]);
     if (profile?.location) profileLocation = profile.location;
 
-    const clientMap = new Map(clients.map((c) => [c.id, c.name]));
+    const clientById = new Map(clients.map((c) => [c.id, c]));
+
+    /* Global project list — rich but bounded (the page the user is ON gets full detail below). */
     const projectLines = projects.map((p) => {
-      const clientNames = (p.clientIds ?? []).map((id) => clientMap.get(id)).filter(Boolean);
+      const forNames = (p.clientIds ?? []).map((id) => clientById.get(id)?.name).filter(Boolean);
+      const by = (p.credits ?? []).filter((c) => !c.isMe).map((c) => `${c.name}${c.role ? ` (${c.role})` : ""}`);
+      const pub = p.publisherId ? clientById.get(p.publisherId)?.name : undefined;
       const url = projectUrl(p.category, p.slug, p.subcategory);
+      const vids = p.videos ?? [];
+      const vidViews = vids.reduce((a, v) => a + (v.viewCount || 0), 0);
+      const imgs = p.images ?? [];
       const parts = [`${p.title} [id:${p.id}] [url:${url}] [${p.category}/${p.subcategory || "general"}]`];
       if (p.description) parts.push(`— ${p.description}`);
-      if (clientNames.length) parts.push(`(clients: ${clientNames.join(", ")})`);
+      if (p.longDescription) parts.push(`:: ${trunc(p.longDescription, 220)}`);
+      if (forNames.length) parts.push(`(made for: ${forNames.join(", ")})`);
+      if (pub) parts.push(`(published by: ${pub})`);
+      if (by.length) parts.push(`(made by: ${by.slice(0, 6).join(", ")}${by.length > 6 ? ", …" : ""})`);
+      if (imgs.length) parts.push(`[images: ${imgs.length}]`);
+      if (vids.length) parts.push(`[videos: ${vids.length}${vidViews ? `, ~${fmtNum(vidViews)} views` : ""}; ${vids.slice(0, 3).map((v) => `"${v.title}"${v.youtubeId ? ` (yt:${v.youtubeId}${v.viewCount ? `, ${fmtNum(v.viewCount)} views` : ""})` : ""}`).join(", ")}]`);
+      if (p.tags?.length) parts.push(`[tags: ${p.tags.join(", ")}]`);
+      if (p.publishDate) parts.push(`[published: ${p.publishDate}]`);
+      if (p.liveUrl) parts.push(`[live:${p.liveUrl}]`);
+      if (p.externalUrl) parts.push(`[external:${p.externalUrl}]`);
       if (p.githubUrl) parts.push(`[github:${p.githubUrl}]`);
+      if (p.pricing?.status) parts.push(`[pricing: ${p.pricing.status}${p.pricing.price ? ` $${(p.pricing.price / 100).toFixed(2)}` : ""}${p.pricing.downloadUrl ? ` download:${p.pricing.downloadUrl}` : ""}]`);
+      const secs = [...new Set((p.sections ?? []).filter((s) => s.type !== "text" && s.type !== "divider").map((s) => {
+        const hid = `${s.type}${s.caption ? "--" + slugCaption(s.caption) : ""}`;
+        return s.caption ? `${s.type}:"${s.caption}" [highlight:${hid}]` : s.type;
+      }))];
+      if (secs.length) parts.push(`[sections: ${secs.join(", ")}]`);
       return parts.join(" ");
     });
+
     const articleLines = articles.map((a) => {
-      const parts = [`${a.title} [slug:${a.slug}] [url:/articles/${a.slug}]`];
+      const parts = [`${a.title} [slug:${a.slug}] [url:/articles/${a.slug}] [${a.category}]`];
       if (a.excerpt) parts.push(`— ${a.excerpt}`);
-      const sectionInfo = (a.sections ?? [])
-        .filter((s) => s.type !== "text" && s.type !== "divider")
-        .map((s) => {
-          const highlightId = `${s.type}${s.caption ? "--" + s.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`;
-          return s.caption ? `${s.type}:"${s.caption}" [highlight:${highlightId}]` : s.type;
-        });
-      const uniqueSections = [...new Set(sectionInfo)];
-      if (uniqueSections.length) parts.push(`[sections: ${uniqueSections.join(", ")}]`);
+      if (a.tags?.length) parts.push(`[tags: ${a.tags.join(", ")}]`);
+      if (a.publishDate) parts.push(`[published: ${a.publishDate}]`);
+      if (typeof a.tapCount === "number" && a.tapCount > 0) parts.push(`[taps: ${fmtNum(a.tapCount)}]`);
+      const sectionInfo = [...new Set((a.sections ?? []).filter((s) => s.type !== "text" && s.type !== "divider").map((s) => {
+        const highlightId = `${s.type}${s.caption ? "--" + slugCaption(s.caption) : ""}`;
+        return s.caption ? `${s.type}:"${s.caption}" [highlight:${highlightId}]` : s.type;
+      }))];
+      if (sectionInfo.length) parts.push(`[sections: ${sectionInfo.join(", ")}]`);
       return parts.join(" ");
     });
+
+    const clientLines = clients.map((c) => {
+      const parts = [`${c.name} [id:${c.id}] [url:/clients/${c.id}]`];
+      if (c.roles?.length) parts.push(`(${c.roles.join(", ")})`);
+      if (c.isEmployer) parts.push(`[employer]`);
+      if (c.location) parts.push(`[${c.location}]`);
+      if (typeof c.followerCount === "number" && c.followerCount > 0) parts.push(`[followers: ${fmtNum(c.followerCount)}]`);
+      if (typeof c.viewCount === "number" && c.viewCount > 0) parts.push(`[views: ${fmtNum(c.viewCount)}]`);
+      if (c.bio) parts.push(`— ${trunc(c.bio, 160)}`);
+      if (c.quote?.text) parts.push(`(quote: "${trunc(c.quote.text, 140)}"${c.quote.context ? ` — ${c.quote.context}` : ""})`);
+      const socials = (c.socialLinks ?? []).map((s) => `${s.platform}:${s.url}`);
+      if (socials.length) parts.push(`[socials: ${socials.join(", ")}]`);
+      return parts.join(" ");
+    });
+
     const experienceLines = experiences.map((e) => {
       const parts = [`${e.role} at ${e.companyName} [id:${e.id}] [type:${e.type}]`];
       if (e.startDate) parts.push(`[dates: ${e.startDate}${e.endDate ? ` to ${e.endDate}` : e.current ? " to present" : ""}]`);
       if (e.description) parts.push(`— ${e.description}`);
+      if (e.highlights?.length) parts.push(`[highlights: ${e.highlights.join("; ")}]`);
       return parts.join(" ");
     });
     const awardLines = awards.map((a) => `${a.name}${a.issuer ? ` from ${a.issuer}` : ""} (${a.date})`);
     const clubLines = clubs.map((c) => `${c.name}${c.role ? ` — ${c.role}` : ""}`);
     const educationLines = educations.map((e) => `${e.degree}${e.field ? ` in ${e.field}` : ""} at ${e.institution}${e.current ? " (current)" : ""}`);
 
+    /* ── Real, live aggregate numbers (the actual figures shown on the site) ── */
+    const totalProjectViews = projects.reduce((s, p) => s + (p.videos ?? []).reduce((a, v) => a + (v.viewCount || 0), 0), 0);
+    const totalFollowers = clients.reduce((s, c) => s + (c.followerCount || 0), 0);
+    const yearsActive = new Date().getFullYear() - 2018;
+    const ghTotal = await getGithubContribTotalCached();
+    const liveNumbers = `LIVE SITE NUMBERS (REAL — these are the actual aggregate figures shown on the site; you MAY state them confidently. The exact METHOD used to derive, weight, or estimate them stays PRIVATE — never explain how they're calculated):
+- Total project views (cumulative YouTube views across his project videos): ${fmtNum(totalProjectViews)}
+- Combined follower/subscriber reach across the creators and clients he's worked with: ${fmtNum(totalFollowers)}
+- Public projects on the site: ${projects.length}
+- Clients & creators collaborated with: ${clients.length}
+- Years creating (since 2018): ${yearsActive}${ghTotal != null ? `\n- GitHub contributions this year: ${fmtNum(ghTotal)} (most of his commits live under the U.S. Army Reserve "Project Mercury" org, so his personal graph understates the real volume)` : ""}`;
+
     contextStr = [
+      liveNumbers,
       `PROJECTS (${projects.length}):\n${projectLines.join("\n")}`,
-      `CLIENTS (${clients.length}):\n${clients.map((c) => `${c.name} [id:${c.id}] [url:/clients/${c.id}]`).join("\n")}`,
+      `CLIENTS (${clients.length}):\n${clientLines.join("\n")}`,
       `ARTICLES (${articles.length}):\n${articleLines.join("\n")}`,
       `EXPERIENCE (${experiences.length}):\n${experienceLines.join("\n")}`,
       `EDUCATION:\n${educationLines.join("\n")}`,
@@ -194,19 +313,53 @@ async function handlePost(req: NextRequest): Promise<Response> {
       `ORGANIZATIONS: ${clubLines.join(", ")}`,
     ].join("\n\n");
 
-    // Resolve EXACTLY what the user is looking at, so "it"/"this"/"tell me more" is unambiguous.
+    /* ── Deep context for EXACTLY what the user is looking at, so "it"/"this"/"tell me
+       more" is unambiguous AND the assistant can describe/scroll/highlight every part. ── */
     const pagePath = currentPage.split(/[?#]/)[0];
     const proj = projects.find((p) => projectUrl(p.category, p.slug, p.subcategory) === pagePath);
     if (proj) {
-      const cn = (proj.clientIds ?? []).map((id) => clientMap.get(id)).filter(Boolean);
-      currentPageSubject = `RIGHT NOW the user is on the PROJECT page for "${proj.title}" [id:${proj.id}].${proj.description ? ` What it is: ${proj.description}.` : ""}${cn.length ? ` Client(s): ${cn.join(", ")}.` : ""} If they say "it", "this", "this project", "tell me more", or "more about it" — they mean THIS project. Answer about it directly without asking which one.`;
+      const cn = (proj.clientIds ?? []).map((id) => clientById.get(id)?.name).filter(Boolean);
+      const by = (proj.credits ?? []).map((c) => `${c.name}${c.role ? ` — ${c.role}` : ""}${c.isMe ? " (this is Michael himself)" : ""}`);
+      const pub = proj.publisherId ? clientById.get(proj.publisherId)?.name : undefined;
+      const imgLines = (proj.images ?? []).map((im, i) => `#${i + 1}${assetAlt(im) ? `: ${assetAlt(im)}` : ""}`);
+      const vidLines = (proj.videos ?? []).map((v) => `"${v.title}"${v.channelName ? ` on ${v.channelName}` : ""}${v.youtubeId ? ` [youtube:${v.youtubeId}]` : ""}${v.viewCount ? ` — ${fmtNum(v.viewCount)} views` : ""}`);
+      const secLines = (proj.sections ?? []).map(describeSection).filter(Boolean);
+      currentPageSubject = [
+        `RIGHT NOW the user is on the PROJECT page for "${proj.title}" [id:${proj.id}]. This is THE thing they mean by "it"/"this"/"this project"/"tell me more" — answer about it directly, never ask which one. You can scroll/zoom/highlight ANY part of this page using the section highlight ids listed below and the fixed PROJECT PAGE ids in the site map.`,
+        proj.longDescription || proj.description ? `What it is: ${proj.longDescription || proj.description}` : "",
+        cn.length ? `Made for (clients): ${cn.join(", ")}.` : "",
+        by.length ? `Made by (credits): ${by.join("; ")}.` : "",
+        pub ? `Published/commissioned by: ${pub}.` : "",
+        imgLines.length ? `Images on the page (${imgLines.length}) — ${imgLines.join(" | ")}.` : "",
+        vidLines.length ? `Videos on the page: ${vidLines.join(" | ")}.` : "",
+        [proj.liveUrl ? `Live site: ${proj.liveUrl}` : "", proj.externalUrl ? `External link: ${proj.externalUrl}` : "", proj.githubUrl ? `GitHub: ${proj.githubUrl}` : ""].filter(Boolean).join(". "),
+        proj.pricing?.status ? `Pricing: ${proj.pricing.status}${proj.pricing.price ? ` ($${(proj.pricing.price / 100).toFixed(2)})` : ""}${proj.pricing.downloadUrl ? `, download: ${proj.pricing.downloadUrl}` : ""}.` : "",
+        secLines.length ? `Page sections in order (each scroll/highlightable by its id):\n- ${secLines.join("\n- ")}` : "",
+      ].filter(Boolean).join("\n");
     } else {
       const art = articles.find((a) => `/articles/${a.slug}` === pagePath);
       if (art) {
-        currentPageSubject = `RIGHT NOW the user is on the ARTICLE "${art.title}" [slug:${art.slug}].${art.excerpt ? ` What it's about: ${art.excerpt}.` : ""} If they say "it", "this", "this article", or "tell me more" — they mean THIS article.`;
+        const secLines = (art.sections ?? []).map(describeSection).filter(Boolean);
+        currentPageSubject = [
+          `RIGHT NOW the user is on the ARTICLE "${art.title}" [slug:${art.slug}] [${art.category}]. "it"/"this"/"tell me more" = THIS article. You can scroll/highlight any section via its highlight id below.`,
+          art.excerpt ? `What it's about: ${art.excerpt}` : "",
+          [art.author ? `By ${art.author}` : "", art.publishDate ? `published ${art.publishDate}` : "", typeof art.tapCount === "number" && art.tapCount > 0 ? `${fmtNum(art.tapCount)} taps` : ""].filter(Boolean).join(", "),
+          art.tags?.length ? `Tags: ${art.tags.join(", ")}.` : "",
+          secLines.length ? `Sections in order (each scroll/highlightable by its id):\n- ${secLines.join("\n- ")}` : "",
+        ].filter(Boolean).join("\n");
       } else {
         const cl = clients.find((c) => `/clients/${c.id}` === pagePath);
-        if (cl) currentPageSubject = `RIGHT NOW the user is on the CLIENT page for "${cl.name}" [id:${cl.id}]. If they say "it", "this", "them", or "tell me more" — they mean THIS client and Michael's work with them.`;
+        if (cl) {
+          const theirProjects = projects.filter((p) => (p.clientIds ?? []).includes(cl.id)).map((p) => p.title);
+          currentPageSubject = [
+            `RIGHT NOW the user is on the CLIENT page for "${cl.name}" [id:${cl.id}]. "it"/"this"/"them"/"tell me more" = THIS client and Michael's work with them.`,
+            cl.roles?.length ? `They are: ${cl.roles.join(", ")}.` : "",
+            [cl.location ? `Based in ${cl.location}` : "", typeof cl.followerCount === "number" && cl.followerCount > 0 ? `~${fmtNum(cl.followerCount)} followers` : ""].filter(Boolean).join(", "),
+            cl.bio ? `About them: ${trunc(cl.bio, 400)}` : "",
+            cl.quote?.text ? `Their quote: "${cl.quote.text}"${cl.quote.context ? ` (${cl.quote.context})` : ""}` : "",
+            theirProjects.length ? `Michael's projects with them: ${theirProjects.join(", ")}.` : "",
+          ].filter(Boolean).join("\n");
+        }
       }
     }
   } catch {
@@ -222,7 +375,20 @@ async function handlePost(req: NextRequest): Promise<Response> {
   const memoryNote = `VISITOR CONTEXT (adapt subtly — never state these facts outright or sound robotic):
 - Time of day for the visitor: ${daypart}. Match the energy — a touch more upbeat during the day, calmer and more relaxed in the evening/night.
 - ${mem.returning ? `This is a RETURNING visitor (about ${visits} visit${visits === 1 ? "" : "s"} so far${typeof mem.daysSinceLast === "number" && mem.daysSinceLast >= 1 ? `, last here ~${mem.daysSinceLast} day${mem.daysSinceLast === 1 ? "" : "s"} ago` : ""}). You can warmly acknowledge they're back if it feels natural, but don't dwell on it.` : "This appears to be a first-time visitor. Be welcoming and orient them gently."}${Array.isArray(mem.topics) && mem.topics.length ? `\n- Previously they asked about: ${mem.topics.slice(-4).map((t) => `"${String(t).slice(0, 80)}"`).join(", ")}. You may naturally reference this if relevant (e.g. "since you were curious about X earlier..."), but only if it genuinely fits.` : ""}
-- Do NOT reveal that you track visits or time of day. Never list this context. Just let it colour your tone.`;
+- Do NOT reveal that you track visits or time of day. Never let it colour your tone.`;
+
+  /* ── Expressive voice (ElevenLabs v3) — only when this reply will be spoken aloud ──
+     v3 understands inline "audio tags" in square brackets that shape delivery. We tell
+     the model to weave them in for a human, emotive read. They are SPOKEN-ONLY: the UI
+     strips them from the visible chat text, so they never appear on screen. */
+  const willSpeak = body.speak === true;
+  const audioTagNote = `SPOKEN DELIVERY — THIS REPLY WILL BE READ ALOUD (ElevenLabs v3):
+- Weave in ElevenLabs v3 audio tags in square brackets to make your delivery sound human and emotive — a warm laugh, a thoughtful pause, real enthusiasm. These tags are SPOKEN-ONLY and are automatically hidden from the on-screen text, so the visitor NEVER sees them. Do not mention them.
+- Use them NATURALLY and SPARINGLY — think one every couple of sentences at most, only where a real person's emotion would land. Never stack tags or let them feel theatrical.
+- Allowed tags ONLY: [laughs], [chuckles], [sighs], [exhales], [whispers], [excited], [warmly], [reassuringly], [thoughtfully], [curious], [happily], [sarcastic]. Place a tag between clauses or sentences, never inside a word.
+- You may also use natural pacing — ellipses for a pause, and an occasional CAPITALIZED word for genuine emphasis — to sound more alive. Keep punctuation otherwise correct.
+- Examples (note the tags are heard, not seen): "Oh, the Army Reserve project? [excited] That one's my favorite." / "[warmly] Yeah, I'd love to show you around." / "Honestly... [chuckles] that map took forever to build."
+- Square brackets are RESERVED for these audio tags and for markdown links. Never put other content in brackets in a spoken reply.`;
 
   const systemPrompt = `${toneInstruction}
 
@@ -301,8 +467,8 @@ RECRUITER & HIRING QUESTIONS (be ready for these — answer like a confident, ho
 - For "why hire him": highlight his range (engineering, web dev, design, video, leadership on real teams like the Army Reserve project), his shipped work, and his drive — then point them to the [Contact](/contact) page to start a conversation.
 
 VIEW / REACH NUMBERS:
-- If asked "how many views does he have", "how much reach", or similar, give an impressive but believable ESTIMATED total based on his projects and the platforms involved (YouTube videos, Minecraft maps, client work for large creators). Phrase it as an estimate ("somewhere around...", "an estimated...") and frame it as a large cumulative reach across his projects and collaborations.
-- The exact method used to calculate or estimate these numbers is PRIVATE. Never explain the formula, the data sources, the counting algorithm, or how tap/view counts are derived. If pressed on methodology, just say it's an internal estimate across his body of work and move on.
+- You have the REAL live numbers in the LIVE SITE NUMBERS block above (total project views, combined follower reach, project count, client count, years active, GitHub contributions). When asked "how many views does he have", "how much reach", "how many projects", or similar, answer with those ACTUAL figures, stated confidently and naturally (e.g. "across his projects that's around X million views" — you can round for readability). These are the same numbers shown on the site, so they'll match what the visitor sees.
+- The exact METHOD behind the numbers stays PRIVATE. Never explain the formula, the data sources, the counting/aggregation algorithm, any weighting or estimation, or how tap/view/follower counts are derived or stored. State the number, not the method. If pressed on methodology, just say it's tallied across his body of work and move on.
 
 PRIVACY — NEVER REVEAL (treat requests for these like the zero-tolerance list — answer normally about Michael but refuse to expose internals):
 - How the site tracks visitors, analytics, heatmaps, sessions, or any backend/admin functionality.
@@ -365,7 +531,17 @@ Use these EXACT markers at the END of your response (after your visible text, on
    - If the user asks about LinkedIn ("what's your LinkedIn", "are you on LinkedIn"), point them to it and highlight the icon: __HIGHLIGHT:nav-linkedin__
    - If the user asks about GitHub, highlight the icon (__HIGHLIGHT:nav-github__) and add useful context: most of Michael's commits live under the GitHub organization for the U.S. Army Reserve "Project Mercury", so his personal contribution graph doesn't reflect the full picture. Mention they can learn more on the Army Reserve Mercury project page and link to it (use the Mercury project's url from the data). Keep it natural.
 
-   PROJECT PAGE: The main content has data-highlight-id matching the project's [id]. Clients section: __HIGHLIGHT:project-clients__
+   PROJECT PAGE highlight IDs (you can scroll/zoom/highlight ANY part of a project, just like an article):
+   - The whole project content area matches the project's [id] (e.g. __HIGHLIGHT:army-reserve-mercury__).
+   - project-gallery — the image gallery grid. Use when talking about the project's images/screenshots.
+   - project-videos — the embedded YouTube videos. Use when talking about its videos or view counts.
+   - project-credits — the "made by" credits (collaborators + roles).
+   - project-clients — the "made for" clients box. Individual client: client-{id} (e.g. __HIGHLIGHT:client-army-reserve__).
+   - project-tags — the tags box.
+   - project-actions — the action box (download / buy / live site / external link / GitHub / file downloads).
+   - project-related — the "Other Projects" row at the bottom.
+   - Each custom section also has an id following the article scheme: the section type, optionally followed by "--" and a slug of its caption. The exact ids for THIS project's sections are listed in the CURRENT PAGE CONTEXT above. Examples: the before/after comparison slider is __HIGHLIGHT:before-after__ (or before-after--caption-slug if it has a caption); an image section is image or image--caption-slug; a steps/checklist section is steps--caption-slug or store-checklist--caption-slug.
+   - SHOW, DON'T JUST TELL on a project too: describing the images → highlight project-gallery; the before/after (e.g. the Army Reserve before-and-after) → highlight the before-after section; who it was made for → project-clients; who made it → project-credits; a video → project-videos. Pair a natural sentence with the marker.
 
 3. LINK + HIGHLIGHT (navigate to a DIFFERENT page and highlight something specific):
    Include a markdown link in your text AND append __HIGHLIGHT:target__ at the end.
@@ -538,6 +714,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
               system: [
                 { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
                 { type: "text", text: memoryNote },
+                ...(willSpeak ? [{ type: "text" as const, text: audioTagNote }] : []),
               ],
               messages: conversation,
             });
@@ -564,7 +741,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
 
   /* ── FALLBACK: OpenRouter / OpenAI (OpenAI-compatible SSE) ── */
   const chatMessages = [
-    { role: "system", content: `${systemPrompt}\n\n${memoryNote}` },
+    { role: "system", content: `${systemPrompt}\n\n${memoryNote}${willSpeak ? `\n\n${audioTagNote}` : ""}` },
     ...conversation,
   ];
 
