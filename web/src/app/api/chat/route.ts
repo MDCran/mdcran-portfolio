@@ -377,19 +377,6 @@ async function handlePost(req: NextRequest): Promise<Response> {
 - ${mem.returning ? `This is a RETURNING visitor (about ${visits} visit${visits === 1 ? "" : "s"} so far${typeof mem.daysSinceLast === "number" && mem.daysSinceLast >= 1 ? `, last here ~${mem.daysSinceLast} day${mem.daysSinceLast === 1 ? "" : "s"} ago` : ""}). You can warmly acknowledge they're back if it feels natural, but don't dwell on it.` : "This appears to be a first-time visitor. Be welcoming and orient them gently."}${Array.isArray(mem.topics) && mem.topics.length ? `\n- Previously they asked about: ${mem.topics.slice(-4).map((t) => `"${String(t).slice(0, 80)}"`).join(", ")}. You may naturally reference this if relevant (e.g. "since you were curious about X earlier..."), but only if it genuinely fits.` : ""}
 - Do NOT reveal that you track visits or time of day. Never let it colour your tone.`;
 
-  /* ── Expressive voice (ElevenLabs v3) — only when this reply will be spoken aloud ──
-     v3 understands inline "audio tags" in square brackets that shape delivery. We tell
-     the model to weave them in for a human, emotive read. They are SPOKEN-ONLY: the UI
-     strips them from the visible chat text, so they never appear on screen. */
-  const willSpeak = body.speak === true;
-  const audioTagNote = `SPOKEN DELIVERY — THIS REPLY WILL BE READ ALOUD (ElevenLabs v3):
-- Weave in ElevenLabs v3 audio tags in square brackets to make your delivery sound human and emotive — a warm laugh, a thoughtful pause, real enthusiasm. These tags are SPOKEN-ONLY and are automatically hidden from the on-screen text, so the visitor NEVER sees them. Do not mention them.
-- Use them NATURALLY and SPARINGLY — think one every couple of sentences at most, only where a real person's emotion would land. Never stack tags or let them feel theatrical.
-- Allowed tags ONLY: [laughs], [chuckles], [sighs], [exhales], [whispers], [excited], [warmly], [reassuringly], [thoughtfully], [curious], [happily], [sarcastic]. Place a tag between clauses or sentences, never inside a word.
-- You may also use natural pacing — ellipses for a pause, and an occasional CAPITALIZED word for genuine emphasis — to sound more alive. Keep punctuation otherwise correct.
-- Examples (note the tags are heard, not seen): "Oh, the Army Reserve project? [excited] That one's my favorite." / "[warmly] Yeah, I'd love to show you around." / "Honestly... [chuckles] that map took forever to build."
-- Square brackets are RESERVED for these audio tags and for markdown links. Never put other content in brackets in a spoken reply.`;
-
   const systemPrompt = `${toneInstruction}
 
 You are ${agentName}, the friendly host of this portfolio site (mdcran.com), speaking in Michael Cran's own voice. You are NOT an AI — never say "as an AI" or "I'm an AI". When asked who you are, introduce yourself warmly as ${agentName}.
@@ -714,7 +701,6 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
               system: [
                 { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
                 { type: "text", text: memoryNote },
-                ...(willSpeak ? [{ type: "text" as const, text: audioTagNote }] : []),
               ],
               messages: conversation,
             });
@@ -741,7 +727,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
 
   /* ── FALLBACK: OpenRouter / OpenAI (OpenAI-compatible SSE) ── */
   const chatMessages = [
-    { role: "system", content: `${systemPrompt}\n\n${memoryNote}${willSpeak ? `\n\n${audioTagNote}` : ""}` },
+    { role: "system", content: `${systemPrompt}\n\n${memoryNote}` },
     ...conversation,
   ];
 

@@ -1,43 +1,22 @@
 import { NextRequest } from "next/server";
 import { limitVoiceLike } from "@/lib/api-rate-limit";
 
-// Voice selection. PRIMARY is the high-quality professional clone "Michael v2"
-// (EgUcxulGJojl01KsxgA1). FALLBACKS keep the assistant talking if the primary can't
-// be used right now.
-//
-// IMPORTANT — about "Michael v2": it's a PROFESSIONAL voice clone, which must finish
-// fine-tuning on the ElevenLabs account before the API will synthesize with it. While
-// its fine-tuning is unavailable, every request returns 400 "voice_not_fine_tuned".
-// We keep it as the primary on purpose (so it's used automatically the moment it's
-// re-fine-tuned in the ElevenLabs dashboard) and transparently fall back to "Michael
-// v1" (PqckR8cb9ShObzR6X8L0, an instant clone of the same voice that works on every
-// model) so voice never goes silent.
-const PRIMARY_VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael (v2) — professional clone, high quality
-const FALLBACK_VOICE_IDS = [
-  "PqckR8cb9ShObzR6X8L0", // Michael (v1) — instant clone of the same voice (always usable)
-  "JBFqnCBsd6RMkjVDRZzb", // George — premade, last-resort so it's never fully silent
-];
+// Michael's actual voice — the ONLY voice the assistant uses. No fallback to any other
+// voice: if this voice can't synthesize, we report "voice unavailable" rather than
+// speaking in someone else's voice (per the owner's explicit requirement).
+const VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael Cran (professional clone)
 
-// ElevenLabs v3 — their most expressive model (supports inline audio tags like
-// [laughs], [whispers], [excited] that the chat model injects for delivery). v3 wants
-// a NUMERIC stability (0 = creative/most expressive, 0.5 = natural, 1 = robust).
-const MODEL = "eleven_v3";
-const V3_VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.9, use_speaker_boost: true };
+// Model: this professional clone is fine-tuned for the v2 family (multilingual_v2,
+// turbo_v2, flash_v2) — NOT for eleven_v3, and its turbo/flash v2.5 fine-tunes FAILED,
+// so those models 400 with "voice_not_fine_tuned". eleven_multilingual_v2 is the
+// highest-quality model the voice is trained on. Expressiveness comes from the voice
+// settings (lower stability + higher style). (v3's inline audio tags need the v3 model,
+// which this voice isn't fine-tuned for — so we don't use them.)
+const MODEL = "eleven_multilingual_v2";
+const VOICE_SETTINGS = { stability: 0.35, similarity_boost: 0.9, style: 0.6, use_speaker_boost: true };
 
-// A voice that returns a voice-level error (e.g. not fine-tuned) is parked here so we
-// don't pay its failed round-trip on every utterance. It's automatically retried once
-// the cooldown lapses, so a re-fine-tuned primary recovers on its own. Module-level =
-// per-instance memory, which is all we need.
-const VOICE_COOLDOWN_MS = 10 * 60 * 1000;
-const brokenUntil = new Map<string, number>();
-
-function voiceChain(): string[] {
-  const primary = process.env.ELEVENLABS_VOICE_ID?.trim() || PRIMARY_VOICE_ID;
-  const all = Array.from(new Set([primary, ...FALLBACK_VOICE_IDS]));
-  const now = Date.now();
-  const live = all.filter((id) => (brokenUntil.get(id) ?? 0) <= now);
-  // If every voice is cooling down, ignore cooldowns rather than going silent.
-  return live.length ? live : all;
+function voiceId(): string {
+  return process.env.ELEVENLABS_VOICE_ID?.trim() || VOICE_ID;
 }
 
 /* GET — lets the client know whether voice is available without exposing keys. */
@@ -71,47 +50,40 @@ export async function POST(req: NextRequest) {
   // Cap length to keep latency + cost sane.
   const clipped = text.length > 1200 ? text.slice(0, 1200) : text;
 
-  // Try each voice in turn. A voice-level failure (e.g. a clone that lost its
-  // fine-tuning → 400 "voice_not_fine_tuned") should NOT make the assistant go
-  // silent — fall through to the next voice instead of returning an error.
-  let lastStatus = 502;
-  let lastErr = "Unknown error";
-  for (const id of voiceChain()) {
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${id}?output_format=mp3_44100_128`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "audio/mpeg",
-        },
-        body: JSON.stringify({
-          text: clipped,
-          model_id: MODEL,
-          voice_settings: V3_VOICE_SETTINGS,
-        }),
-      }
-    );
-
-    if (res.ok && res.body) {
-      return new Response(res.body, {
-        headers: {
-          "Content-Type": "audio/mpeg",
-          "Cache-Control": "no-store",
-        },
-      });
+  // Synthesize with Michael's voice only. If it fails, we DON'T substitute another
+  // voice — we report that voice is unavailable so the client can say so.
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId()}?output_format=mp3_44100_128`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text: clipped,
+        model_id: MODEL,
+        voice_settings: VOICE_SETTINGS,
+      }),
     }
+  );
 
-    lastStatus = res.status;
-    lastErr = await res.text().catch(() => "Unknown error");
-    console.error(`ElevenLabs TTS error (voice=${id}):`, res.status, lastErr);
-    // 401/403/429 are account-wide (bad key / rate limit) — no point trying other voices.
-    if (res.status === 401 || res.status === 403 || res.status === 429) break;
-    // Voice-level failure (not fine-tuned, missing, etc.): park this voice so the next
-    // utterance skips straight to a working fallback. Auto-recovers after the cooldown.
-    if (res.status === 400 || res.status === 404) brokenUntil.set(id, Date.now() + VOICE_COOLDOWN_MS);
+  if (res.ok && res.body) {
+    return new Response(res.body, {
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
-  return new Response(JSON.stringify({ error: "TTS failed", status: lastStatus, detail: lastErr.slice(0, 200) }), { status: 502 });
+  const detail = await res.text().catch(() => "Unknown error");
+  console.error("ElevenLabs TTS error:", res.status, detail);
+  // 503 = the voice itself can't be synthesized right now (not configured / not
+  // fine-tuned / rate limited). The client surfaces this as "voice unavailable".
+  return new Response(
+    JSON.stringify({ error: "Voice unavailable", status: res.status, detail: detail.slice(0, 200) }),
+    { status: 503 },
+  );
 }
