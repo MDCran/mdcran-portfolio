@@ -20,7 +20,8 @@ function pickAgentName(): string {
   return AGENT_NAME;
 }
 
-/** Strip markdown + action markers so only natural speech is sent to TTS. */
+/** Strip markdown, action markers, and any stray audio tags so only clean natural
+   speech is sent to TTS. */
 function stripForSpeech(text: string): string {
   return text
     .replace(/__(?:CONTACTCARD|BOOKINGCARD):[\s\S]*$/g, " ") // never read the card JSON aloud
@@ -29,6 +30,7 @@ function stripForSpeech(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(AUDIO_TAG_RE, "")
     .replace(/\s+/g, " ")
     .trim();
 }

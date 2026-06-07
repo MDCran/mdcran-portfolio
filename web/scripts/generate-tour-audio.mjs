@@ -31,12 +31,10 @@ const STEP_TEXTS = [
 ];
 
 // Pinned to match the live TTS route (src/app/api/voice/tts/route.ts) so the tour and
-// the chat/voice replies sound the same. The live route prefers "Michael v2" but it's
-// a professional clone that 400s until its fine-tuning is restored, so we generate with
-// "Michael v1" (instant clone, always usable) — which is exactly what the live route
-// also falls back to today. If/when v2 is re-fine-tuned, set VOICE_ID to it and rerun.
-const VOICE_ID = "PqckR8cb9ShObzR6X8L0"; // Michael (v1) — instant clone
-const MODEL = "eleven_v3"; // ElevenLabs v3 — matches the live route's expressive model
+// the chat/voice replies are the SAME voice + model: Michael's real professional clone
+// on eleven_multilingual_v2 (the highest-quality model the clone is fine-tuned for).
+const VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael Cran — professional clone
+const MODEL = "eleven_multilingual_v2";
 
 /** Minimal .env.local loader (no dependency) so the script "just works" locally. */
 async function loadEnvLocal() {
@@ -82,8 +80,8 @@ async function main() {
         body: JSON.stringify({
           text,
           model_id: model,
-          // Match the live route's v3 settings (numeric stability) so the tour sounds the same.
-          voice_settings: { stability: 0.5, similarity_boost: 0.9, use_speaker_boost: true },
+          // Match the live route's settings so the tour sounds the same.
+          voice_settings: { stability: 0.35, similarity_boost: 0.9, style: 0.6, use_speaker_boost: true },
         }),
       }
     );

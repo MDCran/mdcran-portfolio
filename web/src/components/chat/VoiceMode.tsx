@@ -57,8 +57,8 @@ function stripAudioTags(text: string): string {
   return text.replace(AUDIO_TAG_RE, "").replace(/ {2,}/g, " ").replace(/ +([,.!?])/g, "$1").trim();
 }
 
-/** Strip markdown + action markers so only natural speech is sent to TTS. Audio tags are
-   intentionally KEPT here — ElevenLabs v3 needs them to shape the delivery. */
+/** Strip markdown, action markers, and any stray audio tags so only clean natural
+   speech is sent to TTS (the v2 model would otherwise read a bracket literally). */
 function stripForSpeech(text: string): string {
   return text
     .replace(/__[A-Z]+:[^_]*__/g, " ")
@@ -66,6 +66,7 @@ function stripForSpeech(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(AUDIO_TAG_RE, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -83,6 +84,7 @@ export default function VoiceMode() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [amplitude, setAmplitude] = useState(0); // 0..1 drives the reactive orb
   const [interrupted, setInterrupted] = useState(false); // brief "go ahead" indicator on barge-in
+  const [voiceUnavailable, setVoiceUnavailable] = useState(false); // TTS couldn't synthesize Michael's voice
   const [showTips, setShowTips] = useState(false); // tutorial prompt suggestions
   const [captionWords, setCaptionWords] = useState<string[]>([]); // bottom-middle karaoke of the spoken reply
   const [captionIdx, setCaptionIdx] = useState(-1);
@@ -192,29 +194,31 @@ export default function VoiceMode() {
   /* ── Speak a reply via ElevenLabs. Plays through Web Audio (decoded buffer) so it
      isn't blocked by mobile autoplay the way a plain <audio>.play() is. ── */
   const speak = useCallback(async (text: string, onStart?: () => void): Promise<void> => {
-    const clean = stripForSpeech(text); // keeps v3 audio tags for delivery
+    const clean = stripForSpeech(text);
     if (!clean) { onStart?.(); return; }
-    // The on-screen karaoke caption must not show the spoken-only audio tags.
-    const capWords = stripAudioTags(clean).split(/\s+/).filter(Boolean);
-    setCaptionWords(capWords);
-    setCaptionIdx(0);
+    setVoiceUnavailable(false);
+    // The caption words (audio tags already removed by stripForSpeech). We do NOT show
+    // the caption yet — it only appears once the audio is actually ready to play.
+    const capWords = clean.split(/\s+/).filter(Boolean);
     // Fire the deferred on-page motions exactly once, the moment the voice starts (or, if
     // synthesis fails, right away so the page still responds).
     let started = false;
     const fireStart = () => { if (!started) { started = true; try { onStart?.(); } catch { /* */ } } };
+    // Voice couldn't be synthesized — tell the user instead of silently hanging.
+    const unavailable = () => { setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: clean }),
       });
-      if (!res.ok) { fireStart(); return; }
+      if (!res.ok) { unavailable(); return; }
       const arr = await res.arrayBuffer();
       const ctx = audioCtxRef.current;
-      if (!ctx) { fireStart(); return; }
+      if (!ctx) { unavailable(); return; }
       try { await ctx.resume(); } catch { /* */ }
       let audioBuf: AudioBuffer;
-      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { fireStart(); return; }
+      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { unavailable(); return; }
       const analyser = ttsAnalyserRef.current;
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
@@ -249,7 +253,8 @@ export default function VoiceMode() {
           finish();
         };
         src.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
-        try { src.start(); fireStart(); captionRafRef.current = requestAnimationFrame(karaoke); }
+        // Reveal the bottom caption exactly when the voice starts — never before.
+        try { src.start(); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); captionRafRef.current = requestAnimationFrame(karaoke); }
         catch { fireStart(); finish(); }
       });
     } catch {
@@ -556,6 +561,7 @@ export default function VoiceMode() {
     setInterim("");
     setUserSaid("");
     setInterrupted(false);
+    setVoiceUnavailable(false);
     setShowTips(false);
     setCaptionWords([]);
     setCaptionIdx(-1);
@@ -574,11 +580,38 @@ export default function VoiceMode() {
     phase === "thinking" ? "Thinking" :
     phase === "speaking" ? "Speaking" :
     "Voice";
+  const lastAssistantText = [...turns].reverse().find((t) => t.role === "assistant")?.text || "";
 
   return createPortal(
     <AnimatePresence>
       {open && (
         <>
+          {/* Voice-unavailable notice — show the written reply + tell them voice is down */}
+          <AnimatePresence>
+            {voiceUnavailable && !showTips && (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.3 }}
+                className="fixed bottom-32 left-1/2 z-[71] -translate-x-1/2 w-[min(92vw,44rem)] px-4 pointer-events-none"
+              >
+                <div
+                  className="rounded-sm border px-5 py-3.5 text-center font-jb"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)",
+                    background: "rgba(6,6,8,0.92)",
+                    backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                    boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
+                  }}
+                >
+                  {lastAssistantText && <p className="text-[15px] sm:text-base leading-relaxed text-white/90 mb-2">{lastAssistantText}</p>}
+                  <p className="text-[12px] tracking-wide text-[#ef4242]/90">Michael&apos;s voice isn&apos;t available right now — you can read the reply above.</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Bottom-middle karaoke caption — what the assistant is saying (hidden while Tips is open) */}
           <AnimatePresence>
             {captionWords.length > 0 && !showTips && (
