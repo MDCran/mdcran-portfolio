@@ -154,7 +154,11 @@ export default function ProjectDetail({
             {project.sections && project.sections.length > 0 && (
               <section className="space-y-1">
                 {project.sections.map((section, i) => (
-                  <div key={i} className={section.type === "image" || section.type === "before-after" ? "inline" : "block"}>
+                  <div
+                    key={i}
+                    className={section.type === "image" || section.type === "before-after" ? "inline" : "block"}
+                    data-highlight-id={section.type === "divider" ? undefined : `${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
+                  >
                     <ProjectSection
                       section={section}
                       imageOffset={sectionImageBase + sectionImageOffsets[i]}
@@ -166,7 +170,7 @@ export default function ProjectDetail({
             )}
 
             {hasGallery && (
-              <section>
+              <section data-highlight-id="project-gallery">
                 <h2 className="font-nord text-lg text-white tracking-wider mb-5">Gallery</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {galleryImages.map((image, i) => {
@@ -195,7 +199,7 @@ export default function ProjectDetail({
             )}
 
             {hasVideos && (
-              <section>
+              <section data-highlight-id="project-videos">
                 <h2 className="font-nord text-lg text-white tracking-wider mb-5">Videos</h2>
                 <div className="space-y-4">
                   {project.videos!.map((video) => (
@@ -251,7 +255,7 @@ export default function ProjectDetail({
           {/* Sidebar — order-1 on mobile puts it before related projects */}
           <div className="space-y-6 order-1 lg:order-none">
             {hasTopSidebarContent && (
-            <div className="p-5 rounded-sm border border-white/7 bg-white/2 space-y-4">
+            <div className="p-5 rounded-sm border border-white/7 bg-white/2 space-y-4" data-highlight-id="project-actions">
               {showPricing && (
                 <div className={`inline-flex items-center gap-2 px-3 py-1.5 text-[10px] tracking-widest uppercase rounded-sm border ${pricingColor[project.pricing.status]}`}>
                   {project.pricing.status === "free" && <Download size={11} />}
@@ -386,7 +390,7 @@ export default function ProjectDetail({
             )}
 
             {project.tags && project.tags.length > 0 && (
-              <div className="p-5 rounded-sm border border-white/7 bg-white/2">
+              <div className="p-5 rounded-sm border border-white/7 bg-white/2" data-highlight-id="project-tags">
                 <div className="flex items-center gap-2 mb-4">
                   <Tag size={12} className="text-white/40" />
                   <span className="text-[10px] tracking-widest uppercase text-white/40">Tags</span>
@@ -402,7 +406,7 @@ export default function ProjectDetail({
             )}
 
             {project.credits && project.credits.length > 0 && (
-              <div className="p-5 rounded-sm border border-white/7 bg-white/2">
+              <div className="p-5 rounded-sm border border-white/7 bg-white/2" data-highlight-id="project-credits">
                 <div className="flex items-center gap-2 mb-4">
                   <Users size={12} className="text-white/40" />
                   <span className="text-[10px] tracking-widest uppercase text-white/40">Credits</span>
@@ -460,7 +464,7 @@ export default function ProjectDetail({
           {/* Related projects — full-width row below sidebar on both mobile and desktop */}
           {relatedProjects.length > 0 && (
             <div className="lg:col-span-3 order-2 lg:order-none pt-4">
-              <section>
+              <section data-highlight-id="project-related">
                 <h2 className="font-nord text-lg text-white tracking-wider mb-5">Other Projects</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {relatedProjects.map((rel) => (

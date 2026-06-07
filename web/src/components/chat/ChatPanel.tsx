@@ -33,8 +33,18 @@ function stripForSpeech(text: string): string {
     .trim();
 }
 
+/** ElevenLabs v3 audio tags (e.g. "[laughs]", "[warmly]") — spoken-only, hidden on screen.
+   Matches a short bracketed lowercase phrase NOT followed by "(" so markdown links survive. */
+const AUDIO_TAG_RE = /\s*\[[a-z][a-z'’ ]{0,28}\](?!\()/g;
+
+/** Remove v3 audio tags from anything shown on screen (chat text + karaoke caption). */
+function stripAudioTags(text: string): string {
+  return text.replace(AUDIO_TAG_RE, "").replace(/ {2,}/g, " ").replace(/ +([,.!?])/g, "$1");
+}
+
 /** Render basic markdown: **bold**, *italic*, [text](url) */
 function renderChatMarkdown(text: string, onNavigate?: (href: string) => void, showTakeMeThere: boolean = true): React.ReactNode[] {
+  text = stripAudioTags(text); // never render spoken-only v3 audio tags
   const parts: React.ReactNode[] = [];
   const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(\[([^\]]+)\]\(([^)]+)\))/g;
   let lastIndex = 0;
@@ -347,9 +357,9 @@ export default function ChatPanel() {
      so the caption takes the stage, then restores it — WITHOUT clearing the log. */
   const speak = useCallback(async (text: string) => {
     if (!voiceOnRef.current) return;
-    const clean = stripForSpeech(text);
+    const clean = stripForSpeech(text); // keeps v3 audio tags for delivery
     if (!clean) return;
-    const words = clean.split(/\s+/);
+    const words = stripAudioTags(clean).split(/\s+/).filter(Boolean); // caption hides the tags
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const stopKaraoke = () => { if (capRafRef.current) cancelAnimationFrame(capRafRef.current); capRafRef.current = null; };
     const endCaption = () => {
@@ -681,7 +691,7 @@ export default function ChatPanel() {
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: nextMessages.map(({ role, content }) => ({ role, content })), currentPage: pathname, agentName, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
+            body: JSON.stringify({ messages: nextMessages.map(({ role, content }) => ({ role, content })), currentPage: pathname, agentName, speak: voiceOnRef.current, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
             signal: controller.signal,
           });
 
