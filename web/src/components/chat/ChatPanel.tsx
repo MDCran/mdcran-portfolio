@@ -347,11 +347,20 @@ export default function ChatPanel() {
     try { ttsSrcRef.current?.stop(); } catch { /* */ }
     ttsSrcRef.current = null;
     setSpeaking(false);
+    window.dispatchEvent(new CustomEvent("mdcran:voice-busy", { detail: { state: "idle" } }));
     if (capRafRef.current) { cancelAnimationFrame(capRafRef.current); capRafRef.current = null; }
     setCapWords([]);
     setCapIdx(-1);
     setMinimized(false);
   }, []);
+
+  /* Tapping the bottom-right bubble while the assistant is preparing/speaking stops it —
+     aborts any in-flight reply stream and cuts the read-aloud. */
+  useEffect(() => {
+    const onStop = () => { try { abortRef.current?.abort(); } catch { /* */ } setStreaming(false); stopSpeaking(); };
+    window.addEventListener("mdcran:stop-speaking", onStop);
+    return () => window.removeEventListener("mdcran:stop-speaking", onStop);
+  }, [stopSpeaking]);
 
   /* Synthesize + play a reply via ElevenLabs (only when voice is toggled on).
      Drives a bottom-middle karaoke caption synced to the audio (same enthusiastic
@@ -359,19 +368,22 @@ export default function ChatPanel() {
      so the caption takes the stage, then restores it — WITHOUT clearing the log. */
   const speak = useCallback(async (text: string) => {
     if (!voiceOnRef.current) return;
-    const clean = stripForSpeech(text); // keeps v3 audio tags for delivery
+    const clean = stripForSpeech(text);
     if (!clean) return;
-    const words = stripAudioTags(clean).split(/\s+/).filter(Boolean); // caption hides the tags
+    const words = clean.split(/\s+/).filter(Boolean);
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const stopKaraoke = () => { if (capRafRef.current) cancelAnimationFrame(capRafRef.current); capRafRef.current = null; };
+    const broadcast = (state: "preparing" | "speaking" | "idle") => window.dispatchEvent(new CustomEvent("mdcran:voice-busy", { detail: { state } }));
     const endCaption = () => {
-      stopKaraoke(); setCapWords([]); setCapIdx(-1);
+      stopKaraoke(); setCapWords([]); setCapIdx(-1); broadcast("idle");
       // Mobile: stay minimized + blink the bubble so the user taps to pick up where they
       // left off. Desktop: reopen the chat automatically once it's done talking.
       if (isMobile) { if (minimizedRef.current) window.dispatchEvent(new CustomEvent("mdcran:chat-attention")); }
       else setMinimized(false);
     };
     try {
+      // ElevenLabs can take a beat — show a loading state on the bubble until audio is ready.
+      broadcast("preparing");
       const res = await fetch("/api/voice/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -396,6 +408,7 @@ export default function ChatPanel() {
       setCapIdx(0);
       setMinimized(true);
       setSpeaking(true);
+      broadcast("speaking");
       const startedAt = ctx.currentTime;
       const sync = () => {
         const el = ctx.currentTime - startedAt;

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, AudioLines, Bot, Compass } from "lucide-react";
+import { MessageCircle, AudioLines, Bot, Compass, Loader2, Square } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/lib/ThemeContext";
 import { getDaypart } from "@/lib/visitor-memory";
@@ -27,6 +27,7 @@ export default function ChatBubble() {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // voice-vs-text chooser
   const [attention, setAttention] = useState(false); // blink: a read-aloud reply is waiting
+  const [voiceBusy, setVoiceBusy] = useState<"idle" | "preparing" | "speaking">("idle"); // text-chat read-aloud state
   const [showGreeting, setShowGreeting] = useState(false);
   const [nudge, setNudge] = useState<null | "rage" | "hesitation">(null);
   const [calm, setCalm] = useState(false); // calmer presence in the evening/night
@@ -68,6 +69,10 @@ export default function ChatBubble() {
     const onVoiceClose = () => setVoiceOpen(false);
     const onAttention = () => setAttention(true);   // a read-aloud reply finished while minimized
     const onChatOpen = () => setAttention(false);   // returning to the chat clears it
+    const onVoiceBusy = (e: Event) => {
+      const s = (e as CustomEvent).detail?.state as "idle" | "preparing" | "speaking" | undefined;
+      if (s) setVoiceBusy(s);
+    };
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:chat-open", onOpen);
     window.addEventListener("mdcran:chat-close", onClose);
@@ -75,6 +80,7 @@ export default function ChatBubble() {
     window.addEventListener("mdcran:voice-state-close", onVoiceClose);
     window.addEventListener("mdcran:chat-attention", onAttention);
     window.addEventListener("mdcran:chat-open", onChatOpen);
+    window.addEventListener("mdcran:voice-busy", onVoiceBusy);
     return () => {
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:chat-open", onOpen);
@@ -83,6 +89,7 @@ export default function ChatBubble() {
       window.removeEventListener("mdcran:voice-state-close", onVoiceClose);
       window.removeEventListener("mdcran:chat-attention", onAttention);
       window.removeEventListener("mdcran:chat-open", onChatOpen);
+      window.removeEventListener("mdcran:voice-busy", onVoiceBusy);
     };
   }, []);
 
@@ -138,6 +145,12 @@ export default function ChatBubble() {
   }, [pathname, chatOpen, voiceOpen]);
 
   const dispatchToggle = () => {
+    // If the assistant is preparing or reading a reply aloud, the bubble is a STOP button.
+    if (voiceBusy !== "idle") {
+      window.dispatchEvent(new CustomEvent("mdcran:stop-speaking"));
+      setVoiceBusy("idle");
+      return;
+    }
     setShowGreeting(false);
     setNudge(null);
     setAttention(false);
@@ -357,13 +370,30 @@ export default function ChatBubble() {
           whileTap={{ scale: 0.95 }}
           style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
           className="relative h-11 w-11 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
-          aria-label={chatOpen ? "Close assistant" : "Open assistant"}
+          aria-label={
+            voiceBusy === "preparing" ? "Preparing voice — tap to stop"
+              : voiceBusy === "speaking" ? "Tap to stop"
+              : chatOpen ? "Close assistant" : "Open assistant"
+          }
+          title={voiceBusy !== "idle" ? "Tap to stop" : undefined}
         >
-          <span className="flex items-center justify-center">
-            <Bot size={18} />
+          {/* While the assistant is busy, the bubble shows a loading/stop state and a ring. */}
+          {voiceBusy !== "idle" && (
+            <motion.span
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 45%, transparent)" }}
+              animate={{ scale: [1, 1.5, 1.5], opacity: [0.55, 0.1, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeOut" }}
+              aria-hidden
+            />
+          )}
+          <span className="relative flex items-center justify-center">
+            {voiceBusy === "preparing" ? <Loader2 size={18} className="animate-spin" />
+              : voiceBusy === "speaking" ? <Square size={15} fill="currentColor" />
+              : <Bot size={18} />}
           </span>
           {/* Blinking dot: a read-aloud reply is waiting — tap to pick the chat back up */}
-          {attention && (
+          {attention && voiceBusy === "idle" && (
             <motion.span
               className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2"
               style={{ backgroundColor: "#22c55e", borderColor: "#0a0a0a", boxShadow: "0 0 8px #22c55e" }}

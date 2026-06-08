@@ -85,6 +85,7 @@ export default function VoiceMode() {
   const [amplitude, setAmplitude] = useState(0); // 0..1 drives the reactive orb
   const [interrupted, setInterrupted] = useState(false); // brief "go ahead" indicator on barge-in
   const [voiceUnavailable, setVoiceUnavailable] = useState(false); // TTS couldn't synthesize Michael's voice
+  const [ttsPreparing, setTtsPreparing] = useState(false); // ElevenLabs is synthesizing (delay before audio)
   const [showTips, setShowTips] = useState(false); // tutorial prompt suggestions
   const [captionWords, setCaptionWords] = useState<string[]>([]); // bottom-middle karaoke of the spoken reply
   const [captionIdx, setCaptionIdx] = useState(-1);
@@ -197,6 +198,7 @@ export default function VoiceMode() {
     const clean = stripForSpeech(text);
     if (!clean) { onStart?.(); return; }
     setVoiceUnavailable(false);
+    setTtsPreparing(true); // ElevenLabs can take a beat — show a loading state on the orb
     // The caption words (audio tags already removed by stripForSpeech). We do NOT show
     // the caption yet — it only appears once the audio is actually ready to play.
     const capWords = clean.split(/\s+/).filter(Boolean);
@@ -205,7 +207,7 @@ export default function VoiceMode() {
     let started = false;
     const fireStart = () => { if (!started) { started = true; try { onStart?.(); } catch { /* */ } } };
     // Voice couldn't be synthesized — tell the user instead of silently hanging.
-    const unavailable = () => { setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
+    const unavailable = () => { setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
     try {
       const res = await fetch("/api/voice/tts", {
         method: "POST",
@@ -254,8 +256,8 @@ export default function VoiceMode() {
         };
         src.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
         // Reveal the bottom caption exactly when the voice starts — never before.
-        try { src.start(); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); captionRafRef.current = requestAnimationFrame(karaoke); }
-        catch { fireStart(); finish(); }
+        try { src.start(); setTtsPreparing(false); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); captionRafRef.current = requestAnimationFrame(karaoke); }
+        catch { setTtsPreparing(false); fireStart(); finish(); }
       });
     } catch {
       fireStart();
@@ -562,6 +564,7 @@ export default function VoiceMode() {
     setUserSaid("");
     setInterrupted(false);
     setVoiceUnavailable(false);
+    setTtsPreparing(false);
     setShowTips(false);
     setCaptionWords([]);
     setCaptionIdx(-1);
@@ -576,6 +579,7 @@ export default function VoiceMode() {
   const orbColor = phase === "speaking" ? "#ff7a7a" : "var(--theme-primary, #ef4242)";
   const shortLabel =
     phase === "connecting" ? "Connecting" :
+    ttsPreparing ? "Loading" :
     phase === "listening" ? "Listening" :
     phase === "thinking" ? "Thinking" :
     phase === "speaking" ? "Speaking" :
@@ -734,7 +738,7 @@ export default function VoiceMode() {
                 <span className="absolute -top-7 right-0 whitespace-nowrap rounded-sm bg-black/70 px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#ef4242]">Go ahead</span>
               )}
               <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/35">
-                {phase === "thinking" ? <Loader2 size={15} className="text-white animate-spin" /> : <Mic size={15} className="text-white" />}
+                {(phase === "thinking" || ttsPreparing) ? <Loader2 size={15} className="text-white animate-spin" /> : <Mic size={15} className="text-white" />}
               </span>
             </button>
           </motion.div>
