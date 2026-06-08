@@ -15,8 +15,12 @@ const VOICE_ID = "EgUcxulGJojl01KsxgA1"; // Michael Cran (professional clone)
 const MODEL = "eleven_multilingual_v2";
 const VOICE_SETTINGS = { stability: 0.35, similarity_boost: 0.9, style: 0.6, use_speaker_boost: true };
 
+// Deliberately HARDCODED (not env-driven). ELEVENLABS_VOICE_ID is loaded once at server
+// start, so changing it without a restart left the server on a stale voice — which made
+// read-aloud quietly use a different (non-professional) clone. The owner wants exactly
+// this one voice, so we pin it in code where a hot-reload always picks it up.
 function voiceId(): string {
-  return process.env.ELEVENLABS_VOICE_ID?.trim() || VOICE_ID;
+  return VOICE_ID;
 }
 
 /* GET — lets the client know whether voice is available without exposing keys. */
