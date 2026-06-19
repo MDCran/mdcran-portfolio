@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { LanguageProvider } from "@/lib/i18n";
+import { LanguageProvider, useLanguage, getLanguageCode } from "@/lib/i18n";
 import AccessibilityMenu from "@/components/shared/AccessibilityMenu";
 import ScrollProgress from "@/components/shared/ScrollProgress";
 import PageTranslator from "@/components/shared/PageTranslator";
@@ -53,6 +53,42 @@ const AIBrowserCursor = dynamic(
   () => import("@/components/chat/AIBrowserCursor"),
   { ssr: false },
 );
+
+const LANG_WARNINGS: Record<string, string> = {
+  es: "Algunas funciones pueden no ser óptimas en idiomas distintos al inglés.",
+  fr: "Certaines fonctionnalités peuvent ne pas être optimales dans d'autres langues.",
+  de: "Einige Funktionen sind in anderen Sprachen möglicherweise nicht optimal.",
+  pt: "Alguns recursos podem não ser ideais em idiomas diferentes do inglês.",
+  ja: "一部の機能は英語以外では最適に動作しない場合があります。",
+  zh: "某些功能在英语以外的语言中可能无法最佳运行。",
+  ko: "일부 기능은 영어 이외의 언어에서 최적으로 작동하지 않을 수 있습니다.",
+  ar: "قد لا تعمل بعض الميزات بشكل مثالي بلغات أخرى.",
+  hi: "कुछ सुविधाएं अन्य भाषाओं में इष्टतम नहीं हो सकती हैं।",
+  it: "Alcune funzioni potrebbero non essere ottimali in altre lingue.",
+  ru: "Некоторые функции могут не работать оптимально на других языках.",
+  nl: "Sommige functies werken mogelijk niet optimaal in andere talen.",
+  pl: "Niektóre funkcje mogą nie działać optymalnie w innych językach.",
+  tr: "Bazı özellikler diğer dillerde en iyi şekilde çalışmayabilir.",
+};
+
+function LanguageWarning() {
+  const { currentLang } = useLanguage();
+  const [dismissed, setDismissed] = useState(false);
+  const code = getLanguageCode(currentLang);
+  const isNonEnglish = code !== "en";
+  const msg = isNonEnglish ? (LANG_WARNINGS[code] ?? null) : null;
+
+  // Reset dismiss when language changes.
+  useEffect(() => { setDismissed(false); }, [currentLang]);
+
+  if (!msg || dismissed) return null;
+  return (
+    <div className="fixed bottom-4 left-4 z-[9998] max-w-[min(280px,calc(100vw-2rem))] rounded-sm border border-white/10 bg-black/80 px-3 py-2 text-[10px] text-white/45 backdrop-blur-xl shadow-lg flex items-start gap-2">
+      <span className="flex-1 leading-relaxed">{msg}</span>
+      <button onClick={() => setDismissed(true)} className="mt-0.5 text-white/25 hover:text-white/60 shrink-0 leading-none">✕</button>
+    </div>
+  );
+}
 
 const CHROMELESS_PREFIXES = ["/admin", "/githubprofile", "/2d-pong"];
 const MINIMAL_CHROME_PREFIXES = ["/visitor-map"];
@@ -225,6 +261,7 @@ export default function GlobalChrome() {
       <ExternalLinkGuard />
       <MoodEngine />
       <IdentityTracker />
+      <LanguageWarning />
     </LanguageProvider>
   );
 }

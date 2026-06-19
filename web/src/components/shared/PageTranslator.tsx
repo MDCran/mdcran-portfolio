@@ -82,11 +82,16 @@ async function applyTranslation(langCode: string): Promise<void> {
   originals.clear();
 
   document.documentElement.lang = targetCode;
-  if (targetCode === "en") return;
+  if (targetCode === "en") {
+    window.dispatchEvent(new CustomEvent("mdcran:translate-end"));
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent("mdcran:translate-start", { detail: { lang: langCode } }));
 
   // Let React finish rendering before walking the DOM
   await new Promise<void>((r) => setTimeout(r, 500));
-  if (signal.aborted) return;
+  if (signal.aborted) { window.dispatchEvent(new CustomEvent("mdcran:translate-end")); return; }
 
   const nodes = collectTextNodes();
   console.log(`[translate] lang=${targetCode} nodes=${nodes.length}`);
@@ -110,6 +115,7 @@ async function applyTranslation(langCode: string): Promise<void> {
     } catch { /* detached */ }
   }
   console.log(`[translate] applied ${applied}/${nodes.length} translations`);
+  window.dispatchEvent(new CustomEvent("mdcran:translate-end", { detail: { lang: langCode, applied, total: nodes.length } }));
 }
 
 // Translate a handful of newly-added text nodes without a full re-walk.
