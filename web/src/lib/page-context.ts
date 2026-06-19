@@ -109,6 +109,18 @@ export function extractPageContext(): string {
   });
   if (cards.length) lines.push(`CARDS/ARTICLES: ${[...new Set(cards)].slice(0, 10).join(" | ")}`);
 
+  const formFields: string[] = [];
+  document.querySelectorAll("input:not([type='hidden']):not([type='submit']):not([type='button']):not([type='checkbox']):not([type='radio']), textarea, select").forEach((el) => {
+    if (!isVisible(el)) return;
+    const inp = el as HTMLInputElement;
+    const ph = clean(inp.placeholder ?? "");
+    const nm = clean(inp.name ?? inp.id ?? "");
+    const type = inp.type ?? el.tagName.toLowerCase();
+    const label = ph || nm;
+    if (label) formFields.push(`[${type}] "${label}"${inp.value ? ` (current: "${trunc(inp.value, 30)}")` : ""}`);
+  });
+  if (formFields.length) lines.push(`FORM FIELDS (use with __TYPE:field-label|text__): ${formFields.slice(0, 12).join(" | ")}`);
+
   const badges: string[] = [];
   const seenBadge = new Set<string>();
   document.querySelectorAll("[class*='badge'], [class*='tag'], [class*='chip'], [class*='label'], [class*='pill']").forEach((el) => {
@@ -129,7 +141,7 @@ export function extractPageContext(): string {
 
   lines.push("=== END DOM CONTEXT ===");
   const result = lines.join("\n");
-  return result.length > 2000 ? result.slice(0, 1997) + "..." : result;
+  return result.length > 4000 ? result.slice(0, 3997) + "..." : result;
 }
 
 export function findElementByText(text: string): HTMLElement | null {
