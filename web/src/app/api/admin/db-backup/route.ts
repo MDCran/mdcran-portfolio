@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/mongodb";
 
 // Collections included in backup — excludes large ephemeral ones (visitors, translationCache, chatRateLimits)
 const BACKUP_COLLECTIONS = [
