@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { X, Mic, Loader2 } from "lucide-react";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart } from "@/lib/visitor-memory";
+import { extractPageContext } from "@/lib/page-context";
 
 const TOGGLE_EVENT = "mdcran:toggle-voice";
 const AGENT_NAME = "Michael";
@@ -18,6 +19,9 @@ const TUTORIAL_PROMPTS = [
   "Who have you worked with?",
   "Why should I hire you?",
 ];
+
+/* In-memory TTS cache — avoids re-billing ElevenLabs for identical phrases (intro, farewell, tour). */
+const ttsAudioCache = new Map<string, ArrayBuffer>();
 
 type Phase = "connecting" | "listening" | "thinking" | "speaking" | "error";
 
@@ -95,6 +99,8 @@ export default function VoiceMode() {
   const [showSilenceTip, setShowSilenceTip] = useState(false); // shown after long mic inactivity
   const lastMicActivityRef = useRef(Date.now());
   const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionStartRef = useRef<number>(0);
+  const [elapsedStr, setElapsedStr] = useState("0:00");
 
   // Audio / recognition refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -165,6 +171,19 @@ export default function VoiceMode() {
     if (!open) return;
     const timer = setTimeout(() => setOpen(false), 5 * 60 * 1000);
     return () => clearTimeout(timer);
+  }, [open]);
+
+  /* Elapsed session timer — ticks every second while voice is open. */
+  useEffect(() => {
+    if (!open) { setElapsedStr("0:00"); return; }
+    sessionStartRef.current = Date.now();
+    const timer = setInterval(() => {
+      const sec = Math.floor((Date.now() - sessionStartRef.current) / 1000);
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      setElapsedStr(`${m}:${s.toString().padStart(2, "0")}`);
+    }, 1000);
+    return () => clearInterval(timer);
   }, [open]);
 
   /* ── Drive the reactive orb amplitude; handle barge-in ── */
@@ -267,13 +286,19 @@ export default function VoiceMode() {
     // Voice couldn't be synthesized — tell the user instead of silently hanging.
     const unavailable = () => { setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
     try {
-      const res = await fetch("/api/voice/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean }),
-      });
-      if (!res.ok) { unavailable(); return; }
-      const arr = await res.arrayBuffer();
+      let arr: ArrayBuffer;
+      if (ttsAudioCache.has(clean)) {
+        arr = ttsAudioCache.get(clean)!.slice(0);
+      } else {
+        const res = await fetch("/api/voice/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: clean }),
+        });
+        if (!res.ok) { unavailable(); return; }
+        arr = await res.arrayBuffer();
+        if (clean.length < 400) ttsAudioCache.set(clean, arr.slice(0)); // cache short phrases only
+      }
       const ctx = audioCtxRef.current;
       if (!ctx) { unavailable(); return; }
       try { await ctx.resume(); } catch { /* */ }
@@ -380,6 +405,26 @@ export default function VoiceMode() {
       // Give a freshly-navigated page a beat to mount before scrolling to the target.
       deferred.push(() => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: hl[1] })), nav ? 500 : 0));
     }
+    // __CLICK:element-label__ — AI cursor moves to and clicks an element.
+    const clickMatches = [...cleaned.matchAll(/__CLICK:(.+?)__/g)];
+    if (clickMatches.length) {
+      cleaned = cleaned.replace(/\s*__CLICK:.+?__\s*/g, " ");
+      deferred.push(() => {
+        for (const m of clickMatches) {
+          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: m[1] } })), nav ? 500 : 0);
+        }
+      });
+    }
+    // __TYPE:field-label|text to type__ — AI cursor focuses a field and types.
+    const typeMatches = [...cleaned.matchAll(/__TYPE:(.+?)\|(.+?)__/g)];
+    if (typeMatches.length) {
+      cleaned = cleaned.replace(/\s*__TYPE:.+?__\s*/g, " ");
+      deferred.push(() => {
+        typeMatches.forEach((m, idx) => {
+          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { text: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800);
+        });
+      });
+    }
     return {
       cleaned: cleaned.replace(/\s+/g, " ").trim(),
       onSpeechStart: () => { for (const fn of deferred) fn(); },
@@ -414,7 +459,7 @@ export default function VoiceMode() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
+        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })() }),
       });
       if (res.status === 429) { friendly = "You've hit the message limit for now — give it a little while and try again."; throw new Error("limit"); }
       if (!res.ok || !res.body) throw new Error("chat failed");
@@ -824,9 +869,10 @@ export default function VoiceMode() {
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
-            {/* Status label + End Voice Chat */}
+            {/* Status label + timer + End Voice Chat */}
             <div className="flex items-center gap-1.5">
               <span onClick={close} className="cursor-pointer rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
+              <span className="rounded-sm bg-black/50 px-1.5 py-1 text-[9px] tabular-nums text-white/35 backdrop-blur-sm">{elapsedStr}</span>
               <button
                 onClick={close}
                 aria-label="End voice chat"

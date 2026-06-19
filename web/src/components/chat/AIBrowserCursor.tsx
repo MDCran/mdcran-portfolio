@@ -149,6 +149,40 @@ export default function AIBrowserCursor() {
 
     function onHide() { clearTimers(); setVisible(false); setClicking(false); setLabel(null); }
 
+    function onType(e: Event) {
+      const detail = (e as CustomEvent<{ text?: string; selector?: string; typeText?: string; label?: string }>).detail ?? {};
+      clearTimers(); setClicking(false);
+      const el = resolveElement(detail);
+      if (!el) return;
+      const origin = chatOrigin();
+      setPos(origin); setVisible(true); setLabel(detail.label ?? "Typing…");
+      at(350, () => {
+        const center = elementCenter(el);
+        moveTo(center.x, center.y, detail.label ?? "Typing…");
+        at(400, () => {
+          setClicking(true);
+          at(150, () => {
+            try { el.focus(); (el as HTMLElement).click(); } catch { /* */ }
+            setClicking(false);
+          });
+          const chars = (detail.typeText ?? "").split("");
+          const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+            ?? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+          chars.forEach((char, i) => {
+            at(600 + i * 55, () => {
+              try {
+                const inp = el as HTMLInputElement;
+                const newVal = (inp.value ?? "") + char;
+                nativeValueSetter?.call(inp, newVal);
+                inp.dispatchEvent(new Event("input", { bubbles: true }));
+              } catch { /* */ }
+            });
+          });
+          at(600 + chars.length * 55 + 600, () => { setVisible(false); setLabel(null); });
+        });
+      });
+    }
+
     function onNav(e: Event) {
       const detail = (e as CustomEvent<NavDetail>).detail ?? {};
       clearTimers(); setClicking(false);
@@ -174,11 +208,13 @@ export default function AIBrowserCursor() {
     window.addEventListener("mdcran:cursor-click", onClick);
     window.addEventListener("mdcran:cursor-hide", onHide);
     window.addEventListener("mdcran:cursor-nav", onNav);
+    window.addEventListener("mdcran:cursor-type", onType);
     return () => {
       window.removeEventListener("mdcran:cursor-move", onMove);
       window.removeEventListener("mdcran:cursor-click", onClick);
       window.removeEventListener("mdcran:cursor-hide", onHide);
       window.removeEventListener("mdcran:cursor-nav", onNav);
+      window.removeEventListener("mdcran:cursor-type", onType);
       clearTimers();
       if (autoHideTimer.current) clearTimeout(autoHideTimer.current);
     };
