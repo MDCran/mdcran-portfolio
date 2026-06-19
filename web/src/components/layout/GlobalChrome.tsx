@@ -83,7 +83,7 @@ function LanguageWarning() {
 
   if (!msg || dismissed) return null;
   return (
-    <div className="fixed bottom-4 left-4 z-[9998] max-w-[min(280px,calc(100vw-2rem))] rounded-sm border border-white/10 bg-black/80 px-3 py-2 text-[10px] text-white/45 backdrop-blur-xl shadow-lg flex items-start gap-2">
+    <div className="fixed bottom-20 left-4 z-[9998] max-w-[min(280px,calc(100vw-2rem))] rounded-sm border border-white/10 bg-black/80 px-3 py-2 text-[10px] text-white/45 backdrop-blur-xl shadow-lg flex items-start gap-2">
       <span className="flex-1 leading-relaxed">{msg}</span>
       <button onClick={() => setDismissed(true)} className="mt-0.5 text-white/25 hover:text-white/60 shrink-0 leading-none">✕</button>
     </div>
