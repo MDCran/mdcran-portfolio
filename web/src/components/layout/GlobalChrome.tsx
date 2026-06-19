@@ -63,6 +63,11 @@ function applyHighlight(el: HTMLElement) {
   setTimeout(() => {
     el.removeAttribute("data-chat-highlight");
   }, 3500);
+  // Move the AI browser cursor to the highlighted element.
+  const rect = el.getBoundingClientRect();
+  window.dispatchEvent(new CustomEvent("mdcran:cursor-move", {
+    detail: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+  }));
 }
 
 /* ── Zoom / emphasize focus mode (agent-driven UI control) ── */

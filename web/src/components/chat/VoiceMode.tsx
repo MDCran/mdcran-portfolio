@@ -83,6 +83,8 @@ export default function VoiceMode() {
   const [userSaid, setUserSaid] = useState(""); // last transcribed question (shown at top)
   const [turns, setTurns] = useState<Turn[]>([]);
   const [amplitude, setAmplitude] = useState(0); // 0..1 drives the reactive orb
+  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const waveformFreqRef = useRef<Uint8Array | null>(null);
   const [interrupted, setInterrupted] = useState(false); // brief "go ahead" indicator on barge-in
   const [voiceUnavailable, setVoiceUnavailable] = useState(false); // TTS couldn't synthesize Michael's voice
   const [ttsPreparing, setTtsPreparing] = useState(false); // ElevenLabs is synthesizing (delay before audio)
@@ -158,6 +160,13 @@ export default function VoiceMode() {
     };
   }, [open]);
 
+  /* 5-minute session hard cutoff — close voice mode automatically. */
+  useEffect(() => {
+    if (!open) return;
+    const timer = setTimeout(() => setOpen(false), 5 * 60 * 1000);
+    return () => clearTimeout(timer);
+  }, [open]);
+
   /* ── Drive the reactive orb amplitude; handle barge-in ── */
   const startMeter = useCallback(() => {
     const mic = analyserRef.current;
@@ -174,6 +183,32 @@ export default function VoiceMode() {
       for (let i = 0; i < aData.length; i++) sum += aData[i];
       const avg = sum / aData.length / 255;
       setAmplitude((prev) => prev * 0.6 + avg * 0.4);
+
+      // Draw real mic frequency bars on the waveform canvas (only while not speaking).
+      if (!speaking) {
+        const micData = new Uint8Array(mic.frequencyBinCount);
+        mic.getByteFrequencyData(micData);
+        waveformFreqRef.current = micData;
+        const canvas = waveformCanvasRef.current;
+        if (canvas) {
+          const ctx2d = canvas.getContext("2d");
+          if (ctx2d) {
+            const W = canvas.width, H = canvas.height;
+            ctx2d.clearRect(0, 0, W, H);
+            const bars = 18;
+            const step = Math.floor(micData.length / bars);
+            const barW = Math.floor(W / bars) - 2;
+            for (let b = 0; b < bars; b++) {
+              let bSum = 0;
+              for (let k = 0; k < step; k++) bSum += micData[b * step + k];
+              const bVal = bSum / step / 255;
+              const barH = Math.max(2, bVal * H);
+              ctx2d.fillStyle = `rgba(239,66,66,${0.55 + bVal * 0.45})`;
+              ctx2d.fillRect(b * (barW + 2), H - barH, barW, barH);
+            }
+          }
+        }
+      }
 
       // Mic RMS for barge-in detection + silence tracking.
       mic.getByteTimeDomainData(time);
@@ -265,9 +300,22 @@ export default function VoiceMode() {
           resolve();
         };
         const startedAt = ctx.currentTime;
+        // Pre-compute character-weighted start times for each word so longer words
+        // get proportionally more time than short ones (better sync than equal splits).
+        const totalChars = capWords.reduce((s, w) => s + w.length + 1, 0);
+        let charAcc = 0;
+        const wordStartTimes = capWords.map((w) => {
+          const t = (charAcc / Math.max(totalChars, 1)) * dur;
+          charAcc += w.length + 1;
+          return t;
+        });
         const karaoke = () => {
           const el = ctx.currentTime - startedAt;
-          setCaptionIdx(Math.min(capWords.length - 1, Math.floor((el / Math.max(dur, 0.1)) * capWords.length)));
+          let idx = 0;
+          for (let j = wordStartTimes.length - 1; j >= 0; j--) {
+            if (el >= wordStartTimes[j]) { idx = j; break; }
+          }
+          setCaptionIdx(Math.min(capWords.length - 1, idx));
           if (el < dur) captionRafRef.current = requestAnimationFrame(karaoke);
         };
         interruptTtsRef.current = () => {
@@ -404,11 +452,13 @@ export default function VoiceMode() {
     if (accumulated.trim().startsWith("__BEHAVIOR__")) {
       const msg = "Let's keep this about Michael's work. What would you like to know?";
       setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: msg }; return n; });
+      setShowSilenceTip(false);
       setPhaseSafe("speaking");
       await speak(msg);
     } else {
       const { cleaned, onSpeechStart } = runDirectives(accumulated);
       setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(cleaned) }; return n; });
+      setShowSilenceTip(false);
       setPhaseSafe("speaking");
       await speak(cleaned, onSpeechStart); // tags pass through to TTS; on-page motions fire when the voice starts
     }
@@ -490,7 +540,7 @@ export default function VoiceMode() {
                 const toSend = pendingFinalRef.current.trim();
                 pendingFinalRef.current = "";
                 if (toSend) void sendToAgent(toSend);
-              }, 1100);
+              }, 700);
             }
           };
           rec.onerror = () => { /* transient */ };
@@ -728,7 +778,7 @@ export default function VoiceMode() {
             )}
           </AnimatePresence>
 
-          {/* Sine wave mic meter — top center, visible while listening */}
+          {/* Real mic frequency canvas — top center, visible while listening */}
           <AnimatePresence>
             {phase === "listening" && !interim && !userSaid && (
               <motion.div
@@ -738,21 +788,12 @@ export default function VoiceMode() {
                 transition={{ duration: 0.25 }}
                 className="fixed top-5 left-1/2 z-[74] -translate-x-1/2 pointer-events-none"
               >
-                <div className="flex items-end gap-[3px]" style={{ height: 20 }}>
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => {
-                    const base = 3;
-                    const peak = base + amplitude * 14 * (0.5 + Math.sin(i * 0.9) * 0.5);
-                    return (
-                      <motion.span
-                        key={i}
-                        className="rounded-full"
-                        style={{ width: 3, backgroundColor: "var(--theme-primary, #ef4242)", opacity: 0.7 + amplitude * 0.3 }}
-                        animate={{ height: [base, Math.max(base, peak), base] }}
-                        transition={{ duration: 0.4 + i * 0.04, repeat: Infinity, delay: i * 0.06, ease: "easeInOut" }}
-                      />
-                    );
-                  })}
-                </div>
+                <canvas
+                  ref={waveformCanvasRef}
+                  width={108}
+                  height={22}
+                  style={{ display: "block", imageRendering: "pixelated" }}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -761,11 +802,11 @@ export default function VoiceMode() {
           <AnimatePresence>
             {showSilenceTip && phase === "listening" && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
+                exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.3 }}
-                className="fixed top-16 left-1/2 z-[74] -translate-x-1/2 w-[min(88vw,20rem)]"
+                className="fixed bottom-28 left-1/2 z-[74] -translate-x-1/2 w-[min(88vw,20rem)]"
               >
                 <div className="rounded-sm border border-white/10 bg-[#0c0c0e]/95 px-4 py-3 text-center text-[12px] leading-relaxed text-white/60 backdrop-blur-xl shadow-[0_16px_50px_rgba(0,0,0,0.55)]">
                   Still there? Feel free to ask a question, or tap <span className="text-[var(--theme-primary,#ef4242)]">End Voice Chat</span> when you&apos;re done.
@@ -785,7 +826,7 @@ export default function VoiceMode() {
           >
             {/* Status label + End Voice Chat */}
             <div className="flex items-center gap-1.5">
-              <span className="rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
+              <span onClick={close} className="cursor-pointer rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
               <button
                 onClick={close}
                 aria-label="End voice chat"
