@@ -396,11 +396,14 @@ export default function ProjectDetail({
                   <span className="text-[10px] tracking-widest uppercase text-white/40">Tags</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {project.tags.map((tag) => (
-                    <span key={tag} className="text-[11px] px-2.5 py-1 rounded-sm border border-white/8 text-white/45 bg-white/3">
-                      {tag}
-                    </span>
-                  ))}
+                  {project.tags.map((tag) => {
+                    const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
+                    return (
+                      <span key={tag} className="text-[11px] px-2.5 py-1 rounded-sm border border-white/8 text-white/45 bg-white/3">
+                        {display}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -750,9 +753,10 @@ function HeroContent({
     <div>
       {project.tags && project.tags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {project.tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="tag-red">{tag}</span>
-          ))}
+          {project.tags.slice(0, 3).map((tag) => {
+            const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
+            return <span key={tag} className="tag-red">{display}</span>;
+          })}
         </div>
       )}
       <h1 className="font-nord text-3xl sm:text-4xl md:text-5xl text-white tracking-wider leading-tight mb-3">

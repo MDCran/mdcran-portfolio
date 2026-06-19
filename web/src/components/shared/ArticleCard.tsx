@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { Star } from "lucide-react";
 import type { Article, ArticleCategory } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 import AuthorByline from "@/components/shared/AuthorByline";
@@ -18,7 +19,7 @@ const ARTICLE_CATEGORY_COLORS: Record<ArticleCategory, string> = {
   announcement: "text-orange-400 border-orange-400/30 bg-orange-400/8",
 };
 
-export default function ArticleCard({ article, index = 0 }: { article: Article; index?: number }) {
+export default function ArticleCard({ article, index = 0, featured = false }: { article: Article; index?: number; featured?: boolean }) {
   const coverImage = article.coverImage;
   const coverSrc = imageAssetSrc(coverImage);
 
@@ -59,9 +60,15 @@ export default function ArticleCard({ article, index = 0 }: { article: Article; 
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
           <div className="absolute top-3 right-3 z-[2]">
-            <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase backdrop-blur-sm ${ARTICLE_CATEGORY_COLORS[article.category]}`}>
-              {article.category}
-            </div>
+            {featured ? (
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-[var(--cranberry)]/90 shadow-[0_0_8px_rgba(239,66,66,0.5)] backdrop-blur-sm">
+                <Star size={10} className="text-white fill-white" />
+              </span>
+            ) : (
+              <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase backdrop-blur-sm ${ARTICLE_CATEGORY_COLORS[article.category]}`}>
+                {article.category}
+              </div>
+            )}
           </div>
         </div>
 
@@ -81,19 +88,22 @@ export default function ArticleCard({ article, index = 0 }: { article: Article; 
 
           {article.tags && article.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {article.tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className="text-[10px] px-2 py-0.5 rounded-sm border"
-                  style={{
-                    borderColor: "color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)",
-                    color: "color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)",
-                    backgroundColor: "color-mix(in srgb, var(--theme-text, #fff) 3%, transparent)",
-                  }}
-                >
-                  {tag}
-                </span>
-              ))}
+              {article.tags.slice(0, 3).map((tag) => {
+                const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
+                return (
+                  <span
+                    key={tag}
+                    className="text-[10px] px-2 py-0.5 rounded-sm border"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)",
+                      color: "color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)",
+                      backgroundColor: "color-mix(in srgb, var(--theme-text, #fff) 3%, transparent)",
+                    }}
+                  >
+                    {display}
+                  </span>
+                );
+              })}
             </div>
           )}
 

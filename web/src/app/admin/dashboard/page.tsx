@@ -8129,17 +8129,49 @@ export default function AdminDashboard() {
                           <textarea className="w-full resize-y rounded-sm border border-white/12 bg-white/5 px-3.5 py-2.5 text-sm leading-relaxed text-white outline-none transition-colors focus:border-white/30 placeholder:text-white/25" rows={2} value={cat.description} placeholder="Safe, crowd-pleasing options…" onChange={(e) => updateCat(i, { description: e.target.value })} />
                         </div>
 
-                        {/* Drinks */}
+                        {/* Drinks + Recipes */}
                         <div className="space-y-2">
-                          <label className="block text-[10px] tracking-[0.16em] uppercase text-white/40">Drinks <span className="text-white/25">({cat.options.length})</span></label>
-                          <div className="space-y-2">
-                            {cat.options.map((opt, oi) => (
-                              <div key={oi} className="flex items-center gap-2">
-                                <span className="text-[11px] text-white/25 w-5 text-right tabular-nums">{oi + 1}.</span>
-                                <input className="h-9 flex-1 rounded-sm border border-white/12 bg-white/5 px-3.5 text-sm text-white outline-none transition-colors focus:border-white/30 placeholder:text-white/25" value={opt} placeholder="Drink name" onChange={(e) => updateCat(i, { options: cat.options.map((o, k) => (k === oi ? e.target.value : o)) })} />
-                                <button className="flex h-9 w-9 items-center justify-center rounded-sm border border-white/10 text-white/30 hover:border-[#ef4242]/40 hover:text-[#ef4242] transition-colors" title="Remove drink" onClick={() => updateCat(i, { options: cat.options.filter((_, k) => k !== oi) })}>✕</button>
-                              </div>
-                            ))}
+                          <label className="block text-[10px] tracking-[0.16em] uppercase text-white/40">Drinks &amp; Recipes <span className="text-white/25">({cat.options.length})</span></label>
+                          <div className="space-y-3">
+                            {cat.options.map((opt, oi) => {
+                              const recipe = cat.recipes?.[opt] ?? "";
+                              const setRecipe = (v: string) => {
+                                const newRecipes = { ...(cat.recipes ?? {}), [opt]: v };
+                                if (!v) delete newRecipes[opt];
+                                updateCat(i, { recipes: newRecipes });
+                              };
+                              const renameDrink = (newName: string) => {
+                                const oldName = opt;
+                                const newOptions = cat.options.map((o, k) => (k === oi ? newName : o));
+                                const newRecipes = { ...(cat.recipes ?? {}) };
+                                if (newName !== oldName && oldName in newRecipes) {
+                                  newRecipes[newName] = newRecipes[oldName];
+                                  delete newRecipes[oldName];
+                                }
+                                updateCat(i, { options: newOptions, recipes: newRecipes });
+                              };
+                              return (
+                                <div key={oi} className="rounded-sm border border-white/8 bg-white/2 p-3 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-white/25 w-5 text-right tabular-nums">{oi + 1}.</span>
+                                    <input className="h-9 flex-1 rounded-sm border border-white/12 bg-white/5 px-3.5 text-sm text-white outline-none transition-colors focus:border-white/30 placeholder:text-white/25" value={opt} placeholder="Drink name" onChange={(e) => renameDrink(e.target.value)} />
+                                    <button className="flex h-9 w-9 items-center justify-center rounded-sm border border-white/10 text-white/30 hover:border-[#ef4242]/40 hover:text-[#ef4242] transition-colors" title="Remove drink" onClick={() => {
+                                      const newOptions = cat.options.filter((_, k) => k !== oi);
+                                      const newRecipes = { ...(cat.recipes ?? {}) };
+                                      delete newRecipes[opt];
+                                      updateCat(i, { options: newOptions, recipes: newRecipes });
+                                    }}>✕</button>
+                                  </div>
+                                  <textarea
+                                    className="w-full resize-y rounded-sm border border-white/8 bg-white/3 px-3 py-2 text-xs leading-relaxed text-white/70 outline-none transition-colors focus:border-white/25 placeholder:text-white/20"
+                                    rows={2}
+                                    value={recipe}
+                                    placeholder="Recipe (optional) — shown after the spin…"
+                                    onChange={(e) => setRecipe(e.target.value)}
+                                  />
+                                </div>
+                              );
+                            })}
                           </div>
                           <button className={btnOutline} onClick={() => updateCat(i, { options: [...cat.options, "New drink"] })}>+ Add drink</button>
                         </div>
@@ -8328,15 +8360,22 @@ function AdminVisitorsSection() {
   const [data, setData] = useState<{
     counts: { country: string; countryName: string; count: number }[];
     adjustments: { id: string; country: string; countryName: string; addedCount: number; createdAt: string }[];
+    multiplier: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ country: "", countryName: "", addedCount: "" });
   const [saving, setSaving] = useState(false);
+  const [multiplierInput, setMultiplierInput] = useState("");
+  const [savingMultiplier, setSavingMultiplier] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/visitors");
-      if (res.ok) setData(await res.json());
+      if (res.ok) {
+        const d = await res.json();
+        setData(d);
+        setMultiplierInput(String(d.multiplier ?? 1));
+      }
     } catch {}
     setLoading(false);
   }, []);
@@ -8361,12 +8400,52 @@ function AdminVisitorsSection() {
     fetchData();
   };
 
+  const handleSaveMultiplier = async () => {
+    const m = parseFloat(multiplierInput);
+    if (!isFinite(m) || m < 1) return;
+    setSavingMultiplier(true);
+    await fetch("/api/admin/visitors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "multiplier", multiplier: m }),
+    });
+    setSavingMultiplier(false);
+    fetchData();
+  };
+
   if (loading) return <p className="text-white/30 text-xs">Loading visitor data...</p>;
 
   const inputCls = "h-9 rounded-sm border border-white/10 bg-white/4 px-3 text-xs text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors";
 
   return (
     <div className="space-y-6">
+      {/* Auto-inflation multiplier */}
+      <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+        <div>
+          <p className="font-nord text-sm text-white">Auto-Inflation Multiplier</p>
+          <p className="text-xs text-white/35 mt-0.5">Multiplies all visitor counts (real + manual adjustments) before display. 1× = no change. 2.5× = 2.5× the real count everywhere on the site.</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <input
+            className={`${inputCls} w-28`}
+            type="number"
+            min="1"
+            step="0.1"
+            value={multiplierInput}
+            onChange={(e) => setMultiplierInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSaveMultiplier(); }}
+          />
+          <span className="text-xs text-white/35">× multiplier</span>
+          <button onClick={handleSaveMultiplier} disabled={savingMultiplier} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
+            {savingMultiplier ? "..." : "Save"}
+          </button>
+          {data?.multiplier && data.multiplier > 1 && (
+            <span className="text-[10px] text-emerald-400 font-jb">Active ({data.multiplier}×)</span>
+          )}
+        </div>
+      </div>
+
+      {/* Live counts table */}
       <div className="border border-white/8 rounded-sm overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-white/2 border-b border-white/8">
@@ -8381,16 +8460,17 @@ function AdminVisitorsSection() {
               <tr key={c.country} className="border-b border-white/5 last:border-0 hover:bg-white/3">
                 <td className="px-3 py-2 text-white/75"><span className="mr-1.5">{flagEmoji(c.country)}</span>{c.countryName}</td>
                 <td className="px-3 py-2 text-white/40">{c.country}</td>
-                <td className="px-3 py-2 text-right text-white/60">{c.count}</td>
+                <td className="px-3 py-2 text-right text-white/60">{c.count.toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
+      {/* Manual per-country adjustments */}
       <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
-        <p className="font-nord text-sm text-white">Visitor Adjustments</p>
-        <p className="text-xs text-white/35">Add inflated visitor counts per country.</p>
+        <p className="font-nord text-sm text-white">Manual Adjustments</p>
+        <p className="text-xs text-white/35">Add a fixed visitor count to a specific country. Applied before the multiplier.</p>
         <div className="flex flex-wrap gap-2 items-end">
           <input className={inputCls} placeholder="Code (e.g. US)" value={form.country} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value.toUpperCase() }))} />
           <input className={inputCls} placeholder="Country name" value={form.countryName} onChange={(e) => setForm((f) => ({ ...f, countryName: e.target.value }))} />
@@ -8413,7 +8493,7 @@ function AdminVisitorsSection() {
                 {(data?.adjustments ?? []).map((adj) => (
                   <tr key={adj.id} className="border-b border-white/5 last:border-0 hover:bg-white/3">
                     <td className="px-3 py-2 text-white/75"><span className="mr-1.5">{flagEmoji(adj.country)}</span>{adj.countryName} ({adj.country})</td>
-                    <td className="px-3 py-2 text-right text-white/60">+{adj.addedCount}</td>
+                    <td className="px-3 py-2 text-right text-white/60">+{adj.addedCount.toLocaleString()}</td>
                     <td className="px-3 py-2 text-right">
                       <button onClick={() => handleDelete(adj.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
                     </td>

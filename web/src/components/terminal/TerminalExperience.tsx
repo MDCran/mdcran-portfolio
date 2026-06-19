@@ -1386,6 +1386,15 @@ export default function TerminalExperience() {
   const commandControlKeyRef = React.useRef<(key: string) => boolean>(() => false);
   const spotifyProgressEntryIds = React.useRef<{ time: string; bar: string } | null>(null);
 
+  // Blur input while a game is running so key events go to the game, not the command bar.
+  React.useEffect(() => {
+    if (gameMode) {
+      inputRef.current?.blur();
+    } else {
+      setTimeout(() => inputRef.current?.focus(), 80);
+    }
+  }, [gameMode]);
+
   const debugTerminalEvent = React.useCallback((...args: unknown[]) => {
     void args;
   }, []);
@@ -2531,6 +2540,15 @@ export default function TerminalExperience() {
         break;
       case "exit":
         closeTerminal();
+        break;
+      case "quit":
+      case "q":
+        if (gameModeRef.current) {
+          setGameMode(null);
+          append([logText("  Game exited.", "success")]);
+        } else {
+          closeTerminal();
+        }
         break;
       default:
         append([

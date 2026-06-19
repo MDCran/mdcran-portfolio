@@ -74,6 +74,10 @@ export default function AssistantTutorial() {
   const [running, setRunning] = useState(false);
 
   const runIdRef = useRef(0);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
+  }, [running]);
   const targetElRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);

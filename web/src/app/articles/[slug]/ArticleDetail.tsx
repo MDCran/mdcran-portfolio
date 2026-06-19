@@ -720,14 +720,17 @@ export default function ArticleDetail({ article }: { article: Article }) {
       {article.tags.length > 0 && (
         <div className="max-w-5xl mx-auto px-4 sm:px-8 pb-8">
           <div className="flex flex-wrap gap-2">
-            {article.tags.map((tag) => (
-              <span
-                key={tag}
-                className="text-[10px] text-white/30 bg-white/4 border border-white/8 px-2.5 py-1 rounded-sm hover:text-white/60 transition-colors cursor-default"
-              >
-                #{tag}
-              </span>
-            ))}
+            {article.tags.map((tag) => {
+              const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
+              return (
+                <span
+                  key={tag}
+                  className="text-[10px] text-white/30 bg-white/4 border border-white/8 px-2.5 py-1 rounded-sm hover:text-white/60 transition-colors cursor-default"
+                >
+                  {display}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

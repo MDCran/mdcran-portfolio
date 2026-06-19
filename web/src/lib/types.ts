@@ -772,6 +772,7 @@ export interface BarDrinkCategory {
   color: string;        // hex used for the wheel segments
   description: string;  // shown when a drink from this category is landed on
   options: string[];    // individual drinks (each becomes a wheel segment)
+  recipes?: Record<string, string>; // per-drink recipe shown after spin (keyed by option name)
 }
 
 // ─── Personal Identity (device fingerprinting) ────────────

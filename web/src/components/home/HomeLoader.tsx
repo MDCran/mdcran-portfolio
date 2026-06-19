@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,20 +16,21 @@ const FALLBACK_LOGO = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png") || "/l
 
 // Boot-sequence log printed in the corner terminal. [tag, message]
 const BOOT_LOG: [string, string][] = [
-  ["net", "Resolving mdcran.com…"],
-  ["net", "Connecting to content delivery network"],
-  ["sec", "TLS handshake · secure session established"],
-  ["cdn", "Edge node: warming cache"],
-  ["img", "Preloading media & images…"],
-  ["db", "Connecting to database cluster"],
-  ["db", "Authenticated · pool ready"],
-  ["api", "Fetching portfolio metrics"],
-  ["api", "Loading projects · clients · articles"],
-  ["data", "Hydrating “By the Numbers”"],
-  ["geo", "Warming visitor analytics"],
-  ["ai", "Booting assistant · voice engine"],
-  ["ui", "Compiling your experience"],
-  ["ok", "Ready."],
+  ["net",  "Resolving mdcran.com…"],
+  ["net",  "Connecting to content delivery network"],
+  ["sec",  "TLS handshake · secure session established"],
+  ["cdn",  "Edge node selected · cache warming"],
+  ["db",   "Opening database connection"],
+  ["db",   "Authenticated · pool ready"],
+  ["img",  "Preloading images & media assets"],
+  ["api",  "Fetching projects · articles · clients"],
+  ["api",  "Loading portfolio metrics"],
+  ["data", "Hydrating \"By the Numbers\""],
+  ["api",  "Warming Spotify · Bible · view counts"],
+  ["geo",  "Activating visitor analytics"],
+  ["ai",   "Booting assistant · voice engine"],
+  ["ui",   "Compiling your experience"],
+  ["ok",   "Ready."],
 ];
 
 // Deterministic particle field (no Math.random → no SSR hydration mismatch).
@@ -65,16 +66,31 @@ export default function HomeLoader() {
     const beginLeave = () => { if (left || cancelled) return; left = true; setLeaving(true); outTimer = setTimeout(() => { if (!cancelled) setShow(false); }, 750); };
     const maybeLeave = () => { if (dataReady && minHeld) beginLeave(); };
 
-    // Brand mark.
-    fetch("/api/data/site-content")
+    // Brand mark — fire first so the logo appears as soon as possible.
+    const siteContentFetch = fetch("/api/data/site-content")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { const u = d?.faviconUrl || d?.brandLogoUrl; if (!cancelled && u) setLogo(assetUrl(u) || FALLBACK_LOGO); })
-      .catch(() => {});
+      .then((d) => { const u = d?.faviconUrl || d?.brandLogoUrl; if (!cancelled && u) setLogo(assetUrl(u) || FALLBACK_LOGO); return d; })
+      .catch(() => null);
 
-    // Warm the data the "By the Numbers" / Stats section needs so it's ready on reveal.
+    // Real preload operations — each one warms the RSC / API cache so pages are instant on reveal.
+    const projectsFetch   = fetch("/api/data/projects").catch(() => null);
+    const articlesFetch   = fetch("/api/data/articles").catch(() => null);
+    const clientsFetch    = fetch("/api/data/clients").catch(() => null);
+    const metricsFetch    = fetch("/api/metrics").catch(() => null);
+
+    // Fire-and-forget warmers (GitHub, Spotify, geo, assistant status — don't block the loader).
+    fetch("/api/github/contributions").catch(() => {});
+    fetch("/api/spotify/favorites").catch(() => {});
+    fetch("/api/geo").catch(() => {});
+    fetch("/api/status").catch(() => {});
+
+    // Gate the loader dismissal on the critical data being ready.
     Promise.allSettled([
-      fetch("/api/metrics").catch(() => {}),
-      fetch("/api/data/site-content").catch(() => {}),
+      siteContentFetch,
+      projectsFetch,
+      articlesFetch,
+      clientsFetch,
+      metricsFetch,
     ]).then(() => { if (cancelled) return; dataReady = true; setStatus("Loading your experience"); maybeLeave(); });
 
     // Eagerly preload the home page's images (incl. below-the-fold lazy ones) while the

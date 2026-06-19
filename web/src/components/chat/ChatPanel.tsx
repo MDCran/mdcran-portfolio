@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart, rememberTopic } from "@/lib/visitor-memory";
+import { extractPageContext } from "@/lib/page-context";
 import type { ContactData, BookingData } from "@/components/chat/ChatActionCards";
 
 const TOGGLE_EVENT = "mdcran:toggle-chat";
@@ -261,6 +262,15 @@ export default function ChatPanel() {
   const [agentName, setAgentName] = useState(() => pickAgentName());
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [thinking, setThinking] = useState(false);
+
+  // Notify the on-screen keyboard to hide while AI is generating
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current === streaming) return;
+    prevStreamingRef.current = streaming;
+    window.dispatchEvent(new CustomEvent("mdcran:ai-busy", { detail: { active: streaming } }));
+  }, [streaming]);
   const [disconnected, setDisconnected] = useState(false);
   /* reconnectStep: 0=idle, 1=connecting, 2=connected */
   const [reconnectStep, setReconnectStep] = useState(0);
@@ -547,13 +557,31 @@ export default function ChatPanel() {
     let farewellSent = false;
     const check = setInterval(() => {
       const idleMs = Date.now() - lastAgentMessageRef.current;
-      // Send farewell message 15s before disconnect
+      // Send farewell message 15s before disconnect — play the pre-cached Michael voice clip.
       if (!farewellSent && idleMs >= INACTIVITY_TIMEOUT_MS - 15_000) {
         farewellSent = true;
         setMessages((prev) => [...prev, {
           role: "assistant",
           content: "Looks like you may have stepped away. I'll be ending this chat shortly. Feel free to reach back out anytime!",
         }]);
+        // Play pre-recorded farewell audio (cached by the browser on first load).
+        if (voiceOnRef.current) {
+          void (async () => {
+            try {
+              const res = await fetch("/api/voice/farewell");
+              if (!res.ok) return;
+              const arr = await res.arrayBuffer();
+              const ctx = ensureAudioCtx();
+              if (!ctx) return;
+              try { await ctx.resume(); } catch { /* */ }
+              const buf = await ctx.decodeAudioData(arr.slice(0));
+              const src = ctx.createBufferSource();
+              src.buffer = buf;
+              src.connect(ctx.destination);
+              src.start();
+            } catch { /* farewell audio unavailable — text message is enough */ }
+          })();
+        }
       }
       if (idleMs >= INACTIVITY_TIMEOUT_MS) {
         setDisconnected(true);
@@ -683,6 +711,7 @@ export default function ChatPanel() {
     setMessages((prev) => [...prev.filter((m) => m.content !== "__INACTIVITY__"), userMsg]);
     setInput("");
     setStreaming(true);
+    setThinking(true);
 
     // Read-aloud: unlock the audio context on this user gesture so TTS can play later.
     if (voiceOnRef.current) ensureAudioCtx();
@@ -706,7 +735,7 @@ export default function ChatPanel() {
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: nextMessages.map(({ role, content }) => ({ role, content })), currentPage: pathname, agentName, speak: voiceOnRef.current, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })() }),
+            body: JSON.stringify({ messages: nextMessages.map(({ role, content }) => ({ role, content })), currentPage: pathname, agentName, speak: voiceOnRef.current, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })() }),
             signal: controller.signal,
           });
 
@@ -756,6 +785,7 @@ export default function ChatPanel() {
                   if (parsed.text) {
                     /* Ensure typing dots show for at least 1s before text starts */
                     if (accumulated.length === 0) {
+                      setThinking(false);
                       const elapsed = Date.now() - streamStartTime;
                       if (elapsed < 1000) {
                         await new Promise((r) => setTimeout(r, 1000 - elapsed));
@@ -955,6 +985,49 @@ export default function ChatPanel() {
             setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
           }
 
+          // AI cursor: point at element by visible text
+          const pointMatches = [...cleaned.matchAll(/__POINT:([^_]+?)__/g)];
+          if (pointMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__POINT:[^_]+?__/g, "");
+            pointMatches.forEach((m, i) => {
+              const text = m[1].trim();
+              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { text } })), i * 400);
+            });
+          }
+
+          // AI cursor: click element by visible text
+          const clickMatches = [...cleaned.matchAll(/__CLICK:([^_]+?)__/g)];
+          if (clickMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__CLICK:[^_]+?__/g, "");
+            clickMatches.forEach((m, i) => {
+              const text = m[1].trim();
+              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text } })), i * 500);
+            });
+          }
+
+          // AI cursor: click element by data-highlight-id
+          const clickIdMatches = [...cleaned.matchAll(/__CLICKID:([\w-]+)__/g)];
+          if (clickIdMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__CLICKID:[\w-]+__/g, "");
+            clickIdMatches.forEach((m, i) => {
+              const selector = `[data-highlight-id="${m[1]}"]`;
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { selector } }));
+                setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector } })), 220);
+              }, i * 500);
+            });
+          }
+
+          // AI cursor: reset / hide
+          if (/__CURSORRESET__/.test(cleaned)) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__CURSORRESET__\s*/g, " ");
+            window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
+          }
+
           // Highlight marker — extract before auto-nav fallback so we know if one exists
           const highlightMatch = cleaned.match(/__HIGHLIGHT:(.+?)__/);
           if (highlightMatch) {
@@ -1033,7 +1106,21 @@ export default function ChatPanel() {
         }
 
         /* Got a real response */
-        if (accumulated.replace(/__[A-Z]+:.+?__/g, "").trim()) {
+        if (accumulated.replace(/__[A-Z]+(?::[^_]+)?__/g, "").trim()) {
+          // In voice mode the message was held as "" (dots) — now reveal the cleaned text
+          // in the chat bubble so the user can read along or reference it after the voice finishes.
+          if (voiceOnRef.current) {
+            const displayText = accumulated
+              .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")
+              .replace(/\s*__[A-Z]+__\s*/g, " ")
+              .replace(/  +/g, " ")
+              .trim();
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = { ...updated[updated.length - 1], content: displayText };
+              return updated;
+            });
+          }
           void speak(accumulated);
           break;
         }
@@ -1070,6 +1157,7 @@ export default function ChatPanel() {
     } finally {
       abortRef.current = null;
       setStreaming(false);
+      setThinking(false);
       lastAgentMessageRef.current = Date.now();
     }
   }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak]);
@@ -1169,33 +1257,67 @@ export default function ChatPanel() {
 
   return (
     <>
-      {/* Bottom-middle karaoke caption while reading a reply aloud (mirrors the tour). */}
+      {/* Bottom-middle transcript interface while reading a reply aloud. */}
       <AnimatePresence>
         {capWords.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.3 }}
-            className="fixed bottom-8 left-1/2 z-[80] -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
+            className="fixed bottom-8 left-1/2 z-[80] -translate-x-1/2 w-[min(92vw,48rem)]"
           >
             <div
-              className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
+              className="rounded-sm border overflow-hidden"
               style={{
-                borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 30%, transparent)",
-                background: "rgba(6,6,8,0.9)",
-                backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-                boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
+                borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 28%, transparent)",
+                background: "rgba(4,4,6,0.94)",
+                backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
               }}
             >
-              {capWords.map((word, i) => {
-                const isCurrent = i === capIdx; const spoken = i <= capIdx;
-                return (
-                  <span key={i} style={
-                    isCurrent
-                      ? { color: "#fff", fontWeight: 700, textShadow: "0 0 12px rgba(255,255,255,0.85), 0 0 22px color-mix(in srgb, var(--theme-primary, #ef4242) 60%, transparent)" }
-                      : spoken ? { color: "rgba(255,255,255,0.82)" } : { color: "rgba(255,255,255,0.34)" }
-                  }>{word}{i < capWords.length - 1 ? " " : ""}</span>
-                );
-              })}
+              {/* Header */}
+              <div
+                className="flex items-center gap-2.5 px-4 py-2"
+                style={{ borderBottom: "1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)" }}
+              >
+                <div className="flex items-end gap-[3px]" style={{ height: 14 }}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <motion.span
+                      key={i}
+                      className="w-[3px] rounded-full"
+                      style={{ backgroundColor: "var(--theme-primary, #ef4242)" }}
+                      animate={{ height: [3, 8 + i * 2, 3] }}
+                      transition={{ duration: 0.5 + i * 0.08, repeat: Infinity, delay: i * 0.1, ease: "easeInOut" }}
+                    />
+                  ))}
+                </div>
+                <span className="text-[10px] uppercase tracking-[0.22em] font-jb" style={{ color: "color-mix(in srgb, var(--theme-primary, #ef4242) 80%, white)" }}>
+                  Michael
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.22em] text-white/30 font-jb">· Speaking</span>
+                <button
+                  onClick={stopSpeaking}
+                  className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[10px] uppercase tracking-wider font-jb text-white/35 hover:text-white/70 transition-colors cursor-pointer"
+                  style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)" }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                    <rect x="1" y="1" width="7" height="7" rx="1.5" fill="currentColor"/>
+                  </svg>
+                  Stop
+                </button>
+              </div>
+              {/* Karaoke words */}
+              <div className="px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb">
+                {capWords.map((word, i) => {
+                  const isCurrent = i === capIdx; const spoken = i <= capIdx;
+                  return (
+                    <span key={i} style={
+                      isCurrent
+                        ? { color: "#fff", fontWeight: 700, textShadow: "0 0 12px rgba(255,255,255,0.85), 0 0 22px color-mix(in srgb, var(--theme-primary, #ef4242) 60%, transparent)" }
+                        : spoken ? { color: "rgba(255,255,255,0.82)" } : { color: "rgba(255,255,255,0.34)" }
+                    }>{word}{i < capWords.length - 1 ? " " : ""}</span>
+                  );
+                })}
+              </div>
             </div>
           </motion.div>
         )}
@@ -1566,7 +1688,7 @@ export default function ChatPanel() {
                 );
               })}
 
-              {(welcomeStep === 3 || (streaming && messages[messages.length - 1]?.content === "")) && (
+              {(welcomeStep === 3 || (streaming && (thinking || messages[messages.length - 1]?.content === ""))) && (
                 <div className="flex justify-start">
                   <div
                     className="rounded-sm px-3.5 py-2.5"

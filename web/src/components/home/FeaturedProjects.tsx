@@ -87,9 +87,9 @@ export default function FeaturedProjects({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {orderedItems.map((entry, i) =>
             entry.type === "project" ? (
-              <ProjectCard key={entry.item.id} project={entry.item} index={i} />
+              <ProjectCard key={entry.item.id} project={{ ...entry.item, featured: true }} index={i} />
             ) : (
-              <ArticleCard key={entry.item.id} article={entry.item} index={i} />
+              <ArticleCard key={entry.item.id} article={entry.item} index={i} featured />
             )
           )}
         </div>

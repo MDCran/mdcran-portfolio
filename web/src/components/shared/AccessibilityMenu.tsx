@@ -4,12 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Accessibility, X, Lock, Volume2, VolumeX, TerminalSquare, RotateCcw, Type, Eye, MousePointer2, ChevronDown,
+  Accessibility, X, Lock, Volume2, VolumeX, TerminalSquare, RotateCcw, Type, Eye, MousePointer2, ChevronDown, Keyboard,
 } from "lucide-react";
+import ShortcutsOverlay from "@/components/shared/ShortcutsOverlay";
+import OnScreenKeyboard from "@/components/shared/OnScreenKeyboard";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import ScreenReaderPopups, { useScreenReader } from "@/components/shared/ScreenReader";
 import { flagEmoji } from "@/lib/flag";
 import PersonalIdentity from "@/components/shared/PersonalIdentity";
+import LanguageSelector from "@/components/shared/LanguageSelector";
 
 type Colorblind = "none" | "deuteranopia" | "protanopia" | "tritanopia";
 type CursorMode = "default" | "large" | "circle" | "contrast";
@@ -96,6 +99,8 @@ export default function AccessibilityMenu() {
   const { themeInfo, setTheme } = useTheme();
   const screenReader = useScreenReader();
   const [open, setOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showKeyboard, setShowKeyboard] = useState(false);
   const [prefs, setPrefs] = useState<A11yPrefs>(DEFAULTS);
   const [country, setCountry] = useState<string>("United States");
   const [countryCode, setCountryCode] = useState<string>("US");
@@ -347,20 +352,7 @@ export default function AccessibilityMenu() {
             </Section>
 
             <Section label="Language">
-              <div className="relative grid grid-cols-2 rounded-sm border border-white/10 bg-white/4 p-0.5 select-none">
-                <div className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-sm bg-[var(--cranberry)] transition-transform duration-300" style={{ transform: "translateX(0)" }} />
-                <button title="Language is locked to English" className="relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 text-[11px] tracking-wide" style={{ color: "var(--on-accent, #fff)" }}>
-                  <Lock size={10} /> English
-                </button>
-                <button
-                  disabled
-                  title="Español isn't available yet"
-                  className="relative z-10 py-1.5 text-[11px] tracking-wide cursor-not-allowed"
-                  style={{ color: "color-mix(in srgb, var(--theme-text, #fff) 28%, transparent)" }}
-                >
-                  Español
-                </button>
-              </div>
+              <LanguageSelector />
             </Section>
 
             <Section label="Location">
@@ -374,6 +366,23 @@ export default function AccessibilityMenu() {
 
             <Section label="Personal Identity">
               <PersonalIdentity />
+            </Section>
+
+            <Section label="Keyboard">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowShortcuts(true); }}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border border-white/10 text-[11px] text-white/55 hover:text-white hover:border-white/25 cursor-pointer transition-colors"
+                >
+                  <Keyboard size={12} /> Shortcuts
+                </button>
+                <button
+                  onClick={() => setShowKeyboard((v) => !v)}
+                  className={`flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-sm border text-[11px] cursor-pointer transition-colors ${showKeyboard ? "border-[var(--cranberry)]/45 text-[var(--cranberry)]" : "border-white/10 text-white/55 hover:text-white hover:border-white/25"}`}
+                >
+                  <Keyboard size={12} /> {showKeyboard ? "Hide Keys" : "On-screen Keys"}
+                </button>
+              </div>
             </Section>
 
             <button onClick={reset} className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-sm border border-white/10 text-[11px] text-white/50 hover:text-white hover:border-white/25 cursor-pointer">
@@ -392,6 +401,8 @@ export default function AccessibilityMenu() {
         onVolumeUp={screenReader.volumeUp}
         onVolumeDown={screenReader.volumeDown}
       />
+      <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <OnScreenKeyboard open={showKeyboard} onClose={() => setShowKeyboard(false)} />
     </>
   );
 }

@@ -182,7 +182,9 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
           {/* Tags */}
           {project.tags && project.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {project.tags.slice(0, 3).map((tag) => (
+              {project.tags.slice(0, 3).map((tag) => {
+                const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
+                return (
                 <span
                   key={tag}
                   className="text-[10px] px-2 py-0.5 rounded-sm tracking-wider"
@@ -193,9 +195,10 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
                     color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)',
                   }}
                 >
-                  {tag}
+                  {display}
                 </span>
-              ))}
+                );
+              })}
             </div>
           )}
 

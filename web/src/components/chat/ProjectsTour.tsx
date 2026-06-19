@@ -31,6 +31,10 @@ export default function ProjectsTour() {
 
   const runIdRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
+  }, [running]);
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
 

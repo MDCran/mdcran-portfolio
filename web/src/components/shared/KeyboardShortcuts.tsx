@@ -4,6 +4,7 @@ import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info } from "lucide-react";
+import { loadDisabled, loadCustom, type ShortcutCustomMap } from "@/lib/shortcuts-store";
 
 type ShortcutItem = {
   keys: string[];
@@ -73,6 +74,24 @@ export default function KeyboardShortcuts() {
   const [reminderVisualRemainingMs, setReminderVisualRemainingMs] = React.useState(REMINDER_DURATION_MS);
   const pendingSequenceRef = React.useRef<"g" | null>(null);
   const sequenceTimerRef = React.useRef<number | null>(null);
+  const disabledRef = React.useRef<Set<string>>(new Set());
+  const customRef = React.useRef<ShortcutCustomMap>({});
+
+  // Helper: get the active key for a shortcut (custom override or default)
+  const getKey = React.useCallback((id: string, defaultKey: string) =>
+    (customRef.current[id] ?? defaultKey).toLowerCase(), []);
+
+  React.useEffect(() => {
+    disabledRef.current = loadDisabled();
+    customRef.current = loadCustom();
+    function onUpdate(e: Event) {
+      const detail = (e as CustomEvent<{ disabled?: string[]; custom?: ShortcutCustomMap }>).detail ?? {};
+      if (detail.disabled) disabledRef.current = new Set(detail.disabled);
+      if (detail.custom) customRef.current = detail.custom;
+    }
+    window.addEventListener("mdcran:shortcuts-updated", onUpdate);
+    return () => window.removeEventListener("mdcran:shortcuts-updated", onUpdate);
+  }, []);
 
   React.useEffect(() => {
     if (pathname.startsWith("/admin")) return;
@@ -137,11 +156,13 @@ export default function KeyboardShortcuts() {
         event.ctrlKey &&
         event.altKey &&
         !event.metaKey &&
-        event.key.toLowerCase() === "t" &&
+        event.key.toLowerCase() === getKey("terminal", "t") &&
         !isTypingTarget(event.target)
       ) {
-        event.preventDefault();
-        window.dispatchEvent(new CustomEvent("mdcran:open-terminal"));
+        if (!disabledRef.current.has("terminal")) {
+          event.preventDefault();
+          window.dispatchEvent(new CustomEvent("mdcran:open-terminal"));
+        }
         return;
       }
       if (event.defaultPrevented) return;
@@ -151,34 +172,44 @@ export default function KeyboardShortcuts() {
       const key = event.key.toLowerCase();
 
       if (pendingSequenceRef.current === "g") {
-        if (key === "s") {
+        if (key === getKey("go-spotify", "s") && !disabledRef.current.has("go-spotify")) {
           event.preventDefault();
           clearSequence();
           window.dispatchEvent(new CustomEvent("mdcran:open-spotify"));
           return;
         }
-        const targetRoute = SEQUENCE_ROUTES[key];
-        if (targetRoute) {
+        const seqMap: Array<{ id: string; key: string; path: string }> = [
+          { id: "go-home",     key: getKey("go-home",     "h"), path: "/"                       },
+          { id: "go-ae",       key: getKey("go-ae",       "e"), path: "/arts-and-entertainment" },
+          { id: "go-motion",   key: getKey("go-motion",   "m"), path: "/motion-and-graphics"   },
+          { id: "go-code",     key: getKey("go-code",     "c"), path: "/code"                  },
+          { id: "go-articles", key: getKey("go-articles", "a"), path: "/articles"              },
+          { id: "go-resume",   key: getKey("go-resume",   "r"), path: "/resume"                },
+        ];
+        const match = seqMap.find((s) => s.key === key && !disabledRef.current.has(s.id));
+        if (match) {
           event.preventDefault();
-          goTo(targetRoute);
+          goTo(match.path);
           return;
         }
         clearSequence();
       }
 
-      if (key === "g") {
+      const goIds = ["go-home","go-ae","go-motion","go-code","go-articles","go-spotify","go-resume"];
+      const noGo = goIds.every((id) => disabledRef.current.has(id));
+      if (key === "g" && !noGo) {
         event.preventDefault();
         beginSequence();
         return;
       }
 
-      if (key === "s") {
+      if (key === getKey("search", "s") && !disabledRef.current.has("search")) {
         event.preventDefault();
         window.dispatchEvent(new CustomEvent("mdcran:open-search"));
         return;
       }
 
-      if (key === "c") {
+      if (key === getKey("contact", "c") && !disabledRef.current.has("contact")) {
         event.preventDefault();
         goTo("/contact");
       }
