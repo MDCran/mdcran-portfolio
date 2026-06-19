@@ -65,6 +65,12 @@ function stripAudioTags(text: string): string {
 
 /** Strip markdown, action markers, and any stray audio tags so only clean natural
    speech is sent to TTS (the v2 model would otherwise read a bracket literally). */
+const NOISE_RE = /^(mm+[-\s]*hmm+|uh+|um+|ah+|oh+|hmm+|huh|yeah|yep|nope|ok|okay|hi|hey|yo|sup|thanks?)\.?$/i;
+function isNoisyTranscript(text: string): boolean {
+  const c = text.trim().toLowerCase();
+  return c.length < 3 || NOISE_RE.test(c);
+}
+
 function stripForSpeech(text: string): string {
   return text
     .replace(/__[A-Z]+:[^_]*__/g, " ")
@@ -489,7 +495,12 @@ export default function VoiceMode() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })(), visitorName: visitorName ?? undefined, visitorGeo: visitorGeo ?? undefined, language: currentLang !== "en-US" ? currentLang : undefined }),
       });
-      if (res.status === 429) { friendly = "You've hit the message limit for now — give it a little while and try again."; throw new Error("limit"); }
+      if (res.status === 429) {
+        friendly = "You've hit the message limit for now — give it a little while and try again.";
+        try { localStorage.setItem("mdcran_rate_limited", String(Date.now())); } catch { /* */ }
+        window.dispatchEvent(new CustomEvent("mdcran:rate-limited"));
+        throw new Error("limit");
+      }
       if (!res.ok || !res.body) throw new Error("chat failed");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -612,7 +623,7 @@ export default function VoiceMode() {
               sendTimerRef.current = setTimeout(() => {
                 const toSend = pendingFinalRef.current.trim();
                 pendingFinalRef.current = "";
-                if (toSend) void sendToAgent(toSend);
+                if (toSend && !isNoisyTranscript(toSend)) void sendToAgent(toSend);
               }, 700);
             }
           };
@@ -644,7 +655,7 @@ export default function VoiceMode() {
                 const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
                 const data = await res.json().catch(() => null);
                 const t = typeof data?.text === "string" ? data.text.trim() : "";
-                if (t) await sendToAgent(t);
+                if (t && !isNoisyTranscript(t)) await sendToAgent(t);
                 else if (openRef.current) setPhaseSafe("listening");
               } catch { if (openRef.current) setPhaseSafe("listening"); }
             };
@@ -879,11 +890,11 @@ export default function VoiceMode() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.3 }}
-                className="fixed bottom-28 left-1/2 z-[74] -translate-x-1/2 w-[min(88vw,20rem)]"
+                className="fixed bottom-28 left-1/2 z-[74] -translate-x-1/2 w-[min(88vw,22rem)]"
               >
-                <div className="rounded-sm border border-white/10 bg-[#0c0c0e]/95 px-4 py-3 text-center text-[12px] leading-relaxed text-white/60 backdrop-blur-xl shadow-[0_16px_50px_rgba(0,0,0,0.55)]">
-                  Still there? Feel free to ask a question, or tap <span className="text-[var(--theme-primary,#ef4242)]">End Voice Chat</span> when you&apos;re done.
-                  <button onClick={() => setShowSilenceTip(false)} className="ml-2 text-white/30 hover:text-white" aria-label="Dismiss tip"><X size={11} /></button>
+                <div className="relative rounded-sm border border-white/10 bg-[#0c0c0e]/95 px-4 pr-8 py-3 text-center text-[12px] leading-relaxed text-white/55 backdrop-blur-xl shadow-[0_16px_50px_rgba(0,0,0,0.55)]">
+                  Still there? Tap the microphone button in the bottom right to end the conversation.
+                  <button onClick={() => setShowSilenceTip(false)} className="absolute top-2 right-2 text-white/30 hover:text-white/80 transition-colors" aria-label="Dismiss"><X size={13} /></button>
                 </div>
               </motion.div>
             )}
@@ -897,18 +908,10 @@ export default function VoiceMode() {
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
-            {/* Status label + timer + End Voice Chat */}
-            <div className="flex items-center gap-1.5">
-              <span onClick={close} className="cursor-pointer rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
-              <span className="rounded-sm bg-black/50 px-1.5 py-1 text-[9px] tabular-nums text-white/35 backdrop-blur-sm">{elapsedStr}</span>
-              <button
-                onClick={close}
-                aria-label="End voice chat"
-                title="End voice chat"
-                className="flex items-center gap-1 h-7 px-2.5 rounded-sm border border-white/15 bg-black/60 text-[9px] uppercase tracking-[0.16em] text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors"
-              >
-                End
-              </button>
+            {/* Status label + session timer */}
+            <div className="flex items-center gap-2">
+              <span className="rounded-sm border border-[#ef4242]/40 bg-black/75 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#ef4242] backdrop-blur-sm font-medium">{shortLabel}</span>
+              <span className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-[10px] tabular-nums text-white/65 backdrop-blur-sm">{elapsedStr}</span>
             </div>
 
             {/* The orb — tap to interrupt while speaking, otherwise tap to exit voice chat */}

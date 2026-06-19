@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, AudioLines, Bot, Compass, Loader2, Square } from "lucide-react";
+import { MessageCircle, AudioLines, Bot, Compass, Loader2, Square, Lock } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/lib/ThemeContext";
 import { getDaypart } from "@/lib/visitor-memory";
@@ -33,9 +33,25 @@ export default function ChatBubble() {
   const [calm, setCalm] = useState(false); // calmer presence in the evening/night
   const [voiceEnabled, setVoiceEnabled] = useState(false); // voice conversation configured server-side
   const [voiceSupported, setVoiceSupported] = useState(true); // SpeechRecognition present in this browser
+  const [rateLimited, setRateLimited] = useState(false);
+  const [showRateLimit, setShowRateLimit] = useState(false);
   const { themeInfo } = useTheme();
   const darkIconThemes = ["hacker", "high-contrast"];
   const iconColor = darkIconThemes.includes(themeInfo.id) ? "#000000" : "#ffffff";
+
+  /* Rate limit state — persisted in localStorage for 24h */
+  useEffect(() => {
+    try {
+      const ts = localStorage.getItem("mdcran_rate_limited");
+      if (ts && Date.now() - parseInt(ts, 10) < 24 * 60 * 60 * 1000) setRateLimited(true);
+    } catch { /* */ }
+    const onLimited = () => {
+      setRateLimited(true);
+      try { localStorage.setItem("mdcran_rate_limited", String(Date.now())); } catch { /* */ }
+    };
+    window.addEventListener("mdcran:rate-limited", onLimited);
+    return () => window.removeEventListener("mdcran:rate-limited", onLimited);
+  }, []);
 
   /* Time-of-day mood: ease off the idle pulse after hours */
   useEffect(() => {
@@ -145,6 +161,11 @@ export default function ChatBubble() {
   }, [pathname, chatOpen, voiceOpen]);
 
   const dispatchToggle = () => {
+    if (rateLimited) {
+      setShowRateLimit(true);
+      setTimeout(() => setShowRateLimit(false), 5000);
+      return;
+    }
     // If the assistant is preparing or reading a reply aloud, the bubble is a STOP button.
     if (voiceBusy !== "idle") {
       window.dispatchEvent(new CustomEvent("mdcran:stop-speaking"));
@@ -328,6 +349,29 @@ export default function ChatBubble() {
         )}
       </AnimatePresence>
 
+      {/* Rate limit popup */}
+      <AnimatePresence>
+        {showRateLimit && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute bottom-16 right-0 w-60"
+          >
+            <div
+              className="relative rounded-sm border bg-[#080808]/97 backdrop-blur-xl px-4 py-3"
+              style={{ borderColor: "rgba(239,66,66,0.3)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
+            >
+              <p className="text-[12px] text-white/75 font-jb leading-relaxed">
+                You&apos;ve reached your limit. Try again in a little while.
+              </p>
+              <div className="absolute -bottom-1.5 right-5 w-3 h-3 rotate-45 bg-[#080808]/97 border-r border-b" style={{ borderColor: "rgba(239,66,66,0.3)" }} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Pulse ring */}
       <AnimatePresence>
         {(nudge && !chatOpen && !voiceOpen) && (
@@ -360,25 +404,29 @@ export default function ChatBubble() {
         )}
       </AnimatePresence>
 
-      {/* Assistant button — a head with a voice/waveform badge.
-          Hidden while voice mode is open: the voice widget's mic orb takes this
-          spot, and the user closes voice with its own X button. */}
+      {/* Assistant button — hidden while voice mode is open (the mic orb takes this spot). */}
       {!voiceOpen && (
         <motion.button
           onClick={dispatchToggle}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          style={{ backgroundColor: "var(--theme-primary, #ef4242)", color: iconColor, boxShadow: "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
+          whileHover={{ scale: rateLimited ? 1 : 1.1 }}
+          whileTap={{ scale: rateLimited ? 1 : 0.95 }}
+          style={{
+            backgroundColor: rateLimited ? "#140808" : "var(--theme-primary, #ef4242)",
+            color: rateLimited ? "rgba(239,66,66,0.5)" : iconColor,
+            boxShadow: rateLimited
+              ? "0 4px 12px rgba(0,0,0,0.3), inset 0 0 0 1.5px rgba(239,66,66,0.25)"
+              : "0 4px 12px color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)",
+          }}
           className="relative h-11 w-11 rounded-full flex items-center justify-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2"
           aria-label={
-            voiceBusy === "preparing" ? "Preparing voice — tap to stop"
+            rateLimited ? "Limit reached"
+              : voiceBusy === "preparing" ? "Preparing voice — tap to stop"
               : voiceBusy === "speaking" ? "Tap to stop"
               : chatOpen ? "Close assistant" : "Open assistant"
           }
-          title={voiceBusy !== "idle" ? "Tap to stop" : undefined}
+          title={rateLimited ? "You've reached your limit" : voiceBusy !== "idle" ? "Tap to stop" : undefined}
         >
-          {/* While the assistant is busy, the bubble shows a loading/stop state and a ring. */}
-          {voiceBusy !== "idle" && (
+          {!rateLimited && voiceBusy !== "idle" && (
             <motion.span
               className="absolute inset-0 rounded-full"
               style={{ backgroundColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 45%, transparent)" }}
@@ -388,7 +436,8 @@ export default function ChatBubble() {
             />
           )}
           <span className="relative flex items-center justify-center">
-            {voiceBusy === "preparing" ? <Loader2 size={18} className="animate-spin" />
+            {rateLimited ? <Lock size={16} />
+              : voiceBusy === "preparing" ? <Loader2 size={18} className="animate-spin" />
               : voiceBusy === "speaking" ? <Square size={15} fill="currentColor" />
               : <Bot size={18} />}
           </span>
