@@ -3,7 +3,6 @@
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Info } from "lucide-react";
 import { loadDisabled, loadCustom, type ShortcutCustomMap } from "@/lib/shortcuts-store";
 
 type ShortcutItem = {
@@ -35,9 +34,7 @@ const SEQUENCE_ROUTES: Record<string, string> = {
   r: "/resume",
 };
 
-const HINT_STORAGE_KEY = "mdcran_keyboard_shortcuts_seen";
 const SEQUENCE_TIMEOUT_MS = 1400;
-const REMINDER_DURATION_MS = 12000;
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -69,9 +66,6 @@ export default function KeyboardShortcuts() {
   const pathname = usePathname();
   const router = useRouter();
   const [showOnCtrl, setShowOnCtrl] = React.useState(false);
-  const [showReminder, setShowReminder] = React.useState(false);
-  const [reminderEndsAt, setReminderEndsAt] = React.useState<number | null>(null);
-  const [reminderVisualRemainingMs, setReminderVisualRemainingMs] = React.useState(REMINDER_DURATION_MS);
   const pendingSequenceRef = React.useRef<"g" | null>(null);
   const sequenceTimerRef = React.useRef<number | null>(null);
   const disabledRef = React.useRef<Set<string>>(new Set());
@@ -92,36 +86,6 @@ export default function KeyboardShortcuts() {
     window.addEventListener("mdcran:shortcuts-updated", onUpdate);
     return () => window.removeEventListener("mdcran:shortcuts-updated", onUpdate);
   }, []);
-
-  React.useEffect(() => {
-    if (pathname.startsWith("/admin")) return;
-
-    const hasSeenHint = window.localStorage.getItem(HINT_STORAGE_KEY) === "1";
-    if (hasSeenHint) return;
-
-    const openTimer = window.setTimeout(() => {
-      setReminderEndsAt(Date.now() + REMINDER_DURATION_MS);
-      setReminderVisualRemainingMs(REMINDER_DURATION_MS);
-      setShowReminder(true);
-    }, 900);
-
-    const closeTimer = window.setTimeout(() => {
-      setShowReminder(false);
-      setReminderEndsAt(null);
-      setReminderVisualRemainingMs(REMINDER_DURATION_MS);
-      window.localStorage.setItem(HINT_STORAGE_KEY, "1");
-    }, 900 + REMINDER_DURATION_MS);
-
-    return () => {
-      window.clearTimeout(openTimer);
-      window.clearTimeout(closeTimer);
-    };
-  }, [pathname]);
-
-  React.useEffect(() => {
-    if (!showReminder || showOnCtrl || reminderEndsAt === null) return;
-    setReminderVisualRemainingMs(Math.max(0, reminderEndsAt - Date.now()));
-  }, [showReminder, showOnCtrl, reminderEndsAt]);
 
   React.useEffect(() => {
     if (pathname.startsWith("/admin")) return;
@@ -268,10 +232,6 @@ export default function KeyboardShortcuts() {
   if (pathname.startsWith("/admin")) return null;
 
   const shouldShowPanel = showOnCtrl;
-  const reminderProgressWidth = `${Math.max(
-    0,
-    Math.min(100, (reminderVisualRemainingMs / REMINDER_DURATION_MS) * 100)
-  )}%`;
 
   return (
     <>
@@ -350,45 +310,6 @@ export default function KeyboardShortcuts() {
         ) : null}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {!shouldShowPanel && showReminder ? (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-6 top-6 z-[9999] hidden max-w-[calc(100vw-3rem)] overflow-hidden rounded-sm px-3 py-2 backdrop-blur-xl md:block"
-            style={{
-              border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 18%, transparent)',
-              backgroundColor: 'color-mix(in srgb, #0a0a0a 88%, var(--theme-primary, #ef4242))',
-              boxShadow: '0 16px 44px rgba(0,0,0,0.5)',
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Info size={13} className="shrink-0" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }} />
-              <span
-                className="text-[10px] uppercase tracking-[0.14em]"
-                style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}
-              >
-                Hold
-              </span>
-              <KeyPill value="CTRL" />
-              <span
-                className="text-[10px] uppercase tracking-[0.14em]"
-                style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}
-              >
-                to view Keyboard Shortcuts
-              </span>
-            </div>
-            <motion.div
-              className="absolute bottom-0 left-0 h-px bg-[#ef4242]"
-              initial={{ width: reminderProgressWidth }}
-              animate={{ width: "0%" }}
-              transition={{ duration: reminderVisualRemainingMs / 1000, ease: "linear" }}
-            />
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
     </>
   );
 }
