@@ -113,7 +113,8 @@ type NavSection =
   | "visitors"
   | "booking"
   | "identities"
-  | "status";
+  | "status"
+  | "database";
 
 const DEFAULT_RESUME_PROFILE: ResumeProfile = {
   fullName: "Michael Cran",
@@ -3177,7 +3178,7 @@ export default function AdminDashboard() {
     const VALID_SECTIONS: NavSection[] = [
       "dashboard", "projects", "articles", "clients", "r2-assets", "site-content",
       "resume", "analytics", "sessions", "contacts", "rate-limits", "ai", "contact-form-entries", "campaigns",
-      "rizz", "bar", "visitors", "booking", "identities", "status",
+      "rizz", "bar", "visitors", "booking", "identities", "status", "database",
     ];
     const applyHash = () => {
       const hash = window.location.hash.replace(/^#/, "");
@@ -4492,6 +4493,7 @@ export default function AdminDashboard() {
     { key: "booking", label: "Booking" },
     { key: "identities", label: "Identities" },
     { key: "status", label: "Status" },
+    { key: "database", label: "Database" },
   ];
 
   const adminSearchQuery = adminSearch.trim().toLowerCase();
@@ -4663,6 +4665,7 @@ export default function AdminDashboard() {
     booking: "Booking",
     identities: "Identities",
     status: "Status",
+    database: "Database",
   };
 
   const sectionDescriptions: Record<NavSection, string> = {
@@ -4686,6 +4689,7 @@ export default function AdminDashboard() {
     booking: "Calendar-backed meeting booking, business hours, and meeting types.",
     identities: "Recognized visitors by device fingerprint — rename, merge, link, or remove.",
     status: "Service uptime monitoring and incidents.",
+    database: "Download a full JSON backup or restore from a previous export.",
   };
 
   if (!hydrated) {
@@ -8209,6 +8213,10 @@ export default function AdminDashboard() {
             <AdminStatusSection />
           )}
 
+          {activeSection === "database" && (
+            <AdminDatabaseSection />
+          )}
+
         </div>
       </main>
 
@@ -8690,6 +8698,140 @@ function AdminStatusSection() {
               <button onClick={() => handleDeleteIncident(inc.id)} className="text-[10px] text-red-400/50 hover:text-red-300 shrink-0">Delete</button>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Admin Database Section ─────────────────────────────────────────────── */
+function AdminDatabaseSection() {
+  const [downloading, setDownloading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<{ success: boolean; results?: Record<string, { restored: number; error?: string }>; error?: string } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/admin/db-backup");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const cd = res.headers.get("content-disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? "mdcran-db-backup.json";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(`Download failed: ${(err as Error).message}`);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function handleFile(file: File) {
+    if (!file.name.endsWith(".json")) { alert("Please select a .json backup file."); return; }
+    const confirmed = window.confirm(`Restore from "${file.name}"? This will overwrite the database with the contents of this file.`);
+    if (!confirmed) return;
+    setRestoring(true);
+    setRestoreResult(null);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const res = await fetch("/api/admin/db-backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(json),
+      });
+      const data = await res.json();
+      setRestoreResult(data);
+    } catch (err) {
+      setRestoreResult({ success: false, error: (err as Error).message });
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  const totalRestored = restoreResult?.results
+    ? Object.values(restoreResult.results).reduce((s, r) => s + r.restored, 0)
+    : 0;
+  const errorCols = restoreResult?.results
+    ? Object.entries(restoreResult.results).filter(([, r]) => r.error)
+    : [];
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {/* Download */}
+      <div className="rounded-sm border border-white/8 bg-white/2 p-5">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-white/40 mb-1">Export</p>
+        <p className="text-xs text-white/30 mb-4">Download a full JSON backup of all database collections (projects, articles, clients, resume, skills, settings, etc.).</p>
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-sm bg-[var(--cranberry)]/15 border border-[var(--cranberry)]/30 text-[var(--cranberry)] text-xs tracking-wider hover:bg-[var(--cranberry)]/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {downloading ? "Exporting…" : "Download Backup"}
+        </button>
+      </div>
+
+      {/* Upload / Restore */}
+      <div className="rounded-sm border border-white/8 bg-white/2 p-5">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-white/40 mb-1">Restore</p>
+        <p className="text-xs text-white/30 mb-4">Upload a previously downloaded backup file to restore the database. <span className="text-[var(--cranberry)]/70">This overwrites existing data.</span></p>
+
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+          onClick={() => fileRef.current?.click()}
+          className={`border border-dashed rounded-sm p-8 text-center cursor-pointer transition-colors ${dragOver ? "border-[var(--cranberry)]/60 bg-[var(--cranberry)]/5" : "border-white/12 hover:border-white/25"}`}
+        >
+          {restoring ? (
+            <p className="text-xs text-white/40">Restoring…</p>
+          ) : (
+            <>
+              <p className="text-xs text-white/40">Drag &amp; drop a backup file here</p>
+              <p className="text-[10px] text-white/20 mt-1">or click to browse</p>
+            </>
+          )}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+        />
+      </div>
+
+      {/* Restore result */}
+      {restoreResult && (
+        <div className={`rounded-sm border p-4 text-xs space-y-2 ${restoreResult.success ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
+          {restoreResult.success ? (
+            <>
+              <p className="text-emerald-400 font-medium">Restore complete — {totalRestored.toLocaleString()} documents written</p>
+              {restoreResult.results && (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 mt-2">
+                  {Object.entries(restoreResult.results).map(([col, r]) => (
+                    <div key={col} className="flex justify-between text-[10px]">
+                      <span className="text-white/40">{col}</span>
+                      <span className={r.error ? "text-red-400" : "text-white/25"}>{r.error ? "error" : `${r.restored}`}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {errorCols.length > 0 && (
+                <p className="text-red-400/70 text-[10px] mt-1">{errorCols.length} collection(s) had errors: {errorCols.map(([c]) => c).join(", ")}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-red-400">{restoreResult.error ?? "Unknown error"}</p>
+          )}
         </div>
       )}
     </div>
