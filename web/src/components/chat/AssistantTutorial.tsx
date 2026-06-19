@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 const PAGE_TREE = [
@@ -25,7 +26,7 @@ const PAGE_TREE = [
 
 type Step =
   | { kind: "intro"; text: string }
-  | { kind: "spot"; target: string; text: string }
+  | { kind: "spot"; target: string; text: string; click?: boolean }
   | { kind: "tree"; text: string }
   | { kind: "return"; text: string };
 
@@ -34,9 +35,9 @@ const STEPS: Step[] = [
   { kind: "spot", target: "about", text: "First up, this is where you can get to know me — a quick intro to who I am and what I do." },
   { kind: "spot", target: "featured", text: "These are some of my most renowned projects, the work I'm honestly proudest of." },
   { kind: "spot", target: "clients", text: "And here are the clients and creators I've gotten to work with over the years." },
-  { kind: "spot", target: "nav-resume", text: "Want the full story? My resume lives right up here — experience, skills, all of it." },
+  { kind: "spot", target: "nav-resume", text: "Want the full story? My resume lives right here — experience, skills, all of it. Let me show you.", click: true },
   { kind: "tree", text: "I can take you to any page on the site, just ask. Here's everything at a glance." },
-  { kind: "return", text: "And that's the quick tour! Ask me anything, and I'll show you around." },
+  { kind: "return", text: "Ask me anything else about my work." },
 ];
 
 function isVisible(el: HTMLElement | null): boolean {
@@ -46,10 +47,6 @@ function isVisible(el: HTMLElement | null): boolean {
 }
 
 function findTarget(id: string): HTMLElement | null {
-  // Prefer a VISIBLE match. The desktop nav resume link carries
-  // data-highlight-id="nav-resume" but is hidden on mobile (rect collapses to the
-  // top-left corner) — returning it would spotlight the wrong spot. So we skip
-  // hidden matches and look for the on-screen element (e.g. the mobile menu link).
   const byId = document.getElementById(id) as HTMLElement | null;
   if (isVisible(byId)) return byId;
   const byAttr = document.querySelector(`[data-highlight-id="${id}"]`) as HTMLElement | null;
@@ -59,13 +56,13 @@ function findTarget(id: string): HTMLElement | null {
     const vis = links.find(isVisible);
     if (vis) return vis;
   }
-  // Fall back to any match even if not yet laid out (the caller retries until visible).
   return byId || byAttr || (id === "nav-resume" ? (document.querySelector('a[href="/resume"]') as HTMLElement | null) : null);
 }
 
 interface Rect { top: number; left: number; width: number; height: number }
 
 export default function AssistantTutorial() {
+  const router = useRouter();
   const [showTree, setShowTree] = useState(false);
   const [spot, setSpot] = useState<Rect | null>(null);
   const [caption, setCaption] = useState<string | null>(null);
@@ -98,11 +95,9 @@ export default function AssistantTutorial() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
-  /* Narrate one step: show the caption, speak it aloud, and karaoke-highlight words.
-     `audioSrc` is an optional PRERECORDED clip — the tour script is fixed, so we serve
-     a static MP3 (zero ElevenLabs tokens). If it's missing/fails we fall back to live TTS,
-     and if that fails too, to a timed word cadence. Live TTS is reserved for real Q&A. */
-  const narrate = useCallback((text: string, myRun: number, audioSrc?: string) => new Promise<void>((resolve) => {
+  /* Narrate one step: show the caption, speak it aloud (from cached tour API), and
+     karaoke-highlight words. Falls back to a timed word cadence if audio is unavailable. */
+  const narrate = useCallback((text: string, myRun: number) => new Promise<void>((resolve) => {
     const w = text.split(/\s+/);
     setCaption(text);
     setWords(w);
@@ -112,13 +107,10 @@ export default function AssistantTutorial() {
     const done = () => {
       if (finished) return;
       finished = true;
-      // Pause but KEEP the element — reusing one unlocked <audio> lets later steps
-      // play on mobile (a fresh Audio() created after an await is blocked by autoplay).
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
       resolve();
     };
 
-    // Timed fallback if no audio: advance words on a steady cadence.
     const timedFallback = () => {
       let i = 0;
       const iv = setInterval(() => {
@@ -129,9 +121,6 @@ export default function AssistantTutorial() {
       }, 260);
     };
 
-    // Play an audio URL with karaoke sync; onFail handles a missing/broken source.
-    // Reuse ONE <audio> element so it stays "unlocked" after the first gesture-driven
-    // play — otherwise mobile blocks every step after the intro and it goes silent.
     const playUrl = (url: string, revoke: boolean, onFail: () => void) => {
       if (myRun !== runIdRef.current) { if (revoke) URL.revokeObjectURL(url); return done(); }
       if (!audioRef.current) audioRef.current = new Audio();
@@ -152,34 +141,26 @@ export default function AssistantTutorial() {
       audio.play().then(() => requestAnimationFrame(sync)).catch(() => { cleanupUrl(); onFail(); });
     };
 
-    // Live ElevenLabs synthesis (used only when no prerecorded clip is available).
-    const fetchTts = () => {
-      fetch("/api/voice/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) })
-        .then((r) => (r.ok ? r.blob() : null))
-        .then((blob) => {
-          if (myRun !== runIdRef.current) return done();
-          if (!blob) return timedFallback();
-          playUrl(URL.createObjectURL(blob), true, timedFallback);
-        })
-        .catch(() => timedFallback());
-    };
-
-    // Prefer the prerecorded clip; fall back to live TTS, then to a timed cadence.
-    if (audioSrc) playUrl(audioSrc, false, fetchTts);
-    else fetchTts();
+    fetch(`/api/voice/tour?text=${encodeURIComponent(text)}`)
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((blob) => {
+        if (myRun !== runIdRef.current) return done();
+        if (!blob) return timedFallback();
+        playUrl(URL.createObjectURL(blob), true, timedFallback);
+      })
+      .catch(() => timedFallback());
   }), []);
 
   useEffect(() => {
     const run = async () => {
       const myRun = ++runIdRef.current;
       const startY = window.scrollY;
+      const startPath = window.location.pathname;
       setRunning(true);
-      // Minimize the chat so the spotlight + captions take the stage.
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
       for (let si = 0; si < STEPS.length; si++) {
         const step = STEPS[si];
-        const stepAudio = `/tour-audio/step-${si}.mp3`;
         if (myRun !== runIdRef.current) break;
 
         if (step.kind === "intro") {
@@ -190,14 +171,11 @@ export default function AssistantTutorial() {
           setShowTree(false);
           const isNav = step.target === "nav-resume";
           const mobile = typeof window !== "undefined" && window.innerWidth < 768;
-          // On mobile, the Resume link lives inside the collapsed menu — open it first.
           if (isNav && mobile) {
             window.dispatchEvent(new CustomEvent("mdcran:open-nav"));
             await wait(500);
           }
           let el = findTarget(step.target);
-          // Mobile menu animates in — wait until the resume link is actually visible
-          // (otherwise we'd box a 0×0 hidden element and no highlight appears).
           if (isNav && mobile) {
             for (let tries = 0; tries < 8 && !isVisible(el); tries++) {
               await wait(120);
@@ -206,22 +184,15 @@ export default function AssistantTutorial() {
             }
           }
           if (el) {
-            // Center the section in the band BETWEEN the top nav and the bottom caption
-            // so it's fully visible and never hidden behind the caption. (Plain
-            // scrollIntoView centers in the whole viewport, which on mobile tucks the
-            // lower half under the caption.) Re-run after a beat to correct for any
-            // layout shift as images/content settle.
             const centerInBand = (node: HTMLElement) => {
               const r = node.getBoundingClientRect();
               const vh = window.innerHeight;
-              const topInset = 76; // nav clearance
+              const topInset = 76;
               let targetY: number;
               if (mobile) {
-                // On phones, bring the section's TOP (its title) just under the nav so
-                // the section reads top-down and isn't hidden behind the caption.
                 targetY = window.scrollY + r.top - topInset;
               } else {
-                const bottomInset = 180; // caption + breathing room
+                const bottomInset = 180;
                 const avail = Math.max(120, vh - topInset - bottomInset);
                 targetY = r.height >= avail
                   ? window.scrollY + r.top - topInset
@@ -229,7 +200,6 @@ export default function AssistantTutorial() {
               }
               window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
             };
-            // Featured projects + clients get a gentle pan through their items.
             const isPan = step.target === "featured" || step.target === "clients";
             if (!isNav) {
               centerInBand(el);
@@ -242,29 +212,56 @@ export default function AssistantTutorial() {
             if (myRun !== runIdRef.current) break;
             targetElRef.current = el;
             if (isPan) {
-              // Smooth-scroll from the top of the section to the bottom while narrating,
-              // so all the projects / clients glide past inside the spotlight.
               const node = el;
               const r0 = node.getBoundingClientRect();
-              const startY = Math.max(0, window.scrollY + r0.top - 76);
-              const endY = Math.max(startY, window.scrollY + r0.top + r0.height - window.innerHeight + 48);
+              const panStartY = Math.max(0, window.scrollY + r0.top - 76);
+              const panEndY = Math.max(panStartY, window.scrollY + r0.top + r0.height - window.innerHeight + 48);
               const t0 = performance.now();
               const PAN_MS = 5200;
               const panStep = () => {
                 if (myRun !== runIdRef.current) return;
                 const p = Math.min(1, (performance.now() - t0) / PAN_MS);
                 const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-                window.scrollTo({ top: startY + (endY - startY) * eased });
+                window.scrollTo({ top: panStartY + (panEndY - panStartY) * eased });
                 if (p < 1) requestAnimationFrame(panStep);
               };
-              if (endY - startY > 40) { window.scrollTo({ top: startY }); setTimeout(() => { if (myRun === runIdRef.current) requestAnimationFrame(panStep); }, 400); }
+              if (panEndY - panStartY > 40) { window.scrollTo({ top: panStartY }); setTimeout(() => { if (myRun === runIdRef.current) requestAnimationFrame(panStep); }, 400); }
             }
           } else {
             targetElRef.current = null;
             setSpot(null);
           }
-          await narrate(step.text, myRun, stepAudio);
-          if (isNav && mobile) window.dispatchEvent(new CustomEvent("mdcran:close-nav"));
+
+          await narrate(step.text, myRun);
+
+          // Nav-resume with click: move AI cursor to the link, click it, navigate to /resume, return home.
+          let didClickNav = false;
+          if (step.target === "nav-resume" && step.click && el) {
+            didClickNav = true;
+            const r = el.getBoundingClientRect();
+            window.dispatchEvent(new CustomEvent("mdcran:cursor-move", {
+              detail: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
+            }));
+            await wait(600);
+            if (myRun !== runIdRef.current) break;
+            window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: "resume" } }));
+            await wait(350);
+            if (myRun !== runIdRef.current) break;
+            targetElRef.current = null;
+            setSpot(null);
+            router.push("/resume");
+            await wait(2600);
+            if (myRun !== runIdRef.current) break;
+            await wait(1800); // show resume briefly
+            if (myRun !== runIdRef.current) break;
+            window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
+            router.push("/");
+            await wait(1200);
+            if (myRun !== runIdRef.current) break;
+            window.scrollTo({ top: startY, behavior: "smooth" });
+          }
+
+          if (isNav && mobile && !didClickNav) window.dispatchEvent(new CustomEvent("mdcran:close-nav"));
           if (myRun !== runIdRef.current) break;
           await wait(350);
           continue;
@@ -273,18 +270,23 @@ export default function AssistantTutorial() {
           setSpot(null);
           setShowTree(true);
         } else {
+          // return step — navigate back to where the tour started if needed.
           targetElRef.current = null;
           setSpot(null);
           setShowTree(false);
+          if (window.location.pathname !== startPath) {
+            router.push(startPath);
+            await wait(1000);
+            if (myRun !== runIdRef.current) break;
+          }
           window.scrollTo({ top: startY, behavior: "smooth" });
         }
 
-        await narrate(step.text, myRun, stepAudio);
+        await narrate(step.text, myRun);
         if (myRun !== runIdRef.current) break;
         await wait(350);
       }
 
-      // Done — only clear if this is still the active run.
       if (myRun === runIdRef.current) {
         targetElRef.current = null;
         setSpot(null);
@@ -292,7 +294,6 @@ export default function AssistantTutorial() {
         setCaption(null);
         setWordIdx(-1);
         setRunning(false);
-        // Reopen the chat now that the tour has wrapped up.
         window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
       }
     };
@@ -301,13 +302,13 @@ export default function AssistantTutorial() {
     window.addEventListener("mdcran:run-tutorial", onRun);
     return () => {
       window.removeEventListener("mdcran:run-tutorial", onRun);
-      runIdRef.current++; // cancel any in-flight run
+      runIdRef.current++;
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate]);
+  }, [narrate, router]);
 
   const endTour = () => {
-    runIdRef.current++; // cancel the in-flight run loop
+    runIdRef.current++;
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
     targetElRef.current = null;
     setSpot(null);
@@ -318,7 +319,6 @@ export default function AssistantTutorial() {
     window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
   };
 
-  // Padded spotlight rect, clamped to the viewport.
   const pad = 14;
   const box = spot
     ? {
@@ -354,7 +354,7 @@ export default function AssistantTutorial() {
         )}
       </AnimatePresence>
 
-      {/* Spotlight — four blurred panels leave the target sharp (z below the chat) */}
+      {/* Spotlight — four blurred panels leave the target sharp */}
       <AnimatePresence>
         {box && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] pointer-events-none">
@@ -362,7 +362,6 @@ export default function AssistantTutorial() {
             <div style={{ ...blurStyle, top: box.top + box.height, left: 0, width: "100%", bottom: 0 }} />
             <div style={{ ...blurStyle, top: box.top, left: 0, width: box.left, height: box.height }} />
             <div style={{ ...blurStyle, top: box.top, left: box.left + box.width, right: 0, height: box.height }} />
-            {/* Glowing focus frame */}
             <div
               className="fixed rounded-sm"
               style={{
@@ -376,31 +375,75 @@ export default function AssistantTutorial() {
         )}
       </AnimatePresence>
 
-      {/* Page index tree */}
+      {/* Page index tree — cinematic site-map reveal */}
       <AnimatePresence>
         {showTree && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
             className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
-            style={{ background: "radial-gradient(circle at center, rgba(8,4,4,0.72), rgba(4,4,4,0.88))", backdropFilter: "blur(6px)" }}
+            style={{ background: "radial-gradient(ellipse at center, rgba(10,4,4,0.88), rgba(3,3,5,0.97))", backdropFilter: "blur(8px)" }}
           >
+            {/* CRT scanlines */}
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(239,66,66,0.012) 3px, rgba(239,66,66,0.012) 4px)" }} />
+
             <motion.div
-              initial={{ scale: 0.92, y: 16, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.5 }}
-              className="relative rounded-sm border border-[#ef4242]/25 bg-[#080808]/95 px-7 py-6 font-jb text-[13px] leading-relaxed shadow-[0_24px_80px_rgba(0,0,0,0.6),0_0_40px_rgba(239,66,66,0.12)]"
+              initial={{ scale: 0.86, y: 24, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.55 }}
+              className="relative rounded-sm border border-[#ef4242]/30 bg-[#060606]/98 px-8 py-7 font-jb text-[13px] leading-relaxed shadow-[0_32px_100px_rgba(0,0,0,0.75),0_0_60px_rgba(239,66,66,0.18)]"
+              style={{ minWidth: "min(420px, 88vw)" }}
             >
-              <div className="absolute top-0 left-0 h-6 w-6 border-l border-t border-[#ef4242]/55" />
-              <div className="absolute top-0 right-0 h-6 w-6 border-r border-t border-[#ef4242]/55" />
-              <div className="absolute bottom-0 left-0 h-6 w-6 border-l border-b border-[#ef4242]/35" />
-              <div className="absolute bottom-0 right-0 h-6 w-6 border-r border-b border-[#ef4242]/35" />
-              <div className="text-[10px] uppercase tracking-[0.28em] text-[#ef4242]/80 mb-3">Indexing every page…</div>
+              {/* Corner brackets */}
+              <div className="absolute top-0 left-0 h-7 w-7 border-l-2 border-t-2 border-[#ef4242]/65" />
+              <div className="absolute top-0 right-0 h-7 w-7 border-r-2 border-t-2 border-[#ef4242]/65" />
+              <div className="absolute bottom-0 left-0 h-7 w-7 border-l-2 border-b-2 border-[#ef4242]/38" />
+              <div className="absolute bottom-0 right-0 h-7 w-7 border-r-2 border-b-2 border-[#ef4242]/38" />
+
+              {/* Scanning header */}
+              <div className="flex items-center gap-2.5 mb-3">
+                <motion.span
+                  animate={{ opacity: [1, 0.2, 1] }}
+                  transition={{ duration: 0.75, repeat: Infinity }}
+                  className="inline-block w-2 h-2 rounded-full bg-[#ef4242] shrink-0"
+                />
+                <span className="text-[10px] uppercase tracking-[0.3em] text-[#ef4242] font-medium">Scanning Site Map</span>
+                <div className="flex-1 h-px bg-gradient-to-r from-[#ef4242]/45 to-transparent" />
+              </div>
+
+              {/* Progress bar */}
+              <motion.div
+                className="h-px mb-4 origin-left"
+                style={{ background: "linear-gradient(90deg, #ef4242, rgba(239,66,66,0.2))" }}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1.6, ease: "easeOut", delay: 0.15 }}
+              />
+
+              {/* Tree lines */}
               <div className="space-y-0.5">
                 {PAGE_TREE.map((line, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07, duration: 0.25 }} className={i === 0 ? "text-white/90" : "text-white/55"}>
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.12 + i * 0.04, duration: 0.18, ease: "easeOut" }}
+                    className={i === 0 ? "text-white" : "text-white/50"}
+                    style={i === 0 ? { textShadow: "0 0 18px rgba(255,255,255,0.25)" } : {}}
+                  >
                     {line}
                   </motion.div>
                 ))}
               </div>
+
+              {/* Pulsing scan line */}
+              <motion.div
+                className="mt-4 h-px"
+                style={{ background: "linear-gradient(90deg, transparent, rgba(239,66,66,0.6), transparent)" }}
+                animate={{ opacity: [0.3, 0.9, 0.3] }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+              />
             </motion.div>
           </motion.div>
         )}

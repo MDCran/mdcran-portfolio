@@ -104,14 +104,21 @@ const MINIMAL_CHROME_PREFIXES = ["/visitor-map"];
 function applyHighlight(el: HTMLElement) {
   el.scrollIntoView({ behavior: "smooth", block: "center" });
   el.setAttribute("data-chat-highlight", "");
-  setTimeout(() => {
-    el.removeAttribute("data-chat-highlight");
-  }, 3500);
-  // Move the AI browser cursor to the highlighted element.
   const rect = el.getBoundingClientRect();
   window.dispatchEvent(new CustomEvent("mdcran:cursor-move", {
     detail: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
   }));
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const clear = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    el.removeAttribute("data-chat-highlight");
+    window.removeEventListener("mdcran:voice-busy", onBusy);
+  };
+  const onBusy = (e: Event) => {
+    if ((e as CustomEvent<{ state: string }>).detail?.state === "idle") clear();
+  };
+  window.addEventListener("mdcran:voice-busy", onBusy);
+  timer = setTimeout(clear, 10000);
 }
 
 /* ── Zoom / emphasize focus mode (agent-driven UI control) ── */

@@ -105,9 +105,7 @@ export default function LanguageSelector() {
                     <span aria-hidden="true" className="text-sm leading-none">{lang.flag}</span>
                     <span className="flex flex-col leading-tight">
                       <span>{shortLabel}</span>
-                      {lang.nativeName !== lang.name && (
-                        <span className="text-[10px] opacity-50">{lang.name}</span>
-                      )}
+                      <span className="text-[10px] opacity-50">{lang.name}</span>
                     </span>
                   </span>
                   <span className="flex items-center gap-1.5 shrink-0">

@@ -184,7 +184,7 @@ export default function ShortcutsOverlay({ open, onClose }: Props) {
                         const on = !disabled.has(s.id);
                         const isEditing = editing === s.id;
                         const customKey = custom[s.id];
-                        const isNavSequence = s.keys.length === 2 && s.keys[0].length === 1 && s.keys[0] !== "Ctrl" && s.keys[0] !== "Shift" && s.keys[0] !== "Alt";
+                        const isNavSequence = s.keys.length === 2 && (s.keys[0] as string).length === 1 && !["Ctrl","Shift","Alt"].includes(s.keys[0] as string);
 
                         const displayKeys = s.keys.map((k, i) => {
                           if (s.remappable && i === s.keys.length - 1) {

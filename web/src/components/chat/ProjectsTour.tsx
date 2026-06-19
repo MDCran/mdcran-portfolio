@@ -59,7 +59,7 @@ export default function ProjectsTour() {
         else setWordIdx(i);
       }, 230);
     };
-    fetch("/api/voice/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) })
+    fetch(`/api/voice/tour?text=${encodeURIComponent(text)}`)
       .then((r) => (r.ok ? r.blob() : null))
       .then((blob) => {
         if (myRun !== runIdRef.current) return done();
