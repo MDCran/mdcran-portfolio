@@ -127,6 +127,11 @@ export default function AccessibilityMenu() {
     return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
+  // Broadcast panel open/close so LanguageWarning can hide itself when the panel is open.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("mdcran:a11y-panel", { detail: { open } }));
+  }, [open]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(KEY);

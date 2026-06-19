@@ -204,7 +204,7 @@ export default function PageTranslator() {
       debounce = setTimeout(() => {
         const batch = pending.splice(0);
         void translateNewNodes(batch, targetCode);
-      }, 300);
+      }, 80);
     });
 
     obs.observe(document.body, { childList: true, subtree: true });

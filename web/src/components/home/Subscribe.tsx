@@ -134,15 +134,15 @@ export default function Subscribe() {
                   onSubmit={handleSubmit}
                   className="space-y-5"
                 >
-                  {/* Mode selector */}
-                  <div className="flex items-center gap-1 p-1 rounded-sm border border-white/8 bg-white/3 w-fit mb-1">
+                  {/* Mode selector — data-no-translate keeps labels in English across all languages */}
+                  <div className="flex items-center gap-1 p-1 rounded-sm border border-white/8 bg-white/3 w-fit mb-1" data-no-translate>
                     {([["email", "Email"], ["phone", "SMS"], ["both", "Both"]] as [Mode, string][]).map(
                       ([m, label]) => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setMode(m)}
-                          className={`px-3 py-1.5 text-[11px] tracking-wider uppercase rounded-sm transition-all duration-200 ${
+                          className={`px-3 py-1.5 text-[11px] tracking-wider uppercase rounded-sm transition-all duration-200 whitespace-nowrap ${
                             mode === m
                               ? "bg-[#ef4242] text-white"
                               : "text-white/40 hover:text-white"
