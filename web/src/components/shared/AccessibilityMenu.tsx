@@ -13,6 +13,7 @@ import ScreenReaderPopups, { useScreenReader } from "@/components/shared/ScreenR
 import { flagEmoji } from "@/lib/flag";
 import PersonalIdentity from "@/components/shared/PersonalIdentity";
 import LanguageSelector from "@/components/shared/LanguageSelector";
+import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
 
 type Colorblind = "none" | "deuteranopia" | "protanopia" | "tritanopia";
 type CursorMode = "default" | "large" | "circle" | "contrast";
@@ -102,6 +103,7 @@ export default function AccessibilityMenu() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [prefs, setPrefs] = useState<A11yPrefs>(DEFAULTS);
+  const [showLangHint, setShowLangHint] = useState(false);
   const [country, setCountry] = useState<string>("United States");
   const [countryCode, setCountryCode] = useState<string>("US");
   const [isMobile, setIsMobile] = useState(false);
@@ -142,6 +144,21 @@ export default function AccessibilityMenu() {
       if (d?.country) setCountryCode(d.country);
     }).catch(() => {});
   }, [open, countryCode]);
+
+  // Show language hint tooltip on page load, auto-dismiss after 8s.
+  useEffect(() => {
+    const key = "mdcran_lang_hint_seen";
+    try { if (localStorage.getItem(key)) return; } catch { /* */ }
+    const show = setTimeout(() => {
+      setShowLangHint(true);
+      const hide = setTimeout(() => {
+        setShowLangHint(false);
+        try { localStorage.setItem(key, "1"); } catch { /* */ }
+      }, 8000);
+      return () => clearTimeout(hide);
+    }, 1800);
+    return () => clearTimeout(show);
+  }, []);
 
   const update = useCallback((patch: Partial<A11yPrefs>) => {
     setPrefs((prev) => { const next = { ...prev, ...patch }; applyPrefs(next); return next; });
@@ -198,14 +215,25 @@ export default function AccessibilityMenu() {
 
       <div ref={panelRef} className="fixed bottom-6 left-6 z-50">
         {!open ? (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Accessibility options"
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/12 bg-[#0d0d0d] text-white/70 hover:text-white hover:border-[var(--cranberry)]/50 hover:shadow-[0_4px_24px_rgba(239,66,66,0.18)] shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all cursor-pointer"
-          >
-            <Accessibility size={18} />
-          </button>
+          <div className="relative inline-block">
+            {showLangHint && (
+              <div className="absolute bottom-[calc(100%+8px)] left-0 whitespace-nowrap">
+                <div className="rounded-sm border border-white/15 bg-[#0d0d0d]/95 px-2.5 py-1.5 text-[10px] text-white/70 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.6)] flex items-center gap-1.5">
+                  <span className="text-[#ef4242] font-medium">Now Supports {SUPPORTED_LANGUAGES.length}+ Languages</span>
+                  <button onClick={() => setShowLangHint(false)} className="text-white/25 hover:text-white/60 leading-none ml-1">✕</button>
+                </div>
+                <div className="absolute left-4 top-full h-1.5 w-1.5 border-b border-r border-white/15 bg-[#0d0d0d]/95 rotate-45 translate-y-[-50%]" />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => { setOpen(true); setShowLangHint(false); }}
+              aria-label="Accessibility options"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/12 bg-[#0d0d0d] text-white/70 hover:text-white hover:border-[var(--cranberry)]/50 hover:shadow-[0_4px_24px_rgba(239,66,66,0.18)] shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all cursor-pointer"
+            >
+              <Accessibility size={18} />
+            </button>
+          </div>
         ) : (
           <div className="w-[min(calc(100vw-3rem),20rem)] max-h-[80vh] overflow-y-auto rounded-sm border border-white/12 bg-[#0b0b0b]/97 backdrop-blur-xl p-4 shadow-[0_24px_80px_rgba(0,0,0,0.6)] space-y-4">
             <div className="flex items-center justify-between">
