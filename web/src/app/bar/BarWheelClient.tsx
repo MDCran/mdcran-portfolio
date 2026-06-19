@@ -384,6 +384,12 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
               <p className="mt-1 text-[10px] uppercase tracking-[0.24em]" style={{ color: result.color }}>{result.category.name}</p>
               <p className="mt-1.5 font-nord text-3xl uppercase text-white">{result.label}</p>
               <p className="mt-2 text-[12px] leading-relaxed text-white/55">{result.category.description}</p>
+              {result.category.recipes?.[result.label] && (
+                <div className="mt-3 rounded-sm border border-white/10 bg-white/5 p-3 text-left">
+                  <p className="mb-1.5 text-[9px] uppercase tracking-[0.25em]" style={{ color: result.color }}>How to make it</p>
+                  <p className="text-[11px] leading-relaxed text-white/70">{result.category.recipes[result.label]}</p>
+                </div>
+              )}
               <button onClick={() => setShowWinner(false)} className="mt-4 h-10 w-full rounded-sm bg-[#ef4242] text-sm font-medium uppercase tracking-wider text-white">Got it — spin again</button>
             </div>
           </motion.div>

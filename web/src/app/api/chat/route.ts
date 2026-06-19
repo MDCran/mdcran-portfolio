@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import {
-  getProjects, getClients, getArticles, getExperiences, getSkills, getCertifications,
+  getProjects, getClients, getArticles, getExperiences, getSkills, getSkillCategories, getCertifications,
   getChatConfig, saveChatConfig, type ChatConfig,
   checkChatRateLimit, getChatRateLimitEntries, clearChatRateLimits,
   getAwards, getClubs, getEducations, getResumeProfile,
@@ -175,7 +175,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
     return new Response(JSON.stringify({ error: "Rate limited. Try again later." }), { status: 429 });
   }
 
-  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] } };
+  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] }; domContext?: string };
   try {
     body = await req.json();
   } catch {
@@ -196,18 +196,21 @@ async function handlePost(req: NextRequest): Promise<Response> {
       : tone === "concise"
       ? "TONE OVERRIDE: Be extra concise — short, direct answers, no filler, get to the point fast."
       : "TONE OVERRIDE: Keep a warm, friendly, conversational tone.";
+  const domContext = typeof body.domContext === "string" && body.domContext.trim() ? body.domContext.trim() : null;
+  const speakMode = body.speak === true;
 
   /* ── Fetch portfolio context ── */
   let contextStr = "";
   let profileLocation = "Orlando, Florida";
   let currentPageSubject = ""; // exact thing the user is looking at, resolved from the URL
   try {
-    const [projects, clients, articles, experiences, skills, certs, awards, clubs, educations, profile] = await Promise.all([
+    const [projects, clients, articles, experiences, skills, skillCats, certs, awards, clubs, educations, profile] = await Promise.all([
       getProjects({ refreshVideoViews: false }),
       getClients(),
       getArticles(),
       getExperiences(),
       getSkills(),
+      getSkillCategories(),
       getCertifications(),
       getAwards(),
       getClubs(),
@@ -307,7 +310,17 @@ async function handlePost(req: NextRequest): Promise<Response> {
       `ARTICLES (${articles.length}):\n${articleLines.join("\n")}`,
       `EXPERIENCE (${experiences.length}):\n${experienceLines.join("\n")}`,
       `EDUCATION:\n${educationLines.join("\n")}`,
-      `SKILLS: ${skills.map((s) => s.name).join(", ")}`,
+      `SKILLS:\n${(() => {
+        const catMap = new Map(skillCats.map((c) => [c.id, c.label]));
+        const byCategory = new Map<string, string[]>();
+        for (const s of skills) {
+          const label = catMap.get(s.category) ?? s.category;
+          if (!byCategory.has(label)) byCategory.set(label, []);
+          byCategory.get(label)!.push(s.name);
+        }
+        if (byCategory.size === 0) return skills.map((s) => s.name).join(", ");
+        return Array.from(byCategory.entries()).map(([cat, names]) => `  ${cat}: ${names.join(", ")}`).join("\n");
+      })()}`,
       `CERTIFICATIONS: ${certs.map((c) => c.name).join(", ")}`,
       `AWARDS: ${awardLines.join(", ")}`,
       `ORGANIZATIONS: ${clubLines.join(", ")}`,
@@ -407,7 +420,7 @@ CRITICAL — RESPONSE QUALITY:
 - IMPORTANT: Michael did NOT work for MrBeast. He participated in a Minecraft build challenge for MrBeast Gaming. Never say he "worked for" MrBeast — always say he participated in a build challenge and link to that specific project page.
 
 ABOUT MICHAEL CRAN (COMPREHENSIVE BIO):
-- Full name: Michael David Cran (goes by MDCran online)
+- Full name: Michael David Cran (goes by MDCran online). PRONUNCIATION: "MDCran" is always spoken as the individual letters "M. D." followed by "Cran" — never as a single word. Say "M-D-Cran" when speaking or describing the name aloud.
 - Born: February 9, 2004. Age: ${michaelAge}. Do NOT share his exact birthday or date of birth unless the user specifically asks when his birthday is.
 - Favorite color: red
 - Based in ${profileLocation}
@@ -442,7 +455,10 @@ ${currentPageSubject ? `- ${currentPageSubject}` : `- When the user says "this",
 - If they ask "who was this made for" or "who is the client" — answer with the client(s) and highlight: __HIGHLIGHT:project-clients__
 - When you NAVIGATE the user to a project or article, don't just say "here you go" — actually TELL them about it: what it is, Michael's role, what makes it notable, the client/result. Give a real, substantive description (a short paragraph), then offer to dig deeper.
 - You can scroll the page to and spotlight any section or component with __HIGHLIGHT:target__ (it scrolls the element into view), or __ZOOM:target__ to focus on it. Use these to physically guide the user around the page they're on.
-
+${domContext ? `
+CURRENT PAGE DOM (live snapshot — use element text, button labels, and headings verbatim when using HIGHLIGHT/ZOOM/POINT/CLICK markers):
+${domContext}
+` : ""}
 PORTFOLIO DATA:
 ${contextStr}
 ${chatConfig.extraContext && chatConfig.extraContext.trim() ? `\nADDITIONAL CONTEXT (authored by Michael's team — treat as authoritative and use it when relevant):\n${chatConfig.extraContext.trim()}\n` : ""}
@@ -682,12 +698,15 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
     // Try the configured model first, then fall back to known-good models if it
     // isn't available on this key (e.g. 404/permission). We only fall back when
     // NO text has streamed yet, so the user never sees a half-answer.
-    const modelChain = Array.from(new Set([
-      process.env.ANTHROPIC_MODEL || "claude-opus-4-7",
-      "claude-sonnet-4-6",
-      "claude-3-5-sonnet-latest",
-      "claude-3-5-haiku-latest",
-    ]));
+    // Voice mode uses Haiku first for lowest latency (real-time speech).
+    const modelChain = speakMode
+      ? Array.from(new Set(["claude-haiku-4-5-20251001", "claude-3-5-haiku-latest", "claude-sonnet-4-6"]))
+      : Array.from(new Set([
+          process.env.ANTHROPIC_MODEL || "claude-opus-4-7",
+          "claude-sonnet-4-6",
+          "claude-3-5-sonnet-latest",
+          "claude-3-5-haiku-latest",
+        ]));
 
     const readable = new ReadableStream({
       async start(controller) {

@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
+import { LanguageProvider } from "@/lib/i18n";
 import AccessibilityMenu from "@/components/shared/AccessibilityMenu";
 import ScrollProgress from "@/components/shared/ScrollProgress";
+import PageTranslator from "@/components/shared/PageTranslator";
 import CookieConsent from "@/components/shared/CookieConsent";
 import ExternalLinkGuard from "@/components/shared/ExternalLinkGuard";
 import MoodEngine from "@/components/shared/MoodEngine";
@@ -44,6 +46,11 @@ const ProjectsTour = dynamic(
 
 const GhostCursor = dynamic(
   () => import("@/components/chat/GhostCursor"),
+  { ssr: false },
+);
+
+const AIBrowserCursor = dynamic(
+  () => import("@/components/chat/AIBrowserCursor"),
   { ssr: false },
 );
 
@@ -188,7 +195,8 @@ export default function GlobalChrome() {
   const hideFunChrome = ["/rizz", "/bar"].some((p) => pathname.startsWith(p));
 
   return (
-    <>
+    <LanguageProvider>
+      <PageTranslator />
       <StatusBanner />
       <TerminalExperience />
       <KeyboardShortcuts />
@@ -204,6 +212,7 @@ export default function GlobalChrome() {
         </>
       )}
       <GhostCursor />
+      <AIBrowserCursor />
       <ThemeOverlay />
       <ThemeEffectsOverlay />
       <SectionWheel />
@@ -211,6 +220,6 @@ export default function GlobalChrome() {
       <ExternalLinkGuard />
       <MoodEngine />
       <IdentityTracker />
-    </>
+    </LanguageProvider>
   );
 }

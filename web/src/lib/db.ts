@@ -1414,9 +1414,22 @@ export async function logVisitorSession(data: {
   );
 }
 
+export async function getVisitorMultiplier(): Promise<number> {
+  const db = await getDb();
+  const doc = await db.collection("settings").findOne<{ key: string; value: number }>({ key: "visitor_multiplier" });
+  const v = doc?.value ?? 1;
+  return typeof v === "number" && v >= 1 ? v : 1;
+}
+
+export async function setVisitorMultiplier(multiplier: number): Promise<void> {
+  const db = await getDb();
+  const v = Math.max(1, multiplier);
+  await db.collection("settings").updateOne({ key: "visitor_multiplier" }, { $set: { key: "visitor_multiplier", value: v } }, { upsert: true });
+}
+
 export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry[]> {
   const db = await getDb();
-  const [realResults, adjustments] = await Promise.all([
+  const [realResults, adjustments, multiplier] = await Promise.all([
     db.collection("visitors")
       .aggregate([
         {
@@ -1442,6 +1455,7 @@ export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry
       ])
       .toArray(),
     db.collection("visitorAdjustments").find({}, { projection: { _id: 0 } }).toArray(),
+    getVisitorMultiplier(),
   ]);
 
   const countryMap = new Map<string, VisitorCountByCountry>();
@@ -1463,17 +1477,22 @@ export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry
       });
     }
   }
-  return Array.from(countryMap.values()).sort((a, b) => b.count - a.count);
+  const results = Array.from(countryMap.values()).sort((a, b) => b.count - a.count);
+  if (multiplier > 1) {
+    for (const r of results) r.count = Math.round(r.count * multiplier);
+  }
+  return results;
 }
 
 export async function getTotalVisitorCount(): Promise<number> {
   const db = await getDb();
-  const [realCount, adjustments] = await Promise.all([
+  const [realCount, adjustments, multiplier] = await Promise.all([
     db.collection("visitors").countDocuments(),
     db.collection("visitorAdjustments").find({}, { projection: { addedCount: 1 } }).toArray(),
+    getVisitorMultiplier(),
   ]);
   const adjustedTotal = adjustments.reduce((sum, a) => sum + ((a as unknown as { addedCount: number }).addedCount || 0), 0);
-  return realCount + adjustedTotal;
+  return Math.round((realCount + adjustedTotal) * multiplier);
 }
 
 // ─── Visitor Adjustments ─────────────────────────────────────────────────────
@@ -1492,6 +1511,49 @@ export async function addVisitorAdjustment(adj: VisitorAdjustment): Promise<void
 export async function deleteVisitorAdjustment(id: string): Promise<void> {
   const db = await getDb();
   await db.collection("visitorAdjustments").deleteOne({ id });
+}
+
+// ─── Translation Cache ────────────────────────────────────────────────────────
+// Keyed by { hash, target } where hash = sha-256 of the source text.
+// When source text changes the hash changes → automatic cache invalidation.
+
+export async function getTranslationCache(
+  lookups: { hash: string; target: string }[]
+): Promise<Map<string, string>> {
+  if (!lookups.length) return new Map();
+  const db = await getDb();
+  const docs = await db
+    .collection("translationCache")
+    .find(
+      { $or: lookups.map((l) => ({ hash: l.hash, target: l.target })) },
+      { projection: { _id: 0, hash: 1, target: 1, translatedText: 1 } }
+    )
+    .toArray();
+  const out = new Map<string, string>();
+  for (const doc of docs as unknown as { hash: string; target: string; translatedText: string }[]) {
+    out.set(`${doc.hash}:${doc.target}`, doc.translatedText);
+  }
+  return out;
+}
+
+export async function saveTranslationCache(
+  entries: { hash: string; source: string; target: string; text: string; translatedText: string }[]
+): Promise<void> {
+  if (!entries.length) return;
+  const db = await getDb();
+  const now = new Date().toISOString();
+  await db.collection("translationCache").bulkWrite(
+    entries.map((e) => ({
+      updateOne: {
+        filter: { hash: e.hash, target: e.target },
+        update: {
+          $set: { source: e.source, target: e.target, hash: e.hash, text: e.text.slice(0, 2000), translatedText: e.translatedText, updatedAt: now },
+          $setOnInsert: { createdAt: now },
+        },
+        upsert: true,
+      },
+    }))
+  );
 }
 
 // ─── Status Page ─────────────────────────────────────────────────────────────

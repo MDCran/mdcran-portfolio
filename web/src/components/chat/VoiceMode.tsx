@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
-import { X, Mic, Loader2, HelpCircle } from "lucide-react";
+import { X, Mic, Loader2 } from "lucide-react";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart } from "@/lib/visitor-memory";
 
@@ -90,6 +90,9 @@ export default function VoiceMode() {
   const [captionWords, setCaptionWords] = useState<string[]>([]); // bottom-middle karaoke of the spoken reply
   const [captionIdx, setCaptionIdx] = useState(-1);
   const captionRafRef = useRef<number | null>(null);
+  const [showSilenceTip, setShowSilenceTip] = useState(false); // shown after long mic inactivity
+  const lastMicActivityRef = useRef(Date.now());
+  const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Audio / recognition refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -140,6 +143,21 @@ export default function VoiceMode() {
     window.dispatchEvent(new CustomEvent(open ? "mdcran:voice-state-open" : "mdcran:voice-state-close"));
   }, [open]);
 
+  /* Silence detection — show a tip after 45s of mic inactivity while listening. */
+  useEffect(() => {
+    if (!open) { setShowSilenceTip(false); return; }
+    lastMicActivityRef.current = Date.now();
+    silenceTimerRef.current = setInterval(() => {
+      if (phaseRef.current !== "listening") { lastMicActivityRef.current = Date.now(); return; }
+      const idleMs = Date.now() - lastMicActivityRef.current;
+      if (idleMs >= 45_000) setShowSilenceTip(true);
+    }, 5_000);
+    return () => {
+      if (silenceTimerRef.current) clearInterval(silenceTimerRef.current);
+      setShowSilenceTip(false);
+    };
+  }, [open]);
+
   /* ── Drive the reactive orb amplitude; handle barge-in ── */
   const startMeter = useCallback(() => {
     const mic = analyserRef.current;
@@ -157,11 +175,16 @@ export default function VoiceMode() {
       const avg = sum / aData.length / 255;
       setAmplitude((prev) => prev * 0.6 + avg * 0.4);
 
-      // Mic RMS for barge-in detection.
+      // Mic RMS for barge-in detection + silence tracking.
       mic.getByteTimeDomainData(time);
       let rms = 0;
       for (let i = 0; i < time.length; i++) { const v = (time[i] - 128) / 128; rms += v * v; }
       rms = Math.sqrt(rms / time.length);
+      // Reset silence timer when user speaks above noise floor.
+      if (rms > 0.04 && phaseRef.current === "listening") {
+        lastMicActivityRef.current = Date.now();
+        setShowSilenceTip(false);
+      }
 
       // Barge-in: sustained mic energy while the assistant is speaking → user interrupted.
       // Echo guard: the assistant's voice leaks into the mic, so require the mic level to
@@ -705,6 +728,53 @@ export default function VoiceMode() {
             )}
           </AnimatePresence>
 
+          {/* Sine wave mic meter — top center, visible while listening */}
+          <AnimatePresence>
+            {phase === "listening" && !interim && !userSaid && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="fixed top-5 left-1/2 z-[74] -translate-x-1/2 pointer-events-none"
+              >
+                <div className="flex items-end gap-[3px]" style={{ height: 20 }}>
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => {
+                    const base = 3;
+                    const peak = base + amplitude * 14 * (0.5 + Math.sin(i * 0.9) * 0.5);
+                    return (
+                      <motion.span
+                        key={i}
+                        className="rounded-full"
+                        style={{ width: 3, backgroundColor: "var(--theme-primary, #ef4242)", opacity: 0.7 + amplitude * 0.3 }}
+                        animate={{ height: [base, Math.max(base, peak), base] }}
+                        transition={{ duration: 0.4 + i * 0.04, repeat: Infinity, delay: i * 0.06, ease: "easeInOut" }}
+                      />
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Silence tip — shown after 45s of inactivity while listening */}
+          <AnimatePresence>
+            {showSilenceTip && phase === "listening" && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3 }}
+                className="fixed top-16 left-1/2 z-[74] -translate-x-1/2 w-[min(88vw,20rem)]"
+              >
+                <div className="rounded-sm border border-white/10 bg-[#0c0c0e]/95 px-4 py-3 text-center text-[12px] leading-relaxed text-white/60 backdrop-blur-xl shadow-[0_16px_50px_rgba(0,0,0,0.55)]">
+                  Still there? Feel free to ask a question, or tap <span className="text-[var(--theme-primary,#ef4242)]">End Voice Chat</span> when you&apos;re done.
+                  <button onClick={() => setShowSilenceTip(false)} className="ml-2 text-white/30 hover:text-white" aria-label="Dismiss tip"><X size={11} /></button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Siri-like floating widget — stays on while you browse */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8, y: 12 }}
@@ -713,12 +783,16 @@ export default function VoiceMode() {
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
-            {/* Controls row — the mic orb below ends voice mode (tap when idle). */}
+            {/* Status label + End Voice Chat */}
             <div className="flex items-center gap-1.5">
               <span className="rounded-sm border border-[#ef4242]/25 bg-black/60 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-[#ef4242]/90 backdrop-blur-sm">{shortLabel}</span>
-              <button onClick={() => setShowTips((s) => !s)} title="Example questions" aria-label="Example questions"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-black/50 text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors">
-                <HelpCircle size={13} />
+              <button
+                onClick={close}
+                aria-label="End voice chat"
+                title="End voice chat"
+                className="flex items-center gap-1 h-7 px-2.5 rounded-sm border border-white/15 bg-black/60 text-[9px] uppercase tracking-[0.16em] text-white/55 hover:text-white hover:border-white/30 backdrop-blur-sm transition-colors"
+              >
+                End
               </button>
             </div>
 

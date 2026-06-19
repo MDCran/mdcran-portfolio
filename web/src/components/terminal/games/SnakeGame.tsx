@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // Constants
 // ---------------------------------------------------------------------------
 const GRID_SIZE = 20;
-const INITIAL_SPEED = 150; // ms per tick
+const INITIAL_SPEED = 130; // ms per tick
 const MIN_SPEED = 80;
 const SPEED_INCREMENT_INTERVAL = 5; // every N points the base speed drops by 10 ms
 
@@ -29,7 +29,7 @@ const HIGH_SCORE_KEY = "snake-high-score";
 type Direction = "UP" | "DOWN" | "LEFT" | "RIGHT";
 type Position = { x: number; y: number };
 
-type PowerupKind = "speed" | "slow" | "ghost" | "double";
+type PowerupKind = "speed" | "slow" | "ghost" | "double" | "multifood";
 
 interface Powerup {
   kind: PowerupKind;
@@ -110,6 +110,7 @@ const POWERUP_META: Record<PowerupKind, { color: string; icon: string; label: st
   slow: { color: "#a855f7", icon: "\u23F0", label: "SLOW", duration: 5000 },
   ghost: { color: "#e2e8f0", icon: "\uD83D\uDC7B", label: "GHOST", duration: 6000 },
   double: { color: "#facc15", icon: "\u2B50", label: "2\u00D7PTS", duration: Infinity }, // lasts for 5 food items, not time
+  multifood: { color: "#f97316", icon: "\uD83C\uDF55", label: "FEAST", duration: 10000 }, // extra food items appear
 };
 
 // ---------------------------------------------------------------------------
@@ -138,6 +139,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
   const powerupRef = useRef<Powerup | null>(null);
   const activeEffectsRef = useRef<ActiveEffect[]>([]);
   const nextPowerupTimeRef = useRef(0); // timestamp when next powerup should spawn
+  const extraFoodRef = useRef<Position[]>([]); // bonus food positions during multifood effect
 
   const particlesRef = useRef<Particle[]>([]);
   const scorePopupsRef = useRef<ScorePopup[]>([]);
@@ -402,12 +404,38 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
             newSnake.pop();
           }
 
+          // Check extra food pickup (multifood effect)
+          const ateExtraIdx = extraFoodRef.current.findIndex((ef) => posEq(head, ef));
+          if (ateExtraIdx !== -1) {
+            scoreRef.current += 1;
+            setScore(scoreRef.current);
+            spawnParticles((head.x + 0.5) * cellW, (head.y + 0.5) * cellH, "#f97316");
+            addScorePopup(head.x, head.y, 1);
+            // Replace eaten extra food with a new one at a free cell
+            const occupied2 = [...newSnake, foodRef.current, ...extraFoodRef.current];
+            extraFoodRef.current = [
+              ...extraFoodRef.current.slice(0, ateExtraIdx),
+              randomFreeCell(occupied2),
+              ...extraFoodRef.current.slice(ateExtraIdx + 1),
+            ];
+            // Grow the snake for eating extra food too
+            newSnake.push(newSnake[newSnake.length - 1]);
+          }
+
           // Check powerup pickup
           const pu = powerupRef.current;
           if (pu && posEq(head, pu.pos)) {
             const meta = POWERUP_META[pu.kind];
             if (pu.kind === "double") {
               activeEffectsRef.current.push({ kind: "double", expiresAt: Infinity, remaining: 5 });
+            } else if (pu.kind === "multifood") {
+              activeEffectsRef.current = activeEffectsRef.current.filter((e) => e.kind !== "multifood");
+              activeEffectsRef.current.push({ kind: "multifood", expiresAt: now + meta.duration });
+              // Spawn 3 bonus food items immediately
+              const base = [...newSnake, foodRef.current];
+              const ef: Position[] = [];
+              for (let fi = 0; fi < 3; fi++) ef.push(randomFreeCell([...base, ...ef]));
+              extraFoodRef.current = ef;
             } else {
               // Remove existing effect of same kind, then add
               activeEffectsRef.current = activeEffectsRef.current.filter((e) => e.kind !== pu.kind);
@@ -428,17 +456,18 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
             powerupRef.current = null;
           }
 
-          // Expire active effects (time-based)
+          // Expire active effects; clear extra food when multifood ends
           activeEffectsRef.current = activeEffectsRef.current.filter((e) => {
             if (e.kind === "double") return (e.remaining ?? 0) > 0;
+            if (e.kind === "multifood" && now >= e.expiresAt) { extraFoodRef.current = []; return false; }
             return now < e.expiresAt;
           });
 
           // Spawn powerup
           if (!powerupRef.current && now >= nextPowerupTimeRef.current) {
-            const kinds: PowerupKind[] = ["speed", "slow", "ghost", "double"];
+            const kinds: PowerupKind[] = ["speed", "slow", "ghost", "double", "multifood"];
             const kind = kinds[Math.floor(Math.random() * kinds.length)];
-            const occupied = [...newSnake, foodRef.current];
+            const occupied = [...newSnake, foodRef.current, ...extraFoodRef.current];
             powerupRef.current = { kind, pos: randomFreeCell(occupied), spawnedAt: now };
             scheduleNextPowerup();
           }
@@ -520,6 +549,22 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
         ctx.fillStyle = FOOD_COLOR;
         ctx.beginPath();
         ctx.arc(cx, cy, r + pulse * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // -- Extra food (multifood effect, orange) --
+      for (const ef of extraFoodRef.current) {
+        const pulse2 = 0.5 + 0.5 * Math.sin(now / 250 + ef.x);
+        const cx2 = (ef.x + 0.5) * cellW;
+        const cy2 = (ef.y + 0.5) * cellH;
+        const r2 = cellW * 0.34;
+        ctx.save();
+        ctx.shadowColor = "#f97316";
+        ctx.shadowBlur = 6 + pulse2 * 8;
+        ctx.fillStyle = "#f97316";
+        ctx.beginPath();
+        ctx.arc(cx2, cy2, r2 + pulse2 * 1.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }

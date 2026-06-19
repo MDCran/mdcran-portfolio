@@ -417,5 +417,33 @@ export const defaultSiteContent: SiteContent = {
       description: "A hilarious mood-killer option that is actually incredibly useful if it's getting late and someone needs a break.",
       options: ["Water", "Red Bull / Energy Drink", "Club Soda with Lime", "Coke / Soda"],
     },
+    {
+      id: "naughty-shots",
+      name: "Naughty Shots",
+      color: "#ec4899",
+      description: "The ones that make you do a double-take when you order them. Every bar can make these — they just might blush.",
+      options: ["Wet Pussy", "Blow Job", "Buttery Nipple", "Slippery Nipple", "Sex on the Beach (shot)"],
+      recipes: {
+        "Wet Pussy": "Fill a shot glass with equal parts peach schnapps and Bailey's Irish Cream. Pour the Bailey's slowly over the back of a spoon to create a float on top. No mixing — layered beauty.",
+        "Blow Job": "Layer equal parts Bailey's and Kahlúa in a shot glass. Top generously with whipped cream. The catch: drink it hands-free, no touching the glass.",
+        "Buttery Nipple": "Combine ¾ oz butterscotch schnapps and ¾ oz Bailey's in a shaker with ice. Strain into a shot glass. Creamy, sweet, zero shame.",
+        "Slippery Nipple": "Layer ¾ oz Sambuca in the bottom of a shot glass, then slowly pour ¾ oz Bailey's on top using the back of a spoon. Silky smooth.",
+        "Sex on the Beach (shot)": "Equal parts vodka, peach schnapps, cranberry juice, and OJ (½ oz each). Shake with ice, strain into a shot glass. Fruity and sneaky strong.",
+      },
+    },
+    {
+      id: "bar-bets",
+      name: "Bar Bets",
+      color: "#84cc16",
+      description: "Weird, funny, or wildly specific drinks that any bar can make. Perfect for a bet, a dare, or just pure chaos.",
+      options: ["Pickle Back", "Boilermaker", "The Red Snapper", "Death in the Afternoon", "Shirley Temple (non-alcoholic)"],
+      recipes: {
+        "Pickle Back": "Order a shot of whiskey — preferably Jameson. Chase it immediately with a shot of pickle brine straight from the jar. Sounds wrong, tastes weirdly right.",
+        "Boilermaker": "Drop a shot glass of whiskey directly into a pint of lager or pilsner. Drink it as fast as you can before it foams over. Classic dive bar move.",
+        "The Red Snapper": "2 oz whiskey, ½ oz amaretto, splash of Coke — served on the rocks. Tastes like a Cherry Coke that went to college.",
+        "Death in the Afternoon": "Pour 1½ oz absinthe into a champagne flute. Slowly pour chilled champagne on top until the drink turns a cloudy, pale yellow. Named by Hemingway. No notes.",
+        "Shirley Temple (non-alcoholic)": "Fill a glass with ice, pour in ginger ale and a splash of OJ, add a generous pour of grenadine. Stir gently, garnish with a maraschino cherry. Perfect if you're the designated driver, or just smart.",
+      },
+    },
   ],
 };

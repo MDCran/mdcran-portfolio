@@ -374,20 +374,26 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         const neighbors = getNeighbors(maze, ghost.pos);
         if (neighbors.length === 0) continue;
 
+        // Filter out previous position to prevent back-and-forth oscillation on mobile
+        const noReverse = neighbors.filter(
+          (n) => !(n.pos.x === ghost.prevPos.x && n.pos.y === ghost.prevPos.y)
+        );
+        const choices = noReverse.length > 0 ? noReverse : neighbors;
+
         ghost.prevPos = { ...ghost.pos };
         const chaseTarget = !powerRef.current;
         const rand = Math.random();
 
-        if (rand < 0.7) {
+        if (rand < 0.75) {
           if (chaseTarget) {
-            neighbors.sort((a, b) => dist(a.pos, pac) - dist(b.pos, pac));
+            choices.sort((a, b) => dist(a.pos, pac) - dist(b.pos, pac));
           } else {
-            neighbors.sort((a, b) => dist(b.pos, pac) - dist(a.pos, pac));
+            choices.sort((a, b) => dist(b.pos, pac) - dist(a.pos, pac));
           }
-          ghost.pos = { ...neighbors[0].pos };
+          ghost.pos = { ...choices[0].pos };
         } else {
-          const ri = Math.floor(Math.random() * neighbors.length);
-          ghost.pos = { ...neighbors[ri].pos };
+          const ri = Math.floor(Math.random() * choices.length);
+          ghost.pos = { ...choices[ri].pos };
         }
       }
     }

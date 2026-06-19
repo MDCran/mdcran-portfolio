@@ -4,6 +4,8 @@ import {
   getVisitorAdjustments,
   addVisitorAdjustment,
   deleteVisitorAdjustment,
+  getVisitorMultiplier,
+  setVisitorMultiplier,
 } from "@/lib/db";
 
 function isAdmin(req: NextRequest): boolean {
@@ -13,16 +15,26 @@ function isAdmin(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const [counts, adjustments] = await Promise.all([
+  const [counts, adjustments, multiplier] = await Promise.all([
     getVisitorCountsByCountry(),
     getVisitorAdjustments(),
+    getVisitorMultiplier(),
   ]);
-  return NextResponse.json({ counts, adjustments });
+  return NextResponse.json({ counts, adjustments, multiplier });
 }
 
 export async function POST(req: NextRequest) {
   if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
+
+  // Multiplier update
+  if (body.type === "multiplier") {
+    const m = Number(body.multiplier);
+    if (!isFinite(m) || m < 1) return NextResponse.json({ error: "Invalid multiplier" }, { status: 400 });
+    await setVisitorMultiplier(m);
+    return NextResponse.json({ success: true, multiplier: m });
+  }
+
   const { country, countryName, addedCount } = body;
   if (!country || !countryName || !addedCount || addedCount < 1) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });

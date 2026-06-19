@@ -181,9 +181,10 @@ export default function ArticlesPage() {
                       <p className="text-sm text-white/50 leading-relaxed mb-6">{featured.excerpt}</p>
                       <AuthorByline date={featured.publishDate} minutes={articleReadMinutes(featured)} size="md" />
                       <div className="flex flex-wrap gap-2 mt-4">
-                        {featured.tags.slice(0, 4).map((tag) => (
-                          <span key={tag} className="text-[9px] text-white/25 bg-white/4 px-2 py-0.5 rounded-sm">#{tag}</span>
-                        ))}
+                        {featured.tags.slice(0, 4).map((tag) => {
+                          const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
+                          return <span key={tag} className="text-[9px] text-white/25 bg-white/4 px-2 py-0.5 rounded-sm">{display}</span>;
+                        })}
                       </div>
                     </div>
                   </div>
