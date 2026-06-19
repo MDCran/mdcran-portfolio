@@ -74,6 +74,7 @@ const LANG_WARNINGS: Record<string, string> = {
 function LanguageWarning() {
   const { currentLang } = useLanguage();
   const [dismissed, setDismissed] = useState(false);
+  const [a11yPanelOpen, setA11yPanelOpen] = useState(false);
   const code = getLanguageCode(currentLang);
   const isNonEnglish = code !== "en";
   const msg = isNonEnglish ? (LANG_WARNINGS[code] ?? null) : null;
@@ -81,7 +82,14 @@ function LanguageWarning() {
   // Reset dismiss when language changes.
   useEffect(() => { setDismissed(false); }, [currentLang]);
 
-  if (!msg || dismissed) return null;
+  // Hide when the accessibility panel is open (it anchors from the same corner).
+  useEffect(() => {
+    const handler = (e: Event) => setA11yPanelOpen((e as CustomEvent<{ open: boolean }>).detail?.open ?? false);
+    window.addEventListener("mdcran:a11y-panel", handler);
+    return () => window.removeEventListener("mdcran:a11y-panel", handler);
+  }, []);
+
+  if (!msg || dismissed || a11yPanelOpen) return null;
   return (
     <div className="fixed bottom-20 left-4 z-[9998] max-w-[min(280px,calc(100vw-2rem))] rounded-sm border border-white/10 bg-black/80 px-3 py-2 text-[10px] text-white/45 backdrop-blur-xl shadow-lg flex items-start gap-2">
       <span className="flex-1 leading-relaxed">{msg}</span>

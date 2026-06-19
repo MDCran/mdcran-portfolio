@@ -1290,7 +1290,7 @@ export default function ChatPanel() {
                     />
                   ))}
                 </div>
-                <span className="text-[10px] uppercase tracking-[0.22em] font-jb" style={{ color: "color-mix(in srgb, var(--theme-primary, #ef4242) 80%, white)" }}>
+                <span data-no-translate className="text-[10px] uppercase tracking-[0.22em] font-jb" style={{ color: "color-mix(in srgb, var(--theme-primary, #ef4242) 80%, white)" }}>
                   Michael
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.22em] text-white/30 font-jb">· Speaking</span>
@@ -1634,6 +1634,7 @@ export default function ChatPanel() {
                     }`}
                   >
                     <div
+                      data-no-translate
                       className="max-w-[85%] rounded-sm px-3.5 py-2.5 text-[13px] leading-relaxed font-jb"
                       style={{
                         color: msg.role === "user"
