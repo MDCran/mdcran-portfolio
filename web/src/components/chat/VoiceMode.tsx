@@ -8,6 +8,8 @@ import { X, Mic, Loader2 } from "lucide-react";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart } from "@/lib/visitor-memory";
 import { extractPageContext } from "@/lib/page-context";
+import { useLanguage } from "@/lib/i18n";
+import { computeFingerprint } from "@/lib/device-fingerprint";
 
 const TOGGLE_EVENT = "mdcran:toggle-voice";
 const AGENT_NAME = "Michael";
@@ -79,6 +81,7 @@ export default function VoiceMode() {
   const pathname = usePathname();
   const router = useRouter();
   const { setTheme } = useTheme();
+  const { currentLang } = useLanguage();
 
   const [open, setOpen] = useState(false);
   const [supported, setSupported] = useState(true);
@@ -101,6 +104,8 @@ export default function VoiceMode() {
   const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartRef = useRef<number>(0);
   const [elapsedStr, setElapsedStr] = useState("0:00");
+  const [visitorName, setVisitorName] = useState<string | null>(null);
+  const [visitorGeo, setVisitorGeo] = useState<string | null>(null);
 
   // Audio / recognition refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -184,6 +189,28 @@ export default function VoiceMode() {
       setElapsedStr(`${m}:${s.toString().padStart(2, "0")}`);
     }, 1000);
     return () => clearInterval(timer);
+  }, [open]);
+
+  /* Resolve visitor name (from identity) and approximate location (from IP) once on open. */
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [fpResult, geoResult] = await Promise.allSettled([
+          (async () => {
+            const fp = await computeFingerprint();
+            const r = await fetch("/api/identity/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serial: fp.serial }) }).then((x) => x.json());
+            return r?.recognized ? (r.name as string | null) : null;
+          })(),
+          fetch("/api/geo").then((x) => x.json()).then((g) => g?.countryName as string | null),
+        ]);
+        if (cancelled) return;
+        if (fpResult.status === "fulfilled" && fpResult.value) setVisitorName(fpResult.value);
+        if (geoResult.status === "fulfilled" && geoResult.value) setVisitorGeo(geoResult.value);
+      } catch { /* non-critical */ }
+    })();
+    return () => { cancelled = true; };
   }, [open]);
 
   /* ── Drive the reactive orb amplitude; handle barge-in ── */
@@ -287,17 +314,18 @@ export default function VoiceMode() {
     const unavailable = () => { setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
     try {
       let arr: ArrayBuffer;
-      if (ttsAudioCache.has(clean)) {
-        arr = ttsAudioCache.get(clean)!.slice(0);
+      const ttsCacheKey = `${currentLang}:${clean}`;
+      if (ttsAudioCache.has(ttsCacheKey)) {
+        arr = ttsAudioCache.get(ttsCacheKey)!.slice(0);
       } else {
         const res = await fetch("/api/voice/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: clean }),
+          body: JSON.stringify({ text: clean, language: currentLang }),
         });
         if (!res.ok) { unavailable(); return; }
         arr = await res.arrayBuffer();
-        if (clean.length < 400) ttsAudioCache.set(clean, arr.slice(0)); // cache short phrases only
+        if (clean.length < 400) ttsAudioCache.set(ttsCacheKey, arr.slice(0)); // cache short phrases only
       }
       const ctx = audioCtxRef.current;
       if (!ctx) { unavailable(); return; }
@@ -459,7 +487,7 @@ export default function VoiceMode() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })() }),
+        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })(), visitorName: visitorName ?? undefined, visitorGeo: visitorGeo ?? undefined, language: currentLang !== "en-US" ? currentLang : undefined }),
       });
       if (res.status === 429) { friendly = "You've hit the message limit for now — give it a little while and try again."; throw new Error("limit"); }
       if (!res.ok || !res.body) throw new Error("chat failed");

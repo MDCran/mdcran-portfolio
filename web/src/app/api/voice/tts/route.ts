@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Voice rate limit reached" }), { status: 429 });
   }
 
-  let body: { text?: string };
+  let body: { text?: string; language?: string };
   try {
     body = await req.json();
   } catch {
@@ -54,6 +54,19 @@ export async function POST(req: NextRequest) {
   // Cap length to keep latency + cost sane.
   const clipped = text.length > 1200 ? text.slice(0, 1200) : text;
 
+  // Language override: pass BCP-47 code to ElevenLabs for multilingual_v2 so Michael's
+  // voice speaks the visitor's selected language. Only set if not English.
+  const langCode = typeof body.language === "string" && body.language.trim() ? body.language.trim() : null;
+  const elevenlabsBody: Record<string, unknown> = {
+    text: clipped,
+    model_id: MODEL,
+    voice_settings: VOICE_SETTINGS,
+  };
+  if (langCode && !langCode.startsWith("en")) {
+    // ElevenLabs expects BCP-47 (e.g. "es", "fr", "ja") — strip region suffix.
+    elevenlabsBody.language_code = langCode.split("-")[0];
+  }
+
   // Synthesize with Michael's voice only. If it fails, we DON'T substitute another
   // voice — we report that voice is unavailable so the client can say so.
   const res = await fetch(
@@ -65,11 +78,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
         Accept: "audio/mpeg",
       },
-      body: JSON.stringify({
-        text: clipped,
-        model_id: MODEL,
-        voice_settings: VOICE_SETTINGS,
-      }),
+      body: JSON.stringify(elevenlabsBody),
     }
   );
 
