@@ -175,7 +175,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
     return new Response(JSON.stringify({ error: "Rate limited. Try again later." }), { status: 429 });
   }
 
-  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] }; domContext?: string };
+  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] }; domContext?: string; visitorName?: string; visitorGeo?: string; language?: string };
   try {
     body = await req.json();
   } catch {
@@ -198,6 +198,9 @@ async function handlePost(req: NextRequest): Promise<Response> {
       : "TONE OVERRIDE: Keep a warm, friendly, conversational tone.";
   const domContext = typeof body.domContext === "string" && body.domContext.trim() ? body.domContext.trim() : null;
   const speakMode = body.speak === true;
+  const visitorName = typeof body.visitorName === "string" && body.visitorName.trim() ? body.visitorName.trim() : null;
+  const visitorGeo = typeof body.visitorGeo === "string" && body.visitorGeo.trim() ? body.visitorGeo.trim() : null;
+  const visitorLang = typeof body.language === "string" && body.language.trim() ? body.language.trim() : null;
 
   /* ── Fetch portfolio context ── */
   let contextStr = "";
@@ -387,7 +390,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
   const visits = typeof mem.visits === "number" ? mem.visits : 1;
   const memoryNote = `VISITOR CONTEXT (adapt subtly — never state these facts outright or sound robotic):
 - Time of day for the visitor: ${daypart}. Match the energy — a touch more upbeat during the day, calmer and more relaxed in the evening/night.
-- ${mem.returning ? `This is a RETURNING visitor (about ${visits} visit${visits === 1 ? "" : "s"} so far${typeof mem.daysSinceLast === "number" && mem.daysSinceLast >= 1 ? `, last here ~${mem.daysSinceLast} day${mem.daysSinceLast === 1 ? "" : "s"} ago` : ""}). You can warmly acknowledge they're back if it feels natural, but don't dwell on it.` : "This appears to be a first-time visitor. Be welcoming and orient them gently."}${Array.isArray(mem.topics) && mem.topics.length ? `\n- Previously they asked about: ${mem.topics.slice(-4).map((t) => `"${String(t).slice(0, 80)}"`).join(", ")}. You may naturally reference this if relevant (e.g. "since you were curious about X earlier..."), but only if it genuinely fits.` : ""}
+- ${mem.returning ? `This is a RETURNING visitor (about ${visits} visit${visits === 1 ? "" : "s"} so far${typeof mem.daysSinceLast === "number" && mem.daysSinceLast >= 1 ? `, last here ~${mem.daysSinceLast} day${mem.daysSinceLast === 1 ? "" : "s"} ago` : ""}). You can warmly acknowledge they're back if it feels natural, but don't dwell on it.` : "This appears to be a first-time visitor. Be welcoming and orient them gently."}${Array.isArray(mem.topics) && mem.topics.length ? `\n- Previously they asked about: ${mem.topics.slice(-4).map((t) => `"${String(t).slice(0, 80)}"`).join(", ")}. You may naturally reference this if relevant (e.g. "since you were curious about X earlier..."), but only if it genuinely fits.` : ""}${visitorName ? `\n- The visitor has identified themselves as: ${visitorName}. You may naturally address them by name once if it feels warm and organic — but don't overdo it, and NEVER share or repeat their name back in a way that feels surveillance-like.` : ""}${visitorGeo ? `\n- The visitor appears to be connecting from: ${visitorGeo}. Adapt subtly if relevant (e.g. timezone references). Never state their location back to them unless they ask.` : ""}${visitorLang && !visitorLang.startsWith("en") ? `\n- The visitor's selected language is: ${visitorLang}. Respond entirely in that language. Maintain Michael's natural, casual tone in that language.` : ""}
 - Do NOT reveal that you track visits or time of day. Never let it colour your tone.`;
 
   const systemPrompt = `${toneInstruction}
