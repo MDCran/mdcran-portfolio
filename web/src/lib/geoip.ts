@@ -6,7 +6,29 @@ export type GeoResult = {
   city?: string;
   lat: number;
   lng: number;
+  asn?: string | null;      // e.g. "AS15169"
+  asnName?: string | null;  // e.g. "GOOGLE"
 };
+
+/** /24 subnet for IPv4 (first 3 octets) or /48 for IPv6 (first 3 hextets).
+ *  Used as a coarse "same network" signal for cross-device stitching. */
+export function subnetOf(ip: string | null | undefined): string | null {
+  if (!ip) return null;
+  const cleaned = ip.replace(/^::ffff:/, "").trim();
+  if (!cleaned || cleaned === "unknown") return null;
+  if (cleaned.includes(".")) {
+    const parts = cleaned.split(".");
+    if (parts.length === 4 && parts.every((p) => /^\d{1,3}$/.test(p))) {
+      return parts.slice(0, 3).join(".");
+    }
+    return null;
+  }
+  if (cleaned.includes(":")) {
+    const groups = cleaned.split(":").filter(Boolean);
+    if (groups.length >= 3) return groups.slice(0, 3).join(":");
+  }
+  return null;
+}
 
 function isPrivateIp(ip: string): boolean {
   const cleaned = ip.replace(/^::ffff:/, "");
@@ -37,7 +59,7 @@ export async function geolocateIp(ip: string): Promise<GeoResult | null> {
 
   try {
     const res = await fetch(
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,city,lat,lon`,
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,city,lat,lon,as,asname`,
       { signal: AbortSignal.timeout(4000) }
     );
     if (!res.ok) return null;
@@ -49,9 +71,14 @@ export async function geolocateIp(ip: string): Promise<GeoResult | null> {
       city?: string;
       lat?: number;
       lon?: number;
+      as?: string;       // "AS15169 Google LLC"
+      asname?: string;   // "GOOGLE"
     };
 
     if (data.status !== "success" || !data.countryCode || !data.country) return null;
+
+    // ip-api returns `as` as "AS15169 Google LLC" — keep just the AS number token.
+    const asn = data.as ? (data.as.trim().split(/\s+/)[0] || null) : null;
 
     return {
       country: data.countryCode,
@@ -59,6 +86,8 @@ export async function geolocateIp(ip: string): Promise<GeoResult | null> {
       city: data.city,
       lat: data.lat ?? 0,
       lng: data.lon ?? 0,
+      asn: asn && /^AS\d+$/i.test(asn) ? asn.toUpperCase() : null,
+      asnName: data.asname || null,
     };
   } catch {
     return null;

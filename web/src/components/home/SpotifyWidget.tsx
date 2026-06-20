@@ -739,6 +739,8 @@ export default function SpotifyWidget() {
                           <button
                             type="button"
                             key={`${track.songUrl ?? track.title}-${track.playedAt}`}
+                            aria-label={`${track.title} by ${track.artist}`}
+                            data-highlight-id={`spotify-fav-${track.songUrl ?? track.title}-${track.playedAt}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               openHistoryTrack(track);
@@ -1076,6 +1078,7 @@ export default function SpotifyWidget() {
                               href={selectedFavorite.url}
                               target="_blank"
                               rel="noopener noreferrer"
+                              data-highlight-id="spotify-open-external"
                               className="relative z-10 inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-sm px-6 text-sm font-medium transition-all"
                               style={{
                                 border: `1px solid ${selectedFavorite.accentColor}66`,
@@ -1125,6 +1128,8 @@ export default function SpotifyWidget() {
                                   <button
                                     type="button"
                                     key={`${section.title}-${track.id}`}
+                                    aria-label={`${track.title} by ${track.artist}`}
+                                    data-highlight-id={`spotify-fav-${track.id}`}
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       setFavoritesPinned(true);
@@ -1296,7 +1301,7 @@ export default function SpotifyWidget() {
   return (
     <>
       {favoritesOverlay}
-      <div className="relative h-full">
+      <div className="relative h-full" data-highlight-id="spotify-widget">
         {/* Floating music notes when playing */}
         {data?.isPlaying && (
           <div className="pointer-events-none absolute inset-0 overflow-visible z-20" aria-hidden>

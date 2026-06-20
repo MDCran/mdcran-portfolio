@@ -28,6 +28,7 @@ export default function LanguageSelector() {
   const [open, setOpen] = useState(false);
   const [recommendedLang, setRecommendedLang] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Fetch geo to recommend a language based on IP country.
   useEffect(() => {
@@ -44,18 +45,26 @@ export default function LanguageSelector() {
 
   // Track translation progress events from PageTranslator.
   useEffect(() => {
-    const onStart = () => setIsTranslating(true);
-    const onEnd = () => setIsTranslating(false);
+    const onStart = () => { setIsTranslating(true); setProgress(null); };
+    const onEnd = () => { setIsTranslating(false); setProgress(null); };
+    const onProgress = (e: Event) => {
+      const { done, total } = (e as CustomEvent<{ done: number; total: number }>).detail ?? {};
+      if (typeof done === "number" && typeof total === "number") setProgress({ done, total });
+    };
     window.addEventListener("mdcran:translate-start", onStart);
     window.addEventListener("mdcran:translate-end", onEnd);
+    window.addEventListener("mdcran:translate-progress", onProgress);
     return () => {
       window.removeEventListener("mdcran:translate-start", onStart);
       window.removeEventListener("mdcran:translate-end", onEnd);
+      window.removeEventListener("mdcran:translate-progress", onProgress);
     };
   }, []);
 
   const current = SUPPORTED_LANGUAGES.find((l) => l.code === currentLang) ?? SUPPORTED_LANGUAGES[0];
   const shortNative = current.nativeName.split(/[\s(]/)[0];
+
+  const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
 
   return (
     <div className="relative">
@@ -64,16 +73,27 @@ export default function LanguageSelector() {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-1.5 h-9 px-2.5 rounded-sm border border-white/10 bg-white/[0.04] text-xs text-white/70 hover:border-white/25 hover:text-white cursor-pointer transition-colors w-full justify-between"
+        className="relative flex items-center gap-1.5 h-9 px-2.5 rounded-sm border border-white/10 bg-white/[0.04] text-xs text-white/70 hover:border-white/25 hover:text-white cursor-pointer transition-colors w-full justify-between overflow-hidden"
       >
-        <span className="flex items-center gap-1.5">
+        {/* Progress bar fill */}
+        {isTranslating && pct !== null && (
+          <span
+            className="absolute inset-y-0 left-0 bg-[#ef4242]/15 transition-all duration-300 pointer-events-none"
+            style={{ width: `${pct}%` }}
+          />
+        )}
+        <span className="relative flex items-center gap-1.5">
           {isTranslating
             ? <Loader2 size={12} className="animate-spin shrink-0 text-[#ef4242]" />
             : <span aria-hidden="true">{current.flag}</span>
           }
-          <span>{isTranslating ? "Applying…" : shortNative}</span>
+          <span>
+            {isTranslating
+              ? pct !== null ? `${pct}%` : "Applying…"
+              : shortNative}
+          </span>
         </span>
-        <ChevronDown size={13} className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={13} className={`relative shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (

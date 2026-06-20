@@ -12,6 +12,7 @@ interface LightboxProps {
   onNavigate: (index: number) => void;
   captions?: string[];
   fullScreen?: boolean;
+  initialAutoCycle?: boolean;
 }
 
 const AUTO_CYCLE_MS = 5000;
@@ -23,9 +24,10 @@ export default function Lightbox({
   onNavigate,
   captions,
   fullScreen = false,
+  initialAutoCycle = true,
 }: LightboxProps) {
   const lightboxMaxHeight = "calc(100dvh - var(--navbar-height, 72px) - 3rem)";
-  const [autoCycle, setAutoCycle] = useState(true);
+  const [autoCycle, setAutoCycle] = useState(initialAutoCycle);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isLandscapeMobile, setIsLandscapeMobile] = useState(false);
   const [isThumbnailTrayExpanded, setIsThumbnailTrayExpanded] = useState(true);
@@ -66,6 +68,12 @@ export default function Lightbox({
     }
     return () => { document.body.style.overflow = ""; };
   }, [currentIndex]);
+
+  // Reset autoCycle to the initial preference whenever the lightbox opens/reopens
+  useEffect(() => {
+    if (currentIndex !== null) setAutoCycle(initialAutoCycle);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex === null]);
 
   useEffect(() => {
     if (currentIndex === null || images.length <= 1 || !autoCycle) return;

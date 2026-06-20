@@ -31,6 +31,20 @@ export default function ProjectsTour() {
 
   const runIdRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const langRef = useRef<string>("en-US");
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("mdcran_language");
+      if (stored) langRef.current = stored;
+    } catch { /* */ }
+    const onLang = (e: Event) => {
+      const code = (e as CustomEvent).detail?.code;
+      if (typeof code === "string") langRef.current = code;
+    };
+    window.addEventListener("mdcran:language-change", onLang);
+    return () => window.removeEventListener("mdcran:language-change", onLang);
+  }, []);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
@@ -41,43 +55,62 @@ export default function ProjectsTour() {
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
   /* Speak a line aloud with karaoke captions; timed fallback if TTS is unavailable. */
-  const narrate = useCallback((text: string, myRun: number) => new Promise<void>((resolve) => {
-    const w = text.split(/\s+/);
-    setCaption(text); setWords(w); setWordIdx(0);
-    let finished = false;
-    const done = () => {
-      if (finished) return; finished = true;
-      if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
-      resolve();
-    };
-    const timed = () => {
-      let i = 0;
-      const iv = setInterval(() => {
-        if (myRun !== runIdRef.current) { clearInterval(iv); return done(); }
-        i++;
-        if (i >= w.length) { clearInterval(iv); setWordIdx(w.length - 1); setTimeout(done, 600); }
-        else setWordIdx(i);
-      }, 230);
-    };
-    fetch(`/api/voice/tour?text=${encodeURIComponent(text)}`)
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((blob) => {
-        if (myRun !== runIdRef.current) return done();
-        if (!blob) return timed();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url); audioRef.current = audio;
-        const sync = () => {
-          if (myRun !== runIdRef.current) return;
-          const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
-          setWordIdx(Math.min(w.length - 1, Math.floor((audio.currentTime / Math.max(d, 0.1)) * w.length)));
-          if (!audio.ended) requestAnimationFrame(sync);
-        };
-        audio.onended = () => { setWordIdx(w.length - 1); URL.revokeObjectURL(url); done(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); timed(); };
-        audio.play().then(() => requestAnimationFrame(sync)).catch(() => { URL.revokeObjectURL(url); timed(); });
-      })
-      .catch(() => timed());
-  }), []);
+  const narrate = useCallback((text: string, myRun: number): Promise<void> => {
+    const lang = langRef.current;
+    const langBase = lang.split("-")[0];
+
+    const speakText = (narrationText: string): Promise<void> => new Promise((resolve) => {
+      if (myRun !== runIdRef.current) { resolve(); return; }
+      const w = narrationText.split(/\s+/);
+      setCaption(narrationText); setWords(w); setWordIdx(0);
+      let finished = false;
+      const done = () => {
+        if (finished) return; finished = true;
+        if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
+        resolve();
+      };
+      const timed = () => {
+        let i = 0;
+        const iv = setInterval(() => {
+          if (myRun !== runIdRef.current) { clearInterval(iv); return done(); }
+          i++;
+          if (i >= w.length) { clearInterval(iv); setWordIdx(w.length - 1); setTimeout(done, 600); }
+          else setWordIdx(i);
+        }, 230);
+      };
+      fetch(`/api/voice/tour?text=${encodeURIComponent(narrationText)}&lang=${langBase}`)
+        .then((r) => (r.ok ? r.blob() : null))
+        .then((blob) => {
+          if (myRun !== runIdRef.current) return done();
+          if (!blob) return timed();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url); audioRef.current = audio;
+          const sync = () => {
+            if (myRun !== runIdRef.current) return;
+            const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
+            setWordIdx(Math.min(w.length - 1, Math.floor((audio.currentTime / Math.max(d, 0.1)) * w.length)));
+            if (!audio.ended) requestAnimationFrame(sync);
+          };
+          audio.onended = () => { setWordIdx(w.length - 1); URL.revokeObjectURL(url); done(); };
+          audio.onerror = () => { URL.revokeObjectURL(url); timed(); };
+          audio.play().then(() => requestAnimationFrame(sync)).catch(() => { URL.revokeObjectURL(url); timed(); });
+        })
+        .catch(() => timed());
+    });
+
+    if (langBase === "en") return speakText(text);
+
+    return fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, source: "en", target: langBase }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { translatedText?: string } | null) =>
+        speakText(typeof data?.translatedText === "string" ? data.translatedText : text)
+      )
+      .catch(() => speakText(text));
+  }, []);
 
   useEffect(() => {
     const run = async () => {

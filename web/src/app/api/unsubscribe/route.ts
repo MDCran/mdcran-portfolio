@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { notifyNewsletter } from "@/lib/discord";
 
 function normalizeIdentifier(value: string) {
   const trimmed = value.trim();
@@ -33,15 +34,19 @@ async function unsubscribeByIdentifier(identifier: string) {
     return { success: false, message: "That contact is not currently subscribed." };
   }
 
-  await db.collection("contacts").updateOne(
+  const doc = await db.collection("contacts").findOneAndUpdate(
     { id: String(existing.id) },
-    {
-      $set: {
-        subscribed: false,
-        updatedAt: new Date().toISOString(),
-      },
-    }
+    { $set: { subscribed: false, updatedAt: new Date().toISOString() } },
+    { returnDocument: "after", projection: { _id: 0, name: 1, email: 1, phone: 1, source: 1 } }
   );
+
+  void notifyNewsletter({
+    action: "UNSUBSCRIBED",
+    name: (doc as { name?: string } | null)?.name ?? null,
+    email: (doc as { email?: string } | null)?.email ?? (email || null),
+    phone: (doc as { phone?: string } | null)?.phone ?? (phone || null),
+    source: (doc as { source?: string } | null)?.source ?? null,
+  });
 
   return { success: true, message: "You've been successfully unsubscribed." };
 }

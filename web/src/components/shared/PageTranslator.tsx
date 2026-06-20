@@ -32,6 +32,9 @@ function collectTextNodes(): Text[] {
 async function batchTranslate(texts: string[], target: string, signal: AbortSignal): Promise<string[]> {
   const CHUNK = 50;
   const out: string[] = [];
+  const totalChunks = Math.ceil(texts.length / CHUNK);
+  let doneChunks = 0;
+
   for (let i = 0; i < texts.length; i += CHUNK) {
     if (signal.aborted) { out.push(...texts.slice(i)); continue; }
     const slice = texts.slice(i, i + CHUNK);
@@ -44,26 +47,30 @@ async function batchTranslate(texts: string[], target: string, signal: AbortSign
       });
       if (!res.ok) {
         console.error(`[translate] API returned ${res.status} for chunk ${i / CHUNK + 1}`);
-        out.push(...slice); continue;
-      }
-      const data = await res.json() as { translatedText?: string | string[]; error?: string };
-      if (data.error) {
-        console.error("[translate] API error:", data.error);
-        out.push(...slice); continue;
-      }
-      if (Array.isArray(data.translatedText)) {
-        out.push(...slice.map((orig, k) => {
-          const t = (data.translatedText as string[])[k];
-          return typeof t === "string" && t.length > 0 ? t : orig;
-        }));
-      } else {
-        console.warn("[translate] Expected array response, got:", typeof data.translatedText);
         out.push(...slice);
+      } else {
+        const data = await res.json() as { translatedText?: string | string[]; error?: string };
+        if (data.error) {
+          console.error("[translate] API error:", data.error);
+          out.push(...slice);
+        } else if (Array.isArray(data.translatedText)) {
+          out.push(...slice.map((orig, k) => {
+            const t = (data.translatedText as string[])[k];
+            return typeof t === "string" && t.length > 0 ? t : orig;
+          }));
+        } else {
+          console.warn("[translate] Expected array response, got:", typeof data.translatedText);
+          out.push(...slice);
+        }
       }
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") console.error("[translate] fetch error:", err);
       out.push(...slice);
     }
+    doneChunks++;
+    window.dispatchEvent(new CustomEvent("mdcran:translate-progress", {
+      detail: { done: doneChunks, total: totalChunks },
+    }));
   }
   return out;
 }

@@ -66,6 +66,7 @@ export default function ProjectDetail({
   backLabel,
 }: ProjectDetailProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxAiOpened, setLightboxAiOpened] = useState(false);
   const coverImage = project.coverImage ?? project.images?.[0];
   const coverSrc = imageAssetSrc(coverImage);
   const hasCover = !!coverSrc;
@@ -83,6 +84,18 @@ export default function ProjectDetail({
   const priceFormatted = project.pricing.price
     ? `$${(project.pricing.price / 100).toFixed(2)}`
     : null;
+
+  useEffect(() => {
+    const onOpenImage = (e: Event) => {
+      const { index } = (e as CustomEvent<{ index: number }>).detail ?? {};
+      if (typeof index === "number") {
+        setLightboxAiOpened(true);
+        setLightboxIndex(index);
+      }
+    };
+    window.addEventListener("mdcran:open-image", onOpenImage);
+    return () => window.removeEventListener("mdcran:open-image", onOpenImage);
+  }, []);
 
   const sectionImages: string[] = [];
   const sectionImageCaptions: string[] = [];
@@ -152,12 +165,12 @@ export default function ProjectDetail({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12">
           <div className="lg:col-span-2 space-y-12">
             {project.sections && project.sections.length > 0 && (
-              <section className="space-y-1">
+              <section className="space-y-1" data-highlight-id="project-body">
                 {project.sections.map((section, i) => (
                   <div
                     key={i}
                     className={section.type === "image" || section.type === "before-after" ? "inline" : "block"}
-                    data-highlight-id={section.type === "divider" ? undefined : `${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
+                    data-highlight-id={section.type === "divider" || section.type === "before-after" ? undefined : `${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
                   >
                     <ProjectSection
                       section={section}
@@ -181,6 +194,7 @@ export default function ProjectDetail({
                       <div
                         key={i}
                         onClick={() => setLightboxIndex(i)}
+                        data-highlight-id={`gallery-image-${i}`}
                         className="relative aspect-video rounded-sm overflow-hidden border border-white/6 hover:border-[rgba(239,66,66,0.3)] transition-colors group cursor-pointer"
                       >
                         <Image
@@ -203,7 +217,7 @@ export default function ProjectDetail({
                 <h2 className="font-nord text-lg text-white tracking-wider mb-5">Videos</h2>
                 <div className="space-y-4">
                   {project.videos!.map((video) => (
-                    <div key={video.youtubeId} className="rounded-sm overflow-hidden border border-white/6">
+                    <div key={video.youtubeId} data-highlight-id={`video-${video.youtubeId}`} className="rounded-sm overflow-hidden border border-white/6">
                       <div className="relative aspect-video">
                         <iframe
                           src={`https://www.youtube.com/embed/${video.youtubeId}`}
@@ -513,9 +527,10 @@ export default function ProjectDetail({
       <Lightbox
         images={allImages}
         currentIndex={lightboxIndex}
-        onClose={() => setLightboxIndex(null)}
+        onClose={() => { setLightboxIndex(null); setLightboxAiOpened(false); }}
         onNavigate={setLightboxIndex}
         captions={allImageCaptions}
+        initialAutoCycle={!lightboxAiOpened}
       />
     </>
   );
@@ -593,6 +608,7 @@ function ProjectTapsButton({ projectId }: { projectId: string }) {
         disabled={!canTap}
         whileTap={{ scale: 0.92 }}
         data-taps-btn
+        data-highlight-id="appreciate-button"
         className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[var(--cranberry)]/30 hover:bg-[var(--cranberry)]/5 hover:text-[var(--cranberry)] disabled:cursor-not-allowed disabled:opacity-60 overflow-visible"
         title={loading ? "Loading taps" : "Tap to appreciate this project"}
       >
@@ -705,6 +721,9 @@ function ProjectShareButtons() {
         <motion.button
           onClick={handleCopy}
           whileTap={{ scale: 0.95 }}
+          data-highlight-id="copy-link-button"
+          aria-label="Copy link to clipboard"
+          data-state={copied ? "copied" : "idle"}
           className="flex h-10 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-4 text-xs tracking-wider text-white/50 transition-all hover:border-white/20 hover:text-white"
         >
           {copied ? (
@@ -716,6 +735,7 @@ function ProjectShareButtons() {
         <motion.button
           onClick={() => void handleShare()}
           whileTap={{ scale: 0.95 }}
+          data-highlight-id="share-button"
           className="flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all hover:border-white/20 hover:text-white sm:hidden"
           aria-label="Share link"
           title="Share"
@@ -759,11 +779,11 @@ function HeroContent({
           })}
         </div>
       )}
-      <h1 className="font-nord text-3xl sm:text-4xl md:text-5xl text-white tracking-wider leading-tight mb-3">
+      <h1 className="font-nord text-3xl sm:text-4xl md:text-5xl text-white tracking-wider leading-tight mb-3" data-highlight-id="project-title">
         {project.title}
       </h1>
       {project.description && (
-        <p className="text-sm sm:text-base text-white/55 max-w-2xl leading-relaxed mb-4">
+        <p className="text-sm sm:text-base text-white/55 max-w-2xl leading-relaxed mb-4" data-highlight-id="project-description">
           {project.description}
         </p>
       )}

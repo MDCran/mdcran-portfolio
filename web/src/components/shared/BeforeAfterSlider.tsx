@@ -118,6 +118,19 @@ export default function BeforeAfterSlider({
     return () => observer.disconnect();
   }, []);
 
+  // AI concierge: let the assistant set the reveal position via __SLIDER:before-after|pct__
+  // (the cursor dispatches mdcran:before-after on this element with detail.value = 0-100).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onSet = (e: Event) => {
+      const v = (e as CustomEvent<{ value?: number }>).detail?.value;
+      if (typeof v === "number") { userInteracted.current = true; setPosition(Math.max(0, Math.min(100, v))); }
+    };
+    el.addEventListener("mdcran:before-after", onSet as EventListener);
+    return () => el.removeEventListener("mdcran:before-after", onSet as EventListener);
+  }, []);
+
   // Close expanded on Escape
   useEffect(() => {
     if (!expanded) return;
@@ -132,6 +145,7 @@ export default function BeforeAfterSlider({
     <div
       ref={isFullscreen ? undefined : containerRef}
       data-slider-container
+      data-highlight-id={isFullscreen ? undefined : "before-after"}
       className={`relative w-full rounded-sm overflow-hidden border border-white/8 select-none touch-none cursor-col-resize ${isFullscreen ? "h-full" : ""}`}
       style={!isFullscreen && aspectRatio ? { aspectRatio: `${aspectRatio}` } : isFullscreen ? {} : { aspectRatio: "16/9" }}
       onPointerDown={handlePointerDown}

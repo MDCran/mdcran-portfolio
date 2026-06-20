@@ -4,6 +4,9 @@ import {
 } from "@/lib/booking";
 import { isValidEmail, isValidPhoneNumber, normalizeEmail, normalizePhone } from "@/lib/contact-validation";
 import { sendEmail } from "@/lib/mailer";
+import { notifyBooking } from "@/lib/discord";
+import { findIdentityBySerial } from "@/lib/identity";
+import { clientIp } from "@/lib/api-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Invalid request." }, { status: 400 });
 
-  const { typeId, duration, start, name, email, phone, subject, message, consent } = body as Record<string, unknown>;
+  const { typeId, duration, start, name, email, phone, subject, message, consent, serial } = body as Record<string, unknown>;
   if (!consent) return Response.json({ error: "Consent is required." }, { status: 400 });
 
   const meetingType = config.meetingTypes.find((t) => t.id === typeId && t.enabled);
@@ -46,6 +49,10 @@ export async function POST(req: NextRequest) {
   const ok = isSlotAvailable(config, meetingType, durationMinutes, startIso, busy, bookings.map((b) => ({ start: b.start, end: b.end })));
   if (!ok) return Response.json({ error: "That time is no longer available — please pick another." }, { status: 409 });
 
+  // Resolve identity once (reused for persistence + Discord notify).
+  const cleanSerial = typeof serial === "string" ? serial.slice(0, 64) : "";
+  const identity = cleanSerial ? await findIdentityBySerial(cleanSerial) : null;
+
   const endIso = new Date(startMs + durationMinutes * 60 * 1000).toISOString();
   const record = await createBooking({
     typeId: meetingType.id,
@@ -59,7 +66,28 @@ export async function POST(req: NextRequest) {
     phone: cleanPhone || undefined,
     subject: cleanSubject || undefined,
     message: cleanMessage || undefined,
+    serial: cleanSerial || undefined,
+    ip: clientIp(req),
+    identityId: identity?.id ?? null,
   });
+
+  // Fire-and-forget Discord notification.
+  void (async () => {
+    void notifyBooking({
+      id: record.id,
+      typeName: record.typeName,
+      durationMinutes: record.durationMinutes,
+      location: record.location,
+      start: record.start,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone || null,
+      subject: cleanSubject || null,
+      message: cleanMessage || null,
+      timezone: config.timezone,
+      identity: identity ? { id: identity.id, name: identity.name, deviceCount: identity.devices.length } : null,
+    });
+  })();
 
   // Fire-and-forget emails: confirmation to attendee + notification to the owner.
   const whenLabel = new Intl.DateTimeFormat("en-US", {

@@ -48,6 +48,10 @@ export interface Fingerprint {
   timezone: string;
   language: string;
   userAgent: string;
+  /** prefers-color-scheme — a hardware-parity signal for cross-device stitching.
+   *  Intentionally NOT part of the serial hash (it flips when the user toggles
+   *  dark/light, which must not change the stable device serial). */
+  colorScheme: "dark" | "light";
 }
 
 let cached: Fingerprint | null = null;
@@ -58,11 +62,15 @@ export async function computeFingerprint(): Promise<Fingerprint> {
   const nav = navigator as Navigator & { deviceMemory?: number };
   const screenStr = `${screen.width}x${screen.height}@${window.devicePixelRatio}x${screen.colorDepth}`;
   const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ""; } })();
+  const colorScheme: "dark" | "light" = (() => {
+    try { return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+    catch { return "light"; }
+  })();
   const components = [
     nav.userAgent, nav.platform, nav.language, (nav.languages || []).join(","),
     nav.hardwareConcurrency, nav.deviceMemory, screenStr, tz, gl.vendor, gl.renderer, canvasFp(),
   ].join("|");
   const serial = await sha256hex(components);
-  cached = { serial, gpu: gl.renderer || gl.vendor || "", screen: screenStr, timezone: tz, language: nav.language, userAgent: nav.userAgent };
+  cached = { serial, gpu: gl.renderer || gl.vendor || "", screen: screenStr, timezone: tz, language: nav.language, userAgent: nav.userAgent, colorScheme };
   return cached;
 }

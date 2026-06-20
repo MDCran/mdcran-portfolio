@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -126,6 +127,7 @@ export default function GitHubContributions() {
 
   return (
     <motion.div
+      data-highlight-id="github-calendar"
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0 }}
@@ -147,7 +149,7 @@ export default function GitHubContributions() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <div className="flex items-center gap-0.5 rounded-sm border border-white/8 p-0.5">
+          <div data-highlight-id="github-year" role="group" aria-label="Select contribution year" className="flex items-center gap-0.5 rounded-sm border border-white/8 p-0.5">
             <button
               onClick={() => setYear((y) => Math.max(MIN_YEAR, y - 1))}
               disabled={year <= MIN_YEAR}
@@ -240,14 +242,15 @@ export default function GitHubContributions() {
         </div>
       )}
 
-      {/* Floating tooltip */}
-      {tip && (
-        <div className="pointer-events-none fixed z-[70] -translate-x-1/2 -translate-y-full" style={{ left: tip.x, top: tip.y - 8 }}>
+      {/* Tooltip — portal to escape framer-motion transform stacking context that traps position:fixed */}
+      {tip && createPortal(
+        <div className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full" style={{ left: tip.x, top: tip.y - 8 }}>
           <div className="rounded-sm px-2.5 py-1.5 text-center whitespace-nowrap" style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.12)" }}>
             <div className="text-[11px] text-white font-jb">{tip.text}</div>
             <div className="text-[10px] text-white/45">{tip.sub}</div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </motion.div>
   );

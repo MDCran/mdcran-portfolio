@@ -432,6 +432,13 @@ export interface ContactSubmission {
   submissionKey?: string;
   messageRead?: boolean;
   messageReadAt?: string;
+  // Cross-device identity tie (set on contact-form submissions)
+  serial?: string;
+  ip?: string | null;
+  identityId?: string | null;
+  country?: string | null;
+  utmSource?: string | null;
+  referrerDomain?: string | null;
 }
 
 export interface RateLimitRecord {
@@ -530,6 +537,10 @@ export interface RizzSubmission {
   winOver?: RizzWinOver;
   winOverOther?: string;
   createdAt: string;
+  // Cross-device identity tie
+  serial?: string;
+  ip?: string | null;
+  identityId?: string | null;
 }
 
 // ─── Status Page ─────────────────────────────────────────
@@ -787,6 +798,10 @@ export interface IdentityDevice {
   timezone?: string;
   language?: string;
   userAgent?: string;
+  /** How this device became linked to its identity (cross-device engine). */
+  linkMethod?: LinkMethod;
+  /** 0-1 confidence in the link (1 = deterministic / QR / manual). */
+  linkConfidence?: number;
   firstSeen: string;
   lastSeen: string;
 }
@@ -800,6 +815,10 @@ export interface Identity {
   /** Pre-created by the admin (e.g. to hand out a tracking link). Exempt from the
    *  empty-identity cleanup so it survives until someone claims it via the link. */
   createdByAdmin?: boolean;
+  /** Auto-created for an unnamed visitor so EVERY visitor ties to an identity for
+   *  tracking. Name is an auto-label ("Anonymous · LinkedIn · Orlando"); cleared
+   *  to a real name (and flag dropped) on claim/confirm/provide/handshake. */
+  anonymous?: boolean;
 }
 
 // ─── Meeting booking ──────────────────────────────────────
@@ -854,4 +873,250 @@ export interface BookingRecord {
   message?: string;
   createdAt: string;            // ISO
   status: "confirmed" | "cancelled";
+  // Cross-device identity tie
+  serial?: string;
+  ip?: string | null;
+  identityId?: string | null;
+}
+
+// ─── Traffic Source / Referrer Tracking ──────────────────────────────────────
+export type TrafficSourceId =
+  | 'linkedin' | 'handshake' | 'indeed' | 'ziprecruiter' | 'glassdoor'
+  | 'discord' | 'google' | 'github' | 'twitter' | 'instagram'
+  | 'sms' | 'email' | 'direct' | 'other';
+
+export interface ReferrerContext {
+  resolvedSource: TrafficSourceId;
+  resolvedSourceLabel: string;   // e.g. "LinkedIn", "Indeed", "Direct"
+  referrerRaw: string;            // raw document.referrer
+  referrerDomain: string;         // e.g. "linkedin.com"
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmTerm: string;
+  utmContent: string;
+  capturedAt: string;             // ISO timestamp of first capture
+}
+
+// ─── AI Routing Conditions ────────────────────────────────────────────────
+export type ConditionField = 'source' | 'referrer_domain' | 'utm_source' | 'utm_campaign' | 'utm_medium';
+// 'is_any_of' matches when the field equals ANY value in triggerValues (e.g. linkedin OR handshake OR indeed in one rule).
+export type ConditionOperator = 'equals' | 'includes' | 'starts_with' | 'not_equals' | 'is_any_of';
+export type GuardrailField = 'current_page';
+
+export interface AiRoutingCondition {
+  id: string;
+  name: string;                    // admin-facing label
+  triggerField: ConditionField;
+  triggerOperator: ConditionOperator;
+  triggerValue: string;            // single value (equals/includes/starts_with/not_equals)
+  triggerValues?: string[];        // multiple values for 'is_any_of'
+  // Optional guardrail: "only fire if current page != /resume"
+  guardrailField?: GuardrailField;
+  guardrailOperator?: ConditionOperator;
+  guardrailValue?: string;
+  // Raw suggestion text the admin types — AI rephrases it naturally
+  suggestionText: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── UTM Links (saved, reusable tracking links) ───────────────────────────
+export interface UtmLink {
+  id: string;
+  label: string;            // admin-facing name, e.g. "LinkedIn — Spring outreach"
+  baseUrl: string;          // e.g. "https://mdcran.com/resume"
+  source: string;           // utm_source
+  medium: string;           // utm_medium
+  campaign: string;         // utm_campaign
+  term?: string;            // utm_term
+  content?: string;         // utm_content
+  url: string;              // fully built URL (cached for copy)
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Identity Verification States ────────────────────────────────────────
+export type IdentityVerificationState = 'anonymous' | 'suggested' | 'confirmed' | 'denied';
+
+export interface SessionIdentityContext {
+  state: IdentityVerificationState;
+  suggestedIdentityId?: string;
+  suggestedIdentityName?: string;
+  suggestedCertainty?: number;    // 0-1 confidence
+  confirmedIdentityId?: string;
+  confirmedName?: string;
+  /** confirmedName is a high-confidence GUESS (auto-set), not user-confirmed —
+   *  the AI should use it lightly. */
+  autoNamed?: boolean;
+  deniedIdentityIds: string[];   // identity IDs explicitly denied by this device
+  /** Top probabilistic cross-device link candidate for this device (for AI probing). */
+  linkCandidate?: SessionLinkCandidate;
+}
+
+/** Lightweight cross-device candidate shipped to the client / AI for graceful probing. */
+export interface SessionLinkCandidate {
+  /** The OTHER device serial that scored against this one. */
+  otherSerial: string;
+  /** Name on the other device's identity, if it has one. */
+  otherName?: string | null;
+  score: number;                  // 0-100
+  /** Deep-link path both devices touched (e.g. "/projects/mercury"). */
+  sharedPath?: string | null;
+  criteria: string[];
+}
+
+// ─── Cross-Device Identity Resolution Engine ──────────────────────────────────
+/** How a device became linked to an identity. */
+export type LinkMethod =
+  | 'serial'      // exact fingerprint match on an existing identity
+  | 'token'       // recycler token (uid / admin ?identity= link)
+  | 'ip'          // accepted same-IP household suggestion
+  | 'handshake'   // deterministic QR "Scan to Mobile" bridge (100% certain)
+  | 'manual'      // admin attached / merged
+  | 'merge'       // folded in via identity merge
+  | 'candidate';  // confirmed probabilistic candidate
+
+export interface DeviceRecentPath {
+  path: string;
+  dwellMs: number;     // time-on-page for this path
+  ts: string;          // ISO
+}
+
+/** One network a device has been seen on (for cross-network name suggestions). */
+export interface DeviceNetwork {
+  subnet24: string;        // /24 (IPv4) or /48 (IPv6)
+  ip?: string | null;
+  asn?: string | null;
+  firstSeen: string;       // ISO
+  lastSeen: string;        // ISO
+}
+
+/**
+ * Canonical per-device telemetry registry (keyed by fingerprint serial).
+ * Exists even for ANONYMOUS devices (no identity yet) so two unlinked devices
+ * can be scored against each other. Complements identities.devices[] (which
+ * stays the authoritative identity↔device link map).
+ */
+export interface DeviceRecord {
+  serial: string;                          // primary key
+  identityId: string | null;               // synced when the device is linked
+  deviceType: 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown';
+  browser?: string;
+  os?: string;
+  gpu?: string;
+  screen?: string;
+  timezone?: string;
+  language?: string;
+  colorScheme?: 'dark' | 'light' | null;   // prefers-color-scheme (hardware parity)
+  userAgent?: string;
+  ip?: string | null;
+  ipHash?: string | null;
+  subnet24?: string | null;                // IPv4 /24 ("203.0.113") or IPv6 /48
+  asn?: string | null;                     // e.g. "AS15169"
+  asnName?: string | null;                 // e.g. "GOOGLE"
+  country?: string | null;
+  recentPaths?: DeviceRecentPath[];        // capped FIFO of deep-link dwell
+  /** Networks this device has loaded the site on (deduped by subnet, capped).
+   *  Powers off-network name suggestions: a phone keeps suggesting a name from a
+   *  WiFi it was on days ago, even while currently on cellular. */
+  networks?: DeviceNetwork[];
+  sessionCount?: number;
+  firstSeen: string;                       // ISO
+  lastSeen: string;                        // ISO
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeviceLinkState = 'SUSPECTED' | 'CONFIRMED' | 'REJECTED';
+
+export interface DeviceLinkBreakdown {
+  network: number;     // 0-40
+  time: number;        // 0-30
+  behavior: number;    // 0-20
+  hardware: number;    // 0-10
+}
+
+/**
+ * Probabilistic safety buffer. A score >= 50 writes a SUSPECTED row here — it is
+ * NEVER auto-merged into identities. Confirmation happens deterministically (QR),
+ * or via the admin / an AI-led probe the user accepts.
+ */
+export interface DeviceLinkCandidate {
+  id: string;
+  pairKey: string;                 // sorted "serialA|serialB" — unique per pair
+  sourceSerial: string;            // device that triggered the evaluation
+  targetSerial: string;            // matched candidate device
+  sourceIdentityId?: string | null;
+  targetIdentityId?: string | null;
+  sourceName?: string | null;
+  targetName?: string | null;
+  confidenceScore: number;         // 0-100
+  breakdown: DeviceLinkBreakdown;
+  criteria: string[];              // human-readable matched signals
+  sharedPath?: string | null;      // deep-link both devices touched
+  state: DeviceLinkState;
+  rejectionCount?: number;         // decays future re-suggestion weight
+  resolvedBy?: 'auto' | 'admin' | 'ai';  // who confirmed/rejected it
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string;
+  rejectedAt?: string;
+}
+
+/** Self-management policy for the cross-device candidate queue: high-confidence
+ *  pairs auto-link, weak/stale ones auto-reject, so the admin doesn't have to
+ *  hand-manage every candidate (they can still override per-candidate). */
+export interface CrossDeviceAutoConfig {
+  enabled: boolean;
+  autoConfirmScore: number;     // >= this confidence (0-100) auto-confirms + links
+  autoRejectStaleDays: number;  // SUSPECTED older than this (and below autoConfirmScore) auto-rejects
+}
+
+export type HandshakeStatus = 'PENDING' | 'CLAIMED' | 'EXPIRED';
+
+/** Transient deterministic-bridge token encoded into the "Scan to Mobile" QR. */
+export interface HandshakeBridge {
+  id: string;                      // handshakeId (the QR payload)
+  sourceSerial: string;
+  sourceIdentityId?: string | null;
+  sourceName?: string | null;
+  status: HandshakeStatus;
+  createdAt: string;
+  expiresAt: string;
+  claimedAt?: string;
+  claimedSerial?: string | null;
+  claimedIp?: string | null;
+}
+
+export type AiChannel = 'text' | 'voice';
+
+/** Header for a logged AI conversation (text or voice). */
+export interface AiConversation {
+  id: string;
+  sessionId: string;               // per-chat-open uuid from the client
+  serial: string | null;           // device serial
+  identityId: string | null;       // resolved at log time, if known
+  channel: AiChannel;
+  currentPage?: string | null;
+  messageCount: number;
+  startedAt: string;
+  lastAt: string;
+  ip?: string | null;
+  country?: string | null;
+}
+
+/** A single AI conversation message (user or assistant), markers stripped. */
+export interface AiMessage {
+  id: string;
+  conversationId: string;
+  sessionId: string;
+  serial: string | null;
+  identityId: string | null;
+  channel: AiChannel;
+  role: 'user' | 'assistant';
+  content: string;
+  currentPage?: string | null;
+  createdAt: string;
 }

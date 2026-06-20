@@ -97,11 +97,28 @@ export async function getBookingsInRange(from: Date, to: Date): Promise<BookingR
   return docs as unknown as BookingRecord[];
 }
 
-export async function createBooking(rec: Omit<BookingRecord, "id" | "createdAt" | "status">): Promise<BookingRecord> {
+export async function createBooking(
+  rec: Omit<BookingRecord, "id" | "createdAt" | "status"> & {
+    serial?: string;
+    ip?: string | null;
+    identityId?: string | null;
+  },
+): Promise<BookingRecord> {
   const db = await getDb();
   const record: BookingRecord = { ...rec, id: randomUUID(), createdAt: new Date().toISOString(), status: "confirmed" };
   await db.collection("bookings").insertOne(record);
   return record;
+}
+
+/** All bookings for an identity — joined across its serials + identityId. */
+export async function getBookingsForIdentity(identityId: string, serials: string[]): Promise<BookingRecord[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection("bookings")
+    .find({ $or: [{ identityId }, { serial: { $in: serials.filter(Boolean) } }] }, { projection: { _id: 0 } })
+    .sort({ start: -1 })
+    .toArray();
+  return docs as unknown as BookingRecord[];
 }
 
 /* ─── Timezone helpers (no external deps) ───────────────── */

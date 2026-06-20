@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRizzSubmissions, saveRizzSubmissions } from "@/lib/db";
+import { clientIp } from "@/lib/api-rate-limit";
+import { findIdentityBySerial } from "@/lib/identity";
 import type {
   RizzActivity,
   RizzDateIdea,
@@ -67,11 +69,17 @@ function isValidPhoneNumber(value: string) {
   return true;
 }
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
+
+  const serial = String(body.serial ?? "").slice(0, 64);
+  const ip = clientIp(req);
+  const identityId = serial ? (await findIdentityBySerial(serial))?.id ?? null : null;
 
   const submission: RizzSubmission = {
     id: uid(),
@@ -84,6 +92,9 @@ export async function POST(req: NextRequest) {
     winOvers: asArray<RizzWinOver>(body.winOvers ?? body.winOver),
     winOverOther: String(body.winOverOther ?? "").trim() || undefined,
     createdAt: new Date().toISOString(),
+    serial: serial || undefined,
+    ip,
+    identityId,
   };
 
   if (!submission.name || !submission.phone) {

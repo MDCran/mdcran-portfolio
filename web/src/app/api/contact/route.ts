@@ -7,19 +7,25 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "@/lib/contact-validation";
+import { notifyContactForm } from "@/lib/discord";
+import { clientIp } from "@/lib/api-rate-limit";
+import { findIdentityBySerial } from "@/lib/identity";
+import { parseUserAgent } from "@/lib/ua";
+import { sanitizeName, sanitizeText } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  if (!body) {
+  if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { name, email, phone, subject, message, consent } = body;
-  const normalizedName = String(name ?? "").trim();
-  const normalizedEmail = normalizeEmail(email);
-  const normalizedPhone = normalizePhone(phone);
-  const normalizedSubject = String(subject ?? "").trim();
-  const normalizedMessage = String(message ?? "").trim();
+  const { email, phone, consent, sessionId, utmSource, referrer, referrerDomain, country, fingerprint } = body as Record<string, unknown>;
+  const serial = typeof body.serial === "string" ? body.serial.slice(0, 64) : "";
+  const normalizedName    = sanitizeName(body.name, 100);
+  const normalizedSubject = sanitizeText(body.subject, 300);
+  const normalizedMessage = sanitizeText(body.message, 5000);
+  const normalizedEmail = normalizeEmail(typeof email === "string" ? email : "");
+  const normalizedPhone = normalizePhone(typeof phone === "string" ? phone : "");
 
   if (!consent) {
     return NextResponse.json({ error: "Consent required" }, { status: 400 });
@@ -41,6 +47,10 @@ export async function POST(req: NextRequest) {
     const db = await getDb();
     const now = new Date().toISOString();
 
+    const ip = clientIp(req);
+    const idn = serial ? await findIdentityBySerial(serial).catch(() => null) : null;
+    const identityId = idn?.id ?? null;
+
     const existingContact =
       normalizedEmail && normalizedPhone
         ? await db.collection("contacts").findOne({
@@ -60,6 +70,12 @@ export async function POST(req: NextRequest) {
       messageRead: false,
       messageReadAt: undefined,
       subscribed: true,
+      serial: serial || undefined,
+      ip: ip ?? null,
+      identityId,
+      country: typeof country === "string" ? country.slice(0, 64) : undefined,
+      utmSource: typeof utmSource === "string" ? utmSource.slice(0, 200) : undefined,
+      referrerDomain: typeof referrerDomain === "string" ? referrerDomain.slice(0, 200) : undefined,
       updatedAt: now,
     };
 
@@ -79,6 +95,26 @@ export async function POST(req: NextRequest) {
     console.error("Contact save error:", err);
     return NextResponse.json({ error: "Failed to save contact" }, { status: 500 });
   }
+
+  // Fire-and-forget Discord notification with full session context.
+  const ip = clientIp(req);
+  const ua = req.headers.get("user-agent") ?? "";
+  const { browser, os } = parseUserAgent(ua);
+  void notifyContactForm({
+    name: normalizedName,
+    email: normalizedEmail || null,
+    phone: normalizedPhone || null,
+    subject: normalizedSubject || null,
+    message: normalizedMessage,
+    ip,
+    country: req.headers.get("cf-ipcountry") ?? null,
+    browser,
+    os,
+    sessionId: typeof sessionId === "string" ? sessionId : null,
+    utmSource: typeof utmSource === "string" ? utmSource : null,
+    referrer: typeof referrer === "string" ? referrer : null,
+    fingerprint: typeof fingerprint === "string" ? fingerprint : null,
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { computeFingerprint } from "@/lib/device-fingerprint";
 
 const VISITOR_KEY = "mdcran_vid";
 const SESSION_KEY = "mdcran_sid";
@@ -36,6 +37,7 @@ export default function AnalyticsTracker() {
   const pathname = usePathname();
   const queue = useRef<QueuedEvent[]>([]);
   const idsRef = useRef<{ visitorId: string; sessionId: string; returning: boolean } | null>(null);
+  const deviceRef = useRef<{ serial?: string; colorScheme?: "dark" | "light" } | null>(null);
   const stoppedRef = useRef(false);
   const [overlay, setOverlay] = useState<null | "kill" | "block">(null);
 
@@ -71,13 +73,18 @@ export default function AnalyticsTracker() {
     } catch {
       idsRef.current = { visitorId: uid(), sessionId: uid(), returning: false };
     }
+    // Compute the device fingerprint serial once so the cross-device registry
+    // can tie this visitor's deep-link dwell to a stable device id.
+    void computeFingerprint()
+      .then((fp) => { deviceRef.current = { serial: fp.serial, colorScheme: fp.colorScheme }; })
+      .catch(() => {});
   }, []);
 
   const flush = useRef((useBeacon = false) => {
     const ids = idsRef.current;
     if (!ids || stoppedRef.current) return;
     // Always poll for commands even with an empty queue (keeps admin control responsive).
-    const body = JSON.stringify({ ...ids, events: queue.current });
+    const body = JSON.stringify({ ...ids, events: queue.current, device: deviceRef.current ?? undefined });
     queue.current = [];
     try {
       if (useBeacon && navigator.sendBeacon) {

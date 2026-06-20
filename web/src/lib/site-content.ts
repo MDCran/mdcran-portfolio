@@ -315,68 +315,118 @@ export const defaultSiteContent: SiteContent = {
   termsPage: {
     eyebrow: "Legal",
     title: "Terms of Service",
-    lastUpdated: "March 1, 2026",
+    lastUpdated: "June 19, 2026",
     sections: [
       {
         heading: "Acceptance of Terms",
-        body:
-          "By accessing and using mdcran.com, michaeldcran.com, or michaeldavidcran.com (collectively, the \"Site\"), you accept and agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the Site.",
+        body: "By accessing or using mdcran.com, michaeldcran.com, or michaeldavidcran.com (collectively, the \"Site\") in any way — including simply browsing — you confirm that you have read, understood, and agree to be bound by these Terms of Service, the Privacy Policy, and the Cookies, Tracking & AI disclosures set out on this page. Continued use of the Site after any update to these terms constitutes acceptance of the revised terms. If you do not agree, please do not use the Site.",
+      },
+      {
+        heading: "Analytics, Tracking & Data Collection",
+        body: "By using this Site you acknowledge and agree that the following data collection and processing occurs as described in the Privacy Policy and Cookies disclosures above:",
+        bullets: [
+          "Essential session cookies and local storage identifiers are set automatically to operate the site. These cannot be disabled while using the site.",
+          "If you select 'Accept All' on the cookie banner, or continue to use the site without choosing 'Essential Only', you consent to optional analytics including page-view tracking, scroll-depth recording, click/scroll heatmaps, and behavioural event logging.",
+          "Your IP address is collected on every server request and used for geolocation, rate-limiting, and abuse prevention.",
+          "A deterministic device fingerprint (derived from browser-exposed characteristics) may be computed and stored to power optional device recognition and personalisation features.",
+          "If you voluntarily enter your name in the Accessibility panel, or if the AI assistant extracts it from conversation and you confirm it, that name is associated with your device fingerprint and stored in a private database visible to the site owner.",
+          "Submitted contact forms, meeting bookings, and newsletter subscriptions are stored in a private CRM database and trigger real-time notifications to the site owner's private Discord server containing the submitted details and session metadata.",
+        ],
       },
       {
         heading: "Use of the Site",
-        body: "You agree to use the site only for lawful purposes. You must not:",
+        body: "You agree to use the site only for lawful purposes and in a manner that does not infringe the rights of, restrict, or inhibit anyone else's use and enjoyment of the site. You must not:",
         bullets: [
-          "Use the site in any way that violates applicable laws.",
-          "Reproduce, duplicate, copy, or re-sell any part of the site without permission.",
-          "Transmit unsolicited promotional or advertising material.",
-          "Attempt to gain unauthorized access to any part of the site or related systems.",
-          "Use the site to distribute malware or harmful code.",
+          "Use the site in any way that violates applicable local, national, or international laws or regulations.",
+          "Reproduce, duplicate, copy, scrape, or re-sell any part of the site without express written permission.",
+          "Transmit unsolicited promotional or advertising material ('spam').",
+          "Attempt to gain unauthorised access to any part of the site, its servers, or related systems.",
+          "Use the site to distribute malware, harmful code, or phishing material.",
+          "Circumvent, disable, or interfere with any security-related features of the site, including rate-limiting, bot detection, or access controls.",
+          "Use automated tools (bots, scrapers, crawlers) on the site in a manner that places unreasonable load on infrastructure or circumvents intended use flows.",
         ],
       },
       {
         heading: "Services & Engagements",
-        body:
-          "Inquiries submitted via the contact form constitute expressions of interest only and do not create a binding contract. All service engagements are governed by a separate written agreement between MDCran and the client. By submitting the contact form or subscribe form, you consent to MDCran using the contact details you provide to respond to your inquiry and, where you have expressly opted in, to send future updates, newsletters, announcements, or related communications.",
+        body: "Inquiries submitted via the contact form constitute expressions of interest only and do not create a binding contract. All service engagements are governed by a separate written agreement between MDCran and the client. By submitting the contact form or subscribe form, you consent to MDCran using the contact details you provide to respond to your inquiry and, where you have expressly opted in, to send future updates, newsletters, announcements, or related communications. You may unsubscribe at any time.",
+      },
+      {
+        heading: "Bookings & Meetings",
+        body: "Booking a meeting via the Site's calendar constitutes a confirmed appointment request. By completing a booking you consent to the site owner using the contact information and details you provide (name, email, phone, purpose, and notes) to communicate about and fulfil the meeting. Booking details are stored in our private database and trigger a notification to the site owner. The site owner may cancel or reschedule appointments; in such cases you will be notified via the email you provided.",
+      },
+      {
+        heading: "AI Assistant Disclaimer",
+        body: "The AI assistant on this Site is provided for informational and convenience purposes only. Responses are generated by a third-party language model and may be inaccurate, incomplete, or outdated. Nothing the AI assistant says constitutes professional, legal, financial, medical, or employment advice. Always verify important information from authoritative sources. By interacting with the AI assistant you acknowledge these limitations and agree not to rely on it for critical decisions.",
+      },
+      {
+        heading: "Intellectual Property",
+        body: "All content on this Site — including text, images, videos, code, and design — is the property of Michael D. Cran or used with permission, and is protected by applicable copyright, trademark, and intellectual property laws. Nothing on this Site grants you a licence to reproduce, distribute, or create derivative works from any content without explicit written permission.",
+      },
+      {
+        heading: "Limitation of Liability",
+        body: "To the fullest extent permitted by law, MDCran shall not be liable for any direct, indirect, incidental, special, consequential, or punitive damages arising from your use of or inability to use this Site, its content, or its features — including but not limited to damages resulting from errors, omissions, interruptions, delays, or inaccuracies in content, AI responses, or data. Your sole remedy for dissatisfaction with the Site is to discontinue use.",
+      },
+      {
+        heading: "Governing Law",
+        body: "These terms are governed by and construed in accordance with the laws of the State of Florida, United States, without regard to its conflict-of-law provisions. Any dispute arising under these terms shall be subject to the exclusive jurisdiction of the courts located in Florida, unless mandatory consumer protection laws in your jurisdiction require otherwise.",
+      },
+      {
+        heading: "Changes to These Terms",
+        body: "We may update these Terms of Service at any time. Updated terms will be posted on this page with a revised 'last updated' date. Your continued use of the Site after any change constitutes acceptance of the new terms. If you disagree with the changes, your remedy is to stop using the Site.",
       },
       {
         heading: "Contact",
-        body: "These terms apply to all MDCran domains including mdcran.com, michaeldcran.com, and michaeldavidcran.com. If you have questions about these terms, contact contact@mdcran.com.",
+        body: "These terms apply to all MDCran domains including mdcran.com, michaeldcran.com, and michaeldavidcran.com. For questions about these terms, contact contact@mdcran.com.",
       },
     ],
   },
   privacyPage: {
     eyebrow: "Legal",
     title: "Privacy Policy",
-    lastUpdated: "March 1, 2026",
+    lastUpdated: "June 19, 2026",
     sections: [
       {
-        heading: "Information We Collect",
-        body: "When you interact with MDCran through any of our domains (mdcran.com, michaeldcran.com, or michaeldavidcran.com), we may collect the following types of information:",
+        heading: "Who We Are & Scope",
+        body: "This Privacy Policy applies to mdcran.com, michaeldcran.com, and michaeldavidcran.com (collectively, the \"Site\"), operated by Michael D. Cran, a freelance software engineer and developer based in Florida, USA. This policy explains what personal data we collect, why we collect it, how we use it, and your rights over it. It supplements the detailed Cookies, Tracking & AI disclosures above.",
+      },
+      {
+        heading: "Data We Collect & Why",
+        body: "We collect the following categories of personal data:",
         bullets: [
-          "Contact information when you submit the contact form, subscribe form, or newsletter signup.",
-          "Usage data such as pages visited, time spent on pages, browser type, and device type via analytics tools.",
-          "Communication data including messages you send and your communication preferences or consent selections.",
-          "Technical data including IP address, browser type, and operating system.",
+          "Identity & contact data — name, email address, and/or phone number you provide when submitting the contact form, booking a meeting, subscribing to the newsletter, or entering your name in the accessibility/identity panel.",
+          "Message & communication data — the content of messages you send via the contact form, notes on bookings, and interactions with the AI chat assistant.",
+          "Technical & analytics data — IP address, browser name and version, operating system, device type, screen resolution, timezone, language, GPU renderer identifier, referring URL, pages visited, time on page, scroll depth, and click/scroll heatmap co-ordinates.",
+          "Device fingerprint & identity record — a hash of browser-exposed characteristics used to recognise your device across visits, optionally associated with a name you provide or the AI extracts from conversation.",
+          "Booking data — selected meeting type, date, time, duration, and any purpose or notes you provide.",
+          "Consent & preference data — your cookie consent choice, language preference, and accessibility settings.",
         ],
       },
       {
-        heading: "How We Use Your Information",
-        body: "We may use your information for the following purposes:",
+        heading: "How We Use Your Data",
+        body: "We use your personal data for the following purposes:",
         bullets: [
-          "To respond to inquiries and fulfill project requests.",
-          "To send service-related communications, updates, newsletters, and notifications you have consented to receive.",
-          "To improve the website experience and understand how visitors interact with our content.",
-          "To comply with legal obligations.",
+          "To operate and maintain the Site, including serving pages, enforcing rate limits, and preventing abuse.",
+          "To respond to contact form inquiries, confirm and manage meeting bookings, and send communications you have consented to receive.",
+          "To manage newsletter subscriptions and send updates you have opted in to receive.",
+          "To power the optional personal identity / device-recognition feature so we can greet you by name on return visits.",
+          "To analyse how the Site is used (page views, scroll depth, engagement events, heatmaps) to improve it.",
+          "To operate the AI assistant, including passing conversation context to third-party AI providers.",
+          "To send the site owner real-time CRM notifications (via a private Discord server) when you submit a form, book a meeting, subscribe, unsubscribe, or create an identity record — containing the data you submitted plus session metadata.",
+          "To generate aggregated, de-identified analytics reports (including a weekly automated digest sent to the site owner).",
+          "To comply with legal obligations and protect the Site from fraud, abuse, and unauthorised access.",
         ],
       },
       {
         heading: "Data Retention",
-        body:
-          "We retain personal information only as long as necessary to fulfill the purposes for which it was collected, or as required by law. Contact and subscription records may be retained while needed to provide requested communications, maintain opt-in and opt-out preferences, or satisfy legal and operational requirements.",
+        body: "We retain personal data only as long as necessary for the purposes above. Raw IP addresses are hashed or discarded shortly after collection. Analytics session and event data may be cleared periodically. Contact, booking, and subscription records are retained while relevant to the correspondence or subscription and deleted on request or on a routine schedule. Identity / device records persist until you detach your device or request deletion. Database backups are rotated and overwritten over time.",
+      },
+      {
+        heading: "Your Rights",
+        body: "You have the right to access, correct, delete, or restrict our use of your personal data. You can withdraw consent to analytics at any time using the opt-out control on the legal page. To exercise any other right, email contact@mdcran.com with the subject 'Privacy Request' and we will respond within the timeframe required by applicable law.",
       },
       {
         heading: "Contact",
-        body: "This policy applies to all MDCran domains including mdcran.com, michaeldcran.com, and michaeldavidcran.com. For any privacy-related questions or requests, contact contact@mdcran.com.",
+        body: "For privacy questions or requests, contact contact@mdcran.com. If you are in the EU/UK you may also complain to your local Data Protection Authority.",
       },
     ],
   },

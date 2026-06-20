@@ -11,6 +11,8 @@ export async function GET(req: NextRequest) {
   if (!text || text.length > 1000) {
     return NextResponse.json({ error: "text required (max 1000 chars)" }, { status: 400 });
   }
+  // BCP-47 base language code (e.g. "es", "fr") — passed by the client after translating.
+  const langParam = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() ?? "en";
 
   // Return from MongoDB cache if available (zero ElevenLabs cost on repeats).
   try {
@@ -39,12 +41,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const elevenlabsBody: Record<string, unknown> = { text, model_id: MODEL, voice_settings: TOUR_SETTINGS };
+    if (langParam && langParam !== "en") elevenlabsBody.language_code = langParam;
+
     const res = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_128`,
       {
         method: "POST",
         headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({ text, model_id: MODEL, voice_settings: TOUR_SETTINGS }),
+        body: JSON.stringify(elevenlabsBody),
       },
     );
     if (!res.ok) {

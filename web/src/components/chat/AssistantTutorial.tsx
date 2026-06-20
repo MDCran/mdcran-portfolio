@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { Loader2 } from "lucide-react";
+import { TOUR_TEXTS } from "@/lib/tour-texts";
 
 const PAGE_TREE = [
   "mdcran.com/",
@@ -30,15 +32,20 @@ type Step =
   | { kind: "tree"; text: string }
   | { kind: "return"; text: string };
 
+/** Tour steps drive the spotlight + narration sequence on the home page.
+ *  The resume section (download → experience → skills → volunteer → orgs → featured/army reserve)
+ *  and the army reserve deep-dive are handled inline in the nav-resume click handler. */
 const STEPS: Step[] = [
-  { kind: "intro", text: "Hey — I'm Michael, your AI assistant, here to walk you through my portfolio. Let me give you the quick tour." },
-  { kind: "spot", target: "about", text: "First up, this is where you can get to know me — a quick intro to who I am and what I do." },
-  { kind: "spot", target: "featured", text: "These are some of my most renowned projects, the work I'm honestly proudest of." },
-  { kind: "spot", target: "clients", text: "And here are the clients and creators I've gotten to work with over the years." },
-  { kind: "spot", target: "nav-resume", text: "Want the full story? My resume lives right here — experience, skills, all of it. Let me show you.", click: true },
-  { kind: "tree", text: "I can take you to any page on the site, just ask. Here's everything at a glance." },
-  { kind: "return", text: "Ask me anything else about my work." },
+  { kind: "intro",  text: TOUR_TEXTS[0] },
+  { kind: "spot",   target: "about",      text: TOUR_TEXTS[1] },
+  { kind: "spot",   target: "featured",   text: TOUR_TEXTS[2] },
+  { kind: "spot",   target: "clients",    text: TOUR_TEXTS[3] },
+  { kind: "tree",                          text: TOUR_TEXTS[4] },
+  { kind: "spot",   target: "nav-resume", text: TOUR_TEXTS[5], click: true },
+  { kind: "return",                        text: TOUR_TEXTS[16] },
 ];
+
+function allTourTexts(): string[] { return TOUR_TEXTS; }
 
 function isVisible(el: HTMLElement | null): boolean {
   if (!el) return false;
@@ -69,15 +76,32 @@ export default function AssistantTutorial() {
   const [words, setWords] = useState<string[]>([]);
   const [wordIdx, setWordIdx] = useState(-1);
   const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(false); // true while awaiting pregen
 
   const runIdRef = useRef(0);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
   }, [running]);
+
   const targetElRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const langRef = useRef<string>("en-US");
+  const audioCacheRef = useRef<Map<string, Blob>>(new Map());
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("mdcran_language");
+      if (stored) langRef.current = stored;
+    } catch { /* */ }
+    const onLang = (e: Event) => {
+      const code = (e as CustomEvent).detail?.code;
+      if (typeof code === "string") langRef.current = code;
+    };
+    window.addEventListener("mdcran:language-change", onLang);
+    return () => window.removeEventListener("mdcran:language-change", onLang);
+  }, []);
 
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -95,70 +119,152 @@ export default function AssistantTutorial() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
-  /* Narrate one step: show the caption, speak it aloud (from cached tour API), and
-     karaoke-highlight words. Falls back to a timed word cadence if audio is unavailable. */
-  const narrate = useCallback((text: string, myRun: number) => new Promise<void>((resolve) => {
-    const w = text.split(/\s+/);
-    setCaption(text);
-    setWords(w);
-    setWordIdx(0);
+  /* Spotlight a target and scroll it into view mid-narration. */
+  const spotTarget = useCallback((id: string | null) => {
+    if (!id) { targetElRef.current = null; setSpot(null); return; }
+    const el = findTarget(id);
+    if (el) {
+      targetElRef.current = el;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const topInset = 76;
+      const avail = Math.max(120, vh - topInset - 100);
+      const ty = r.height >= avail
+        ? window.scrollY + r.top - topInset
+        : window.scrollY + r.top - topInset - (avail - r.height) / 2;
+      window.scrollTo({ top: Math.max(0, ty), behavior: "smooth" });
+    }
+  }, []);
 
-    let finished = false;
-    const done = () => {
-      if (finished) return;
-      finished = true;
-      if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
-      resolve();
-    };
+  /** Narrate one segment: show karaoke caption and play audio from warm cache.
+   *  Falls back to a timed word cadence if audio is unavailable. */
+  const narrate = useCallback((text: string, myRun: number): Promise<void> => {
+    const lang = langRef.current;
+    const langBase = lang.split("-")[0];
 
-    const timedFallback = () => {
-      let i = 0;
-      const iv = setInterval(() => {
-        if (myRun !== runIdRef.current) { clearInterval(iv); return done(); }
-        i++;
-        if (i >= w.length) { clearInterval(iv); setWordIdx(w.length - 1); setTimeout(done, 600); }
-        else setWordIdx(i);
-      }, 260);
-    };
+    const speakText = (narrationText: string): Promise<void> => new Promise((resolve) => {
+      if (myRun !== runIdRef.current) { resolve(); return; }
+      const w = narrationText.split(/\s+/);
+      setCaption(narrationText);
+      setWords(w);
+      setWordIdx(0);
 
-    const playUrl = (url: string, revoke: boolean, onFail: () => void) => {
-      if (myRun !== runIdRef.current) { if (revoke) URL.revokeObjectURL(url); return done(); }
-      if (!audioRef.current) audioRef.current = new Audio();
-      const audio = audioRef.current;
-      const cleanupUrl = () => { if (revoke) { try { URL.revokeObjectURL(url); } catch { /* */ } } };
-      const sync = () => {
-        if (myRun !== runIdRef.current || audioRef.current !== audio) return;
-        const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
-        const p = d > 0 ? audio.currentTime / d : 0;
-        setWordIdx(Math.min(w.length - 1, Math.floor(p * w.length)));
-        if (!audio.ended) requestAnimationFrame(sync);
+      let finished = false;
+      const done = () => {
+        if (finished) return;
+        finished = true;
+        if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
+        resolve();
       };
-      audio.onended = () => { setWordIdx(w.length - 1); cleanupUrl(); done(); };
-      audio.onerror = () => { cleanupUrl(); onFail(); };
-      try { audio.pause(); } catch { /* */ }
-      audio.src = url;
-      try { audio.currentTime = 0; } catch { /* */ }
-      audio.play().then(() => requestAnimationFrame(sync)).catch(() => { cleanupUrl(); onFail(); });
-    };
 
-    fetch(`/api/voice/tour?text=${encodeURIComponent(text)}`)
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((blob) => {
-        if (myRun !== runIdRef.current) return done();
-        if (!blob) return timedFallback();
-        playUrl(URL.createObjectURL(blob), true, timedFallback);
-      })
-      .catch(() => timedFallback());
-  }), []);
+      const timedFallback = () => {
+        let i = 0;
+        const iv = setInterval(() => {
+          if (myRun !== runIdRef.current) { clearInterval(iv); return done(); }
+          i++;
+          if (i >= w.length) { clearInterval(iv); setWordIdx(w.length - 1); setTimeout(done, 600); }
+          else setWordIdx(i);
+        }, 260);
+      };
+
+      const playBlob = (blob: Blob, onFail: () => void) => {
+        const url = URL.createObjectURL(blob);
+        if (myRun !== runIdRef.current) { URL.revokeObjectURL(url); return done(); }
+        if (!audioRef.current) audioRef.current = new Audio();
+        const audio = audioRef.current;
+        const sync = () => {
+          if (myRun !== runIdRef.current || audioRef.current !== audio) return;
+          const d = audio.duration && isFinite(audio.duration) ? audio.duration : w.length * 0.34;
+          const p = d > 0 ? audio.currentTime / d : 0;
+          setWordIdx(Math.min(w.length - 1, Math.floor(p * w.length)));
+          if (!audio.ended) requestAnimationFrame(sync);
+        };
+        audio.onended = () => { setWordIdx(w.length - 1); URL.revokeObjectURL(url); done(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); onFail(); };
+        try { audio.pause(); } catch { /* */ }
+        audio.src = url;
+        try { audio.currentTime = 0; } catch { /* */ }
+        audio.play().then(() => requestAnimationFrame(sync)).catch(() => { URL.revokeObjectURL(url); onFail(); });
+      };
+
+      // Check pre-warmed in-memory cache first (no network hop).
+      const cached = audioCacheRef.current.get(narrationText);
+      if (cached) { playBlob(cached, timedFallback); return; }
+
+      // Fallback: fetch individually (should be cached in MongoDB from pregen).
+      fetch(`/api/voice/tour?text=${encodeURIComponent(narrationText)}&lang=${langBase}`)
+        .then((r) => (r.ok ? r.blob() : null))
+        .then((blob) => {
+          if (myRun !== runIdRef.current) return done();
+          if (!blob) return timedFallback();
+          audioCacheRef.current.set(narrationText, blob);
+          playBlob(blob, timedFallback);
+        })
+        .catch(() => timedFallback());
+    });
+
+    if (langBase === "en") return speakText(text);
+
+    return fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, source: "en", target: langBase }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { translatedText?: string } | null) =>
+        speakText(typeof data?.translatedText === "string" ? data.translatedText : text)
+      )
+      .catch(() => speakText(text));
+  }, []);
 
   useEffect(() => {
     const run = async () => {
       const myRun = ++runIdRef.current;
-      const startY = window.scrollY;
-      const startPath = window.location.pathname;
       setRunning(true);
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
+      // Tour always runs from home — navigate there if needed.
+      if (window.location.pathname !== "/") {
+        router.push("/");
+        await wait(1600);
+        if (myRun !== runIdRef.current) { setRunning(false); return; }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        await wait(300);
+      }
+
+      const startY = 0;
+      const startPath = "/";
+      const lang = langRef.current.split("-")[0];
+      const texts = allTourTexts();
+
+      // Prefetch pages while audio warms (non-blocking).
+      try { router.prefetch("/resume"); } catch { /* */ }
+      try { router.prefetch("/code/army-reserve-mercury"); } catch { /* */ }
+
+      // Phase 1 — Server pregen: generate ALL segments in ONE sequential ElevenLabs call
+      // so they share tonal baseline. Shows "Warming tour audio…" if it takes >700ms.
+      const showLoadTimer = setTimeout(() => setLoading(true), 700);
+      const pregenCtrl = new AbortController();
+      const pregenTimeout = setTimeout(() => pregenCtrl.abort(), 65000);
+      await fetch(`/api/voice/tour-pregen?lang=${lang}`, { signal: pregenCtrl.signal }).catch(() => {});
+      clearTimeout(pregenTimeout);
+      clearTimeout(showLoadTimer);
+      if (myRun !== runIdRef.current) { setLoading(false); setRunning(false); return; }
+
+      // Phase 2 — Client blob warm: pull all segments from MongoDB into in-memory cache.
+      // All should be cached from pregen, so this is fast (~200ms parallel).
+      await Promise.all(
+        texts.map((t) =>
+          fetch(`/api/voice/tour?text=${encodeURIComponent(t)}&lang=${lang}`)
+            .then((r) => (r.ok ? r.blob() : null))
+            .then((blob) => { if (blob) audioCacheRef.current.set(t, blob); })
+            .catch(() => {})
+        )
+      );
+      setLoading(false);
+      if (myRun !== runIdRef.current) { setRunning(false); return; }
+
+      // Phase 3 — Tour narration loop.
       for (let si = 0; si < STEPS.length; si++) {
         const step = STEPS[si];
         if (myRun !== runIdRef.current) break;
@@ -167,14 +273,17 @@ export default function AssistantTutorial() {
           targetElRef.current = null;
           setSpot(null);
           setShowTree(false);
+
         } else if (step.kind === "spot") {
           setShowTree(false);
           const isNav = step.target === "nav-resume";
           const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+
           if (isNav && mobile) {
             window.dispatchEvent(new CustomEvent("mdcran:open-nav"));
             await wait(500);
           }
+
           let el = findTarget(step.target);
           if (isNav && mobile) {
             for (let tries = 0; tries < 8 && !isVisible(el); tries++) {
@@ -183,6 +292,7 @@ export default function AssistantTutorial() {
               el = findTarget(step.target);
             }
           }
+
           if (el) {
             const centerInBand = (node: HTMLElement) => {
               const r = node.getBoundingClientRect();
@@ -234,28 +344,123 @@ export default function AssistantTutorial() {
 
           await narrate(step.text, myRun);
 
-          // Nav-resume with click: move AI cursor to the link, click it, navigate to /resume, return home.
+          // ── nav-resume handler: click → resume page → section tour → army reserve ──
           let didClickNav = false;
           if (step.target === "nav-resume" && step.click && el) {
             didClickNav = true;
+
+            // Move AI cursor to Resume link and click it.
             const r = el.getBoundingClientRect();
             window.dispatchEvent(new CustomEvent("mdcran:cursor-move", {
               detail: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
             }));
-            await wait(600);
+            await wait(900);
             if (myRun !== runIdRef.current) break;
             window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: "resume" } }));
-            await wait(350);
+            await wait(500);
             if (myRun !== runIdRef.current) break;
             targetElRef.current = null;
             setSpot(null);
             router.push("/resume");
-            await wait(2600);
-            if (myRun !== runIdRef.current) break;
-            await wait(1800); // show resume briefly
+            await wait(2400);
             if (myRun !== runIdRef.current) break;
             window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
-            router.push("/");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            await wait(400);
+            if (myRun !== runIdRef.current) break;
+
+            // ── Resume section tour — one highlight per section ──
+            const resumeSections: { id: string; text: string; optional?: boolean }[] = [
+              { id: "resume-download",   text: TOUR_TEXTS[6] },
+              { id: "experience",        text: TOUR_TEXTS[7] },
+              { id: "skills",            text: TOUR_TEXTS[8] },
+              { id: "volunteer",         text: TOUR_TEXTS[9],  optional: true },
+              { id: "organizations",     text: TOUR_TEXTS[10], optional: true },
+              { id: "renowned-projects", text: TOUR_TEXTS[11] },
+            ];
+
+            let abortedSections = false;
+            for (const section of resumeSections) {
+              if (myRun !== runIdRef.current) { abortedSections = true; break; }
+
+              const secEl = findTarget(section.id);
+              if (!secEl && section.optional) continue; // skip if section doesn't exist on this portfolio
+
+              if (secEl) {
+                targetElRef.current = secEl;
+                const sr = secEl.getBoundingClientRect();
+                window.scrollTo({ top: Math.max(0, window.scrollY + sr.top - 100), behavior: "smooth" });
+                await wait(400);
+              } else {
+                targetElRef.current = null;
+                setSpot(null);
+              }
+              if (myRun !== runIdRef.current) { abortedSections = true; break; }
+              await narrate(section.text, myRun);
+            }
+            if (abortedSections || myRun !== runIdRef.current) break;
+
+            // ── Spotlight the Army Reserve Mercury card specifically ──
+            const armyLink = document.querySelector('a[href*="army-reserve-mercury"]') as HTMLElement | null;
+            if (armyLink) {
+              // Walk up to a meaningful card container (first ancestor > 80px tall).
+              let armyEl: HTMLElement = armyLink;
+              for (let p = armyLink.parentElement; p && p !== document.body; p = p.parentElement) {
+                if (p.offsetHeight > 80 && p.offsetWidth > 100) { armyEl = p; break; }
+              }
+              targetElRef.current = armyEl;
+              const ar = armyEl.getBoundingClientRect();
+              window.scrollTo({ top: Math.max(0, window.scrollY + ar.top - 80), behavior: "smooth" });
+              await wait(700);
+              if (myRun !== runIdRef.current) break;
+
+              // Cursor moves to card, then clicks it.
+              const ar2 = armyEl.getBoundingClientRect();
+              window.dispatchEvent(new CustomEvent("mdcran:cursor-move", {
+                detail: { x: ar2.left + ar2.width / 2, y: ar2.top + ar2.height / 2, label: "Army Reserve Mercury" },
+              }));
+              await wait(900);
+              if (myRun !== runIdRef.current) break;
+              window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: "army reserve mercury" } }));
+              await wait(500);
+              if (myRun !== runIdRef.current) break;
+            }
+
+            // ── Navigate to Army Reserve Mercury project page ──
+            targetElRef.current = null;
+            setSpot(null);
+            router.push("/code/army-reserve-mercury");
+            await wait(2600);
+            if (myRun !== runIdRef.current) break;
+            window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            await wait(500);
+            if (myRun !== runIdRef.current) break;
+
+            // ── Army Reserve deep-dive narrations ──
+            const armyDeepTexts = [TOUR_TEXTS[12], TOUR_TEXTS[13], TOUR_TEXTS[14], TOUR_TEXTS[15]];
+            const armyDeepTargets = ["army-reserve-mercury", "project-gallery", "project-gallery", "army-reserve-mercury"];
+
+            let abortedDeep = false;
+            for (let ti = 0; ti < armyDeepTexts.length; ti++) {
+              if (myRun !== runIdRef.current) { abortedDeep = true; break; }
+              const targetId = armyDeepTargets[ti] ?? null;
+              if (targetId) spotTarget(targetId);
+              await narrate(armyDeepTexts[ti], myRun);
+              if (myRun !== runIdRef.current) { abortedDeep = true; break; }
+              if (ti < armyDeepTexts.length - 1) {
+                const totalH = Math.max(0, document.body.scrollHeight - window.innerHeight);
+                window.scrollTo({ top: Math.round(totalH * ((ti + 1) / armyDeepTexts.length) * 0.75), behavior: "smooth" });
+                await wait(350);
+              }
+            }
+            if (abortedDeep || myRun !== runIdRef.current) break;
+
+            // ── Return to home ──
+            targetElRef.current = null;
+            setSpot(null);
+            await wait(450);
+            router.push(startPath);
             await wait(1200);
             if (myRun !== runIdRef.current) break;
             window.scrollTo({ top: startY, behavior: "smooth" });
@@ -265,12 +470,14 @@ export default function AssistantTutorial() {
           if (myRun !== runIdRef.current) break;
           await wait(350);
           continue;
+
         } else if (step.kind === "tree") {
           targetElRef.current = null;
           setSpot(null);
           setShowTree(true);
+
         } else {
-          // return step — navigate back to where the tour started if needed.
+          // "return" step — make sure we're back on the home page.
           targetElRef.current = null;
           setSpot(null);
           setShowTree(false);
@@ -305,7 +512,7 @@ export default function AssistantTutorial() {
       runIdRef.current++;
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router]);
+  }, [narrate, router, spotTarget]);
 
   const endTour = () => {
     runIdRef.current++;
@@ -315,6 +522,7 @@ export default function AssistantTutorial() {
     setShowTree(false);
     setCaption(null);
     setWordIdx(-1);
+    setLoading(false);
     setRunning(false);
     window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
   };
@@ -354,7 +562,7 @@ export default function AssistantTutorial() {
         )}
       </AnimatePresence>
 
-      {/* Spotlight — four blurred panels leave the target sharp */}
+      {/* Spotlight — four blurred panels leave the target element sharp */}
       <AnimatePresence>
         {box && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] pointer-events-none">
@@ -384,9 +592,7 @@ export default function AssistantTutorial() {
             className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
             style={{ background: "radial-gradient(ellipse at center, rgba(10,4,4,0.88), rgba(3,3,5,0.97))", backdropFilter: "blur(8px)" }}
           >
-            {/* CRT scanlines */}
             <div className="absolute inset-0 pointer-events-none" style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(239,66,66,0.012) 3px, rgba(239,66,66,0.012) 4px)" }} />
-
             <motion.div
               initial={{ scale: 0.86, y: 24, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -395,13 +601,10 @@ export default function AssistantTutorial() {
               className="relative rounded-sm border border-[#ef4242]/30 bg-[#060606]/98 px-8 py-7 font-jb text-[13px] leading-relaxed shadow-[0_32px_100px_rgba(0,0,0,0.75),0_0_60px_rgba(239,66,66,0.18)]"
               style={{ minWidth: "min(420px, 88vw)" }}
             >
-              {/* Corner brackets */}
               <div className="absolute top-0 left-0 h-7 w-7 border-l-2 border-t-2 border-[#ef4242]/65" />
               <div className="absolute top-0 right-0 h-7 w-7 border-r-2 border-t-2 border-[#ef4242]/65" />
               <div className="absolute bottom-0 left-0 h-7 w-7 border-l-2 border-b-2 border-[#ef4242]/38" />
               <div className="absolute bottom-0 right-0 h-7 w-7 border-r-2 border-b-2 border-[#ef4242]/38" />
-
-              {/* Scanning header */}
               <div className="flex items-center gap-2.5 mb-3">
                 <motion.span
                   animate={{ opacity: [1, 0.2, 1] }}
@@ -411,8 +614,6 @@ export default function AssistantTutorial() {
                 <span className="text-[10px] uppercase tracking-[0.3em] text-[#ef4242] font-medium">Scanning Site Map</span>
                 <div className="flex-1 h-px bg-gradient-to-r from-[#ef4242]/45 to-transparent" />
               </div>
-
-              {/* Progress bar */}
               <motion.div
                 className="h-px mb-4 origin-left"
                 style={{ background: "linear-gradient(90deg, #ef4242, rgba(239,66,66,0.2))" }}
@@ -420,8 +621,6 @@ export default function AssistantTutorial() {
                 animate={{ scaleX: 1 }}
                 transition={{ duration: 1.6, ease: "easeOut", delay: 0.15 }}
               />
-
-              {/* Tree lines */}
               <div className="space-y-0.5">
                 {PAGE_TREE.map((line, i) => (
                   <motion.div
@@ -436,8 +635,6 @@ export default function AssistantTutorial() {
                   </motion.div>
                 ))}
               </div>
-
-              {/* Pulsing scan line */}
               <motion.div
                 className="mt-4 h-px"
                 style={{ background: "linear-gradient(90deg, transparent, rgba(239,66,66,0.6), transparent)" }}
@@ -449,9 +646,34 @@ export default function AssistantTutorial() {
         )}
       </AnimatePresence>
 
-      {/* Live karaoke caption — bottom middle */}
+      {/* Audio warm loading indicator — shown if pregen takes >700ms */}
       <AnimatePresence>
-        {caption && (
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-8 left-1/2 z-[65] -translate-x-1/2 pointer-events-none"
+          >
+            <div
+              className="flex items-center gap-2.5 rounded-sm border px-4 py-3 font-jb text-sm"
+              style={{
+                borderColor: "rgba(239,66,66,0.25)",
+                background: "rgba(6,6,8,0.88)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
+              }}
+            >
+              <Loader2 size={14} className="animate-spin text-[#ef4242]" />
+              <span className="text-white/60 text-[13px]">Warming tour audio…</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Live karaoke caption — bottom middle (hidden during loading) */}
+      <AnimatePresence>
+        {caption && !loading && (
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.3 }}

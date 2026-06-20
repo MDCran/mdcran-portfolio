@@ -51,7 +51,7 @@ function applyPrefs(p: A11yPrefs) {
     localStorage.setItem(KEY, JSON.stringify(p));
     localStorage.setItem("mdcran_voice_on", p.speakAloud ? "1" : "0");
     localStorage.setItem("mdcran_ai_tone", p.aiTone);
-    window.dispatchEvent(new CustomEvent("mdcran:a11y", { detail: p }));
+    setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:a11y", { detail: p })), 0);
   } catch { /* */ }
 }
 
@@ -210,24 +210,30 @@ export default function AccessibilityMenu() {
 
   return (
     <>
-      <svg aria-hidden="true" className="absolute" width="0" height="0" style={{ position: "absolute" }}>
-        <defs>
-          <filter id="cb-deuteranopia"><feColorMatrix type="matrix" values="0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0" /></filter>
-          <filter id="cb-protanopia"><feColorMatrix type="matrix" values="0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0" /></filter>
-          <filter id="cb-tritanopia"><feColorMatrix type="matrix" values="0.95 0.05 0 0 0  0 0.433 0.567 0 0  0 0.475 0.525 0 0  0 0 0 1 0" /></filter>
-        </defs>
-      </svg>
-
       <div ref={panelRef} className="fixed bottom-6 left-6 z-50">
         {!open ? (
           <div className="relative inline-block">
             {showLangHint && (
-              <div className="absolute bottom-[calc(100%+8px)] left-0 whitespace-nowrap">
-                <div className="rounded-sm border border-white/15 bg-[#0d0d0d]/95 px-2.5 py-1.5 text-[10px] text-white/70 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.6)] flex items-center gap-1.5">
-                  <span className="text-[#ef4242] font-medium">Now Supports {SUPPORTED_LANGUAGES.length}+ Languages</span>
-                  <button onClick={() => setShowLangHint(false)} className="text-white/25 hover:text-white/60 leading-none ml-1">✕</button>
+              <div className="absolute bottom-[calc(100%+10px)] left-0 whitespace-nowrap">
+                <div
+                  className="relative rounded-sm border bg-[#080808]/95 backdrop-blur-xl px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex items-center gap-3"
+                  style={{ borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
+                >
+                  <p className="text-[12px] text-white/80 font-jb leading-relaxed">
+                    Now supports <span style={{ color: "var(--theme-primary, #ef4242)" }}>{SUPPORTED_LANGUAGES.length}+ languages</span>
+                  </p>
+                  <button
+                    onClick={() => setShowLangHint(false)}
+                    className="text-white/25 hover:text-white/60 leading-none cursor-pointer transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
-                <div className="absolute left-4 top-full h-1.5 w-1.5 border-b border-r border-white/15 bg-[#0d0d0d]/95 rotate-45 translate-y-[-50%]" />
+                <div
+                  className="absolute left-4 top-full h-2.5 w-2.5 -translate-y-1/2 rotate-45 border-b border-r bg-[#080808]/95"
+                  style={{ borderColor: "color-mix(in srgb, var(--theme-primary, #ef4242) 25%, transparent)" }}
+                />
               </div>
             )}
             <button

@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { computeFingerprint } from "@/lib/device-fingerprint";
 
 
 /* ── Floating Hearts Background ────────────────────────── */
@@ -382,6 +383,8 @@ export default function RizzPageClient({ targetName }: { targetName?: string }) 
     setSubmitting(true);
 
     try {
+      // serial is non-essential metadata — a fingerprint failure must not block the submit.
+      const fp = await computeFingerprint().catch(() => null);
       const response = await fetch("/api/rizz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -394,6 +397,7 @@ export default function RizzPageClient({ targetName }: { targetName?: string }) 
           activities: form.activities,
           winOvers: form.winOvers,
           winOverOther: form.winOverOther.trim() || undefined,
+          serial: fp?.serial,
         }),
       });
 

@@ -11,6 +11,7 @@ export default function PersonalIdentity() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState<string | null>(null);
   const [identityId, setIdentityId] = useState<string | null>(null);
+  const [autoNamed, setAutoNamed] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [input, setInput] = useState("");
   const [editing, setEditing] = useState(false);
@@ -21,8 +22,8 @@ export default function PersonalIdentity() {
     setLoading(true);
     try {
       const r = await fetch("/api/identity/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serial: fingerprint.serial }) }).then((x) => x.json());
-      if (r.recognized) { setName(r.name); setIdentityId(r.identityId); setEditing(false); }
-      else { setName(null); setIdentityId(null); setEditing(true); }
+      if (r.recognized) { setName(r.name); setIdentityId(r.identityId); setAutoNamed(Boolean(r.autoNamed)); setEditing(false); }
+      else { setName(null); setIdentityId(null); setAutoNamed(false); setEditing(true); }
       setSuggestions(Array.isArray(r.suggestions) ? r.suggestions : []);
     } catch { setEditing(true); } finally { setLoading(false); }
   };
@@ -57,14 +58,16 @@ export default function PersonalIdentity() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ serial: fp.serial, ...opts, gpu: fp.gpu, screen: fp.screen, timezone: fp.timezone, language: fp.language, userAgent: fp.userAgent }),
       }).then((x) => x.json());
-      if (r.name) { setName(r.name); setIdentityId(r.identityId); setEditing(false); setInput(""); }
+      if (r.name) { setName(r.name); setIdentityId(r.identityId); setAutoNamed(false); setEditing(false); setInput(""); }
     } finally { setSaving(false); setPickOpen(false); }
   };
 
   const notMe = async () => {
     if (!fp) return;
-    try { await fetch("/api/identity/disown", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serial: fp.serial, identityId }) }); } catch { /* */ }
-    setName(null); setIdentityId(null); setEditing(true);
+    // If this name was an auto-guess (not user-set), record a denial so it isn't
+    // re-applied on the next visit; an explicitly-set name just detaches.
+    try { await fetch("/api/identity/disown", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serial: fp.serial, identityId, deny: autoNamed }) }); } catch { /* */ }
+    setName(null); setIdentityId(null); setAutoNamed(false); setEditing(true);
     resolve(fp);
   };
 
@@ -76,10 +79,12 @@ export default function PersonalIdentity() {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-white/70">
-          <Check size={13} className="text-emerald-400" />
-          <span>You&apos;re recognized as <span className="text-white font-medium">{name}</span></span>
+          <Check size={13} className={autoNamed ? "text-amber-400" : "text-emerald-400"} />
+          <span>
+            {autoNamed ? <>I think you&apos;re <span className="text-white font-medium">{name}</span> — right?</> : <>You&apos;re recognized as <span className="text-white font-medium">{name}</span></>}
+          </span>
         </div>
-        <button onClick={notMe} className="text-[11px] text-[var(--cranberry)] hover:underline cursor-pointer">Not me / change this</button>
+        <button onClick={notMe} className="text-[11px] text-[var(--cranberry)] hover:underline cursor-pointer">{autoNamed ? "No, that's not me" : "Not me / change this"}</button>
       </div>
     );
   }
@@ -123,7 +128,11 @@ export default function PersonalIdentity() {
           {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
         </button>
       </div>
-      <p className="text-[10px] text-white/25 leading-snug">Lets me greet you by name on future visits. Stored on this site only; nothing else about you is shown to others.</p>
+      <p className="text-[10px] text-white/25 leading-snug">
+        Greets you by name on future visits using device fingerprinting. Stored on this site only.{" "}
+        By saving you consent to device recognition per our{" "}
+        <a href="/legal" className="underline underline-offset-2 text-white/40 hover:text-white/60">Privacy Policy</a>.
+      </p>
     </div>
   );
 }

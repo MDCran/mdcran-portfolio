@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { Loader2, Check, Calendar, Send } from "lucide-react";
+import { computeFingerprint } from "@/lib/device-fingerprint";
+import { formatPhoneInput } from "@/lib/contact-validation";
 
 /* Shared field/data shapes the AI fills in conversationally. */
 export interface ContactData {
@@ -111,7 +113,7 @@ export function ChatContactCard({ data }: { data: ContactData }) {
       <Field label="Name" value={name} onChange={setName} placeholder="Your name" />
       <div className="grid grid-cols-2 gap-2">
         <Field label="Email" value={email} onChange={setEmail} placeholder="you@email.com" type="email" />
-        <Field label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 123-4567" type="tel" />
+        <Field label="Phone (optional)" value={phone} onChange={(v) => setPhone(formatPhoneInput(v))} placeholder="(555) 123-4567" type="tel" />
       </div>
       <Field label="Subject (optional)" value={subject} onChange={setSubject} placeholder="What's this about?" />
       <Field label="Message" value={message} onChange={setMessage} placeholder="Your message" textarea />
@@ -194,6 +196,7 @@ export function ChatBookingCard({ data }: { data: BookingData }) {
     if (!consent) return setErr("Please check the consent box first.");
     setStatus("booking");
     try {
+      const fp = await computeFingerprint().catch(() => null);
       const res = await fetch("/api/booking/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -201,6 +204,7 @@ export function ChatBookingCard({ data }: { data: BookingData }) {
           typeId: type.id, duration, start: slot.start,
           name: name.trim(), email: email.trim(), phone: phone.trim() || undefined,
           subject: subject.trim() || undefined, message: message.trim() || undefined, consent: true,
+          serial: fp?.serial,
         }),
       });
       const j = await res.json().catch(() => null);
@@ -257,7 +261,7 @@ export function ChatBookingCard({ data }: { data: BookingData }) {
       <Field label="Name" value={name} onChange={setName} placeholder="Your name" />
       <div className="grid grid-cols-2 gap-2">
         <Field label="Email" value={email} onChange={setEmail} placeholder="you@email.com" type="email" />
-        <Field label="Phone (optional)" value={phone} onChange={setPhone} placeholder="(555) 123-4567" type="tel" />
+        <Field label="Phone (optional)" value={phone} onChange={(v) => setPhone(formatPhoneInput(v))} placeholder="(555) 123-4567" type="tel" />
       </div>
       <Field label="Subject (optional)" value={subject} onChange={setSubject} placeholder="What's this about?" />
       <Field label="Message (optional)" value={message} onChange={setMessage} placeholder="Anything to add?" textarea />
