@@ -974,7 +974,7 @@ export default function VoiceMode() {
                   }}
                 >
                   {phase === "error"
-                    ? <span className="text-white/55">{supported ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
+                    ? <span className="text-white/55">{(supported || /Firefox\/|Waterfox\//.test(typeof navigator !== "undefined" ? navigator.userAgent : "")) ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
                     : <span className="text-white/90">{interim || userSaid}</span>}
                 </div>
               </motion.div>

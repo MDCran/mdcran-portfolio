@@ -16,6 +16,7 @@ const CHANNEL_LABELS: Record<keyof DiscordChannelMap, string> = {
   identities: "Identity Lifecycle",
   analytics: "Weekly Analytics Digest",
   deviceLinks: "Cross-Device Links",
+  returningVisitors: "Returning Named Visitors",
 };
 
 const CHANNEL_DESCRIPTIONS: Record<keyof DiscordChannelMap, string> = {
@@ -25,6 +26,7 @@ const CHANNEL_DESCRIPTIONS: Record<keyof DiscordChannelMap, string> = {
   identities: "Fires when an identity is created (by admin, user input, or AI extraction) — shows name, origin and device count.",
   analytics: "Sent every Sunday at midnight UTC via Vercel Cron — weekly visitor stats, top pages, countries and engagement events.",
   deviceLinks: "Fires when two devices are bridged — the deterministic QR \"Scan to Mobile\" handshake or a confirmed probabilistic match. Falls back to the Identity channel if left blank.",
+  returningVisitors: "Fires when a NAMED identity (not anonymous) returns to the site after being away ≥30 min — shows name, how long they were away, device, IP and the page they landed on. Falls back to the Identity channel if left blank.",
 };
 
 type TestState = "idle" | "loading" | "ok" | "error";
@@ -35,7 +37,7 @@ export default function DiscordSettings() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testStates, setTestStates] = useState<Record<keyof DiscordChannelMap, TestState>>({
-    forms: "idle", bookings: "idle", newsletter: "idle", identities: "idle", analytics: "idle", deviceLinks: "idle",
+    forms: "idle", bookings: "idle", newsletter: "idle", identities: "idle", analytics: "idle", deviceLinks: "idle", returningVisitors: "idle",
   });
   const [digestState, setDigestState] = useState<TestState>("idle");
   const [error, setError] = useState<string | null>(null);

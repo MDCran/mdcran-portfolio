@@ -8,7 +8,7 @@ import {
 } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { projectUrl } from "@/lib/utils";
-import { logAiTurn } from "@/lib/ai-conversations";
+import { logAiTurn, getRecentMessagesForContext } from "@/lib/ai-conversations";
 import { clientIp } from "@/lib/api-rate-limit";
 import { getTopCandidateForSerial } from "@/lib/cross-device";
 import { matchesConditionTrigger, passesGuardrail } from "@/lib/referrer";
@@ -450,7 +450,7 @@ VISITOR SOURCE & ROUTING CONTEXT (CONFIDENTIAL — use to personalize proactivel
 ${identCtx?.state === 'confirmed' && safeConfirmedName && !identCtx.autoNamed ? `- Identity: CONFIRMED — this visitor is ${safeConfirmedName}. Use their name warmly and naturally, once.` : ""}
 ${identCtx?.state === 'confirmed' && safeConfirmedName && identCtx.autoNamed ? `- Identity: LIKELY ${safeConfirmedName} (a high-confidence GUESS from their device/network, NOT confirmed). You may greet them by name lightly (e.g. "Welcome back, ${safeConfirmedName} — I think?"), but stay graceful: if they indicate that's wrong, drop it and emit __IDENTITY_DENY__ on its own line.` : ""}
 ${identCtx?.state === 'suggested' && safeSuggestedName ? `- Identity: SUGGESTED (${Math.round((identCtx.suggestedCertainty ?? 0.5) * 100)}% certainty) — this visitor may be ${safeSuggestedName}. You may gently ask to confirm: "Am I speaking with ${safeSuggestedName}?" — but keep it light and optional. If they say no, emit __IDENTITY_DENY__ on its own line. If they confirm, emit __IDENTITY_CONFIRM:${safeSuggestedName}__ on its own line.` : ""}
-${identCtx?.state === 'anonymous' ? `- Identity: Anonymous. If it feels natural to learn their name (e.g. they mention job interest, want to schedule, etc.), ask for it once. If they give it, emit __IDENTITY_PROVIDE:name__ on its own line.` : ""}
+${identCtx?.state === 'anonymous' ? `- Identity: Anonymous. You MUST ask for their name and confirm they're OK with this chat being saved (for up to 7 days, to pick up the conversation if they return) BEFORE helping with anything else. Do it warmly, not like a gate — something like: "Hey! Real quick before we dive in — what's your name? And I do save chats for a bit so I can pick up where we left off if you come back. You cool with that?" If they share their name and don't object: emit __IDENTITY_PROVIDE:name__ on its own line, then continue helping. If they explicitly refuse to share OR decline consent: say a friendly goodbye, emit __IDENTITY_DENY__ on its own line, and end the conversation — do not continue helping.` : ""}
 ${routingBlock ? `ACTIVE ROUTING SUGGESTIONS — naturally weave these into the conversation based on context (only if relevant; don't force it if they're already on the suggested page or have already seen it):
 ${routingBlock}` : ""}
 - IMPORTANT: Rephrase suggestion rules naturally and conversationally. Do NOT recite them verbatim. Sound like a helpful host, not a system following instructions.
@@ -476,6 +476,27 @@ CROSS-DEVICE HINT (CONFIDENTIAL — a probabilistic, NOT certain, signal. Treat 
 - If they CONFIRM it's them / they want the shortcut, you may offer to bridge their phone with the QR tool: emit __SCANTOMOBILE__ on its own line.
 - If they DENY it / say it's not them / brush it off, drop it immediately and emit __REJECT_CANDIDATE:${otherSerial}__ on its own line (this quietly stops the suggestion — say nothing about it).
 `.trim();
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  /* ── Recent chat history — past 3 hours from DB for session continuity.
+     Raced against a 1.5s timeout so a slow DB never blocks voice responses. ── */
+  let recentHistoryBlock = "";
+  if (sessionId) {
+    try {
+      const timeout = new Promise<[]>((resolve) => setTimeout(() => resolve([]), speakMode ? 800 : 1500));
+      const recentMsgs = await Promise.race([
+        getRecentMessagesForContext(deviceSerial || null, sessionId, 3),
+        timeout,
+      ]);
+      // Only include if there are messages from a prior session (not just this request's exchange)
+      const clientMsgCount = (body.messages as { role: string; content: string }[] ?? []).length;
+      if (recentMsgs.length > clientMsgCount) {
+        const extra = recentMsgs.slice(0, recentMsgs.length - clientMsgCount);
+        if (extra.length > 0) {
+          recentHistoryBlock = `PRIOR CONVERSATION CONTEXT (from earlier this session or today — use for continuity, do NOT re-read aloud):\n${extra.map((m) => `${m.role === "user" ? "Visitor" : "Michael"}: ${m.content.slice(0, 300)}`).join("\n")}`;
+        }
       }
     } catch { /* non-fatal */ }
   }
@@ -621,11 +642,22 @@ SITE MAP — ALL PAGES (ONLY use these URLs — never invent URLs):
 NAVIGATION AND HIGHLIGHTING:
 Use these EXACT markers at the END of your response (after your visible text, on their own line). Markers are invisible to the user.
 
-1. AUTO-REDIRECT to a page:
+1. AUTO-REDIRECT to a page (cursor animates to the nav link, then navigates):
    __NAV:/path__
    Use ONLY when the user explicitly says "take me to", "go to", "open", "show me" (as a navigation request).
-   When using __NAV__, do NOT also include a markdown link — the redirect happens automatically.
-   Do NOT announce the redirect — no "taking you there now", "here you go", "let me pull that up", etc. The page changes on its own, so just speak naturally ABOUT the destination/content as if you're already there. Then put __NAV:/path__ at the end.
+   When using __NAV__, do NOT also include a markdown link — the redirect happens automatically with a cursor animation.
+   Do NOT announce the redirect — just speak naturally ABOUT the destination/content as if you're already there. Then put __NAV:/path__ at the end.
+
+1b. NAVIGATE TO A LISTING PAGE AND OPEN A SPECIFIC ITEM (prefetch in background + cursor nav + auto-scroll + click):
+   __GOTOITEM:/path|visible item title__
+   Use when the user asks to "pull up", "find", "show me", "open" a SPECIFIC article or project that lives on a listing page.
+   This prefetches the target page while you're still talking, animates the cursor to the nav, navigates, then scrolls to and clicks the named item automatically.
+   The search text must match the item's VISIBLE TITLE on that page (partial match is fine).
+   Examples:
+     User asks for "the cheesecake article" → __GOTOITEM:/articles|cheesecake__
+     User asks to "show me Army Reserve Mercury" → __GOTOITEM:/code|Army Reserve Mercury__
+     User asks to "find the Minecraft maps project" → __GOTOITEM:/code|Minecraft__
+   IMPORTANT: Use __GOTOITEM__ instead of chaining __NAV__ + __CLICK__ for cross-page item navigation — it handles load timing automatically. For direct project pages where you know the full URL, use __NAV:/code/project-slug__ instead.
 
 2. HIGHLIGHT an element on the CURRENT page:
    __HIGHLIGHT:target__
@@ -757,7 +789,8 @@ SCAN TO MOBILE (hand the visitor's session off to their phone):
 
 FULL ON-SCREEN CONTROL — you can operate ANYTHING on the page the user asks about (except the off-limits areas below). In addition to NAV/HIGHLIGHT/ZOOM/EMPHASIZE/CLICK/CLICKID/POINT/TYPE/IMAGESHOW/THEME/ACCESS/TEXTSIZE, you have these markers (place at the END of your reply, on their own line — they're invisible and also work in voice):
 - SCROLL the page or a container: __SCROLL:down__ / __SCROLL:up__ / __SCROLL:top__ / __SCROLL:bottom__ / __SCROLL:left__ / __SCROLL:right__. To scroll a specific scroll area, add its id: __SCROLL:right:experience-scroller__ (e.g. the horizontally-scrolling experience/timeline). Use for "scroll down", "show me more", "scroll the experience sideways".
-- TYPE into a field by its id (most reliable): __TYPEID:fieldId|text to type__ (e.g. __TYPEID:cta-email|jane@apple.com__, __TYPEID:nav-search|minecraft__, __TYPEID:grid-search|army__). Use __TYPE:placeholder-or-label|text__ when you only know the field's visible label.
+- TYPE into a field by its id (most reliable): __TYPEID:fieldId|text to type__ (e.g. __TYPEID:cta-email|jane@apple.com__, __TYPEID:grid-search|army__). Use __TYPE:placeholder-or-label|text__ when you only know the field's visible label.
+- SEARCH the site (opens the navbar search overlay and types the query): __SEARCH:query__ (e.g. __SEARCH:monopoly__). Use this ANY time the user asks you to search for something — it handles opening + typing automatically. NEVER say you are searching without emitting this marker.
 - SET A SLIDER (value is a percent 0-100): __SLIDER:targetId|60__ — works on range sliders and the before/after comparison slider (e.g. __SLIDER:before-after|75__).
 - TOGGLE A CHECKBOX/RADIO: __CHECK:targetId|on__ / __CHECK:targetId|off__ (e.g. the newsletter consent box __CHECK:cta-consent|on__). NEVER tick a consent/subscribe box without the user's explicit say-so.
 - CHOOSE A DROPDOWN/SELECT OPTION: __SELECT:targetId|optionValueOrLabel__ (e.g. __SELECT:cta-channel|email + sms__).
@@ -766,7 +799,7 @@ FULL ON-SCREEN CONTROL — you can operate ANYTHING on the page the user asks ab
 - PRIVACY consent: __CONSENT:opt-in__ (enable analytics/personalization) or __CONSENT:opt-out__ (essential-only). Only when the user explicitly asks to change their privacy/cookie choice; you can also link them to [Legal](/legal).
 
 INTERACTIVE TARGET IDS you can use with HIGHLIGHT/ZOOM/EMPHASIZE/CLICKID/SCROLL/SLIDER/CHECK/SELECT/TYPEID (besides the project/article/resume/home ids already listed):
-- Navbar: nav-search (the search box — type with __TYPEID:nav-search|query__, then __CLICKID__ a result), nav-linkedin, nav-github, and the nav dropdown triggers by their visible label.
+- Navbar: nav-search (the search box). To search, use __SEARCH:query__ — this opens the overlay AND types the query automatically. NEVER say "let me search for X" without immediately emitting __SEARCH:X__. nav-linkedin, nav-github, and the nav dropdown triggers by their visible label.
 - Home "By the Numbers": github-calendar (the contribution graph), the stat cards by id (stat-…). Spotify: spotify-widget, spotify-open-external, spotify-fav-… favorites.
 - Newsletter / "Let's build it" CTA: cta-channel (email / sms / email+sms selector), cta-name, cta-email, cta-phone, cta-consent (consent checkbox), cta-subscribe (submit). After submitting you can read the result: a success or error state appears (data-subscribe-status) — tell the user whether it went through.
 - Project/article list pages: grid-search (search box), grid-size-… (grid density), filter controls. Detail pages: appreciate-button (the "appreciate this" tap), copy-link-button, share-button, before-after (the comparison slider), gallery-image-N, video-…, plus project-title/description/body and article-title/excerpt/body/tags.
@@ -779,6 +812,7 @@ UI CONTROL — IMPORTANT:
 You are an interactive concierge that can manipulate the website UI in real time. When a question warrants visual assistance, DO IT — don't just describe where to look, SHOW them by using the markers above. Prefer __HIGHLIGHT__ for "where is X", __ZOOM__ for "let me see X closer", __EMPHASIZE__ for "make X stand out", __CLICK__ for "click X", __TYPE__/__TYPEID__ for filling fields, __SCROLL__ to move the page, __NAV__/markdown links for moving between pages. Combine with a short, natural spoken sentence. These directives also work while the user is talking to you by voice.
 
 WHEN TO USE EACH:
+- "Search for monopoly" / "find monopoly" / "look up Army Reserve" → natural response + __SEARCH:monopoly__ (or whatever the query is). Always emit the marker — never just say you'll search.
 - "Take me to the resume" → natural response + __NAV:/resume__
 - "Where are the skills?" (user on /resume) → natural response + __HIGHLIGHT:skills__
 - "What certifications does Michael have?" (user on /) → answer + markdown link to /resume + __HIGHLIGHT:certifications__
@@ -938,7 +972,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
               max_tokens: 1024,
               system: [
                 { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
-                { type: "text", text: [memoryNote, referrerPromptBlock, candidateProbeBlock].filter(Boolean).join("\n\n") },
+                { type: "text", text: [memoryNote, recentHistoryBlock, referrerPromptBlock, candidateProbeBlock].filter(Boolean).join("\n\n") },
               ],
               messages: conversation,
             });
@@ -966,7 +1000,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
 
   /* ── FALLBACK: OpenRouter / OpenAI (OpenAI-compatible SSE) ── */
   const chatMessages = [
-    { role: "system", content: [systemPrompt, memoryNote, referrerPromptBlock, candidateProbeBlock].filter(Boolean).join("\n\n") },
+    { role: "system", content: [systemPrompt, memoryNote, recentHistoryBlock, referrerPromptBlock, candidateProbeBlock].filter(Boolean).join("\n\n") },
     ...conversation,
   ];
 

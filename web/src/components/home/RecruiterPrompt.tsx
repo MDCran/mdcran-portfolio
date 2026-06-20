@@ -17,6 +17,7 @@ export default function RecruiterPrompt() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    if (window.innerWidth < 640) return;
     try {
       if (window.localStorage.getItem(STORAGE_KEY) === "true") return;
     } catch { /* */ }

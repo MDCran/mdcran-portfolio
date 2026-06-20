@@ -5,9 +5,14 @@ import { upsertDeviceRegistry, evaluateDeviceLinks } from "@/lib/cross-device";
 import { autoResolveCandidate, getLayeredSuggestions, AUTO_NAME_CERTAINTY } from "@/lib/cross-device-link";
 import { parseUserAgent } from "@/lib/ua";
 import { geolocateIp } from "@/lib/geoip";
+import { notifyReturningVisitor } from "@/lib/discord";
 import type { SessionLinkCandidate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+/** A named identity counts as "returning" (vs. still browsing) after this gap
+ *  since its device was last seen — gates the Discord alert to once per visit. */
+const RETURN_GAP_MS = 30 * 60 * 1000;
 
 interface ResolveBody {
   serial?: string;
@@ -71,7 +76,24 @@ export async function POST(req: NextRequest) {
 
   // Recognized NAMED identity → confirmed.
   if (identity && !identity.anonymous) {
+    // Detect a genuine RETURN (not just another page load in an active session):
+    // fire a Discord alert only when this device hasn't been seen for a while.
+    // Read lastSeen BEFORE touchDevice overwrites it.
+    const dev = identity.devices.find((d) => d.serial === serial);
+    const awayMs = dev?.lastSeen ? Date.now() - new Date(dev.lastSeen).getTime() : 0;
     await touchDevice(serial, { ip });
+    if (awayMs >= RETURN_GAP_MS) {
+      void notifyReturningVisitor({
+        id: identity.id,
+        name: identity.name,
+        deviceCount: identity.devices.length,
+        awayMs,
+        ip,
+        browser, os, device,
+        currentPath: landingPath,
+        source: sourceLabel ?? null,
+      });
+    }
     const suggestions = await suggestionsForIp(ip, serial);
     return Response.json({
       state: "confirmed",

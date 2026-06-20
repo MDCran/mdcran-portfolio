@@ -42,16 +42,11 @@ export default function CookieConsent() {
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] w-[min(calc(100vw-2rem),36rem)]">
       <div className="rounded-sm border border-white/12 bg-[#0b0b0b]/95 backdrop-blur-xl px-5 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
         <p className="text-xs text-white/60 leading-relaxed">
-          By visiting this site you consent to the collection of session data — including device info,
-          visit history, pages viewed, and interaction patterns — as described in the{" "}
+          This site uses cookies for analytics and personalization. See the{" "}
           <Link href="/legal" className="text-[#ef4242] underline underline-offset-2 hover:text-[#ff6060]">
-            Privacy Policy &amp; Terms
+            Privacy Policy
           </Link>
-          . This data is public-session data retained for site integrity, analytics, and improvement.
-        </p>
-        <p className="text-[11px] text-white/30 mt-1.5 leading-snug">
-          &ldquo;Essential Only&rdquo; opts out of optional analytics &amp; personalization cookies.
-          Continued use of this site constitutes acceptance of essential data collection regardless of choice.
+          . &ldquo;Essential Only&rdquo; opts out of optional tracking.
         </p>
         <div className="flex items-center justify-end gap-3 mt-3">
           <button

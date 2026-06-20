@@ -18,7 +18,7 @@ function DeviceIcon({ type }: { type?: string }) {
   return <Monitor size={12} className="text-white/35" />;
 }
 
-export default function IdentitiesAdmin() {
+export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (id: string) => void }) {
   const { confirm, modal } = useConfirm();
   const [identities, setIdentities] = useState<Identity[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -100,9 +100,15 @@ export default function IdentitiesAdmin() {
             </>
           ) : (
             <>
-              <Link href={`/admin/identities/${idn.id}`} className="text-sm text-white font-medium hover:text-[var(--cranberry)] truncate" title="Open full profile">
-                {idn.name}
-              </Link>
+              {onOpenIdentity ? (
+                <button onClick={() => onOpenIdentity(idn.id)} className="text-sm text-white font-medium hover:text-[var(--cranberry)] truncate cursor-pointer" title="Open full profile">
+                  {idn.name}
+                </button>
+              ) : (
+                <Link href={`/admin/identities/${idn.id}`} className="text-sm text-white font-medium hover:text-[var(--cranberry)] truncate" title="Open full profile">
+                  {idn.name}
+                </Link>
+              )}
               <span className="flex-1" />
               <span className="text-[10px] text-white/30">{idn.devices.length} device{idn.devices.length === 1 ? "" : "s"}</span>
               {identities.length > 1 && (
@@ -122,9 +128,15 @@ export default function IdentitiesAdmin() {
           ) : (
             <span className="text-white/30">No devices yet (created link awaiting first visit).</span>
           )}
-          <Link href={`/admin/identities/${idn.id}`} className="ml-auto inline-flex items-center gap-1 text-[var(--cranberry)]/80 hover:text-[var(--cranberry)]">
-            Open profile <ExternalLink size={11} />
-          </Link>
+          {onOpenIdentity ? (
+            <button onClick={() => onOpenIdentity(idn.id)} className="ml-auto inline-flex items-center gap-1 text-[var(--cranberry)]/80 hover:text-[var(--cranberry)] cursor-pointer">
+              Open profile <ExternalLink size={11} />
+            </button>
+          ) : (
+            <Link href={`/admin/identities/${idn.id}`} className="ml-auto inline-flex items-center gap-1 text-[var(--cranberry)]/80 hover:text-[var(--cranberry)]">
+              Open profile <ExternalLink size={11} />
+            </Link>
+          )}
         </div>
       </div>
     );
