@@ -4,7 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, Loader2, Clock, MapPin, CalendarDays, ChevronRight, ChevronLeft } from "lucide-react";
-import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import { isValidEmail, isValidPhoneNumber, formatPhoneInput } from "@/lib/contact-validation";
+import { computeFingerprint } from "@/lib/device-fingerprint";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -34,6 +35,7 @@ export default function BookMeeting() {
   const [tz, setTz] = useState("America/New_York");
 
   const [form, setForm] = useState({ name: "", email: "", phone: "", subject: "", message: "", consent: false });
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
   const [viewMonth, setViewMonth] = useState<{ y: number; m: number } | null>(null); // calendar month being shown
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [error, setError] = useState("");
@@ -82,9 +84,10 @@ export default function BookMeeting() {
 
     setStatus("sending"); setError("");
     try {
+      const fp = await computeFingerprint().catch(() => null);
       const res = await fetch("/api/booking/book", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ typeId: type.id, duration, start: slot.start, ...form }),
+        body: JSON.stringify({ typeId: type.id, duration, start: slot.start, ...form, serial: fp?.serial }),
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.success) {
@@ -280,13 +283,30 @@ export default function BookMeeting() {
               </div>
               <div>
                 <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Email <span className="text-[#ef4242]">*</span></label>
-                <input className={fieldCls} type="email" placeholder="your@email.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+                <input
+                  className={fieldErrors.email ? `${fieldCls} !border-[#ef4242]/60` : fieldCls}
+                  type="email"
+                  placeholder="your@email.com"
+                  value={form.email}
+                  onChange={(e) => { setForm((f) => ({ ...f, email: e.target.value })); if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
+                  onBlur={() => { const v = form.email.trim(); if (v && !isValidEmail(v)) setFieldErrors((fe) => ({ ...fe, email: "Enter a valid email." })); else setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
+                  required
+                />
+                {fieldErrors.email && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.email}</p>}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Phone</label>
-                <input className={fieldCls} type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+                <input
+                  className={fieldErrors.phone ? `${fieldCls} !border-[#ef4242]/60` : fieldCls}
+                  type="tel"
+                  placeholder="(555) 000-0000"
+                  value={form.phone}
+                  onChange={(e) => { setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) })); if (fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                  onBlur={() => { const v = form.phone.trim(); if (v && !isValidPhoneNumber(v)) setFieldErrors((fe) => ({ ...fe, phone: "Enter a valid phone number." })); else setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                />
+                {fieldErrors.phone && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.phone}</p>}
               </div>
               <div>
                 <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">Subject</label>

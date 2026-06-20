@@ -9,6 +9,11 @@ import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart, rememberTopic } from "@/lib/visitor-memory";
 import { extractPageContext } from "@/lib/page-context";
 import type { ContactData, BookingData } from "@/components/chat/ChatActionCards";
+import { useIdentity } from "@/context/IdentityContext";
+import { getStoredReferrerContext, getStoredIdentityContext, updateStoredIdentityContext } from "@/hooks/useReferrerTracker";
+import { computeFingerprint } from "@/lib/device-fingerprint";
+import { isLocalSttSupported, transcribeBlobLocal, preloadLocalStt } from "@/lib/local-stt";
+import { setConsent } from "@/components/shared/CookieConsent";
 
 const TOGGLE_EVENT = "mdcran:toggle-chat";
 const MAX_MESSAGES = 20;
@@ -21,24 +26,26 @@ function pickAgentName(): string {
   return AGENT_NAME;
 }
 
-/** Strip markdown, action markers, and any stray audio tags so only clean natural
+/** ElevenLabs v3 audio tags (e.g. "[laughs]", "[warmly]") — spoken-only, hidden on screen.
+   Matches a short bracketed lowercase phrase NOT followed by "(" so markdown links survive. */
+const AUDIO_TAG_RE = /\s*\[[a-z][a-z’’ ]{0,28}\](?!\()/g;
+
+/** Strip markdown, action markers, HTML tags, and any stray audio tags so only clean natural
    speech is sent to TTS. */
 function stripForSpeech(text: string): string {
   return text
     .replace(/__(?:CONTACTCARD|BOOKINGCARD):[\s\S]*$/g, " ") // never read the card JSON aloud
-    .replace(/__[A-Z]+:[^_]*__/g, " ")
-    .replace(/__[A-Z]+__/g, " ")
+    .replace(/__[A-Z_]+:.+?__/g, " ") // payloads may contain underscores (e.g. /some_path)
+    .replace(/__[A-Z_]+__/g, " ")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "") // strip any HTML tags the model might output
     .replace(AUDIO_TAG_RE, "")
     .replace(/\s+/g, " ")
     .trim();
 }
-
-/** ElevenLabs v3 audio tags (e.g. "[laughs]", "[warmly]") — spoken-only, hidden on screen.
-   Matches a short bracketed lowercase phrase NOT followed by "(" so markdown links survive. */
-const AUDIO_TAG_RE = /\s*\[[a-z][a-z'’ ]{0,28}\](?!\()/g;
 
 /** Remove v3 audio tags from anything shown on screen (chat text + karaoke caption). */
 function stripAudioTags(text: string): string {
@@ -47,7 +54,9 @@ function stripAudioTags(text: string): string {
 
 /** Render basic markdown: **bold**, *italic*, [text](url) */
 function renderChatMarkdown(text: string, onNavigate?: (href: string) => void, showTakeMeThere: boolean = true): React.ReactNode[] {
-  text = stripAudioTags(text); // never render spoken-only v3 audio tags
+  text = stripAudioTags(text);
+  // Strip any raw HTML tags the model might include (e.g. <b id="Bold">, <sup>)
+  text = text.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
   const parts: React.ReactNode[] = [];
   const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(\[([^\]]+)\]\(([^)]+)\))/g;
   let lastIndex = 0;
@@ -251,6 +260,7 @@ export default function ChatPanel() {
   const pathname = usePathname();
   const router = useRouter();
   const { themeInfo, setTheme } = useTheme();
+  const { identity: recycledIdentity } = useIdentity();
   const isLight = themeInfo.id === "light";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -278,6 +288,12 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Stable per-open session id + device serial so chat turns can be logged + stitched.
+  const chatSessionIdRef = useRef<string>(
+    (() => { try { return crypto.randomUUID(); } catch { return `cs-${Date.now()}-${Math.random().toString(36).slice(2)}`; } })(),
+  );
+  const deviceSerialRef = useRef<string>("");
+  useEffect(() => { void computeFingerprint().then((fp) => { deviceSerialRef.current = fp.serial; }).catch(() => {}); }, []);
 
   /* ── Voice (ElevenLabs TTS + STT) ── */
   const [voiceEnabled, setVoiceEnabled] = useState(true); // optimistic — buttons show instantly; probe corrects if unconfigured
@@ -287,6 +303,7 @@ export default function ChatPanel() {
   const [speaking, setSpeaking] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [identityState, setIdentityState] = useState(() => getStoredIdentityContext());
   const voiceOnRef = useRef(false);
   voiceOnRef.current = voiceOn;
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -394,10 +411,11 @@ export default function ChatPanel() {
     try {
       // ElevenLabs can take a beat — show a loading state on the bubble until audio is ready.
       broadcast("preparing");
+      const currentLang = (() => { try { return localStorage.getItem("mdcran_language") ?? "en-US"; } catch { return "en-US"; } })();
       const res = await fetch("/api/voice/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean }),
+        body: JSON.stringify({ text: clean, language: currentLang }),
       });
       if (!res.ok) { endCaption(); return; }
       const arr = await res.arrayBuffer();
@@ -735,7 +753,54 @@ export default function ChatPanel() {
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: nextMessages.map(({ role, content }) => ({ role, content })), currentPage: pathname, agentName, speak: voiceOnRef.current, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })() }),
+            body: JSON.stringify((() => {
+              const baseContext = (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })();
+              const body: Record<string, unknown> = {
+                messages: nextMessages.map(({ role, content }) => ({ role, content })),
+                currentPage: pathname,
+                agentName,
+                speak: voiceOnRef.current,
+                sessionId: chatSessionIdRef.current,
+                deviceSerial: deviceSerialRef.current || undefined,
+                memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(),
+                tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(),
+                visitorName: recycledIdentity?.name && recycledIdentity.name !== "Guest"
+                  ? recycledIdentity.name
+                  : undefined,
+                domContext: (recycledIdentity && recycledIdentity.name !== "Guest" && !recycledIdentity.isNew)
+                  ? [
+                      baseContext,
+                      `[Returning visitor: ${recycledIdentity.name}${recycledIdentity.company ? ", " + recycledIdentity.company : ""}${recycledIdentity.source && recycledIdentity.source !== "direct" ? ", via " + recycledIdentity.source : ""}. Returning after ${Math.floor((recycledIdentity.recycledAt - recycledIdentity.capturedAt) / 86400000)} days. Greet them warmly by name.]`
+                    ].filter(Boolean).join("\n")
+                  : baseContext,
+                referrerContext: (() => {
+                  const rc = getStoredReferrerContext();
+                  if (!rc) return undefined;
+                  return {
+                    resolvedSource: rc.resolvedSource,
+                    resolvedSourceLabel: rc.resolvedSourceLabel,
+                    utmSource: rc.utmSource || undefined,
+                    utmCampaign: rc.utmCampaign || undefined,
+                    utmMedium: rc.utmMedium || undefined,
+                    referrerDomain: rc.referrerDomain || undefined,
+                  };
+                })(),
+                identityContext: (() => {
+                  const ic = identityState ?? getStoredIdentityContext();
+                  if (!ic) return undefined;
+                  return {
+                    state: ic.state,
+                    suggestedName: ic.suggestedIdentityName,
+                    suggestedIdentityId: ic.suggestedIdentityId,
+                    confirmedName: ic.confirmedName,
+                    autoNamed: ic.autoNamed,
+                    suggestedCertainty: ic.suggestedCertainty,
+                    linkCandidate: ic.linkCandidate,
+                  };
+                })(),
+              };
+              return body;
+            })()),
             signal: controller.signal,
           });
 
@@ -800,10 +865,10 @@ export default function ChatPanel() {
                       for (const char of parsed.text) {
                         accumulated += char;
                         const display = accumulated
-                          .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")
-                          .replace(/\s*__[A-Z]+__\s*/g, " ")
-                          .replace(/\s*__[A-Z]+:[^\n]*$/g, "")
-                          .replace(/\s*__[A-Z]*$/g, "")
+                          .replace(/\s*__[A-Z_]+:.+?__\s*/g, " ")
+                          .replace(/\s*__[A-Z_]+__\s*/g, " ")
+                          .replace(/\s*__[A-Z_]+:[^\n]*$/g, "")
+                          .replace(/\s*__[A-Z_]*$/g, "")
                           .replace(/  +/g, " ")
                           .trim();
                         setMessages((prev) => {
@@ -811,7 +876,7 @@ export default function ChatPanel() {
                           updated[updated.length - 1] = { role: "assistant", content: display };
                           return updated.slice(-MAX_MESSAGES);
                         });
-                        const inMarker = /__[A-Z]/.test(accumulated) && !/__[A-Z]+:.+?__\s*$/.test(accumulated);
+                        const inMarker = /__[A-Z_]/.test(accumulated) && !/__[A-Z_]+:.+?__\s*$/.test(accumulated);
                         if (!inMarker) await new Promise((r) => setTimeout(r, 8));
                       }
                     }
@@ -985,6 +1050,26 @@ export default function ChatPanel() {
             setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
           }
 
+          // Full portfolio UI tour — triggers AssistantTutorial walkthrough
+          if (/__TOUR__/.test(cleaned)) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__TOUR__\s*/g, " ");
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
+              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
+            }, 600);
+          }
+
+          // Open a specific image in the project/article lightbox (AI-driven, no auto-cycle)
+          const imageShowMatches = [...cleaned.matchAll(/__IMAGESHOW:(\d+)__/g)];
+          if (imageShowMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__IMAGESHOW:\d+__/g, "");
+            const m = imageShowMatches[0];
+            const idx = parseInt(m[1], 10);
+            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:open-image", { detail: { index: idx } })), 500);
+          }
+
           // AI cursor: point at element by visible text
           const pointMatches = [...cleaned.matchAll(/__POINT:([^_]+?)__/g)];
           if (pointMatches.length) {
@@ -1026,6 +1111,164 @@ export default function ChatPanel() {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__CURSORRESET__\s*/g, " ");
             window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
+          }
+
+          // Directional / container scroll: __SCROLL:dir__ or __SCROLL:dir:target__
+          const scrollMatches = [...cleaned.matchAll(/__SCROLL:(up|down|left|right|top|bottom)(?::([\w-]+))?__/gi)];
+          if (scrollMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__SCROLL:(?:up|down|left|right|top|bottom)(?::[\w-]+)?__\s*/gi, " ");
+            scrollMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:scroll", { detail: { direction: m[1].toLowerCase(), target: m[2] } })), i * 500));
+          }
+
+          // Type into an anchored field by data-highlight-id: __TYPEID:fieldId|text__
+          // ([^|] so the typed value may contain underscores, e.g. emails/usernames)
+          const typeIdMatches = [...cleaned.matchAll(/__TYPEID:([\w-]+)\|([^|]*?)__/g)];
+          if (typeIdMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__TYPEID:[\w-]+\|[^|]*?__/g, "");
+            typeIdMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (i * 1800)));
+          }
+
+          // Set a slider (percent 0-100): __SLIDER:target|value__
+          const sliderMatches = [...cleaned.matchAll(/__SLIDER:([\w-]+)\|(\d{1,3})__/g)];
+          if (sliderMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__SLIDER:[\w-]+\|\d{1,3}__/g, "");
+            sliderMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-slider", { detail: { target: m[1], value: parseInt(m[2], 10) } })), i * 500));
+          }
+
+          // Toggle a checkbox/radio: __CHECK:target|on__ / __CHECK:target|off__ / __CHECK:target__
+          const checkMatches = [...cleaned.matchAll(/__CHECK:([\w-]+)(?:\|(on|off))?__/g)];
+          if (checkMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__CHECK:[\w-]+(?:\|(?:on|off))?__/g, "");
+            checkMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-check", { detail: { target: m[1], checked: m[2] ? m[2] === "on" : undefined } })), i * 500));
+          }
+
+          // Choose a select / dropdown option: __SELECT:target|value__
+          const selectMatches = [...cleaned.matchAll(/__SELECT:([\w-]+)\|([^|]*?)__/g)];
+          if (selectMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__SELECT:[\w-]+\|[^|]*?__/g, "");
+            selectMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-select", { detail: { target: m[1], value: m[2], optionText: m[2] } })), i * 500));
+          }
+
+          // Preload/prefetch a route WITHOUT navigating: __PREFETCH:/path__
+          const prefetchMatches = [...cleaned.matchAll(/__PREFETCH:(\/[^_\s]*)__/g)];
+          if (prefetchMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__PREFETCH:\/[^_\s]*__\s*/g, " ");
+            prefetchMatches.forEach((m) => { try { router.prefetch(m[1].split("#")[0] || "/"); } catch { /* */ } });
+          }
+
+          // Copy a link/text to the clipboard: __COPYLINK__ (current url) or __COPYLINK:text__
+          const copyMatch = cleaned.match(/__COPYLINK(?::(.+?))?__/);
+          if (copyMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__COPYLINK(?::.+?)?__\s*/g, " ");
+            const text = copyMatch[1]?.trim() || (typeof window !== "undefined" ? window.location.href : "");
+            window.dispatchEvent(new CustomEvent("mdcran:copy", { detail: { text } }));
+          }
+
+          // Privacy consent opt-in / opt-out: __CONSENT:opt-in__ / __CONSENT:opt-out__
+          const consentMatch = cleaned.match(/__CONSENT:(opt-in|opt-out)__/);
+          if (consentMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__CONSENT:(?:opt-in|opt-out)__\s*/g, " ");
+            setConsent(consentMatch[1] === "opt-in" ? "accepted" : "opted_out");
+          }
+
+          // Identity markers — parse and strip from displayed text
+          const identifyDenyMatch = cleaned.match(/__IDENTITY_DENY(?::([^_\s]+))?__/);
+          const identifyConfirmMatch = cleaned.match(/__IDENTITY_CONFIRM:([^_\n]+)__/);
+          const identifyProvideMatch = cleaned.match(/__IDENTITY_PROVIDE:([^_\n]+)__/);
+
+          if (identifyDenyMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__IDENTITY_DENY(?::[^_\s]+)?__\s*/g, " ");
+            const deniedId = identifyDenyMatch[1] ?? identityState?.suggestedIdentityId;
+            const ic = getStoredIdentityContext();
+            if (deniedId && ic) {
+              const deniedIds = [...(ic.deniedIdentityIds ?? []), deniedId];
+              const newState = { ...ic, state: 'denied' as const, deniedIdentityIds: deniedIds };
+              updateStoredIdentityContext(newState);
+              setIdentityState(newState);
+              computeFingerprint().then((fp) => {
+                fetch("/api/identity/update-state", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "deny", serial: fp.serial, identityId: deniedId, gpu: fp.gpu, screen: fp.screen, timezone: fp.timezone, language: fp.language, userAgent: fp.userAgent }),
+                }).catch(() => {});
+              }).catch(() => {});
+            }
+          }
+
+          if (identifyConfirmMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__IDENTITY_CONFIRM:[^_\n]+__\s*/g, " ");
+            const name = identifyConfirmMatch[1].trim();
+            computeFingerprint().then((fp) => {
+              return fetch("/api/identity/update-state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "confirm", serial: fp.serial, name, gpu: fp.gpu, screen: fp.screen, timezone: fp.timezone, language: fp.language, userAgent: fp.userAgent }),
+              });
+            }).then((res) => res?.json()).then((data) => {
+              if (data?.ok) {
+                const newState = { state: 'confirmed' as const, confirmedName: name, confirmedIdentityId: data.identity?.id };
+                updateStoredIdentityContext(newState);
+                setIdentityState((prev) => ({ ...(prev ?? { state: 'anonymous' as const, deniedIdentityIds: [] }), ...newState }));
+              }
+            }).catch(() => {});
+          }
+
+          if (identifyProvideMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__IDENTITY_PROVIDE:[^_\n]+__\s*/g, " ");
+            const name = identifyProvideMatch[1].trim();
+            computeFingerprint().then((fp) => {
+              return fetch("/api/identity/update-state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "provide", serial: fp.serial, name, gpu: fp.gpu, screen: fp.screen, timezone: fp.timezone, language: fp.language, userAgent: fp.userAgent }),
+              });
+            }).then((res) => res?.json()).then((data) => {
+              if (data?.ok) {
+                const newState = { state: 'confirmed' as const, confirmedName: name, confirmedIdentityId: data.identity?.id };
+                updateStoredIdentityContext(newState);
+                setIdentityState((prev) => ({ ...(prev ?? { state: 'anonymous' as const, deniedIdentityIds: [] }), ...newState }));
+              }
+            }).catch(() => {});
+          }
+
+          // Scan-to-mobile QR bridge — pops the QR modal in the chat
+          if (/__SCANTOMOBILE__/.test(cleaned)) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__SCANTOMOBILE__\s*/g, " ");
+            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:scan-to-mobile")), 300);
+          }
+
+          // Reject a probabilistic cross-device candidate (user denied the pairing)
+          const rejectCandMatch = cleaned.match(/__REJECT_CANDIDATE(?::([^_\s]+))?__/);
+          if (rejectCandMatch) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/\s*__REJECT_CANDIDATE(?::[^_\s]+)?__\s*/g, " ");
+            const otherSerial = rejectCandMatch[1] || identityState?.linkCandidate?.otherSerial;
+            // Drop the candidate from local context so we never re-probe this session.
+            const ic = getStoredIdentityContext();
+            if (ic?.linkCandidate) {
+              const newState = { ...ic, linkCandidate: undefined };
+              updateStoredIdentityContext(newState);
+              setIdentityState(newState);
+            }
+            computeFingerprint().then((fp) => {
+              fetch("/api/identity/update-state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "reject", serial: fp.serial, targetSerial: otherSerial }),
+              }).catch(() => {});
+            }).catch(() => {});
           }
 
           // Highlight marker — extract before auto-nav fallback so we know if one exists
@@ -1106,13 +1349,13 @@ export default function ChatPanel() {
         }
 
         /* Got a real response */
-        if (accumulated.replace(/__[A-Z]+(?::[^_]+)?__/g, "").trim()) {
+        if (accumulated.replace(/__[A-Z_]+(?::[^_]+)?__/g, "").trim()) {
           // In voice mode the message was held as "" (dots) — now reveal the cleaned text
           // in the chat bubble so the user can read along or reference it after the voice finishes.
           if (voiceOnRef.current) {
             const displayText = accumulated
-              .replace(/\s*__[A-Z]+:.+?__\s*/g, " ")
-              .replace(/\s*__[A-Z]+__\s*/g, " ")
+              .replace(/\s*__[A-Z_]+:.+?__\s*/g, " ")
+              .replace(/\s*__[A-Z_]+__\s*/g, " ")
               .replace(/  +/g, " ")
               .trim();
             setMessages((prev) => {
@@ -1204,6 +1447,8 @@ export default function ChatPanel() {
     }
 
     try {
+      // No Web Speech here → the recorder path uses on-device Whisper. Warm it up.
+      if (isLocalSttSupported()) preloadLocalStt();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       audioChunksRef.current = [];
@@ -1214,11 +1459,20 @@ export default function ChatPanel() {
         if (blob.size === 0) return;
         setTranscribing(true);
         try {
-          const fd = new FormData();
-          fd.set("file", blob, "recording.webm");
-          const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
-          const data = await res.json().catch(() => null);
-          const transcript = typeof data?.text === "string" ? data.text.trim() : "";
+          // Free, on-device Whisper first; paid server STT ONLY if the local engine
+          // couldn't run. A successful-but-empty result = silence → don't bill it.
+          let transcript = "";
+          let localOk = false;
+          if (isLocalSttSupported()) {
+            try { transcript = await transcribeBlobLocal(blob); localOk = true; } catch { localOk = false; }
+          }
+          if (!localOk) {
+            const fd = new FormData();
+            fd.set("file", blob, "recording.webm");
+            const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
+            const data = await res.json().catch(() => null);
+            transcript = typeof data?.text === "string" ? data.text.trim() : "";
+          }
           if (transcript) void handleSend(transcript);
         } catch {
           /* ignore */

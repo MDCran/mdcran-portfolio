@@ -23,6 +23,10 @@ import ImageTagsEditor from "@/components/admin/ImageTagsEditor";
 import DatePicker from "@/components/shared/DatePicker";
 import BookingAdmin from "@/components/admin/BookingAdmin";
 import IdentitiesAdmin from "@/components/admin/IdentitiesAdmin";
+import DeviceCandidates from "@/components/admin/DeviceCandidates";
+import DiscordSettings from "@/components/admin/DiscordSettings";
+import UtmLinkGenerator from "@/components/admin/UtmLinkGenerator";
+import AiRoutingConditions from "@/components/admin/AiRoutingConditions";
 import { synthProjectDate } from "@/lib/project-date";
 import { formatPublishDate } from "@/lib/read-time";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
@@ -60,6 +64,12 @@ import { flagEmoji } from "@/lib/flag";
 import { defaultSiteContent } from "@/lib/site-content";
 import { SKILL_ICON_NAMES, SkillIcon } from "@/lib/skill-icons";
 import { assetUrl } from "@/lib/utils";
+import {
+  LayoutDashboard, FolderKanban, FileText, Users, HardDrive, Settings2, FileUser,
+  BarChart3, Monitor, Mail, ShieldAlert, Bot, MessageSquare, Send, Zap, Wine,
+  Eye, CalendarCheck, Fingerprint, GitMerge, TrendingUp, Activity, Database,
+  MessageCircle, Menu, X, ChevronDown, Globe,
+} from "lucide-react";
 
 /* ─── Local-only types ───────────────────────────────────── */
 type Contact = ContactSubmission;
@@ -113,8 +123,11 @@ type NavSection =
   | "visitors"
   | "booking"
   | "identities"
+  | "crossdevice"
+  | "traffic"
   | "status"
-  | "database";
+  | "database"
+  | "discord";
 
 const DEFAULT_RESUME_PROFILE: ResumeProfile = {
   fullName: "Michael Cran",
@@ -3172,13 +3185,14 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const [activeSection, setActiveSection] = useState<NavSection>("dashboard");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   /* ── Deep-link each section via URL hash (#projects, #resume, …) ── */
   useEffect(() => {
     const VALID_SECTIONS: NavSection[] = [
       "dashboard", "projects", "articles", "clients", "r2-assets", "site-content",
       "resume", "analytics", "sessions", "contacts", "rate-limits", "ai", "contact-form-entries", "campaigns",
-      "rizz", "bar", "visitors", "booking", "identities", "status", "database",
+      "rizz", "bar", "visitors", "booking", "identities", "crossdevice", "traffic", "status", "database", "discord",
     ];
     const applyHash = () => {
       const hash = window.location.hash.replace(/^#/, "");
@@ -4492,8 +4506,46 @@ export default function AdminDashboard() {
     { key: "visitors", label: "Visitors" },
     { key: "booking", label: "Booking" },
     { key: "identities", label: "Identities" },
+    { key: "crossdevice", label: "Cross-Device" },
+    { key: "traffic", label: "Traffic & AI" },
     { key: "status", label: "Status" },
     { key: "database", label: "Database" },
+    { key: "discord", label: "Discord" },
+  ];
+
+  const NAV_ICONS: Partial<Record<NavSection, React.ReactNode>> = {
+    dashboard:            <LayoutDashboard size={13} />,
+    projects:             <FolderKanban size={13} />,
+    articles:             <FileText size={13} />,
+    clients:              <Users size={13} />,
+    "r2-assets":          <HardDrive size={13} />,
+    "site-content":       <Settings2 size={13} />,
+    resume:               <FileUser size={13} />,
+    analytics:            <BarChart3 size={13} />,
+    sessions:             <Monitor size={13} />,
+    contacts:             <Mail size={13} />,
+    "rate-limits":        <ShieldAlert size={13} />,
+    ai:                   <Bot size={13} />,
+    "contact-form-entries": <MessageSquare size={13} />,
+    campaigns:            <Send size={13} />,
+    rizz:                 <Zap size={13} />,
+    bar:                  <Wine size={13} />,
+    visitors:             <Eye size={13} />,
+    booking:              <CalendarCheck size={13} />,
+    identities:           <Fingerprint size={13} />,
+    crossdevice:          <GitMerge size={13} />,
+    traffic:              <TrendingUp size={13} />,
+    status:               <Activity size={13} />,
+    database:             <Database size={13} />,
+    discord:              <MessageCircle size={13} />,
+  };
+
+  const NAV_GROUPS: { label: string; items: NavSection[] }[] = [
+    { label: "Overview",  items: ["dashboard"] },
+    { label: "Content",   items: ["projects", "articles", "clients", "r2-assets", "site-content", "resume"] },
+    { label: "People",    items: ["contacts", "contact-form-entries", "booking", "identities", "crossdevice", "rizz"] },
+    { label: "Traffic",   items: ["analytics", "visitors", "sessions", "traffic", "ai"] },
+    { label: "System",    items: ["status", "rate-limits", "database", "discord", "campaigns", "bar"] },
   ];
 
   const adminSearchQuery = adminSearch.trim().toLowerCase();
@@ -4664,8 +4716,11 @@ export default function AdminDashboard() {
     visitors: "Visitors",
     booking: "Booking",
     identities: "Identities",
+    crossdevice: "Cross-Device",
+    traffic: "Traffic & AI",
     status: "Status",
     database: "Database",
+    discord: "Discord",
   };
 
   const sectionDescriptions: Record<NavSection, string> = {
@@ -4687,9 +4742,12 @@ export default function AdminDashboard() {
     bar: "Enable the /bar drink roulette and customize the wheel.",
     visitors: "Live visitor analytics and adjustments.",
     booking: "Calendar-backed meeting booking, business hours, and meeting types.",
-    identities: "Recognized visitors by device fingerprint — rename, merge, link, or remove.",
+    identities: "Recognized visitors by device fingerprint — rename, merge, link, or remove. Expand any identity for its device graph and full text + voice conversation history.",
+    crossdevice: "Probabilistically matched device pairs from the cross-device engine — confirm to merge into one identity, or reject to suppress.",
+    traffic: "UTM link builder and AI routing conditions for the portfolio concierge.",
     status: "Service uptime monitoring and incidents.",
     database: "Download a full JSON backup or restore from a previous export.",
+    discord: "Route site events to your Discord server — contact forms, bookings, newsletter, identity and weekly analytics digest.",
   };
 
   if (!hydrated) {
@@ -4765,7 +4823,7 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-            <div className="flex items-center gap-2 min-w-0 sm:min-w-[200px] justify-end shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <a
                 href="https://mdcran.com"
                 target="_blank"
@@ -4775,9 +4833,18 @@ export default function AdminDashboard() {
               >
                 Live Site ↗
               </a>
+              {/* Mobile: icon-only logout */}
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center justify-center h-9 px-3 text-[11px] tracking-wider text-[#ef4242]/60 border border-[#ef4242]/25 rounded-sm hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors"
+                className="sm:hidden inline-flex items-center justify-center h-9 w-9 text-[#ef4242]/60 border border-[#ef4242]/25 rounded-sm hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors"
+                title="Log out"
+              >
+                <X size={14} />
+              </button>
+              {/* Desktop: text logout */}
+              <button
+                onClick={handleLogout}
+                className="hidden sm:inline-flex items-center justify-center h-9 px-3 text-[11px] tracking-wider text-[#ef4242]/60 border border-[#ef4242]/25 rounded-sm hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors"
                 title="Log out"
               >
                 Log Out
@@ -4785,42 +4852,122 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Row 2 — horizontal section tabs (replaces the old sidebar) */}
-          <nav className="relative flex items-center gap-0.5 px-5 overflow-x-auto border-t border-white/6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
-            {navItems.map(({ key, label, unreadCount }) => {
-              const active = activeSection === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setActiveSection(key)}
-                  className={`relative flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2.5 text-[11px] tracking-wide transition-colors ${
-                    active ? "text-[#ef4242]" : "text-white/45 hover:text-white/80"
-                  }`}
-                >
-                  <span>{label}</span>
-                  {Boolean(unreadCount) && (
-                    <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-[#ef4242] px-1 py-0.5 text-[9px] leading-none text-white">
-                      {unreadCount}
-                    </span>
-                  )}
-                  {active && (
-                    <span className="absolute inset-x-2 -bottom-px h-px bg-[#ef4242] shadow-[0_0_8px_rgba(239,66,66,0.8)]" />
-                  )}
-                </button>
-              );
-            })}
+          {/* Row 2 — grouped section tabs (desktop) */}
+          <nav className="hidden md:flex items-stretch gap-0 px-2 overflow-x-auto border-t border-white/6 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+            {NAV_GROUPS.map((group, gi) => (
+              <div key={group.label} className={`flex items-center ${gi > 0 ? "border-l border-white/8 ml-0.5 pl-0.5" : ""}`}>
+                <span className="hidden xl:block px-2 text-[8px] tracking-[0.22em] uppercase text-white/20 whitespace-nowrap self-center select-none">{group.label}</span>
+                {group.items.map((key) => {
+                  const item = navItems.find((n) => n.key === key);
+                  if (!item) return null;
+                  const active = activeSection === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setActiveSection(key)}
+                      title={sectionTitles[key]}
+                      className={`relative flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-[11px] tracking-wide transition-colors ${
+                        active ? "text-[#ef4242]" : "text-white/40 hover:text-white/80"
+                      }`}
+                    >
+                      <span className="opacity-70">{NAV_ICONS[key]}</span>
+                      <span>{item.label}</span>
+                      {Boolean(item.unreadCount) && (
+                        <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-[#ef4242] px-1 py-0.5 text-[9px] leading-none text-white">
+                          {item.unreadCount}
+                        </span>
+                      )}
+                      {active && <span className="absolute inset-x-1.5 -bottom-px h-px bg-[#ef4242] shadow-[0_0_8px_rgba(239,66,66,0.8)]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
+
+          {/* Row 2 — mobile: current section chip + hamburger */}
+          <div className="md:hidden flex items-center justify-between px-4 py-2 border-t border-white/6">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="flex items-center gap-2 h-9 px-3 rounded-sm border border-white/10 bg-white/4 text-[11px] text-white/70 hover:border-white/25 hover:text-white transition-colors min-w-0"
+            >
+              <span className="text-[#ef4242] opacity-80">{NAV_ICONS[activeSection]}</span>
+              <span className="truncate max-w-[140px]">{sectionTitles[activeSection]}</span>
+              <ChevronDown size={11} className="text-white/30 shrink-0 ml-1" />
+            </button>
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-sm border border-white/10 text-white/50 hover:text-white hover:border-white/25 transition-colors"
+              aria-label="Open navigation"
+            >
+              <Menu size={15} />
+            </button>
+          </div>
+
+          {/* Mobile nav drawer */}
+          {mobileNavOpen && (
+            <div className="md:hidden fixed inset-0 z-[200] flex">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
+              <div className="relative z-10 w-72 max-w-[85vw] h-full bg-[#0b0b0b] border-r border-white/10 flex flex-col overflow-y-auto">
+                <div className="flex items-center justify-between px-4 h-14 border-b border-white/8 shrink-0">
+                  <span className="font-nord text-sm text-white">MDCran<span className="text-[#ef4242]">.admin</span></span>
+                  <button onClick={() => setMobileNavOpen(false)} className="inline-flex items-center justify-center h-8 w-8 text-white/40 hover:text-white transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="flex-1 py-3 space-y-1">
+                  {NAV_GROUPS.map((group) => (
+                    <div key={group.label}>
+                      <p className="px-4 pt-3 pb-1.5 text-[8px] tracking-[0.22em] uppercase text-white/25">{group.label}</p>
+                      {group.items.map((key) => {
+                        const item = navItems.find((n) => n.key === key);
+                        if (!item) return null;
+                        const active = activeSection === key;
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => { setActiveSection(key); setMobileNavOpen(false); }}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                              active
+                                ? "bg-[#ef4242]/10 text-[#ef4242] border-r-2 border-[#ef4242]"
+                                : "text-white/55 hover:text-white hover:bg-white/4"
+                            }`}
+                          >
+                            <span className={active ? "text-[#ef4242]" : "text-white/30"}>{NAV_ICONS[key]}</span>
+                            <span className="flex-1 text-left text-[13px]">{item.label}</span>
+                            {Boolean(item.unreadCount) && (
+                              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4242] px-1.5 py-0.5 text-[9px] leading-none text-white">{item.unreadCount}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <div className="px-4 py-4 border-t border-white/8 space-y-2 shrink-0">
+                  <a href="https://mdcran.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 h-9 px-3 w-full rounded-sm border border-white/10 text-[12px] text-white/45 hover:text-white/80 transition-colors">
+                    <Globe size={13} /> Live Site ↗
+                  </a>
+                  <button onClick={handleLogout} className="flex items-center justify-center gap-2 h-9 px-3 w-full rounded-sm border border-[#ef4242]/25 text-[12px] text-[#ef4242]/60 hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors">
+                    Log Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </header>
 
         {/* Content */}
-        <div className="flex-1 px-4 sm:px-8 py-6 sm:py-8 max-w-[1400px] w-full mx-auto">
+        <div className="flex-1 px-3 sm:px-6 lg:px-8 py-5 sm:py-7 max-w-[1440px] w-full mx-auto">
 
-          {/* Section intro header */}
-          <div className="mb-7">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-[#ef4242]/70 mb-1.5">{sectionTitles[activeSection]}</p>
-            <p className="text-sm text-white/40 max-w-2xl">{sectionDescriptions[activeSection]}</p>
-            <div className="mt-4 h-px w-full bg-gradient-to-r from-[#ef4242]/40 via-white/8 to-transparent" />
+          {/* Section intro header — compact */}
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.28em] text-[#ef4242]/70 mb-1">{sectionTitles[activeSection]}</p>
+              <p className="text-xs text-white/35 max-w-xl leading-relaxed">{sectionDescriptions[activeSection]}</p>
+            </div>
           </div>
+          <div className="mb-6 h-px w-full bg-gradient-to-r from-[#ef4242]/40 via-white/8 to-transparent" />
 
           {/* ─────────────────────────────────────
               DASHBOARD OVERVIEW
@@ -8209,12 +8356,27 @@ export default function AdminDashboard() {
             <IdentitiesAdmin />
           )}
 
+          {activeSection === "crossdevice" && (
+            <DeviceCandidates />
+          )}
+
+          {activeSection === "traffic" && (
+            <div className="space-y-6">
+              <UtmLinkGenerator />
+              <AiRoutingConditions />
+            </div>
+          )}
+
           {activeSection === "status" && (
             <AdminStatusSection />
           )}
 
           {activeSection === "database" && (
             <AdminDatabaseSection />
+          )}
+
+          {activeSection === "discord" && (
+            <DiscordSettings />
           )}
 
         </div>

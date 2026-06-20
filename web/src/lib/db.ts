@@ -1,4 +1,4 @@
-import { getDb } from "./mongodb";
+import { getDb, resetMongoClient } from "./mongodb";
 import bcrypt from "bcryptjs";
 import type {
   Project,
@@ -26,6 +26,9 @@ import type {
   StatusServiceWithHealth,
   ServiceStatus,
   DailyStatus,
+  AiRoutingCondition,
+  UtmLink,
+  CrossDeviceAutoConfig,
 } from "./types";
 import { defaultSiteContent } from "./site-content";
 import { assetUrl } from "./utils";
@@ -38,10 +41,38 @@ const PROJECT_VIDEO_REFRESH_MS = 60 * 1000;
 let clientSocialRefreshPromise: Promise<ClientSocialRefreshReport> | null = null;
 let projectVideoRefreshPromise: Promise<ProjectVideoRefreshReport> | null = null;
 
+function isConnError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.message.includes("ECONNRESET") ||
+    err.constructor.name === "MongoServerSelectionError" ||
+    err.constructor.name === "MongoNetworkError" ||
+    err.constructor.name === "MongoNetworkTimeoutError"
+  );
+}
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === 0 && isConnError(err)) {
+        resetMongoClient();
+        await new Promise<void>((r) => setTimeout(r, 600));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("withRetry: unreachable");
+}
+
 async function readCollection<T>(collName: string): Promise<T[]> {
-  const db = await getDb();
-  const rows = await db.collection(collName).find({}, { projection: { _id: 0 } }).toArray();
-  return rows.map((row) => normalizeAssetPaths(row) as T);
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection(collName).find({}, { projection: { _id: 0 } }).toArray();
+    return rows.map((row) => normalizeAssetPaths(row) as T);
+  });
 }
 
 async function getProjectsRaw(): Promise<Project[]> {
@@ -84,7 +115,7 @@ export async function getProjects(options?: { refreshVideoViews?: boolean; inclu
 }
 
 export async function getSiteContent(): Promise<SiteContent> {
-  const db = await getDb();
+  const db = await withRetry(() => getDb());
   const content = await db.collection("siteContent").findOne<SiteContent>(
     { id: defaultSiteContent.id },
     { projection: { _id: 0 } }
@@ -1178,21 +1209,27 @@ export async function getSkills(): Promise<Skill[]> {
 }
 
 export async function getCertifications(): Promise<Certification[]> {
-  const db = await getDb();
-  const rows = await db.collection("certifications").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
-  return rows.map((row) => normalizeAssetPaths(row as unknown as Certification) as Certification);
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection("certifications").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+    return rows.map((row) => normalizeAssetPaths(row as unknown as Certification) as Certification);
+  });
 }
 
 export async function getAwards(): Promise<Award[]> {
-  const db = await getDb();
-  const rows = await db.collection("awards").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
-  return rows.map((row) => normalizeAssetPaths(row as unknown as Award) as Award);
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection("awards").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+    return rows.map((row) => normalizeAssetPaths(row as unknown as Award) as Award);
+  });
 }
 
 export async function getClubs(): Promise<ClubMembership[]> {
-  const db = await getDb();
-  const rows = await db.collection("clubs").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
-  return rows.map((row) => normalizeAssetPaths(row as unknown as ClubMembership) as ClubMembership);
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection("clubs").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+    return rows.map((row) => normalizeAssetPaths(row as unknown as ClubMembership) as ClubMembership);
+  });
 }
 
 export async function getContactSubmissions(): Promise<ContactSubmission[]> {
@@ -1425,6 +1462,33 @@ export async function setVisitorMultiplier(multiplier: number): Promise<void> {
   const db = await getDb();
   const v = Math.max(1, multiplier);
   await db.collection("settings").updateOne({ key: "visitor_multiplier" }, { $set: { key: "visitor_multiplier", value: v } }, { upsert: true });
+}
+
+/* ── Cross-device auto-resolution policy (self-managing candidate queue) ── */
+const CROSS_DEVICE_AUTO_KEY = "cross_device_auto";
+const CROSS_DEVICE_AUTO_DEFAULTS: CrossDeviceAutoConfig = { enabled: true, autoConfirmScore: 85, autoRejectStaleDays: 14 };
+
+export async function getCrossDeviceAutoConfig(): Promise<CrossDeviceAutoConfig> {
+  const db = await getDb();
+  const doc = await db.collection("settings").findOne<{ key: string; value: Partial<CrossDeviceAutoConfig> }>({ key: CROSS_DEVICE_AUTO_KEY });
+  const v = doc?.value ?? {};
+  return {
+    enabled: typeof v.enabled === "boolean" ? v.enabled : CROSS_DEVICE_AUTO_DEFAULTS.enabled,
+    autoConfirmScore: typeof v.autoConfirmScore === "number" ? Math.max(50, Math.min(100, v.autoConfirmScore)) : CROSS_DEVICE_AUTO_DEFAULTS.autoConfirmScore,
+    autoRejectStaleDays: typeof v.autoRejectStaleDays === "number" ? Math.max(0, Math.min(365, v.autoRejectStaleDays)) : CROSS_DEVICE_AUTO_DEFAULTS.autoRejectStaleDays,
+  };
+}
+
+export async function saveCrossDeviceAutoConfig(patch: Partial<CrossDeviceAutoConfig>): Promise<CrossDeviceAutoConfig> {
+  const current = await getCrossDeviceAutoConfig();
+  const value: CrossDeviceAutoConfig = {
+    enabled: typeof patch.enabled === "boolean" ? patch.enabled : current.enabled,
+    autoConfirmScore: typeof patch.autoConfirmScore === "number" ? Math.max(50, Math.min(100, patch.autoConfirmScore)) : current.autoConfirmScore,
+    autoRejectStaleDays: typeof patch.autoRejectStaleDays === "number" ? Math.max(0, Math.min(365, patch.autoRejectStaleDays)) : current.autoRejectStaleDays,
+  };
+  const db = await getDb();
+  await db.collection("settings").updateOne({ key: CROSS_DEVICE_AUTO_KEY }, { $set: { key: CROSS_DEVICE_AUTO_KEY, value } }, { upsert: true });
+  return value;
 }
 
 export async function getVisitorCountsByCountry(): Promise<VisitorCountByCountry[]> {
@@ -1868,9 +1932,11 @@ const DEFAULT_RESUME_PROFILE: ResumeProfile = {
 };
 
 export async function getResumeProfile(): Promise<ResumeProfile> {
-  const db = await getDb();
-  const doc = await db.collection("resumeProfile").findOne<Partial<ResumeProfile>>({}, { projection: { _id: 0 } });
-  return { ...DEFAULT_RESUME_PROFILE, ...(doc ?? {}) };
+  return withRetry(async () => {
+    const db = await getDb();
+    const doc = await db.collection("resumeProfile").findOne<Partial<ResumeProfile>>({}, { projection: { _id: 0 } });
+    return { ...DEFAULT_RESUME_PROFILE, ...(doc ?? {}) };
+  });
 }
 
 export async function saveResumeProfile(profile: Partial<ResumeProfile>): Promise<void> {
@@ -1898,4 +1964,103 @@ export async function saveSkillCategories(categories: SkillCategoryMeta[]): Prom
       categories.map((c, i) => ({ ...c, position: i })) as unknown as Record<string, unknown>[]
     );
   }
+}
+
+// ─── AI Routing Conditions ────────────────────────────────────────────────────
+
+export async function getAiRoutingConditions(): Promise<AiRoutingCondition[]> {
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection("aiRoutingConditions").find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).toArray();
+    return rows as unknown as AiRoutingCondition[];
+  });
+}
+
+export async function getActiveAiRoutingConditions(): Promise<AiRoutingCondition[]> {
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection("aiRoutingConditions").find({ active: true }, { projection: { _id: 0 } }).sort({ createdAt: 1 }).toArray();
+    return rows as unknown as AiRoutingCondition[];
+  });
+}
+
+export async function saveAiRoutingCondition(condition: AiRoutingCondition): Promise<void> {
+  const db = await getDb();
+  await db.collection("aiRoutingConditions").updateOne(
+    { id: condition.id },
+    { $set: condition as unknown as Record<string, unknown> },
+    { upsert: true }
+  );
+}
+
+export async function deleteAiRoutingCondition(id: string): Promise<void> {
+  const db = await getDb();
+  await db.collection("aiRoutingConditions").deleteOne({ id });
+}
+
+// ─── Per-identity joins (CRM) ─────────────────────────────────────────────────
+
+export async function getContactMessagesForIdentity(identityId: string, serials: string[]): Promise<ContactSubmission[]> {
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db
+      .collection("contacts")
+      .find(
+        { source: "contact-form", $or: [{ identityId }, { serial: { $in: serials.filter(Boolean) } }] },
+        { projection: { _id: 0 } }
+      )
+      .sort({ createdAt: -1 })
+      .toArray();
+    return rows as unknown as ContactSubmission[];
+  });
+}
+
+export async function getRizzSubmissionsForIdentity(identityId: string, serials: string[]): Promise<RizzSubmission[]> {
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db
+      .collection("rizz")
+      .find(
+        { $or: [{ identityId }, { serial: { $in: serials.filter(Boolean) } }] },
+        { projection: { _id: 0 } }
+      )
+      .sort({ createdAt: -1 })
+      .toArray();
+    return rows as unknown as RizzSubmission[];
+  });
+}
+
+export async function getChatRateLimitsForIps(ips: string[]): Promise<{ ip: string; count: number; resetAt: string }[]> {
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db
+      .collection("chatRateLimits")
+      .find({ ip: { $in: ips.filter(Boolean) } }, { projection: { _id: 0 } })
+      .toArray();
+    return rows as unknown as { ip: string; count: number; resetAt: string }[];
+  });
+}
+
+// ─── UTM Links ────────────────────────────────────────────────────────────────
+
+export async function getUtmLinks(): Promise<UtmLink[]> {
+  return withRetry(async () => {
+    const db = await getDb();
+    const rows = await db.collection("utmLinks").find({}, { projection: { _id: 0 } }).sort({ createdAt: 1 }).toArray();
+    return rows as unknown as UtmLink[];
+  });
+}
+
+export async function saveUtmLink(link: UtmLink): Promise<void> {
+  const db = await getDb();
+  await db.collection("utmLinks").updateOne(
+    { id: link.id },
+    { $set: link as unknown as Record<string, unknown> },
+    { upsert: true }
+  );
+}
+
+export async function deleteUtmLink(id: string): Promise<void> {
+  const db = await getDb();
+  await db.collection("utmLinks").deleteOne({ id });
 }

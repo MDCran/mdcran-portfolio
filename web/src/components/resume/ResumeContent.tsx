@@ -177,6 +177,7 @@ export default function ResumeContent({
               <a
                 href={resumePdfHref}
                 download
+                data-highlight-id="resume-download"
                 className="flex items-center gap-2 h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors shadow-[0_0_20px_rgba(239,66,66,0.3)]"
               >
                 Download PDF

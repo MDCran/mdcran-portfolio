@@ -4,11 +4,30 @@ import {
   getProjects, getClients, getArticles, getExperiences, getSkills, getSkillCategories, getCertifications,
   getChatConfig, saveChatConfig, type ChatConfig,
   checkChatRateLimit, getChatRateLimitEntries, clearChatRateLimits,
-  getAwards, getClubs, getEducations, getResumeProfile,
+  getAwards, getClubs, getEducations, getResumeProfile, getActiveAiRoutingConditions,
 } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { projectUrl } from "@/lib/utils";
-import type { ImageAsset, ArticleSection } from "@/lib/types";
+import { logAiTurn } from "@/lib/ai-conversations";
+import { clientIp } from "@/lib/api-rate-limit";
+import { getTopCandidateForSerial } from "@/lib/cross-device";
+import { matchesConditionTrigger, passesGuardrail } from "@/lib/referrer";
+import type { ImageAsset, ArticleSection, ReferrerContext } from "@/lib/types";
+
+/** Strip AI control markers so the stored transcript reads naturally. */
+function stripChatMarkers(text: string): string {
+  return text
+    .replace(/__(?:CONTACTCARD|BOOKINGCARD):\{[\s\S]*?\}__/g, "")
+    .replace(/__[A-Z_]+(?::[^_]*)?__/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/** Sanitize any DB/client-derived string before it is interpolated into the system
+ *  prompt — strips newlines and marker-like tokens so it can't inject instructions. */
+function sanitizePromptValue(s: string | null | undefined, max = 60): string {
+  return String(s ?? "").replace(/[\r\n]+/g, " ").replace(/__[A-Z][A-Z_]*(?::[^_]*)?__/g, "").slice(0, max).trim();
+}
 
 function getRateLimitKey(req: NextRequest): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
@@ -175,7 +194,7 @@ async function handlePost(req: NextRequest): Promise<Response> {
     return new Response(JSON.stringify({ error: "Rate limited. Try again later." }), { status: 429 });
   }
 
-  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] }; domContext?: string; visitorName?: string; visitorGeo?: string; language?: string };
+  let body: { messages?: { role: string; content: string }[]; currentPage?: string; agentName?: string; tone?: string; images?: string[]; speak?: boolean; memory?: { visits?: number; returning?: boolean; daysSinceLast?: number; daypart?: string; topics?: string[] }; domContext?: string; visitorName?: string; visitorGeo?: string; language?: string; sessionId?: string; deviceSerial?: string; referrerContext?: { resolvedSource?: string; resolvedSourceLabel?: string; utmSource?: string; utmCampaign?: string; utmMedium?: string; referrerDomain?: string }; identityContext?: { state?: string; suggestedName?: string; suggestedIdentityId?: string; confirmedName?: string; autoNamed?: boolean; suggestedCertainty?: number; linkCandidate?: { otherSerial?: string; otherName?: string | null; score?: number; sharedPath?: string | null; criteria?: string[] } } };
   try {
     body = await req.json();
   } catch {
@@ -198,9 +217,20 @@ async function handlePost(req: NextRequest): Promise<Response> {
       : "TONE OVERRIDE: Keep a warm, friendly, conversational tone.";
   const domContext = typeof body.domContext === "string" && body.domContext.trim() ? body.domContext.trim() : null;
   const speakMode = body.speak === true;
-  const visitorName = typeof body.visitorName === "string" && body.visitorName.trim() ? body.visitorName.trim() : null;
+  const visitorName = typeof body.visitorName === "string" && body.visitorName.trim()
+    ? body.visitorName.trim().replace(/[\r\n]+/g, " ").replace(/__[A-Z][A-Z_]*(?::[^_]*)?__/g, "").slice(0, 60) || null
+    : null;
   const visitorGeo = typeof body.visitorGeo === "string" && body.visitorGeo.trim() ? body.visitorGeo.trim() : null;
   const visitorLang = typeof body.language === "string" && body.language.trim() ? body.language.trim() : null;
+  const referrerCtx = body.referrerContext ?? null;
+  const identCtx = body.identityContext ?? null;
+  // Identity names are DB/client-derived (and a name can be visitor-seeded) — sanitize
+  // before they reach the system prompt or any __MARKER__ interpolation.
+  const safeConfirmedName = sanitizePromptValue(identCtx?.confirmedName);
+  const safeSuggestedName = sanitizePromptValue(identCtx?.suggestedName);
+  const sessionId = typeof body.sessionId === "string" ? body.sessionId.slice(0, 80) : "";
+  const deviceSerial = typeof body.deviceSerial === "string" ? body.deviceSerial.slice(0, 64) : "";
+  const reqIp = clientIp(req);
 
   /* ── Fetch portfolio context ── */
   let contextStr = "";
@@ -384,6 +414,72 @@ async function handlePost(req: NextRequest): Promise<Response> {
 
   const michaelAge = Math.floor((Date.now() - new Date(2004, 1, 9).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
+  /* ── Referrer / Source Context + AI Routing ── */
+  let referrerPromptBlock = "";
+  if (referrerCtx) {
+    let routingBlock = "";
+    try {
+      const conditions = await getActiveAiRoutingConditions();
+      // Build a minimal ReferrerContext from the client-sent fields and evaluate
+      // via the SHARED matcher (supports 'is_any_of' multi-value + guardrails) so
+      // this stays in lockstep with lib/referrer.ts (no duplicated logic).
+      const ctx: ReferrerContext = {
+        resolvedSource: (referrerCtx.resolvedSource ?? "") as ReferrerContext["resolvedSource"],
+        resolvedSourceLabel: referrerCtx.resolvedSourceLabel ?? "",
+        referrerRaw: "",
+        referrerDomain: referrerCtx.referrerDomain ?? "",
+        utmSource: referrerCtx.utmSource ?? "",
+        utmMedium: referrerCtx.utmMedium ?? "",
+        utmCampaign: referrerCtx.utmCampaign ?? "",
+        utmTerm: "",
+        utmContent: "",
+        capturedAt: "",
+      };
+      const matched = conditions.filter((c) =>
+        matchesConditionTrigger(ctx, c.triggerField, c.triggerOperator, c.triggerValue, c.triggerValues)
+        && passesGuardrail(currentPage, c.guardrailField, c.guardrailOperator, c.guardrailValue)
+      );
+      if (matched.length > 0) {
+        routingBlock = matched.map((c) => `- SUGGESTION RULE: ${c.suggestionText}`).join("\n");
+      }
+    } catch { /* non-fatal */ }
+
+    referrerPromptBlock = `
+VISITOR SOURCE & ROUTING CONTEXT (CONFIDENTIAL — use to personalize proactively; never say you track this):
+- Visitor arrived from: ${referrerCtx.resolvedSourceLabel || referrerCtx.resolvedSource || "Unknown"}${referrerCtx.utmSource ? ` (utm_source=${referrerCtx.utmSource}${referrerCtx.utmCampaign ? `, campaign=${referrerCtx.utmCampaign}` : ""})` : referrerCtx.referrerDomain ? ` (referrer: ${referrerCtx.referrerDomain})` : ""}
+${identCtx?.state === 'confirmed' && safeConfirmedName && !identCtx.autoNamed ? `- Identity: CONFIRMED — this visitor is ${safeConfirmedName}. Use their name warmly and naturally, once.` : ""}
+${identCtx?.state === 'confirmed' && safeConfirmedName && identCtx.autoNamed ? `- Identity: LIKELY ${safeConfirmedName} (a high-confidence GUESS from their device/network, NOT confirmed). You may greet them by name lightly (e.g. "Welcome back, ${safeConfirmedName} — I think?"), but stay graceful: if they indicate that's wrong, drop it and emit __IDENTITY_DENY__ on its own line.` : ""}
+${identCtx?.state === 'suggested' && safeSuggestedName ? `- Identity: SUGGESTED (${Math.round((identCtx.suggestedCertainty ?? 0.5) * 100)}% certainty) — this visitor may be ${safeSuggestedName}. You may gently ask to confirm: "Am I speaking with ${safeSuggestedName}?" — but keep it light and optional. If they say no, emit __IDENTITY_DENY__ on its own line. If they confirm, emit __IDENTITY_CONFIRM:${safeSuggestedName}__ on its own line.` : ""}
+${identCtx?.state === 'anonymous' ? `- Identity: Anonymous. If it feels natural to learn their name (e.g. they mention job interest, want to schedule, etc.), ask for it once. If they give it, emit __IDENTITY_PROVIDE:name__ on its own line.` : ""}
+${routingBlock ? `ACTIVE ROUTING SUGGESTIONS — naturally weave these into the conversation based on context (only if relevant; don't force it if they're already on the suggested page or have already seen it):
+${routingBlock}` : ""}
+- IMPORTANT: Rephrase suggestion rules naturally and conversationally. Do NOT recite them verbatim. Sound like a helpful host, not a system following instructions.
+- NEVER reveal you tracked their source, referrer, or identity. Phrase source references as "I see you found us from LinkedIn" or "coming over from Handshake" — casual, observational, warm. Max one reference per conversation.
+`.trim();
+  }
+
+  /* ── Cross-device candidate probing (re-derived SERVER-SIDE — never trust the client
+     body for the score/serial/name, to prevent prompt injection + gate bypass. We also
+     never disclose another visitor's name in the probe; the path is the only hint.) ── */
+  let candidateProbeBlock = "";
+  if (deviceSerial) {
+    try {
+      const serverCand = await getTopCandidateForSerial(deviceSerial);
+      if (serverCand && serverCand.confidenceScore >= 50 && serverCand.confidenceScore <= 85) {
+        const otherSerial = serverCand.sourceSerial === deviceSerial ? serverCand.targetSerial : serverCand.sourceSerial;
+        const path = sanitizePromptValue(serverCand.sharedPath && serverCand.sharedPath !== "/" ? serverCand.sharedPath : "", 80);
+        candidateProbeBlock = `
+CROSS-DEVICE HINT (CONFIDENTIAL — a probabilistic, NOT certain, signal. Treat as a soft guess, never a fact):
+- Another device on this same network was active here moments ago${path ? `, spending real time on ${path}` : ""}. There's a fair chance it's the SAME person who just moved to this device (e.g. desktop → phone). You do NOT know who they are — never guess or state a name.
+- IF AND ONLY IF it fits naturally in the conversation, you MAY offer a helpful bridge ONCE — warm and low-pressure, framed as convenience, never as surveillance. Example tone: "If you were just looking at ${path || "the site"} on another screen and hopped over here, I can drop a quick shortcut right in our chat — want it?"
+- NEVER assert their identity, NEVER say you "tracked" or "detected" them, NEVER state you know their devices are linked. Keep it offered, optional, and casual. Do not bring it up more than once.
+- If they CONFIRM it's them / they want the shortcut, you may offer to bridge their phone with the QR tool: emit __SCANTOMOBILE__ on its own line.
+- If they DENY it / say it's not them / brush it off, drop it immediately and emit __REJECT_CANDIDATE:${otherSerial}__ on its own line (this quietly stops the suggestion — say nothing about it).
+`.trim();
+      }
+    } catch { /* non-fatal */ }
+  }
+
   /* ── Visitor memory + time-of-day mood (adaptive presence) ── */
   const mem = body.memory ?? {};
   const daypart = ["morning", "day", "evening", "night"].includes(mem.daypart ?? "") ? mem.daypart : "day";
@@ -479,6 +575,21 @@ RECRUITER & HIRING QUESTIONS (be ready for these — answer like a confident, ho
 - For "experience with APIs" type questions: draw on his real work (e.g. building/maintaining web apps and platforms, the ICE website and IT systems, CoreTV, Project Mercury UI work, full-stack projects) and speak to integrating, designing, and consuming APIs in those contexts — without claiming specific technologies that aren't supported by the data.
 - For "why hire him": highlight his range (engineering, web dev, design, video, leadership on real teams like the Army Reserve project), his shipped work, and his drive — then point them to the [Contact](/contact) page to start a conversation.
 
+EXPERIENCE QUESTIONS — NEVER SAY NO:
+- When asked "does he have experience with X?", "has he worked with Y?", "does he know Z?", "is he familiar with [technology/domain]?" — NEVER respond with "no", "not listed", "doesn't appear to", "I don't see that", or any flat denial.
+- ALWAYS bridge to the closest real work. Pattern: "His work in [related area] touches on this — for example [concrete example from portfolio data]." Examples:
+  - React/Next.js/frontend → ICE website rebuild, CoreTV, Project Mercury UI overhaul, this portfolio site
+  - Backend/APIs/databases → Project Mercury (full-stack, Army Reserve), ICE IT systems administration
+  - Government/DoD/military/clearance → U.S. Army Reserve Project Mercury (collaborated directly with Army Reserve)
+  - International/global → International Computer Exchange (IBM international business partner, global enterprise infrastructure)
+  - Leadership/team management → pitched and led the Mercury UI overhaul to Army Reserve sponsors; ran Pixel Events teams; Event Manager role
+  - Design/UX → UI overhaul for Project Mercury, Cranberry Creatives, thumbnail work, web-dev-design gallery
+  - Video/content → entire motion-and-graphics portfolio, Lubbocks Gaming, 100M+ combined reach
+  - Minecraft/gaming → entire arts-and-entertainment portfolio, Lubbocks Gaming maps
+  - Security/cybersecurity → TestOut Cyber Defense Pro (CompTIA), ICE systems administration
+- If it's truly a stretch, be honest but bridge: "It's not something he's explicitly listed, but his work on [X] involved [closest real connection] — for specifics, reaching out on the [Contact](/contact) page is the best move."
+- Never fabricate skills or claim things not in the data. Bridge to what IS real. The goal is always to show relevant real-world experience, not to make something up.
+
 VIEW / REACH NUMBERS:
 - You have the REAL live numbers in the LIVE SITE NUMBERS block above (total project views, combined follower reach, project count, client count, years active, GitHub contributions). When asked "how many views does he have", "how much reach", "how many projects", or similar, answer with those ACTUAL figures, stated confidently and naturally (e.g. "across his projects that's around X million views" — you can round for readability). These are the same numbers shown on the site, so they'll match what the visitor sees.
 - The exact METHOD behind the numbers stays PRIVATE. Never explain the formula, the data sources, the counting/aggregation algorithm, any weighting or estimation, or how tap/view/follower counts are derived or stored. State the number, not the method. If pressed on methodology, just say it's tallied across his body of work and move on.
@@ -525,7 +636,19 @@ Use these EXACT markers at the END of your response (after your visible text, on
    RESUME PAGE highlight IDs: experience, renowned-projects, education, volunteer, skills, certifications, awards, organizations
    Each experience card has its own ID matching the [id:...] in the EXPERIENCE data (e.g., __HIGHLIGHT:ice-sysadmin__, __HIGHLIGHT:coretv-founder__).
 
+   RESUME SECTION AUTO-ROUTING — when any question touches a resume topic, route there AND highlight the right section. If already on /resume, skip the __NAV__ and just __HIGHLIGHT__:
+   - Work experience / jobs / employment / career / roles → __NAV:/resume__ + __HIGHLIGHT:experience__ (or highlight the specific experience card id if a single role is asked about)
+   - Education / degree / university / UCF / school → __NAV:/resume__ + __HIGHLIGHT:education__
+   - Skills / tech stack / what he knows / tools / languages / frameworks → __NAV:/resume__ + __HIGHLIGHT:skills__
+   - Certifications / CompTIA / Autodesk / credentials → __NAV:/resume__ + __HIGHLIGHT:certifications__
+   - Volunteer / volunteering / community → __NAV:/resume__ + __HIGHLIGHT:volunteer__
+   - Featured work / renowned projects (in resume context) → __NAV:/resume__ + __HIGHLIGHT:renowned-projects__
+   - Organizations / clubs / memberships / honor societies → __NAV:/resume__ + __HIGHLIGHT:organizations__
+   - Awards / achievements / dean's list / honor roll → __NAV:/resume__ + __HIGHLIGHT:awards__
+   When routing to /resume, give a real sentence about what's there first — don't just say "here you go". Describe what they'll see (the section, what's in it) and then emit the markers.
+
    ARTICLE PAGE highlight IDs: Use the [highlight:...] values from the ARTICLES data. For example, if data shows store-checklist:"Grocery Store Checklist" [highlight:store-checklist--grocery-store-checklist], use __HIGHLIGHT:store-checklist--grocery-store-checklist__
+   ARTICLE PAGE fixed IDs: article (the whole article), article-title (the headline), article-excerpt (the intro/excerpt), article-body (the main written body), article-tags (the tag list), video-{youtubeId} (one embedded video), gallery-image-{N} (one image by 0-based index). Use these for "highlight the title/intro/body/tags" or pointing at a specific image/video.
    When the user asks for "ingredients" or "grocery list", use the store-checklist or ingredient-list section highlight — that is the most complete list.
    When the user asks for "steps" or "instructions", use the steps section highlight.
 
@@ -553,6 +676,8 @@ Use these EXACT markers at the END of your response (after your visible text, on
    - project-tags — the tags box.
    - project-actions — the action box (download / buy / live site / external link / GitHub / file downloads).
    - project-related — the "Other Projects" row at the bottom.
+   - project-title — the project's title heading. project-description — the short description under the title. project-body — the main written body/description text. Use these when the user asks about "the title", "the description", or wants you to point at "the writeup/body text".
+   - video-{youtubeId} — one specific embedded video (e.g. __HIGHLIGHT:video-dQw4w9WgXcQ__). gallery-image-{N} — one specific gallery image by its 0-based index (e.g. __HIGHLIGHT:gallery-image-0__ for the first). Use __IMAGESHOW:N__ to actually open image N in the lightbox.
    - Each custom section also has an id following the article scheme: the section type, optionally followed by "--" and a slug of its caption. The exact ids for THIS project's sections are listed in the CURRENT PAGE CONTEXT above. Examples: the before/after comparison slider is __HIGHLIGHT:before-after__ (or before-after--caption-slug if it has a caption); an image section is image or image--caption-slug; a steps/checklist section is steps--caption-slug or store-checklist--caption-slug.
    - SHOW, DON'T JUST TELL on a project too: describing the images → highlight project-gallery; the before/after (e.g. the Army Reserve before-and-after) → highlight the before-after section; who it was made for → project-clients; who made it → project-credits; a video → project-videos. Pair a natural sentence with the marker.
 
@@ -591,13 +716,26 @@ GUIDED PROJECTS WALKTHROUGH:
 - If the user asks to see your projects/work in general ("show me your projects", "show me your work", "walk me through what you've done", "give me a tour of your projects") — WITHOUT naming a specific one — start the guided walkthrough by ending your reply with __PROJECTTOUR__ on its own line. Say something brief and inviting first, like "Let's take a walk through my work —". The walkthrough auto-navigates from the featured work through each gallery (Minecraft maps, events, thumbnails, video editing, web design, code, articles) and back, narrating each.
 - If they ask about ONE specific project/category (e.g. "show me the Army Reserve project", "show me your Minecraft maps"), do NOT use __PROJECTTOUR__ — just navigate/card to that specific thing.
 
-9. CLICK AN ELEMENT (AI cursor physically moves there and clicks):
+FULL PORTFOLIO TOUR:
+- Emit __TOUR__ (on its own line at the end of your reply) when the user explicitly asks for a full site tour, a guided walkthrough of the whole portfolio, or says things like "show me around", "give me a tour", "can you give me a tour?", "start the tour", "take me on a tour".
+- This launches an automated guided tour that navigates pages, highlights sections, moves the cursor, and narrates the portfolio with voice.
+- Do NOT use __TOUR__ for project-specific tours — use __PROJECTTOUR__ for those.
+- Say something brief and inviting first, like "Sure, let me take you on a tour of the site —" then emit __TOUR__ on its own line.
+
+9. OPEN AN IMAGE IN THE GALLERY (project or article page — expands the lightbox, pauses slideshow):
+   __IMAGESHOW:N__
+   N is the 0-based index of the image (first image = 0, second = 1, etc.).
+   Use when the user asks to "show me the first image", "open image 2", "what does that screenshot look like", etc.
+   Only use on project or article pages that have images. Auto-cycle is disabled so the image stays open.
+   Example: "Sure, let me pull up the first screenshot. __IMAGESHOW:0__"
+
+10. CLICK AN ELEMENT (AI cursor physically moves there and clicks):
    __CLICK:element-label__
    The label is visible text, aria-label, button text, or link text on the current page.
    Use when the user says "click X", "press X", "open X", or as part of a demo/tour.
    Example: "Let me click the Subscribe button for you. __CLICK:Subscribe__"
 
-10. TYPE INTO A FORM FIELD (AI cursor moves to the field and types):
+11. TYPE INTO A FORM FIELD (AI cursor moves to the field and types):
     __TYPE:field-placeholder-or-label|text to type__
     Use pipe | to separate the field identifier from the text to type.
     The field is identified by its placeholder text or label.
@@ -612,8 +750,33 @@ FORM FILLING GUIDANCE:
 - Always confirm sensitive data (email, name) matches what the visitor actually wants before filling.
 - If the visitor says "fill my email" and you know it from the conversation, use it. Otherwise ask what they want you to type.
 
+SCAN TO MOBILE (hand the visitor's session off to their phone):
+- When the user wants to continue on their phone — "I want to check this on my phone", "open this on mobile", "send this to my phone", "can I see this on my phone" — offer to bridge it and emit __SCANTOMOBILE__ on its own line at the END of your reply.
+- This pops a QR code right in the chat; scanning it on their phone carries this exact session over so they pick up where they left off (no re-login, no retyping). Say something brief and helpful first like "Sure — scan this with your phone and you'll land right back here." then emit __SCANTOMOBILE__.
+- Only emit it when the visitor actually wants to move to mobile. Don't push it.
+
+FULL ON-SCREEN CONTROL — you can operate ANYTHING on the page the user asks about (except the off-limits areas below). In addition to NAV/HIGHLIGHT/ZOOM/EMPHASIZE/CLICK/CLICKID/POINT/TYPE/IMAGESHOW/THEME/ACCESS/TEXTSIZE, you have these markers (place at the END of your reply, on their own line — they're invisible and also work in voice):
+- SCROLL the page or a container: __SCROLL:down__ / __SCROLL:up__ / __SCROLL:top__ / __SCROLL:bottom__ / __SCROLL:left__ / __SCROLL:right__. To scroll a specific scroll area, add its id: __SCROLL:right:experience-scroller__ (e.g. the horizontally-scrolling experience/timeline). Use for "scroll down", "show me more", "scroll the experience sideways".
+- TYPE into a field by its id (most reliable): __TYPEID:fieldId|text to type__ (e.g. __TYPEID:cta-email|jane@apple.com__, __TYPEID:nav-search|minecraft__, __TYPEID:grid-search|army__). Use __TYPE:placeholder-or-label|text__ when you only know the field's visible label.
+- SET A SLIDER (value is a percent 0-100): __SLIDER:targetId|60__ — works on range sliders and the before/after comparison slider (e.g. __SLIDER:before-after|75__).
+- TOGGLE A CHECKBOX/RADIO: __CHECK:targetId|on__ / __CHECK:targetId|off__ (e.g. the newsletter consent box __CHECK:cta-consent|on__). NEVER tick a consent/subscribe box without the user's explicit say-so.
+- CHOOSE A DROPDOWN/SELECT OPTION: __SELECT:targetId|optionValueOrLabel__ (e.g. __SELECT:cta-channel|email + sms__).
+- COPY a link to the clipboard: __COPYLINK__ (copies the current page URL) or __COPYLINK:https://…__ for a specific URL. Use for "copy the link to this project".
+- PREFETCH/preload a page you're about to send them to (warms it so it opens instantly, does NOT navigate): __PREFETCH:/resume__. Use it when you can tell they'll likely go somewhere next.
+- PRIVACY consent: __CONSENT:opt-in__ (enable analytics/personalization) or __CONSENT:opt-out__ (essential-only). Only when the user explicitly asks to change their privacy/cookie choice; you can also link them to [Legal](/legal).
+
+INTERACTIVE TARGET IDS you can use with HIGHLIGHT/ZOOM/EMPHASIZE/CLICKID/SCROLL/SLIDER/CHECK/SELECT/TYPEID (besides the project/article/resume/home ids already listed):
+- Navbar: nav-search (the search box — type with __TYPEID:nav-search|query__, then __CLICKID__ a result), nav-linkedin, nav-github, and the nav dropdown triggers by their visible label.
+- Home "By the Numbers": github-calendar (the contribution graph), the stat cards by id (stat-…). Spotify: spotify-widget, spotify-open-external, spotify-fav-… favorites.
+- Newsletter / "Let's build it" CTA: cta-channel (email / sms / email+sms selector), cta-name, cta-email, cta-phone, cta-consent (consent checkbox), cta-subscribe (submit). After submitting you can read the result: a success or error state appears (data-subscribe-status) — tell the user whether it went through.
+- Project/article list pages: grid-search (search box), grid-size-… (grid density), filter controls. Detail pages: appreciate-button (the "appreciate this" tap), copy-link-button, share-button, before-after (the comparison slider), gallery-image-N, video-…, plus project-title/description/body and article-title/excerpt/body/tags.
+- Experience/timeline: experience-scroller (the horizontal scroller) and per-role cards. Clients: client-{id}.
+You can highlight/box ANY of these in real time exactly like the tour boxes the resume button — same mechanism, any element.
+
+OFF-LIMITS — you may operate every public page, but you must NEVER navigate to, click into, type in, or operate: /admin (admin dashboard/backend), /rizz, /bar, or /2d-pong. If asked, politely decline and steer back to the portfolio. (Admin is covered by the zero-tolerance rule below.)
+
 UI CONTROL — IMPORTANT:
-You are an interactive concierge that can manipulate the website UI in real time. When a question warrants visual assistance, DO IT — don't just describe where to look, SHOW them by using the markers above. Prefer __HIGHLIGHT__ for "where is X", __ZOOM__ for "let me see X closer", __EMPHASIZE__ for "make X stand out", __CLICK__ for "click X", __TYPE__ for filling fields, __NAV__/markdown links for moving between pages. Combine with a short, natural spoken sentence. These directives also work while the user is talking to you by voice.
+You are an interactive concierge that can manipulate the website UI in real time. When a question warrants visual assistance, DO IT — don't just describe where to look, SHOW them by using the markers above. Prefer __HIGHLIGHT__ for "where is X", __ZOOM__ for "let me see X closer", __EMPHASIZE__ for "make X stand out", __CLICK__ for "click X", __TYPE__/__TYPEID__ for filling fields, __SCROLL__ to move the page, __NAV__/markdown links for moving between pages. Combine with a short, natural spoken sentence. These directives also work while the user is talking to you by voice.
 
 WHEN TO USE EACH:
 - "Take me to the resume" → natural response + __NAV:/resume__
@@ -726,6 +889,27 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
   };
   const enc = new TextEncoder();
 
+  /* ── Conversation logging (text + voice both flow through here) ── */
+  const channel: "text" | "voice" = speakMode ? "voice" : "text";
+  const userTurnText = (() => {
+    const last = messages[messages.length - 1];
+    if (last && last.role === "user" && typeof last.content === "string") return last.content;
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return messages[i].content;
+    return "";
+  })();
+  function logTurn(assistantRaw: string): void {
+    if (!sessionId) return; // only log once the client sends a stable per-open session id
+    void logAiTurn({
+      sessionId,
+      serial: deviceSerial || null,
+      channel,
+      currentPage,
+      userText: userTurnText,
+      assistantText: stripChatMarkers(assistantRaw),
+      ip: reqIp,
+    });
+  }
+
   /* ── PRIMARY: Claude via the Anthropic SDK (streaming + prompt caching) ── */
   if (process.env.ANTHROPIC_API_KEY) {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -746,6 +930,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
       async start(controller) {
         let delivered = false;
         let lastDetail = "";
+        let fullText = "";
         for (const model of modelChain) {
           try {
             const stream = anthropic.messages.stream({
@@ -753,14 +938,15 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
               max_tokens: 1024,
               system: [
                 { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
-                { type: "text", text: memoryNote },
+                { type: "text", text: [memoryNote, referrerPromptBlock, candidateProbeBlock].filter(Boolean).join("\n\n") },
               ],
               messages: conversation,
             });
             stream.on("text", (delta) => {
-              if (delta) { delivered = true; controller.enqueue(enc.encode(`data: ${JSON.stringify({ text: delta })}\n\n`)); }
+              if (delta) { delivered = true; fullText += delta; controller.enqueue(enc.encode(`data: ${JSON.stringify({ text: delta })}\n\n`)); }
             });
             await stream.finalMessage();
+            logTurn(fullText);
             controller.enqueue(enc.encode("data: [DONE]\n\n"));
             controller.close();
             return;
@@ -780,7 +966,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
 
   /* ── FALLBACK: OpenRouter / OpenAI (OpenAI-compatible SSE) ── */
   const chatMessages = [
-    { role: "system", content: `${systemPrompt}\n\n${memoryNote}` },
+    { role: "system", content: [systemPrompt, memoryNote, referrerPromptBlock, candidateProbeBlock].filter(Boolean).join("\n\n") },
     ...conversation,
   ];
 
@@ -826,6 +1012,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
   const readable = new ReadableStream({
     async start(controller) {
       let buffer = "";
+      let fullText = "";
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -847,6 +1034,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
               const parsed = JSON.parse(payload);
               const text = parsed.choices?.[0]?.delta?.content;
               if (typeof text === "string" && text.length > 0) {
+                fullText += text;
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
               }
             } catch {
@@ -864,6 +1052,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
                 const parsed = JSON.parse(payload);
                 const text = parsed.choices?.[0]?.delta?.content;
                 if (typeof text === "string" && text.length > 0) {
+                  fullText += text;
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
                 }
               } catch {
@@ -872,6 +1061,7 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
             }
           }
         }
+        logTurn(fullText);
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch {

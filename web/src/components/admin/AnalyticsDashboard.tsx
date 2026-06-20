@@ -229,7 +229,7 @@ export default function AnalyticsDashboard() {
       {/* Visit windows */}
       <div className={card}>
         <p className="text-[10px] tracking-[0.18em] uppercase text-white/35 mb-3">Visits</p>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {data.windows.map((w) => (
             <div key={w.label} className="text-center">
               <p className="font-nord text-xl text-white">{fmt(w.visits)}</p>

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Phone, CheckCircle2, AlertCircle } from "lucide-react";
-import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import { isValidEmail, isValidPhoneNumber, formatPhoneInput } from "@/lib/contact-validation";
 
 type Mode = "email" | "phone" | "both";
 
@@ -16,6 +16,7 @@ export default function Subscribe() {
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -177,12 +178,14 @@ export default function Subscribe() {
                           <input
                             type="email"
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
+                            onBlur={() => { const v = email.trim(); if (v && !isValidEmail(v)) setFieldErrors((fe) => ({ ...fe, email: "Enter a valid email address." })); else setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
                             placeholder="your@email.com"
                             required={mode === "email" || mode === "both"}
-                            className="w-full h-11 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm pl-10 pr-4 text-sm text-white placeholder:text-white/20 outline-none transition-colors backdrop-blur-sm"
+                            className={`w-full h-11 bg-white/4 border rounded-sm pl-10 pr-4 text-sm text-white placeholder:text-white/20 outline-none transition-colors backdrop-blur-sm ${fieldErrors.email ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
                           />
                         </div>
+                        {fieldErrors.email && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.email}</p>}
                       </div>
                     )}
 
@@ -196,12 +199,14 @@ export default function Subscribe() {
                           <input
                             type="tel"
                             value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="+1 (555) 000-0000"
+                            onChange={(e) => { setPhone(formatPhoneInput(e.target.value)); if (fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                            onBlur={() => { const v = phone.trim(); if (v && !isValidPhoneNumber(v)) setFieldErrors((fe) => ({ ...fe, phone: "Enter a valid phone number." })); else setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                            placeholder="(555) 000-0000"
                             required={mode === "phone" || mode === "both"}
-                            className="w-full h-11 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm pl-10 pr-4 text-sm text-white placeholder:text-white/20 outline-none transition-colors backdrop-blur-sm"
+                            className={`w-full h-11 bg-white/4 border rounded-sm pl-10 pr-4 text-sm text-white placeholder:text-white/20 outline-none transition-colors backdrop-blur-sm ${fieldErrors.phone ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
                           />
                         </div>
+                        {fieldErrors.phone && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.phone}</p>}
                       </div>
                     )}
                   </div>

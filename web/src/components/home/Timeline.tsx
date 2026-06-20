@@ -127,6 +127,7 @@ export default function Timeline({ experiences, content }: TimelineProps) {
           {/* Scrollable items — drag to scroll, defaults to rightmost */}
           <div
             ref={scrollRef}
+            data-highlight-id="experience-scroller"
             className="flex gap-0 overflow-x-auto h-full scrollbar-hide select-none"
             style={{ scrollbarWidth: "none", cursor: "grab" }}
             onPointerDown={handlePointerDown}
@@ -143,6 +144,7 @@ export default function Timeline({ experiences, content }: TimelineProps) {
               return (
                 <motion.div
                   key={job.id}
+                  data-highlight-id={`experience-${job.id}`}
                   className="relative flex-shrink-0 flex flex-col items-center"
                   style={{ minWidth: "170px", maxWidth: "200px", flex: "1 0 auto", height: "100%" }}
                   initial={{ opacity: 0, y: isAbove ? -16 : 16 }}

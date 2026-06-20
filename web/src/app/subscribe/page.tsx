@@ -8,7 +8,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
-import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import { isValidEmail, isValidPhoneNumber, formatPhoneInput } from "@/lib/contact-validation";
 
 type Mode = "email" | "phone" | "both";
 type Status = "idle" | "loading" | "success" | "error";
@@ -24,6 +24,7 @@ export default function SubscribePage() {
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
   const modeButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const modeDragPointerIdRef = useRef<number | null>(null);
   const modeDragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -132,6 +133,18 @@ export default function SubscribePage() {
   const updateModeFromPointerPosition = (clientX: number, clientY: number) => {
     const element = document.elementFromPoint(clientX, clientY);
     updateModeFromPointerTarget(element);
+  };
+
+  const handleEmailBlur = () => {
+    const v = email.trim();
+    if (v && !isValidEmail(v)) setFieldErrors((fe) => ({ ...fe, email: "Enter a valid email address." }));
+    else setFieldErrors((fe) => ({ ...fe, email: undefined }));
+  };
+
+  const handlePhoneBlur = () => {
+    const v = phone.trim();
+    if (v && !isValidPhoneNumber(v)) setFieldErrors((fe) => ({ ...fe, phone: "Enter a valid phone number." }));
+    else setFieldErrors((fe) => ({ ...fe, phone: undefined }));
   };
 
   return (
@@ -255,12 +268,14 @@ export default function SubscribePage() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
+                    onBlur={handleEmailBlur}
                     placeholder="your@email.com"
                     required={mode === "email" || mode === "both"}
-                    className="w-full h-11 rounded-sm border border-white/8 bg-white/4 pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#ef4242]"
+                    className={`w-full h-11 rounded-sm border bg-white/4 pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 ${fieldErrors.email ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
                   />
                 </div>
+                {fieldErrors.email && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.email}</p>}
               </div>
             )}
 
@@ -274,12 +289,14 @@ export default function SubscribePage() {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+1 (555) 000-0000"
+                    onChange={(e) => { setPhone(formatPhoneInput(e.target.value)); if (fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                    onBlur={handlePhoneBlur}
+                    placeholder="(555) 000-0000"
                     required={mode === "phone" || mode === "both"}
-                    className="w-full h-11 rounded-sm border border-white/8 bg-white/4 pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#ef4242]"
+                    className={`w-full h-11 rounded-sm border bg-white/4 pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 ${fieldErrors.phone ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
                   />
                 </div>
+                {fieldErrors.phone && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.phone}</p>}
               </div>
             )}
 

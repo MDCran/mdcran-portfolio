@@ -1,6 +1,7 @@
 import { getDb } from "./mongodb";
-import { geolocateIp, hashIp } from "./geoip";
+import { geolocateIp, hashIp, subnetOf } from "./geoip";
 import { parseUserAgent } from "./ua";
+import { upsertDeviceRegistry } from "./cross-device";
 
 /* ─── Types ─────────────────────────────────────────────── */
 type IncomingEvent =
@@ -15,6 +16,25 @@ export interface TrackPayload {
   sessionId: string;
   returning?: boolean;
   events: IncomingEvent[];
+  // Optional — sent once on first session init
+  utm?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    term?: string;
+    content?: string;
+  };
+  referrer?: {
+    raw?: string;
+    domain?: string;
+    resolvedSource?: string;
+    resolvedSourceLabel?: string;
+  };
+  // Optional — device fingerprint signals for the cross-device engine.
+  device?: {
+    serial?: string;
+    colorScheme?: "dark" | "light";
+  };
 }
 
 const ACTIVE_WINDOW_MS = 90 * 1000; // a session is "active" if seen within 90s
@@ -82,6 +102,8 @@ export async function recordAnalytics(payload: TrackPayload, ip: string, userAge
   const now = new Date();
   const ipHash = hashIp(ip);
   const { browser, os, device } = parseUserAgent(userAgent);
+  const serial = typeof payload.device?.serial === "string" ? payload.device.serial.slice(0, 64) : null;
+  const colorScheme = payload.device?.colorScheme === "dark" || payload.device?.colorScheme === "light" ? payload.device.colorScheme : null;
 
   // Blacklisted IPs get a hard block command and are not recorded further.
   if (ip && ip !== "unknown") {
@@ -105,16 +127,29 @@ export async function recordAnalytics(payload: TrackPayload, ip: string, userAge
           visitorId: payload.visitorId,
           ipHash,
           ip: ip && ip !== "unknown" ? ip : null,
+          subnet24: subnetOf(ip),
+          asn: geo?.asn ?? null,
+          asnName: geo?.asnName ?? null,
+          serial,
           firstSeen: now,
           country: geo?.country ?? null,
           countryName: geo?.countryName ?? null,
           city: geo?.city ?? null,
           browser, os, device,
           returning: Boolean(priorVisitor) || Boolean(payload.returning),
+          utmSource: payload.utm?.source ?? null,
+          utmMedium: payload.utm?.medium ?? null,
+          utmCampaign: payload.utm?.campaign ?? null,
+          utmTerm: payload.utm?.term ?? null,
+          utmContent: payload.utm?.content ?? null,
+          referrerRaw: payload.referrer?.raw ?? null,
+          referrerDomain: payload.referrer?.domain ?? null,
+          resolvedSource: payload.referrer?.resolvedSource ?? null,
+          resolvedSourceLabel: payload.referrer?.resolvedSourceLabel ?? null,
           pageviews: 0,
           events: 0,
         },
-        $set: { lastSeen: now, lastPath: null },
+        $set: { lastSeen: now, lastPath: null, ...(serial ? { serial } : {}) },
       },
       { upsert: true }
     );
@@ -132,6 +167,7 @@ export async function recordAnalytics(payload: TrackPayload, ip: string, userAge
   const heatDocs: Record<string, unknown>[] = [];
   let pvInc = 0;
   let evInc = 0;
+  let dwellSample: { path: string; dwellMs: number } | null = null; // strongest deep-link dwell this batch
 
   for (const ev of payload.events) {
     try {
@@ -144,6 +180,7 @@ export async function recordAnalytics(payload: TrackPayload, ip: string, userAge
               sessionId: payload.sessionId,
               visitorId: payload.visitorId,
               ipHash,
+              serial,
               path: ev.path,
               title: ev.title ?? null,
               startedAt: now,
@@ -158,13 +195,15 @@ export async function recordAnalytics(payload: TrackPayload, ip: string, userAge
         pvInc++;
         await sessions.updateOne({ sessionId: payload.sessionId }, { $set: { lastPath: ev.path } });
       } else if (ev.type === "pageend") {
+        const dwellMs = Math.max(0, Math.min(ev.durationMs, 6 * 60 * 60 * 1000));
         await pageviews.updateOne(
           { pageviewId: ev.pageviewId },
           {
-            $max: { durationMs: Math.max(0, Math.min(ev.durationMs, 6 * 60 * 60 * 1000)), maxScrollPct: Math.max(0, Math.min(ev.maxScrollPct, 100)) },
+            $max: { durationMs: dwellMs, maxScrollPct: Math.max(0, Math.min(ev.maxScrollPct, 100)) },
             $set: { lastAt: now },
           }
         );
+        if (ev.path && (!dwellSample || dwellMs > dwellSample.dwellMs)) dwellSample = { path: ev.path, dwellMs };
       } else if (ev.type === "event") {
         await events.insertOne({
           sessionId: payload.sessionId,
@@ -201,6 +240,19 @@ export async function recordAnalytics(payload: TrackPayload, ip: string, userAge
       { sessionId: payload.sessionId },
       { $inc: { pageviews: pvInc, events: evInc } }
     );
+  }
+
+  // Feed the cross-device telemetry registry (serial-keyed; powers stitching).
+  // Carries the strongest deep-link dwell so behavioral matching has real data.
+  if (serial) {
+    void upsertDeviceRegistry({
+      serial,
+      ip,
+      userAgent,
+      colorScheme,
+      deviceType: device,
+      path: dwellSample,
+    }).catch(() => {});
   }
 
   // Deliver + clear any pending admin commands for this session (poll-based push).
@@ -273,6 +325,59 @@ export async function getLiveSessions(): Promise<{ visitors: LiveVisitor[]; blac
     .sort((a, b) => b.activeTabs - a.activeTabs || new Date(b.tabs[0]?.lastSeen ?? 0).getTime() - new Date(a.tabs[0]?.lastSeen ?? 0).getTime());
   const blacklist = (await db.collection("ipBlacklist").find({}, { projection: { _id: 0, ip: 1 } }).toArray()).map((d) => d.ip as string);
   return { visitors, blacklist };
+}
+
+/** All analytics sessions for an identity — joined across its serials + IPs. */
+export async function getSessionsForIdentity(
+  serials: string[],
+  ips: string[],
+): Promise<Array<{
+  sessionId: string;
+  serial: string | null;
+  ip: string | null;
+  lastPath: string | null;
+  lastSeen: string;
+  country: string | null;
+  countryName: string | null;
+  browser: string;
+  os: string;
+  device: string;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  referrerDomain: string | null;
+  resolvedSource: string | null;
+  resolvedSourceLabel: string | null;
+  pageviews: number;
+  events: number;
+}>> {
+  const db = await getDb();
+  const rows = await db
+    .collection("aSessions")
+    .find({ $or: [{ serial: { $in: serials.filter(Boolean) } }, { ip: { $in: ips.filter(Boolean) } }] })
+    .sort({ lastSeen: -1 })
+    .limit(100)
+    .toArray();
+  return rows.map((s) => ({
+    sessionId: s.sessionId as string,
+    serial: (s.serial ?? null) as string | null,
+    ip: (s.ip ?? null) as string | null,
+    lastPath: (s.lastPath ?? null) as string | null,
+    lastSeen: (s.lastSeen instanceof Date ? s.lastSeen : new Date(s.lastSeen)).toISOString(),
+    country: (s.country ?? null) as string | null,
+    countryName: (s.countryName ?? null) as string | null,
+    browser: (s.browser ?? "Other") as string,
+    os: (s.os ?? "Other") as string,
+    device: (s.device ?? "desktop") as string,
+    utmSource: (s.utmSource ?? null) as string | null,
+    utmMedium: (s.utmMedium ?? null) as string | null,
+    utmCampaign: (s.utmCampaign ?? null) as string | null,
+    referrerDomain: (s.referrerDomain ?? null) as string | null,
+    resolvedSource: (s.resolvedSource ?? null) as string | null,
+    resolvedSourceLabel: (s.resolvedSourceLabel ?? null) as string | null,
+    pageviews: (s.pageviews ?? 0) as number,
+    events: (s.events ?? 0) as number,
+  }));
 }
 
 /** Queue a command for one session or all of a visitor's tabs. */

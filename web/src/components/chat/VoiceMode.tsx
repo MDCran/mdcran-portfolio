@@ -10,6 +10,9 @@ import { readVisitorMemory, getDaypart } from "@/lib/visitor-memory";
 import { extractPageContext } from "@/lib/page-context";
 import { useLanguage } from "@/lib/i18n";
 import { computeFingerprint } from "@/lib/device-fingerprint";
+import { getStoredIdentityContext } from "@/hooks/useReferrerTracker";
+import { isLocalSttSupported, transcribeBlobLocal, preloadLocalStt, onLocalSttProgress, isLocalSttModelReady } from "@/lib/local-stt";
+import { setConsent } from "@/components/shared/CookieConsent";
 
 const TOGGLE_EVENT = "mdcran:toggle-voice";
 const AGENT_NAME = "Michael";
@@ -73,8 +76,10 @@ function isNoisyTranscript(text: string): boolean {
 
 function stripForSpeech(text: string): string {
   return text
-    .replace(/__[A-Z]+:[^_]*__/g, " ")
-    .replace(/__[A-Z]+__/g, " ")
+    // Underscore-tolerant: matches multi-word marker NAMES (IDENTITY_DENY,
+    // REJECT_CANDIDATE) and PAYLOADS containing underscores (/some_path).
+    .replace(/__[A-Z_]+:.+?__/g, " ")
+    .replace(/__[A-Z_]+__/g, " ")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
@@ -106,6 +111,7 @@ export default function VoiceMode() {
   const [captionIdx, setCaptionIdx] = useState(-1);
   const captionRafRef = useRef<number | null>(null);
   const [showSilenceTip, setShowSilenceTip] = useState(false); // shown after long mic inactivity
+  const [sttPrep, setSttPrep] = useState<number | null>(null); // on-device STT model download % (null once ready)
   const lastMicActivityRef = useRef(Date.now());
   const silenceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartRef = useRef<number>(0);
@@ -133,6 +139,11 @@ export default function VoiceMode() {
   const pendingFinalRef = useRef("");
   const sendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendingRef = useRef(false); // guard against overlapping replies (no double-answer)
+  // Stable per-open voice session id + device serial for conversation logging + stitching.
+  const voiceSessionIdRef = useRef<string>(
+    (() => { try { return crypto.randomUUID(); } catch { return `vs-${Date.now()}-${Math.random().toString(36).slice(2)}`; } })(),
+  );
+  const deviceSerialRef = useRef<string>("");
   // Cross-browser fallback (Firefox / Brave / iOS where SpeechRecognition is missing or
   // unreliable): record with MediaRecorder + voice-activity detection, transcribe server-side.
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -141,6 +152,9 @@ export default function VoiceMode() {
   const vadRecordingRef = useRef(false);
   const openRef = useRef(false);
   openRef.current = open;
+  useEffect(() => { void computeFingerprint().then((fp) => { deviceSerialRef.current = fp.serial; }).catch(() => {}); }, []);
+  // Reflect on-device Whisper model download progress (first use only).
+  useEffect(() => onLocalSttProgress((pct) => setSttPrep(pct >= 100 || isLocalSttModelReady() ? null : pct)), []);
 
   /* Toggle from the chat panel / bubble */
   useEffect(() => {
@@ -449,6 +463,30 @@ export default function VoiceMode() {
         }
       });
     }
+    // __CLICKID:id__ — AI cursor clicks an element by its data-highlight-id (parity with ChatPanel).
+    const clickIdMatches = [...cleaned.matchAll(/__CLICKID:([\w-]+)__/g)];
+    if (clickIdMatches.length) {
+      cleaned = cleaned.replace(/__CLICKID:[\w-]+__/g, " ");
+      deferred.push(() => clickIdMatches.forEach((m, i) => {
+        const selector = `[data-highlight-id="${m[1]}"]`;
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { selector } }));
+          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector } })), 220);
+        }, (nav ? 500 : 0) + i * 500);
+      }));
+    }
+    // __POINT:text__ — AI cursor points at an element by visible text.
+    const pointMatches = [...cleaned.matchAll(/__POINT:([^_]+?)__/g)];
+    if (pointMatches.length) {
+      cleaned = cleaned.replace(/__POINT:[^_]+?__/g, " ");
+      deferred.push(() => pointMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { text: m[1].trim() } })), (nav ? 500 : 0) + i * 400)));
+    }
+    // __IMAGESHOW:N__ — open image N in the project/article lightbox.
+    const imageShowMatches = [...cleaned.matchAll(/__IMAGESHOW:(\d+)__/g)];
+    if (imageShowMatches.length) {
+      cleaned = cleaned.replace(/__IMAGESHOW:\d+__/g, " ");
+      deferred.push(() => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:open-image", { detail: { index: parseInt(imageShowMatches[0][1], 10) } })), nav ? 500 : 0));
+    }
     // __TYPE:field-label|text to type__ — AI cursor focuses a field and types.
     const typeMatches = [...cleaned.matchAll(/__TYPE:(.+?)\|(.+?)__/g)];
     if (typeMatches.length) {
@@ -458,6 +496,99 @@ export default function VoiceMode() {
           setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { text: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800);
         });
       });
+    }
+    // __TYPEID:fieldId|text__ — type into an anchored field by data-highlight-id.
+    const typeIdMatches = [...cleaned.matchAll(/__TYPEID:([\w-]+)\|([^|]*?)__/g)];
+    if (typeIdMatches.length) {
+      cleaned = cleaned.replace(/__TYPEID:[\w-]+\|[^|]*?__/g, " ");
+      deferred.push(() => typeIdMatches.forEach((m, idx) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800)));
+    }
+    // __SCROLL:dir[:target]__ — directional / container scroll.
+    const scrollMatches = [...cleaned.matchAll(/__SCROLL:(up|down|left|right|top|bottom)(?::([\w-]+))?__/gi)];
+    if (scrollMatches.length) {
+      cleaned = cleaned.replace(/\s*__SCROLL:(?:up|down|left|right|top|bottom)(?::[\w-]+)?__\s*/gi, " ");
+      deferred.push(() => scrollMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:scroll", { detail: { direction: m[1].toLowerCase(), target: m[2] } })), i * 500)));
+    }
+    // __SLIDER:target|value__ — set a slider (percent 0-100).
+    const sliderMatches = [...cleaned.matchAll(/__SLIDER:([\w-]+)\|(\d{1,3})__/g)];
+    if (sliderMatches.length) {
+      cleaned = cleaned.replace(/__SLIDER:[\w-]+\|\d{1,3}__/g, " ");
+      deferred.push(() => sliderMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-slider", { detail: { target: m[1], value: parseInt(m[2], 10) } })), i * 500)));
+    }
+    // __CHECK:target|on|off__ — toggle a checkbox/radio.
+    const checkMatches = [...cleaned.matchAll(/__CHECK:([\w-]+)(?:\|(on|off))?__/g)];
+    if (checkMatches.length) {
+      cleaned = cleaned.replace(/__CHECK:[\w-]+(?:\|(?:on|off))?__/g, " ");
+      deferred.push(() => checkMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-check", { detail: { target: m[1], checked: m[2] ? m[2] === "on" : undefined } })), i * 500)));
+    }
+    // __SELECT:target|value__ — choose a select/dropdown option.
+    const selectMatches = [...cleaned.matchAll(/__SELECT:([\w-]+)\|([^|]*?)__/g)];
+    if (selectMatches.length) {
+      cleaned = cleaned.replace(/__SELECT:[\w-]+\|[^|]*?__/g, " ");
+      deferred.push(() => selectMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-select", { detail: { target: m[1], value: m[2], optionText: m[2] } })), i * 500)));
+    }
+    // __COPYLINK[:text]__ — copy a link/text to the clipboard.
+    const copyMatch = cleaned.match(/__COPYLINK(?::(.+?))?__/);
+    if (copyMatch) {
+      cleaned = cleaned.replace(/\s*__COPYLINK(?::.+?)?__\s*/g, " ");
+      const text = copyMatch[1]?.trim() || (typeof window !== "undefined" ? window.location.href : "");
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:copy", { detail: { text } })));
+    }
+    // __PREFETCH:/path__ — preload a route without navigating (fire immediately).
+    const prefetchMatches = [...cleaned.matchAll(/__PREFETCH:(\/[^_\s]*)__/g)];
+    if (prefetchMatches.length) {
+      cleaned = cleaned.replace(/\s*__PREFETCH:\/[^_\s]*__\s*/g, " ");
+      prefetchMatches.forEach((m) => { try { router.prefetch(m[1].split("#")[0] || "/"); } catch { /* */ } });
+    }
+    // __CONSENT:opt-in|opt-out__ — privacy consent (fire immediately).
+    const consentMatch = cleaned.match(/__CONSENT:(opt-in|opt-out)__/);
+    if (consentMatch) {
+      cleaned = cleaned.replace(/\s*__CONSENT:(?:opt-in|opt-out)__\s*/g, " ");
+      setConsent(consentMatch[1] === "opt-in" ? "accepted" : "opted_out");
+    }
+    // Scan-to-mobile QR bridge.
+    if (/__SCANTOMOBILE__/.test(cleaned)) {
+      cleaned = cleaned.replace(/\s*__SCANTOMOBILE__\s*/g, " ");
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:scan-to-mobile")));
+    }
+    // Reject a probabilistic cross-device candidate (user denied the pairing).
+    const rejectCand = cleaned.match(/__REJECT_CANDIDATE(?::([^_\s]+))?__/);
+    if (rejectCand) {
+      cleaned = cleaned.replace(/\s*__REJECT_CANDIDATE(?::[^_\s]+)?__\s*/g, " ");
+      const otherSerial = rejectCand[1];
+      computeFingerprint().then((fp) => {
+        fetch("/api/identity/update-state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reject", serial: fp.serial, targetSerial: otherSerial }),
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+    // Identity markers (parity with ChatPanel) — strip + persist via update-state.
+    const postIdentity = (action: "deny" | "confirm" | "provide", extra: Record<string, unknown>) => {
+      computeFingerprint().then((fp) => {
+        fetch("/api/identity/update-state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, serial: fp.serial, gpu: fp.gpu, screen: fp.screen, timezone: fp.timezone, language: fp.language, userAgent: fp.userAgent, ...extra }),
+        }).catch(() => {});
+      }).catch(() => {});
+    };
+    const idDeny = cleaned.match(/__IDENTITY_DENY(?::([^_\s]+))?__/);
+    if (idDeny) {
+      cleaned = cleaned.replace(/\s*__IDENTITY_DENY(?::[^_\s]+)?__\s*/g, " ");
+      const deniedId = idDeny[1] || getStoredIdentityContext()?.suggestedIdentityId;
+      if (deniedId) postIdentity("deny", { identityId: deniedId });
+    }
+    const idConfirm = cleaned.match(/__IDENTITY_CONFIRM:([^_\n]+)__/);
+    if (idConfirm) {
+      cleaned = cleaned.replace(/\s*__IDENTITY_CONFIRM:[^_\n]+__\s*/g, " ");
+      postIdentity("confirm", { name: idConfirm[1].trim() });
+    }
+    const idProvide = cleaned.match(/__IDENTITY_PROVIDE:([^_\n]+)__/);
+    if (idProvide) {
+      cleaned = cleaned.replace(/\s*__IDENTITY_PROVIDE:[^_\n]+__\s*/g, " ");
+      postIdentity("provide", { name: idProvide[1].trim() });
     }
     return {
       cleaned: cleaned.replace(/\s+/g, " ").trim(),
@@ -493,7 +624,7 @@ export default function VoiceMode() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })(), visitorName: visitorName ?? undefined, visitorGeo: visitorGeo ?? undefined, language: currentLang !== "en-US" ? currentLang : undefined }),
+        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, sessionId: voiceSessionIdRef.current, deviceSerial: deviceSerialRef.current || undefined, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })(), visitorName: visitorName ?? undefined, visitorGeo: visitorGeo ?? undefined, language: currentLang !== "en-US" ? currentLang : undefined, identityContext: (() => { const ic = getStoredIdentityContext(); if (!ic) return undefined; return { state: ic.state, suggestedName: ic.suggestedIdentityName, suggestedIdentityId: ic.suggestedIdentityId, confirmedName: ic.confirmedName, autoNamed: ic.autoNamed, suggestedCertainty: ic.suggestedCertainty, linkCandidate: ic.linkCandidate }; })() }),
       });
       if (res.status === 429) {
         friendly = "You've hit the message limit for now — give it a little while and try again.";
@@ -517,7 +648,7 @@ export default function VoiceMode() {
             const parsed = JSON.parse(payload);
             if (parsed.text) {
               accumulated += parsed.text;
-              const shown = stripAudioTags(accumulated.replace(/__[A-Z]+:.+?__/g, "").replace(/__[A-Z]+__/g, ""));
+              const shown = stripAudioTags(accumulated.replace(/__[A-Z_]+:.+?__/g, "").replace(/__[A-Z_]+__/g, ""));
               setTurns((prev) => {
                 const next = [...prev];
                 next[next.length - 1] = { role: "assistant", text: shown };
@@ -571,6 +702,8 @@ export default function VoiceMode() {
     const isIOS = /iPad|iPhone|iPod/.test(ua) || (typeof navigator !== "undefined" && navigator.platform === "MacIntel" && (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints! > 1);
     // SR on iOS/Brave is missing or unreliable → use the recorder fallback there.
     const useVad = !SR || isBrave || isIOS;
+    // Warm up the on-device Whisper model when it will be the STT engine (recorder path).
+    if (useVad && isLocalSttSupported()) preloadLocalStt();
 
     setPhaseSafe("connecting");
     setTurns([]);
@@ -651,10 +784,20 @@ export default function VoiceMode() {
               setInterim("");
               setPhaseSafe("thinking");
               try {
-                const fd = new FormData(); fd.set("file", blob, "voice.webm");
-                const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
-                const data = await res.json().catch(() => null);
-                const t = typeof data?.text === "string" ? data.text.trim() : "";
+                // Free, on-device Whisper first; fall back to the paid server STT
+                // ONLY if the local engine couldn't run — a successful-but-empty
+                // result means silence, so we must NOT bill ElevenLabs for it.
+                let t = "";
+                let localOk = false;
+                if (isLocalSttSupported()) {
+                  try { t = await transcribeBlobLocal(blob); localOk = true; } catch { localOk = false; }
+                }
+                if (!localOk) {
+                  const fd = new FormData(); fd.set("file", blob, "voice.webm");
+                  const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
+                  const data = await res.json().catch(() => null);
+                  t = typeof data?.text === "string" ? data.text.trim() : "";
+                }
                 if (t && !isNoisyTranscript(t)) await sendToAgent(t);
                 else if (openRef.current) setPhaseSafe("listening");
               } catch { if (openRef.current) setPhaseSafe("listening"); }
@@ -736,6 +879,7 @@ export default function VoiceMode() {
   const orbColor = phase === "speaking" ? "#ff7a7a" : "var(--theme-primary, #ef4242)";
   const shortLabel =
     phase === "connecting" ? "Connecting" :
+    (phase === "thinking" && sttPrep !== null) ? `Preparing voice ${sttPrep}%` :
     ttsPreparing ? "Loading" :
     phase === "listening" ? "Listening" :
     phase === "thinking" ? "Thinking" :

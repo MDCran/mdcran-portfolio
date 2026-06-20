@@ -287,6 +287,7 @@ export default function FilterBar({
                   key={n}
                   type="button"
                   data-grid-col={n}
+                  data-highlight-id={`grid-size-${n}`}
                   onClick={() => onColsChange(n)}
                   title={`${n} columns`}
                   className={cn(
@@ -308,6 +309,7 @@ export default function FilterBar({
         {onAdvancedChange && (
           <button
             type="button"
+            data-highlight-id="grid-filter"
             onClick={() => setAdvOpen(true)}
             className={cn(
               "relative h-10 px-3 flex items-center gap-2 rounded-sm border text-xs transition-colors shrink-0 cursor-pointer",
@@ -326,6 +328,7 @@ export default function FilterBar({
           <input
             value={query}
             onChange={handleSearch}
+            data-highlight-id="grid-search"
             placeholder="Search..."
             className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3 text-xs text-white placeholder:text-white/25 outline-none transition-colors"
           />
@@ -347,7 +350,7 @@ export default function FilterBar({
               <p className="text-[10px] uppercase tracking-[0.18em] text-white/40 mb-2">Published date</p>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {(["any", "before", "after", "between"] as DateMode[]).map((m) => (
-                  <button key={m} onClick={() => applyAdv({ ...adv, dateMode: m })} className={cn("px-2.5 py-1 rounded-sm text-[11px] capitalize border cursor-pointer", adv.dateMode === m ? "border-[var(--cranberry)]/40 bg-[var(--cranberry)]/10 text-[var(--cranberry)]" : "border-white/10 text-white/45 hover:text-white")}>{m}</button>
+                  <button key={m} data-highlight-id={`filter-date-${m}`} onClick={() => applyAdv({ ...adv, dateMode: m })} className={cn("px-2.5 py-1 rounded-sm text-[11px] capitalize border cursor-pointer", adv.dateMode === m ? "border-[var(--cranberry)]/40 bg-[var(--cranberry)]/10 text-[var(--cranberry)]" : "border-white/10 text-white/45 hover:text-white")}>{m}</button>
                 ))}
               </div>
               {adv.dateMode !== "any" && (
@@ -372,7 +375,7 @@ export default function FilterBar({
                     const on = adv.clientIds.includes(c.id);
                     const logo = c.avatarUrl ? imageAssetSrc(c.avatarUrl) ?? c.avatarUrl : null;
                     return (
-                      <button key={c.id} onClick={() => toggleClient(c.id)} className={cn("flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm border text-left transition-colors cursor-pointer", on ? "border-[var(--cranberry)]/40 bg-[var(--cranberry)]/10" : "border-white/8 hover:border-white/20")}>
+                      <button key={c.id} data-highlight-id={`filter-client-${c.id}`} onClick={() => toggleClient(c.id)} className={cn("flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm border text-left transition-colors cursor-pointer", on ? "border-[var(--cranberry)]/40 bg-[var(--cranberry)]/10" : "border-white/8 hover:border-white/20")}>
                         {logo ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={logo} alt="" className="h-6 w-6 rounded-full object-cover border border-white/10" />

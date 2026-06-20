@@ -12,6 +12,7 @@ import Clients from "@/components/home/Clients";
 import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import MercuryPrompt from "@/components/home/MercuryPrompt";
+import RecruiterPrompt from "@/components/home/RecruiterPrompt";
 import VisitorMap from "@/components/home/VisitorMap";
 import Timeline from "@/components/home/Timeline";
 import { getArticles, getClients, getExperiences, getProjects, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
@@ -207,6 +208,7 @@ export default async function HomePage() {
           <div key={section.id} id={section.id} data-highlight-id={section.id} style={{ scrollMarginTop: "5rem" }}>{section.node}</div>
         ))}
         <MercuryPrompt />
+        <RecruiterPrompt />
       </main>
       <Footer />
     </>

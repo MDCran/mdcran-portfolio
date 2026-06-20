@@ -9,7 +9,8 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
-import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import { isValidEmail, isValidPhoneNumber, formatPhoneInput } from "@/lib/contact-validation";
+import { computeFingerprint } from "@/lib/device-fingerprint";
 import BookMeeting from "@/components/contact/BookMeeting";
 
 type Status = "idle" | "sending" | "success" | "error";
@@ -33,6 +34,7 @@ export default function ContactPage() {
     message: "",
     consent: false,
   });
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "contact", label: "Contact" },
@@ -50,13 +52,23 @@ export default function ContactPage() {
   }, [tab]);
 
   const set = (k: keyof typeof form, v: string | boolean) => {
-    if (status === "error") {
-      setStatus("idle");
-    }
-    if (errorMessage) {
-      setErrorMessage("");
-    }
+    if (status === "error") setStatus("idle");
+    if (errorMessage) setErrorMessage("");
+    if (k === "email" && fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined }));
+    if (k === "phone" && fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: undefined }));
     setForm((f) => ({ ...f, [k]: v }));
+  };
+
+  const handleEmailBlur = () => {
+    const v = form.email.trim();
+    if (v && !isValidEmail(v)) setFieldErrors((fe) => ({ ...fe, email: "Enter a valid email address." }));
+    else setFieldErrors((fe) => ({ ...fe, email: undefined }));
+  };
+
+  const handlePhoneBlur = () => {
+    const v = form.phone.trim();
+    if (v && !isValidPhoneNumber(v)) setFieldErrors((fe) => ({ ...fe, phone: "Enter a valid phone number." }));
+    else setFieldErrors((fe) => ({ ...fe, phone: undefined }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,10 +97,11 @@ export default function ContactPage() {
     setErrorMessage("");
     setStatus("sending");
     try {
+      const serial = await computeFingerprint().then((fp) => fp.serial).catch(() => undefined);
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, submissionId }),
+        body: JSON.stringify({ ...form, submissionId, serial }),
       });
       if (res.ok) {
         setStatus("success");
@@ -218,9 +231,11 @@ export default function ContactPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
+                  onBlur={handleEmailBlur}
                   placeholder="your@email.com"
-                  className="w-full h-11 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm px-4 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
+                  className={`w-full h-11 bg-white/4 border rounded-sm px-4 text-sm text-white placeholder:text-white/25 outline-none transition-colors ${fieldErrors.email ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
                 />
+                {fieldErrors.email && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.email}</p>}
               </div>
             </div>
 
@@ -234,10 +249,12 @@ export default function ContactPage() {
                   id="contact-phone"
                   type="tel"
                   value={form.phone}
-                  onChange={(e) => set("phone", e.target.value)}
-                  placeholder="+1 (555) 000-0000"
-                  className="w-full h-11 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm px-4 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
+                  onChange={(e) => set("phone", formatPhoneInput(e.target.value))}
+                  onBlur={handlePhoneBlur}
+                  placeholder="(555) 000-0000"
+                  className={`w-full h-11 bg-white/4 border rounded-sm px-4 text-sm text-white placeholder:text-white/25 outline-none transition-colors ${fieldErrors.phone ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
                 />
+                {fieldErrors.phone && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.phone}</p>}
               </div>
               <div>
                 <label htmlFor="contact-subject" className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">

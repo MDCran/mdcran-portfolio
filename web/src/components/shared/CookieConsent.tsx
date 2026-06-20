@@ -20,6 +20,13 @@ export function setConsent(value: "accepted" | "opted_out" | "dismissed") {
 
 export default function CookieConsent() {
   const [show, setShow] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+
+  useEffect(() => {
+    const onTour = (e: Event) => setTourActive((e as CustomEvent).detail?.active === true);
+    window.addEventListener("mdcran:tour-active", onTour);
+    return () => window.removeEventListener("mdcran:tour-active", onTour);
+  }, []);
 
   useEffect(() => {
     if (window.location.pathname.startsWith("/admin")) return;
@@ -29,27 +36,35 @@ export default function CookieConsent() {
     }
   }, []);
 
-  if (!show) return null;
+  if (!show || tourActive) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] w-[min(calc(100vw-2rem),34rem)]">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] w-[min(calc(100vw-2rem),36rem)]">
       <div className="rounded-sm border border-white/12 bg-[#0b0b0b]/95 backdrop-blur-xl px-5 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
         <p className="text-xs text-white/60 leading-relaxed">
-          We use cookies and similar tech for analytics, performance, and to power site features (including the AI chat &amp; voice assistant).
-          See our <Link href="/legal" className="text-[#ef4242] underline underline-offset-2">Legal &amp; Privacy</Link> page for details and to opt out anytime.
+          By visiting this site you consent to the collection of session data — including device info,
+          visit history, pages viewed, and interaction patterns — as described in the{" "}
+          <Link href="/legal" className="text-[#ef4242] underline underline-offset-2 hover:text-[#ff6060]">
+            Privacy Policy &amp; Terms
+          </Link>
+          . This data is public-session data retained for site integrity, analytics, and improvement.
         </p>
-        <div className="flex items-center justify-end gap-4 mt-3">
+        <p className="text-[11px] text-white/30 mt-1.5 leading-snug">
+          &ldquo;Essential Only&rdquo; opts out of optional analytics &amp; personalization cookies.
+          Continued use of this site constitutes acceptance of essential data collection regardless of choice.
+        </p>
+        <div className="flex items-center justify-end gap-3 mt-3">
           <button
-            onClick={() => { setConsent("dismissed"); setShow(false); }}
-            className="text-[11px] text-white/35 hover:text-white/70 transition-colors cursor-pointer"
+            onClick={() => { setConsent("opted_out"); setShow(false); }}
+            className="px-3 h-8 text-[11px] tracking-wide border border-white/15 text-white/45 rounded-sm hover:text-white/70 hover:border-white/30 transition-colors cursor-pointer"
           >
-            Dismiss
+            Essential Only
           </button>
           <button
             onClick={() => { setConsent("accepted"); setShow(false); }}
             className="px-4 h-8 text-[11px] tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors cursor-pointer"
           >
-            Accept
+            Accept All
           </button>
         </div>
       </div>

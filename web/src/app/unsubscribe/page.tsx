@@ -7,12 +7,14 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageHeader from "@/components/shared/PageHeader";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
+import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function UnsubscribePage() {
   const { data: siteContent } = useSWR("/api/data/site-content", fetcher, { revalidateOnFocus: false });
   const header = siteContent?.pageHeaders?.unsubscribe;
   const [identifier, setIdentifier] = useState("");
+  const [identifierError, setIdentifierError] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(() => {
     if (typeof window === "undefined") return "idle";
     const statusParam = new URLSearchParams(window.location.search).get("status");
@@ -30,6 +32,19 @@ export default function UnsubscribePage() {
     }
     return "";
   });
+
+  const handleIdentifierBlur = () => {
+    const v = identifier.trim();
+    if (!v) { setIdentifierError(""); return; }
+    const looksLikePhone = !v.includes("@") && /^[+\d]/.test(v);
+    if (looksLikePhone) {
+      if (!isValidPhoneNumber(v)) setIdentifierError("Enter a valid phone number, e.g. (555) 123-4567.");
+      else setIdentifierError("");
+    } else {
+      if (!isValidEmail(v)) setIdentifierError("Enter a valid email address.");
+      else setIdentifierError("");
+    }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,15 +100,17 @@ export default function UnsubscribePage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-[11px] text-white/40 tracking-wider uppercase mb-2">
-                Email Or Phone
+                Email or Phone
               </label>
               <input
                 type="text"
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="your@email.com or +1 (555) 000-0000"
-                className="w-full h-11 bg-white/4 border border-white/8 focus:border-[#ef4242] rounded-sm px-4 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
+                onChange={(e) => { setIdentifier(e.target.value); if (identifierError) setIdentifierError(""); }}
+                onBlur={handleIdentifierBlur}
+                placeholder="your@email.com or (555) 000-0000"
+                className={`w-full h-11 bg-white/4 border rounded-sm px-4 text-sm text-white placeholder:text-white/25 outline-none transition-colors ${identifierError ? "border-[#ef4242]/60 focus:border-[#ef4242]" : "border-white/8 focus:border-[#ef4242]"}`}
               />
+              {identifierError && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{identifierError}</p>}
             </div>
             {status === "error" && (
               <div className="flex items-center gap-2 rounded-sm border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">

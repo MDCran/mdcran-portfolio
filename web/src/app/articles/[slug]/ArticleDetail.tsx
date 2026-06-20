@@ -187,6 +187,7 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
                 <div
                   key={i}
                   className="relative aspect-square rounded-sm overflow-hidden border border-white/8 cursor-pointer group"
+                  data-highlight-id={`gallery-image-${imageOffset + i}`}
                   onClick={() => onImageClick(imageOffset + i)}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -215,7 +216,10 @@ function Section({ section, imageOffset, onImageClick }: SectionProps) {
     case "video":
       return (
         <div className="my-8">
-          <div className="relative rounded-sm overflow-hidden border border-white/8 aspect-video">
+          <div
+            className="relative rounded-sm overflow-hidden border border-white/8 aspect-video"
+            data-highlight-id={`video-${section.youtubeId}`}
+          >
             <iframe
               src={`https://www.youtube.com/embed/${section.youtubeId}`}
               title={section.caption ?? "Video"}
@@ -453,6 +457,7 @@ function TapsButton({ articleId }: { articleId: string }) {
         disabled={!canTap}
         whileTap={{ scale: 0.92 }}
         data-taps-btn
+        data-highlight-id="appreciate-button"
         className="relative flex items-center gap-2 px-4 py-2 rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all duration-300 hover:border-[#ef4242]/30 hover:bg-[#ef4242]/5 hover:text-[#ef4242] disabled:cursor-not-allowed disabled:opacity-60 overflow-visible"
         title={loading ? "Loading taps" : "Tap to appreciate this article"}
       >
@@ -565,6 +570,9 @@ function ShareButtons() {
         <motion.button
           onClick={handleCopy}
           whileTap={{ scale: 0.95 }}
+          data-highlight-id="copy-link-button"
+          aria-label="Copy link to clipboard"
+          data-state={copied ? "copied" : "idle"}
           className="flex h-10 w-full items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/4 px-4 text-xs tracking-wider text-white/50 transition-all hover:border-white/20 hover:text-white"
         >
           {copied ? (
@@ -576,6 +584,7 @@ function ShareButtons() {
         <motion.button
           onClick={() => void handleShare()}
           whileTap={{ scale: 0.95 }}
+          data-highlight-id="share-button"
           className="flex h-10 w-10 items-center justify-center rounded-sm border border-white/12 bg-white/4 text-white/50 transition-all hover:border-white/20 hover:text-white sm:hidden"
           aria-label="Share link"
           title="Share"
@@ -590,7 +599,20 @@ function ShareButtons() {
 /* ── Main Component ─────────────────────────────────────── */
 export default function ArticleDetail({ article }: { article: Article }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxAiOpened, setLightboxAiOpened] = useState(false);
   const coverSrc = imageAssetSrc(article.coverImage);
+
+  useEffect(() => {
+    const onOpenImage = (e: Event) => {
+      const { index } = (e as CustomEvent<{ index: number }>).detail ?? {};
+      if (typeof index === "number") {
+        setLightboxAiOpened(true);
+        setLightboxIndex(index);
+      }
+    };
+    window.addEventListener("mdcran:open-image", onOpenImage);
+    return () => window.removeEventListener("mdcran:open-image", onOpenImage);
+  }, []);
   const coverUnoptimized = shouldBypassImageOptimization(coverSrc);
 
   // Estimated read time (~225 wpm) from all text in the article.
@@ -673,12 +695,13 @@ export default function ArticleDetail({ article }: { article: Article }) {
             <h1
               className="font-nord text-3xl md:text-5xl text-white tracking-wider mb-5 leading-tight"
               style={{ textShadow: "0 0 40px rgba(239,66,66,0.15)" }}
+              data-highlight-id="article-title"
             >
               {article.title}
             </h1>
 
             {/* Excerpt */}
-            <p className="text-base text-white/60 leading-relaxed mb-6">{article.excerpt}</p>
+            <p className="text-base text-white/60 leading-relaxed mb-6" data-highlight-id="article-excerpt">{article.excerpt}</p>
 
             {/* Meta row — standardized MDCran brand byline (matches the project pages) */}
             <div className="flex flex-wrap items-center gap-4 pb-6 border-b border-white/8">
@@ -691,12 +714,14 @@ export default function ArticleDetail({ article }: { article: Article }) {
       {/* ── Content ── */}
       <article
         className="max-w-5xl mx-auto px-4 sm:px-8 py-16"
+        data-highlight-id="article"
       >
+        <div data-highlight-id="article-body">
         {article.sections.map((section, i) => (
           <div
             key={i}
             className={section.type === "image" || section.type === "before-after" ? "inline" : "block"}
-            data-highlight-id={`${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
+            data-highlight-id={section.type === "before-after" ? undefined : `${section.type}${section.caption ? "--" + section.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "") : ""}`}
           >
           <Section
             section={section}
@@ -705,6 +730,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
           />
           </div>
         ))}
+        </div>
         {/* Byline footer — standardized MDCran brand byline + (best practice) last-updated */}
         <div className="mt-12 pt-6 border-t border-white/8 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <AuthorByline date={article.publishDate} minutes={readMinutes} size="md" />
@@ -718,7 +744,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
 
       {/* ── Tags ── */}
       {article.tags.length > 0 && (
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 pb-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 pb-8" data-highlight-id="article-tags">
           <div className="flex flex-wrap gap-2">
             {article.tags.map((tag) => {
               const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
@@ -763,9 +789,10 @@ export default function ArticleDetail({ article }: { article: Article }) {
       <Lightbox
         images={allImages}
         currentIndex={lightboxIndex}
-        onClose={() => setLightboxIndex(null)}
+        onClose={() => { setLightboxIndex(null); setLightboxAiOpened(false); }}
         onNavigate={setLightboxIndex}
         captions={allImageCaptions}
+        initialAutoCycle={!lightboxAiOpened}
       />
 
     </main>

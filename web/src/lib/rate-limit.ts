@@ -48,6 +48,16 @@ export async function getRateLimitRecords(): Promise<RateLimitRecord[]> {
   );
 }
 
+export async function getRateLimitRecordsForIps(ips: string[]): Promise<RateLimitRecord[]> {
+  const db = await getDb();
+  const records = (await db
+    .collection("rate_limits")
+    .find({ ip: { $in: ips.filter(Boolean) } }, { projection: { _id: 0 } })
+    .toArray()) as unknown as RateLimitRecord[];
+
+  return records;
+}
+
 export async function updateRateLimitRecord(record: RateLimitRecord): Promise<void> {
   const db = await getDb();
   await db.collection("rate_limits").updateOne(

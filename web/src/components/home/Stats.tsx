@@ -577,6 +577,7 @@ export default function Stats({ content }: { content?: SiteContentStats }) {
             return (
               <motion.div
                 key={metric.key}
+                data-highlight-id={`stat-${metric.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`}
                 initial={{ opacity: 0, y: 32 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0 }}

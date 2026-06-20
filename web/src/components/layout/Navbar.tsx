@@ -250,6 +250,16 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                   onMouseLeave={() => setActiveDropdown(null)}
                 >
                   <button
+                    onClick={() => {
+                      // On hover-capable (pointer) devices, hover owns open/close — a
+                      // click while hovered shouldn't collapse it. Only toggle on
+                      // touch/no-hover devices (and AI clicks, which open it).
+                      const noHover = typeof window !== "undefined" && window.matchMedia?.("(hover: none)").matches;
+                      if (noHover) setActiveDropdown((prev) => (prev === link.href ? null : link.href));
+                      else setActiveDropdown(link.href);
+                    }}
+                    aria-haspopup="true"
+                    aria-expanded={activeDropdown === link.href}
                     className={cn(
                       "flex items-center gap-1 px-4 py-2 text-[11px] tracking-widest uppercase whitespace-nowrap transition-colors duration-200 rounded-sm",
                       isNavActive(link.href)
@@ -285,6 +295,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                           <Link
                             key={child.href}
                             href={child.href}
+                            data-highlight-id={`nav-link-${child.href.split("/").filter(Boolean).pop()}`}
                             className={cn(
                               "block px-5 py-3 text-[11px] tracking-widest uppercase transition-all duration-150 border-b last:border-0",
                               isLight ? "border-black/6" : "border-white/7",
@@ -501,6 +512,8 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                   </div>
                   <input
                     ref={searchRef}
+                    data-highlight-id="nav-search"
+                    aria-label="Search the site"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search projects, articles, clients..."
@@ -555,12 +568,13 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Projects
                             </div>
-                            {results.projects.map((p) => {
+                            {results.projects.map((p, i) => {
                               const thumb = imageAssetSrc(p.coverImage ?? p.images?.[0]);
                               return (
                                 <Link
                                   key={p.id}
                                   href={projectUrl(p.category, p.slug, p.subcategory)}
+                                  data-highlight-id={`nav-result-${i}`}
                                   onClick={() => { setSearchOpen(false); setQuery(""); }}
                                   className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                                 >
@@ -590,11 +604,12 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Clients
                             </div>
-                            {results.clients.map((c) => (
+                            {results.clients.map((c, i) => (
                               <Link
                                 key={c.id}
                                 href={`/clients/${c.id}`}
                                 title={c.name}
+                                data-highlight-id={`nav-result-${results.projects.length + i}`}
                                 onClick={() => { setSearchOpen(false); setQuery(""); }}
                                 className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                               >
@@ -622,10 +637,11 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Articles
                             </div>
-                            {results.articles.map((a) => (
+                            {results.articles.map((a, i) => (
                               <Link
                                 key={a.id}
                                 href={`/articles/${a.slug}`}
+                                data-highlight-id={`nav-result-${results.projects.length + results.clients.length + i}`}
                                 onClick={() => { setSearchOpen(false); setQuery(""); }}
                                 className={`flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`}
                               >
@@ -654,18 +670,18 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             <div className={`px-5 py-2.5 text-[10px] tracking-widest uppercase text-[var(--cranberry)] border-b ${isLight ? "border-black/6 bg-black/2" : "border-white/6 bg-white/2"}`}>
                               Pages
                             </div>
-                            {results.pages.map((page) => {
+                            {results.pages.map((page, i) => {
                               const isExternal = page.href.startsWith("http");
                               const linkProps = {
-                                key: page.href,
                                 href: page.href,
+                                "data-highlight-id": `nav-result-${results.projects.length + results.clients.length + results.articles.length + i}`,
                                 onClick: () => { setSearchOpen(false); setQuery(""); },
                                 className: `flex items-center gap-3.5 px-4 py-3 last:border-0 transition-colors group border-b ${isLight ? "hover:bg-black/4 border-black/5" : "hover:bg-white/5 border-white/5"}`,
                                 ...(isExternal ? { target: "_blank" as const, rel: "noopener noreferrer" } : {}),
                               };
                               const Wrapper = isExternal ? "a" : Link;
                               return (
-                              <Wrapper {...linkProps}>
+                              <Wrapper key={page.href} {...linkProps}>
                                 <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5 flex items-center justify-center">
                                   <div className="w-3 h-3 bg-[var(--cranberry)] rotate-45 opacity-40" />
                                 </div>

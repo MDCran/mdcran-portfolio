@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, CheckCircle, Phone, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
+import { isValidEmail, isValidPhoneNumber, formatPhoneInput } from "@/lib/contact-validation";
 import type { SiteContentSectionIntro } from "@/lib/types";
 
 type Mode = "email" | "sms" | "both";
@@ -19,6 +19,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
   const modeButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const modeDragPointerIdRef = useRef<number | null>(null);
   const modeDragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -186,6 +187,9 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                 <motion.div
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
+                  role="status"
+                  aria-live="polite"
+                  data-subscribe-status="success"
                   className="flex items-start gap-3 p-5 rounded-sm border border-green-500/25 bg-green-500/8"
                 >
                   <CheckCircle size={18} className="text-green-400 shrink-0 mt-0.5" />
@@ -194,8 +198,9 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                   </div>
                 </motion.div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-3">
+                <form onSubmit={handleSubmit} className="space-y-3" data-subscribe-status={status}>
                   <div
+                    data-highlight-id="cta-channel"
                     className="relative flex gap-1 p-1 rounded-sm bg-white/4 border border-white/8 w-fit"
                     onPointerDown={(e) => {
                       modeDragPointerIdRef.current = e.pointerId;
@@ -270,36 +275,47 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your name"
                     aria-label="Your name"
+                    data-highlight-id="cta-name"
                     className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm px-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
                   />
 
                   {(mode === "email" || mode === "both") && (
-                    <div className="relative">
-                      <Mail size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your@email.com"
-                        aria-label="Email address"
-                        className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
-                      />
+                    <div>
+                      <div className="relative">
+                        <Mail size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
+                          onBlur={() => { const v = email.trim(); if (v && !isValidEmail(v)) setFieldErrors((fe) => ({ ...fe, email: "Enter a valid email address." })); else setFieldErrors((fe) => ({ ...fe, email: undefined })); }}
+                          placeholder="your@email.com"
+                          aria-label="Email address"
+                          data-highlight-id="cta-email"
+                          className={`w-full h-10 bg-white/4 border rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors ${fieldErrors.email ? "border-[#ef4242]/60 focus:border-[var(--cranberry)]" : "border-white/8 focus:border-[var(--cranberry)]"}`}
+                        />
+                      </div>
+                      {fieldErrors.email && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.email}</p>}
                     </div>
                   )}
 
                   {(mode === "sms" || mode === "both") && (
-                    <div className="relative">
-                      <Phone size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
-                      <input
-                        type="tel"
-                        required
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+1 (555) 000-0000"
-                        aria-label="Phone number"
-                        className="w-full h-10 bg-white/4 border border-white/8 focus:border-[var(--cranberry)] rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors"
-                      />
+                    <div>
+                      <div className="relative">
+                        <Phone size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
+                        <input
+                          type="tel"
+                          required
+                          value={phone}
+                          onChange={(e) => { setPhone(formatPhoneInput(e.target.value)); if (fieldErrors.phone) setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                          onBlur={() => { const v = phone.trim(); if (v && !isValidPhoneNumber(v)) setFieldErrors((fe) => ({ ...fe, phone: "Enter a valid phone number." })); else setFieldErrors((fe) => ({ ...fe, phone: undefined })); }}
+                          placeholder="(555) 000-0000"
+                          aria-label="Phone number"
+                          data-highlight-id="cta-phone"
+                          className={`w-full h-10 bg-white/4 border rounded-sm pl-9 pr-3.5 text-sm text-white placeholder:text-white/25 outline-none transition-colors ${fieldErrors.phone ? "border-[#ef4242]/60 focus:border-[var(--cranberry)]" : "border-white/8 focus:border-[var(--cranberry)]"}`}
+                        />
+                      </div>
+                      {fieldErrors.phone && <p className="mt-1.5 text-[11px] text-[#ef8a8a]">{fieldErrors.phone}</p>}
                     </div>
                   )}
 
@@ -310,6 +326,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                         required
                         checked={consent}
                         onChange={(e) => setConsent(e.target.checked)}
+                        data-highlight-id="cta-consent"
                         className="sr-only"
                       />
                       <div
@@ -348,7 +365,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
                   </label>
 
                   {status === "error" && (
-                    <div className="flex items-center gap-2 text-xs text-[#ef8a8a]">
+                    <div role="alert" data-subscribe-status="error" className="flex items-center gap-2 text-xs text-[#ef8a8a]">
                       <AlertCircle size={13} />
                       <span>{message}</span>
                     </div>
@@ -356,6 +373,7 @@ export default function CTA({ content }: { content?: SiteContentSectionIntro }) 
 
                   <button
                     type="submit"
+                    data-highlight-id="cta-subscribe"
                     disabled={status === "sending" || !consent}
                     className="w-full h-10 flex items-center justify-center gap-2 bg-[var(--cranberry)] text-white text-xs tracking-widest uppercase rounded-sm hover:bg-[#dd3030] transition-all shadow-[0_0_16px_rgba(239,66,66,0.25)] hover:shadow-[0_0_24px_rgba(239,66,66,0.4)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                   >

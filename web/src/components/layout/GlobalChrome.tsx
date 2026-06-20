@@ -54,6 +54,11 @@ const AIBrowserCursor = dynamic(
   { ssr: false },
 );
 
+const ScanToMobileModal = dynamic(
+  () => import("@/components/identity/ScanToMobileModal"),
+  { ssr: false },
+);
+
 const LANG_WARNINGS: Record<string, string> = {
   es: "Algunas funciones pueden no ser óptimas en idiomas distintos al inglés.",
   fr: "Certaines fonctionnalités peuvent ne pas être optimales dans d'autres langues.",
@@ -206,16 +211,50 @@ function useAgentUiListeners() {
     const onReset = () => clearFocus();
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") clearFocus(); };
 
+    // Directional / container scroll. detail {direction, target?, amount?}.
+    const onScroll = (e: Event) => {
+      const d = (e as CustomEvent<{ direction?: string; target?: string; amount?: number }>).detail ?? {};
+      const dir = (d.direction ?? "down").toLowerCase();
+      const container = d.target ? findTarget(d.target) : null;
+      const horizontal = dir === "left" || dir === "right";
+      const step = typeof d.amount === "number" ? d.amount
+        : horizontal ? Math.round((container?.clientWidth ?? window.innerWidth) * 0.8)
+        : Math.round((container?.clientHeight ?? window.innerHeight) * 0.8);
+      const behavior: ScrollBehavior = "smooth";
+      if (dir === "top") { if (container) container.scrollTo({ top: 0, behavior }); else window.scrollTo({ top: 0, behavior }); return; }
+      if (dir === "bottom") { if (container) container.scrollTo({ top: container.scrollHeight, behavior }); else window.scrollTo({ top: document.body.scrollHeight, behavior }); return; }
+      const dx = dir === "left" ? -step : dir === "right" ? step : 0;
+      const dy = dir === "up" ? -step : dir === "down" ? step : 0;
+      if (container) container.scrollBy({ left: dx, top: dy, behavior });
+      else window.scrollBy({ left: dx, top: dy, behavior });
+    };
+
+    // Copy text/URL to the clipboard. detail {text} or {target} (copies its href/text).
+    const onCopy = (e: Event) => {
+      const d = (e as CustomEvent<{ text?: string; target?: string }>).detail ?? {};
+      let text = d.text ?? "";
+      if (!text && d.target) {
+        const el = findTarget(d.target);
+        text = (el as HTMLAnchorElement | null)?.href || el?.textContent?.trim() || "";
+      }
+      if (!text) return;
+      try { void navigator.clipboard?.writeText(text); } catch { /* */ }
+    };
+
     window.addEventListener("mdcran:highlight", onHighlight);
     window.addEventListener("mdcran:zoom", onZoom);
     window.addEventListener("mdcran:emphasize", onEmphasize);
     window.addEventListener("mdcran:resetzoom", onReset);
+    window.addEventListener("mdcran:scroll", onScroll);
+    window.addEventListener("mdcran:copy", onCopy);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("mdcran:highlight", onHighlight);
       window.removeEventListener("mdcran:zoom", onZoom);
       window.removeEventListener("mdcran:emphasize", onEmphasize);
       window.removeEventListener("mdcran:resetzoom", onReset);
+      window.removeEventListener("mdcran:scroll", onScroll);
+      window.removeEventListener("mdcran:copy", onCopy);
       window.removeEventListener("keydown", onKey);
       clearFocus();
     };
@@ -241,6 +280,7 @@ export default function GlobalChrome() {
         <ChatBubble />
         <ChatPanel />
         <VoiceMode />
+        <ScanToMobileModal />
       </>
     );
   }
@@ -265,6 +305,7 @@ export default function GlobalChrome() {
           <VoiceMode />
           <AssistantTutorial />
           <ProjectsTour />
+          <ScanToMobileModal />
         </>
       )}
       <GhostCursor />
