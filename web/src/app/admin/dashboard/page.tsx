@@ -14,6 +14,12 @@ import {
   Tooltip,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
@@ -23,6 +29,9 @@ import ImageTagsEditor from "@/components/admin/ImageTagsEditor";
 import DatePicker from "@/components/shared/DatePicker";
 import BookingAdmin from "@/components/admin/BookingAdmin";
 import IdentitiesAdmin from "@/components/admin/IdentitiesAdmin";
+import IdentityDetail from "@/components/admin/IdentityDetail";
+import IdentityPicker from "@/components/admin/IdentityPicker";
+import { useConfirm } from "@/components/admin/ConfirmModal";
 import DeviceCandidates from "@/components/admin/DeviceCandidates";
 import DiscordSettings from "@/components/admin/DiscordSettings";
 import UtmLinkGenerator from "@/components/admin/UtmLinkGenerator";
@@ -58,6 +67,7 @@ import type {
   ResumeProfile,
   SkillCategoryMeta,
   EducationProgram,
+  Identity,
 } from "@/lib/types";
 import { DEGREE_LEVELS, RESUME_SECTIONS, RESUME_SECTION_LABELS } from "@/lib/types";
 import { flagEmoji } from "@/lib/flag";
@@ -69,6 +79,7 @@ import {
   BarChart3, Monitor, Mail, ShieldAlert, Bot, MessageSquare, Send, Zap, Wine,
   Eye, CalendarCheck, Fingerprint, GitMerge, TrendingUp, Activity, Database,
   MessageCircle, Menu, X, ChevronDown, Globe,
+  ArrowLeft, Pencil, Check, Trash2, Link2, Loader2,
 } from "lucide-react";
 
 /* ─── Local-only types ───────────────────────────────────── */
@@ -3187,6 +3198,55 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<NavSection>("dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  /* ── Identity detail sub-view (inline within the Identities section) ── */
+  const { confirm: confirmIdentity, modal: identityModal } = useConfirm();
+  const [identityDetailId, setIdentityDetailId] = useState<string | null>(null);
+  const [allIdentities, setAllIdentities] = useState<Identity[]>([]);
+  const [identityDetailEditing, setIdentityDetailEditing] = useState(false);
+  const [identityDetailEditName, setIdentityDetailEditName] = useState("");
+  const [identityDetailCopied, setIdentityDetailCopied] = useState(false);
+  const [identityDetailBusy, setIdentityDetailBusy] = useState(false);
+
+  const loadAllIdentities = useCallback(async () => {
+    const d = await fetch("/api/admin/identities").then((r) => r.ok ? r.json() : null).catch(() => null);
+    if (d?.identities) setAllIdentities(d.identities);
+  }, []);
+
+  useEffect(() => { if (activeSection === "identities") loadAllIdentities(); }, [activeSection, loadAllIdentities]);
+
+  const identityDetailRecord = allIdentities.find((i) => i.id === identityDetailId) ?? null;
+
+  const renameIdentityDetail = async () => {
+    if (!identityDetailId || !identityDetailEditName.trim()) return;
+    setIdentityDetailBusy(true);
+    await fetch("/api/admin/identities", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: identityDetailId, name: identityDetailEditName.trim() }) });
+    setIdentityDetailEditing(false);
+    await loadAllIdentities();
+    setIdentityDetailBusy(false);
+  };
+  const deleteIdentityDetail = async () => {
+    if (!identityDetailId || !identityDetailRecord) return;
+    if (!(await confirmIdentity({ title: "Delete this identity?", body: "This permanently removes the identity record.", confirmLabel: "Delete", danger: true }))) return;
+    setIdentityDetailBusy(true);
+    await fetch("/api/admin/identities", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: identityDetailId }) });
+    setIdentityDetailId(null);
+    await loadAllIdentities();
+    setIdentityDetailBusy(false);
+  };
+  const mergeIdentityDetailInto = async (targetId: string) => {
+    if (!identityDetailId) return;
+    const tgt = allIdentities.find((i) => i.id === targetId);
+    if (!(await confirmIdentity({ title: `Merge into "${tgt?.name}"?`, body: `All of this identity's devices and activity move into "${tgt?.name}", and this identity is deleted.`, confirmLabel: "Merge", danger: true }))) return;
+    setIdentityDetailBusy(true);
+    await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "merge", targetId, sourceIds: [identityDetailId] }) });
+    setIdentityDetailId(targetId);
+    await loadAllIdentities();
+    setIdentityDetailBusy(false);
+  };
+  const copyIdentityDetailLink = () => {
+    navigator.clipboard.writeText(`https://mdcran.com/?identity=${identityDetailId}`).then(() => { setIdentityDetailCopied(true); setTimeout(() => setIdentityDetailCopied(false), 1500); }).catch(() => {});
+  };
+
   /* ── Deep-link each section via URL hash (#projects, #resume, …) ── */
   useEffect(() => {
     const VALID_SECTIONS: NavSection[] = [
@@ -3243,6 +3303,24 @@ export default function AdminDashboard() {
   const r2CopyResetRef = useRef<number | null>(null);
   const r2FileInputRef = useRef<HTMLInputElement | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [analyticsOverview, setAnalyticsOverview] = useState<{
+    activeNow: number;
+    sessionsToday: number;
+    totalVisits: number;
+    totalPageviews: number;
+    topBrowsers: { name: string; count: number }[];
+    topOS: { name: string; count: number }[];
+    topCountries: { name: string; count: number; code?: string }[];
+    windows: { label: string; visits: number }[];
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/analytics/overview")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setAnalyticsOverview(data); })
+      .catch(() => {});
+  }, []);
+
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [chatRateLimitConfig, setChatRateLimitConfig] = useState<{ rateLimit: number; rateWindowHours: number; extraContext?: string }>({ rateLimit: 10, rateWindowHours: 24, extraContext: "" });
   const [chatRateLimitEntries, setChatRateLimitEntries] = useState<{ ip: string; count: number; resetAt: string }[]>([]);
@@ -4486,6 +4564,42 @@ export default function AdminDashboard() {
     return rows;
   })();
 
+  const tapsPerProject = [...projects]
+    .sort((a, b) => (tapCounts[b.id] ?? 0) - (tapCounts[a.id] ?? 0))
+    .slice(0, 8)
+    .map((p) => ({
+      label: p.title.length > 22 ? p.title.slice(0, 22) + "…" : p.title,
+      taps: tapCounts[p.id] ?? 0,
+    }));
+
+  const contactCaptureData = (() => {
+    let emailOnly = 0;
+    let phoneOnly = 0;
+    let both = 0;
+    let neither = 0;
+    contacts.forEach((c) => {
+      const hasEmail = !!c.email;
+      const hasPhone = !!c.phone;
+      if (hasEmail && hasPhone) both += 1;
+      else if (hasEmail) emailOnly += 1;
+      else if (hasPhone) phoneOnly += 1;
+      else neither += 1;
+    });
+    return [
+      { name: "Email only", value: emailOnly, fill: "#ef4242" },
+      { name: "Phone only", value: phoneOnly, fill: "#d4a853" },
+      { name: "Both", value: both, fill: "#34d399" },
+      { name: "Neither", value: neither, fill: "rgba(255,255,255,0.15)" },
+    ];
+  })();
+
+  const browserData = (analyticsOverview?.topBrowsers ?? [])
+    .slice(0, 5)
+    .map((b, i) => {
+      const colors = ["#ef4242", "#d4a853", "#34d399", "#a855f7", "#60a5fa"];
+      return { name: b.name, value: b.count, fill: colors[i] ?? "#ef4242" };
+    });
+
   const navItems: { key: NavSection; label: string; unreadCount?: number }[] = [
     { key: "dashboard", label: "Dashboard" },
     { key: "projects", label: "Projects" },
@@ -4853,10 +4967,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Row 2 — grouped section tabs (desktop) */}
-          <nav className="hidden md:flex items-stretch gap-0 px-2 overflow-x-auto border-t border-white/6 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+          <nav className="hidden md:flex items-stretch gap-0 px-1 overflow-x-auto border-t border-white/6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
             {NAV_GROUPS.map((group, gi) => (
-              <div key={group.label} className={`flex items-center ${gi > 0 ? "border-l border-white/8 ml-0.5 pl-0.5" : ""}`}>
-                <span className="hidden xl:block px-2 text-[8px] tracking-[0.22em] uppercase text-white/20 whitespace-nowrap self-center select-none">{group.label}</span>
+              <div key={group.label} className={`flex items-center shrink-0 ${gi > 0 ? "border-l border-white/8 ml-px pl-px" : ""}`}>
+                <span className="hidden 2xl:block px-1.5 text-[7px] tracking-[0.22em] uppercase text-white/20 whitespace-nowrap self-center select-none">{group.label}</span>
                 {group.items.map((key) => {
                   const item = navItems.find((n) => n.key === key);
                   if (!item) return null;
@@ -4866,18 +4980,18 @@ export default function AdminDashboard() {
                       key={key}
                       onClick={() => setActiveSection(key)}
                       title={sectionTitles[key]}
-                      className={`relative flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-[11px] tracking-wide transition-colors ${
+                      className={`relative flex items-center gap-1 whitespace-nowrap px-2 py-2 text-[10px] tracking-wide transition-colors shrink-0 ${
                         active ? "text-[#ef4242]" : "text-white/40 hover:text-white/80"
                       }`}
                     >
-                      <span className="opacity-70">{NAV_ICONS[key]}</span>
+                      <span className="opacity-70 shrink-0">{NAV_ICONS[key]}</span>
                       <span>{item.label}</span>
                       {Boolean(item.unreadCount) && (
                         <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-[#ef4242] px-1 py-0.5 text-[9px] leading-none text-white">
                           {item.unreadCount}
                         </span>
                       )}
-                      {active && <span className="absolute inset-x-1.5 -bottom-px h-px bg-[#ef4242] shadow-[0_0_8px_rgba(239,66,66,0.8)]" />}
+                      {active && <span className="absolute inset-x-1 -bottom-px h-px bg-[#ef4242] shadow-[0_0_8px_rgba(239,66,66,0.8)]" />}
                     </button>
                   );
                 })}
@@ -4985,6 +5099,42 @@ export default function AdminDashboard() {
                   <div key={label} className="border border-white/7 bg-white/2 rounded-sm p-5">
                     <p className="text-[10px] tracking-[0.2em] uppercase text-white/35 mb-2">{label}</p>
                     <p className="font-nord text-3xl text-white">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Live metrics KPI row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                {[
+                  {
+                    label: "Active Now",
+                    value: analyticsOverview?.activeNow ?? "—",
+                    dot: (analyticsOverview?.activeNow ?? 0) > 0,
+                  },
+                  {
+                    label: "Sessions Today",
+                    value: analyticsOverview?.sessionsToday ?? "—",
+                    dot: false,
+                  },
+                  {
+                    label: "Total Contacts",
+                    value: contacts.length,
+                    dot: false,
+                  },
+                  {
+                    label: "Rizz Entries",
+                    value: rizzEntries.length,
+                    dot: false,
+                  },
+                ].map(({ label, value, dot }) => (
+                  <div key={label} className="border border-white/7 bg-white/2 rounded-sm p-5">
+                    <p className="text-[10px] tracking-[0.2em] uppercase text-white/35 mb-2">{label}</p>
+                    <div className="flex items-center gap-2">
+                      {dot && (
+                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                      )}
+                      <p className="font-nord text-3xl text-white">{value}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -5135,6 +5285,157 @@ export default function AdminDashboard() {
                     </ResponsiveContainer>
                   </div>
                 </div>
+              </div>
+
+              {/* Visitor Trend area chart */}
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                <div className="mb-4">
+                  <p className="font-nord text-sm text-white">Visitor Trend</p>
+                  <p className="text-xs text-white/35">Rolling window of unique visits from first-party analytics.</p>
+                </div>
+                {analyticsOverview === null ? (
+                  <div className="h-[220px] flex items-center justify-center">
+                    <p className="text-xs text-white/35">Fetching analytics...</p>
+                  </div>
+                ) : (
+                  <div className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={analyticsOverview.windows}>
+                        <defs>
+                          <linearGradient id="visitorGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4242" stopOpacity={0.18} />
+                            <stop offset="95%" stopColor="#ef4242" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} minTickGap={18} />
+                        <YAxis tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: "#090909", border: "1px solid rgba(255,255,255,0.08)" }}
+                          labelStyle={{ color: "rgba(255,255,255,0.75)" }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="visits"
+                          stroke="#ef4242"
+                          strokeWidth={2}
+                          fill="url(#visitorGradient)"
+                          fillOpacity={0.1}
+                          dot={false}
+                          name="Visits"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Contact capture breakdown + browser breakdown */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                  <div className="mb-4">
+                    <p className="font-nord text-sm text-white">Contact Capture Breakdown</p>
+                    <p className="text-xs text-white/35">How contacts were captured — email, phone, both, or neither.</p>
+                  </div>
+                  <div className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={contactCaptureData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={2}
+                          dataKey="value"
+                        >
+                          {contactCaptureData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ background: "#090909", border: "1px solid rgba(255,255,255,0.08)" }}
+                          labelStyle={{ color: "rgba(255,255,255,0.75)" }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
+                    {contactCaptureData.map((entry) => (
+                      <div key={entry.name} className="flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: entry.fill }} />
+                        <span className="text-[11px] text-white/50">{entry.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                  <div className="mb-4">
+                    <p className="font-nord text-sm text-white">Browser Breakdown</p>
+                    <p className="text-xs text-white/35">Top browsers by visit count from first-party analytics.</p>
+                  </div>
+                  {browserData.length === 0 ? (
+                    <div className="h-[220px] flex items-center justify-center">
+                      <p className="text-xs text-white/35">No browser data yet.</p>
+                    </div>
+                  ) : (
+                    <div className="h-[220px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          layout="vertical"
+                          data={browserData}
+                          margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                        >
+                          <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                          <XAxis type="number" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} width={72} />
+                          <Tooltip
+                            contentStyle={{ background: "#090909", border: "1px solid rgba(255,255,255,0.08)" }}
+                            labelStyle={{ color: "rgba(255,255,255,0.75)" }}
+                          />
+                          <Bar dataKey="value" barSize={12} radius={[0, 2, 2, 0]} name="Visits">
+                            {browserData.map((entry, index) => (
+                              <Cell key={`browser-${index}`} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Top projects by taps */}
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                <div className="mb-4">
+                  <p className="font-nord text-sm text-white">Top Projects by Taps</p>
+                  <p className="text-xs text-white/35">Projects ranked by total tap count recorded in the tracking database.</p>
+                </div>
+                {tapsPerProject.length === 0 ? (
+                  <div className="h-[260px] flex items-center justify-center">
+                    <p className="text-xs text-white/35">No tap data yet.</p>
+                  </div>
+                ) : (
+                  <div className="h-[260px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        layout="vertical"
+                        data={tapsPerProject}
+                        margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                      >
+                        <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                        <XAxis type="number" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} allowDecimals={false} />
+                        <YAxis type="category" dataKey="label" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} width={120} />
+                        <Tooltip
+                          contentStyle={{ background: "#090909", border: "1px solid rgba(255,255,255,0.08)" }}
+                          labelStyle={{ color: "rgba(255,255,255,0.75)" }}
+                        />
+                        <Bar dataKey="taps" fill="#ef4242" barSize={12} radius={[0, 2, 2, 0]} name="Taps" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4">
@@ -8353,7 +8654,57 @@ export default function AdminDashboard() {
           )}
 
           {activeSection === "identities" && (
-            <IdentitiesAdmin />
+            identityDetailId && identityDetailRecord ? (
+              <div className="space-y-4">
+                {/* Back + header */}
+                <button
+                  onClick={() => { setIdentityDetailId(null); setIdentityDetailEditing(false); }}
+                  className="inline-flex items-center gap-1.5 text-xs text-white/45 hover:text-white transition-colors cursor-pointer"
+                >
+                  <ArrowLeft size={13} /> Back to Identities
+                </button>
+                <div className="rounded-sm border border-white/8 bg-white/2 p-4">
+                  <div className="flex items-center gap-2.5">
+                    <Fingerprint size={18} className="text-[var(--cranberry)] shrink-0" />
+                    {identityDetailEditing ? (
+                      <>
+                        <input
+                          value={identityDetailEditName}
+                          onChange={(e) => setIdentityDetailEditName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") renameIdentityDetail(); if (e.key === "Escape") setIdentityDetailEditing(false); }}
+                          className="h-9 flex-1 rounded-sm border border-white/15 bg-white/4 px-2 text-base text-white outline-none"
+                          autoFocus
+                        />
+                        <button onClick={renameIdentityDetail} className="text-emerald-400 hover:text-emerald-300 cursor-pointer"><Check size={17} /></button>
+                        <button onClick={() => setIdentityDetailEditing(false)} className="text-white/40 hover:text-white cursor-pointer"><X size={17} /></button>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="font-nord text-lg text-white flex items-center gap-2">
+                          {identityDetailRecord.name}
+                          {identityDetailRecord.anonymous && <span className="rounded-sm bg-white/8 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-white/40">anon</span>}
+                        </h2>
+                        <span className="flex-1" />
+                        <span className="text-[11px] text-white/30">{identityDetailRecord.devices.length} device{identityDetailRecord.devices.length === 1 ? "" : "s"}</span>
+                        {allIdentities.length > 1 && (
+                          <IdentityPicker identities={allIdentities} excludeId={identityDetailId} onPick={mergeIdentityDetailInto} label="Merge into" icon={<GitMerge size={11} />} accent />
+                        )}
+                        <button onClick={() => { setIdentityDetailEditing(true); setIdentityDetailEditName(identityDetailRecord.name); }} title="Rename" className="text-white/40 hover:text-white cursor-pointer"><Pencil size={14} /></button>
+                        <button onClick={copyIdentityDetailLink} title="Copy tracking link" className="text-white/40 hover:text-[var(--cranberry)] cursor-pointer">{identityDetailCopied ? <Check size={15} className="text-emerald-400" /> : <Link2 size={15} />}</button>
+                        <button onClick={deleteIdentityDetail} title="Delete identity" className="text-white/40 hover:text-[#ef4242] cursor-pointer"><Trash2 size={15} /></button>
+                      </>
+                    )}
+                  </div>
+                  {identityDetailBusy && <div className="mt-2 flex items-center gap-2 text-[11px] text-white/40"><Loader2 size={12} className="animate-spin" /> Working…</div>}
+                </div>
+                <div className="rounded-sm border border-white/8 bg-black/20 p-4">
+                  <IdentityDetail id={identityDetailId} allIdentities={allIdentities} confirm={confirmIdentity} onMutate={loadAllIdentities} />
+                </div>
+                {identityModal}
+              </div>
+            ) : (
+              <IdentitiesAdmin onOpenIdentity={(id) => { setIdentityDetailId(id); setIdentityDetailEditing(false); }} />
+            )
           )}
 
           {activeSection === "crossdevice" && (

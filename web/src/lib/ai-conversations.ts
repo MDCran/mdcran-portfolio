@@ -172,6 +172,31 @@ export async function getConversationsForIdentity(
   };
 }
 
+/** Get recent messages for a serial or session to provide continuity context between sessions.
+ *  Returns clean { role, content } pairs sorted oldest-first, capped at 20 messages. */
+export async function getRecentMessagesForContext(
+  serial: string | null,
+  sessionId: string,
+  hoursBack = 3,
+): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+  try {
+    const db = await getDb();
+    const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+    const or: Record<string, unknown>[] = [];
+    if (serial) or.push({ serial });
+    if (sessionId) or.push({ sessionId });
+    if (!or.length) return [];
+    const msgs = await db.collection(MSG)
+      .find({ $or: or, createdAt: { $gte: since } }, { projection: { _id: 0, role: 1, content: 1 } })
+      .sort({ createdAt: 1 })
+      .limit(20)
+      .toArray() as unknown as Array<{ role: "user" | "assistant"; content: string }>;
+    return msgs;
+  } catch {
+    return [];
+  }
+}
+
 /** Drop conversation logs older than the retention window (cron housekeeping). */
 export async function pruneAiConversations(maxAgeDays = 90): Promise<{ conversations: number; messages: number }> {
   const db = await getDb();

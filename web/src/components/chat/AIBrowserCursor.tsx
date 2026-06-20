@@ -43,6 +43,11 @@ function findByText(search: string): HTMLElement | null {
     const text = normText(el.textContent ?? "");
     if (text && (text.includes(lower) || lower.includes(text))) return el;
   }
+  // Check aria-label / title on all interactives (catches icon-only buttons like the Search icon)
+  for (const el of interactives) {
+    const ariaLabel = normText(el.getAttribute("aria-label") ?? el.getAttribute("title") ?? "");
+    if (ariaLabel && (ariaLabel === lower || ariaLabel.includes(lower) || lower.includes(ariaLabel))) return el;
+  }
 
   const navLinks = Array.from(document.querySelectorAll("nav a, header a")) as HTMLElement[];
   for (const el of navLinks) {
@@ -118,6 +123,7 @@ export default function AIBrowserCursor() {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const autoHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceBusyRef = useRef<"idle" | "preparing" | "speaking">("idle");
+  const visRef = useRef(false);
 
   function clearTimers() { timers.current.forEach(clearTimeout); timers.current = []; }
   function at(ms: number, fn: () => void) { timers.current.push(setTimeout(fn, ms)); }
@@ -125,11 +131,11 @@ export default function AIBrowserCursor() {
   function scheduleAutoHide() {
     if (autoHideTimer.current) clearTimeout(autoHideTimer.current);
     if (voiceBusyRef.current !== "idle") return;
-    autoHideTimer.current = setTimeout(() => { setVisible(false); setLabel(null); }, AUTO_HIDE_MS);
+    autoHideTimer.current = setTimeout(() => { setVisible(false); visRef.current = false; setLabel(null); }, AUTO_HIDE_MS);
   }
 
   function moveTo(x: number, y: number, lbl?: string | null) {
-    setPos({ x, y }); setVisible(true);
+    setPos({ x, y }); setVisible(true); visRef.current = true;
     if (lbl !== undefined) setLabel(lbl ?? null);
     scheduleAutoHide();
   }
@@ -138,17 +144,47 @@ export default function AIBrowserCursor() {
     return { x: window.innerWidth - 52, y: window.innerHeight - 52 };
   }
 
+  /** Sweep the cursor across the screen (from bottom-right) before landing on (tx, ty).
+   *  Only called when the cursor is currently hidden — gives it presence and catches attention.
+   *  On mobile: single center waypoint and clamped destination to stay in safe viewport area. */
+  function wanderThen(tx: number, ty: number, lbl: string | null | undefined, onArrive: () => void) {
+    const origin = chatOrigin();
+    const sw = window.innerWidth, sh = window.innerHeight;
+    const isMobile = sw < 768;
+    setPos(origin); setVisible(true); visRef.current = true; setLabel(null);
+    if (isMobile) {
+      // Simpler single-waypoint wander for mobile — avoid crossing bottom chrome
+      const cx = Math.min(Math.max(tx, 20), sw - 30);
+      const cy = Math.min(Math.max(ty, 60), sh - 100);
+      at(80, () => setPos({ x: sw * 0.5, y: sh * 0.38 }));
+      at(380, () => { setPos({ x: cx, y: cy }); setLabel(lbl ?? null); scheduleAutoHide(); onArrive(); });
+    } else {
+      // Desktop: two sweeping waypoints for a visible arc across the screen
+      at(80, () => setPos({ x: sw * 0.6, y: sh * 0.5 }));
+      at(280, () => setPos({ x: sw * 0.3 + tx * 0.35, y: sh * 0.22 + ty * 0.28 }));
+      at(500, () => { setPos({ x: tx, y: ty }); setLabel(lbl ?? null); scheduleAutoHide(); onArrive(); });
+    }
+  }
+
   useEffect(() => {
     function onMove(e: Event) {
       const detail = (e as CustomEvent<MoveDetail>).detail ?? {};
       clearTimers(); setClicking(false);
       const el = resolveTarget(detail);
+      const wasHidden = !visRef.current;
       if (el) {
-        const origin = chatOrigin();
-        setPos(origin); setVisible(true); setLabel(detail.label ?? null);
-        at(400, () => { const center = elementCenter(el); moveTo(center.x, center.y, detail.label); });
+        const center = elementCenter(el);
+        if (wasHidden) {
+          wanderThen(center.x, center.y, detail.label, () => {});
+        } else {
+          moveTo(center.x, center.y, detail.label);
+        }
       } else if (detail.x !== undefined && detail.y !== undefined) {
-        moveTo(detail.x, detail.y, detail.label);
+        if (wasHidden) {
+          wanderThen(detail.x, detail.y, detail.label, () => {});
+        } else {
+          moveTo(detail.x, detail.y, detail.label);
+        }
       } else {
         moveTo(window.innerWidth / 2, window.innerHeight / 2, detail.label);
       }
@@ -157,22 +193,77 @@ export default function AIBrowserCursor() {
     function onClick(e: Event) {
       const detail = (e as CustomEvent<ClickDetail>).detail ?? {};
       clearTimers(); setClicking(false);
-      at(200, () => {
-        const el = resolveTarget(detail);
-        if (!el) return;
+      const wasHidden = !visRef.current;
+      // Snapshot the page path so we don't fire el.click() after navigation has already moved us elsewhere
+      const clickOriginPath = window.location.pathname;
+
+      /** Scroll el into viewport if needed, then invoke callback after scroll settles.
+       *  Only scrolls for elements genuinely off-screen (below fold or scrolled above);
+       *  never scrolls for fixed/sticky nav elements that live near the top of the viewport. */
+      function withScroll(el: HTMLElement, cb: () => void) {
+        const rect = el.getBoundingClientRect();
+        const belowFold = rect.top > window.innerHeight - 60;
+        const aboveFold = rect.bottom < 0;
+        if (belowFold || aboveFold) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        at((belowFold || aboveFold) ? 680 : 0, cb);
+      }
+
+      /** Animate cursor to el (already scrolled into view) and click it.
+       *  Skips el.click() if the page has navigated since this event was dispatched. */
+      function landAndClick(el: HTMLElement) {
         const center = elementCenter(el);
         moveTo(center.x, center.y, detail.label);
-        setVisible(true);
+        setVisible(true); visRef.current = true;
         at(360, () => {
           setClicking(true);
-          at(200, () => { try { el.click(); } catch { /* */ } });
+          at(200, () => { try { if (window.location.pathname === clickOriginPath) el.click(); } catch { /* */ } });
           at(500, () => setClicking(false));
-          at(1200, () => { setVisible(false); setLabel(null); });
+          at(1200, () => { setVisible(false); visRef.current = false; setLabel(null); });
         });
-      });
+      }
+
+      if (wasHidden) {
+        const el = resolveTarget(detail);
+        if (el) {
+          withScroll(el, () => {
+            const center = elementCenter(el);
+            wanderThen(center.x, center.y, detail.label, () => {
+              at(200, () => {
+                setClicking(true);
+                at(200, () => { try { if (window.location.pathname === clickOriginPath) el.click(); } catch { /* */ } });
+                at(500, () => setClicking(false));
+                at(1200, () => { setVisible(false); visRef.current = false; setLabel(null); });
+              });
+            });
+          });
+        } else {
+          // Element not found yet (page may still be rendering) — retry once after 300ms
+          at(300, () => {
+            const el2 = resolveTarget(detail);
+            if (!el2) return;
+            withScroll(el2, () => {
+              const center = elementCenter(el2);
+              wanderThen(center.x, center.y, detail.label, () => {
+                at(200, () => {
+                  setClicking(true);
+                  at(200, () => { try { if (window.location.pathname === clickOriginPath) el2.click(); } catch { /* */ } });
+                  at(500, () => setClicking(false));
+                  at(1200, () => { setVisible(false); visRef.current = false; setLabel(null); });
+                });
+              });
+            });
+          });
+        }
+      } else {
+        at(200, () => {
+          const el = resolveTarget(detail);
+          if (!el) return;
+          withScroll(el, () => landAndClick(el));
+        });
+      }
     }
 
-    function onHide() { clearTimers(); setVisible(false); setClicking(false); setLabel(null); }
+    function onHide() { clearTimers(); setVisible(false); visRef.current = false; setClicking(false); setLabel(null); }
 
     function onType(e: Event) {
       const detail = (e as CustomEvent<{ text?: string; selector?: string; target?: string; typeText?: string; label?: string }>).detail ?? {};

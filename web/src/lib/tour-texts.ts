@@ -25,17 +25,17 @@ export const TOUR_TEXTS = [
   // 9: resume — volunteer
   "Volunteer work and activities I've contributed to.",
   // 10: resume — organizations
-  "And organizations and clubs I've been part of throughout my career.",
+  "And here are all the clubs and groups I've been part of.",
   // 11: resume — featured → army reserve
-  "And right here in featured work — including Army Reserve Mercury. Let me take you there.",
+  "Right here's my featured work. Army Reserve Mercury is up front — come on, I'll take you there.",
   // 12: army reserve — overview
-  "This is Army Reserve Mercury — a platform I built with a UCF team for the U.S. Army Reserve to modernize their administrative workflows from the ground up.",
+  "This is Army Reserve Mercury — a platform our UCF team built for the U.S. Army Reserve to modernize their administrative workflows from the ground up.",
   // 13: army reserve — pitch & prototype
-  "I pitched the full UI redesign myself during a sponsor meeting to show real student initiative. I built the first prototype and design concepts from scratch — fully working mockups — and presented them directly in front of the Army Reserve sponsors before a single line of production code was written.",
+  "Basically I walked into a meeting and laid the whole redesign out for everyone. We put together the first prototypes and design directions from scratch — real working mockups — all before the build had even started.",
   // 14: army reserve — tech stack
   "The new design used React Native Reusables, Moti, and Lottie animations to give soldiers a faster, cleaner, and more intuitive daily experience on the platform.",
   // 15: army reserve — docs
-  "And when the build was done, I created all the documentation the team would need to maintain and grow the platform long into the future.",
+  "Once we shipped, I put together docs so the team had everything they needed to keep building and maintaining it from there.",
   // 16: return
   "And that's the tour! Honestly, I could talk about this stuff all day — so don't hold back. Ask me anything. I'm all yours.",
 ];

@@ -389,6 +389,13 @@ export default function ChatPanel() {
     return () => window.removeEventListener("mdcran:stop-speaking", onStop);
   }, [stopSpeaking]);
 
+  // Resume Web Audio context after page navigation — some browsers auto-suspend it mid-playback
+  useEffect(() => {
+    if (audioCtxRef.current?.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+  }, [pathname]);
+
   /* Synthesize + play a reply via ElevenLabs (only when voice is toggled on).
      Drives a bottom-middle karaoke caption synced to the audio (same enthusiastic
      voice + word-highlighting as the guided tour). On mobile it minimizes the chat
@@ -403,10 +410,9 @@ export default function ChatPanel() {
     const broadcast = (state: "preparing" | "speaking" | "idle") => window.dispatchEvent(new CustomEvent("mdcran:voice-busy", { detail: { state } }));
     const endCaption = () => {
       stopKaraoke(); setCapWords([]); setCapIdx(-1); broadcast("idle");
-      // Mobile: stay minimized + blink the bubble so the user taps to pick up where they
-      // left off. Desktop: reopen the chat automatically once it's done talking.
-      if (isMobile) { if (minimizedRef.current) window.dispatchEvent(new CustomEvent("mdcran:chat-attention")); }
-      else setMinimized(false);
+      // Reopen chat on all platforms; dispatch open event on mobile to ensure panel appears.
+      setMinimized(false);
+      if (isMobile) window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
     };
     try {
       // ElevenLabs can take a beat — show a loading state on the bubble until audio is ready.
@@ -430,17 +436,19 @@ export default function ChatPanel() {
       src.connect(ctx.destination);
       ttsSrcRef.current = src;
       const dur = audioBuf.duration || words.length * 0.34;
-      // Show the caption + hide the chat right as audio starts, so the reply is read
-      // over the page; it reopens (desktop) or blinks the bubble (mobile) when done.
+      // On mobile: minimize chat so the caption takes the stage and reopens at the end.
+      // On desktop: keep chat open and stream words in-place as they're spoken.
       setCapWords(words);
       setCapIdx(0);
-      setMinimized(true);
+      if (isMobile) setMinimized(true);
       setSpeaking(true);
       broadcast("speaking");
       const startedAt = ctx.currentTime;
+      let lastSyncIdx = -1;
       const sync = () => {
         const el = ctx.currentTime - startedAt;
-        setCapIdx(Math.min(words.length - 1, Math.floor((el / Math.max(dur, 0.1)) * words.length)));
+        const idx = Math.min(words.length - 1, Math.floor((el / Math.max(dur, 0.1)) * words.length));
+        if (idx !== lastSyncIdx) { lastSyncIdx = idx; setCapIdx(idx); }
         if (el < dur) capRafRef.current = requestAnimationFrame(sync);
       };
       src.onended = () => { setSpeaking(false); endCaption(); };
@@ -917,11 +925,6 @@ export default function ChatPanel() {
           return;
         }
 
-        // Reading aloud: the full reply is generated — hide the chat now (it was showing
-        // "…" dots) so the text doesn't flash in; the caption + voice take over, and it
-        // reopens (desktop) / blinks the bubble (mobile) when done.
-        if (voiceOnRef.current) setMinimized(true);
-
         /* Process action markers + auto-navigation from markdown links */
         {
           let cleaned = accumulated;
@@ -996,18 +999,23 @@ export default function ChatPanel() {
             }
           }
 
-          // Navigation marker (explicit)
+          // Navigation marker — prefetch immediately, animate cursor to nav link, then push
           const navMatch = cleaned.match(/__NAV:(\/.+?)__/);
           if (navMatch) {
             hasMarkers = true;
             const navPath = navMatch[1];
             cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
             didNavigate = true;
-            // Preload the target so it's ready by the time we push (no waiting on a blank page).
-            try { router.prefetch(navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath); } catch { /* */ }
+            const navBase = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
+            // Prefetch immediately so the page loads in the background while cursor animates
+            try { router.prefetch(navBase); } catch { /* */ }
+            // Animate cursor to the matching nav link
+            window.dispatchEvent(new CustomEvent("mdcran:cursor-nav", {
+              detail: { href: navBase, label: navBase === "/" ? "Going home…" : `Opening ${navBase.replace(/^\//, "").replace(/-/g, " ")}…` }
+            }));
+            // Push after cursor animation settles (~1.4s in)
             setTimeout(() => {
-              const base = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
-              router.push(base);
+              router.push(navBase);
               if (navPath.includes("#")) {
                 const hash = navPath.split("#")[1];
                 setTimeout(() => {
@@ -1015,7 +1023,37 @@ export default function ChatPanel() {
                   el?.scrollIntoView({ behavior: "smooth", block: "center" });
                 }, 800);
               }
-            }, 600);
+            }, 1400);
+          }
+
+          // Navigate to a listing page and click a named item in one motion:
+          // __GOTOITEM:/path|visible item title__
+          // Prefetches in background, cursor-navs, navigates, then scrolls to + clicks the item.
+          const gotoItemMatches = [...cleaned.matchAll(/__GOTOITEM:(\/[^|_\s]+)\|([^_]+?)__/g)];
+          if (gotoItemMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__GOTOITEM:\/[^|_\s]+\|[^_]+?__/g, "");
+            gotoItemMatches.forEach((m) => {
+              const path = m[1].trim();
+              const search = m[2].trim();
+              // Prefetch immediately — page loads while TTS is still speaking
+              try { router.prefetch(path); } catch { /* */ }
+              // Cursor sweeps to nav link
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("mdcran:cursor-nav", {
+                  detail: { href: path, label: `Opening ${path.replace(/^\//, "").replace(/-/g, " ") || "home"}…` }
+                }));
+              }, 400);
+              // Navigate after cursor animation (~1.4s from dispatch)
+              setTimeout(() => { router.push(path); }, 1800);
+              // After page has rendered (prefetched = near-instant), scroll to item and click it
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("mdcran:cursor-click", {
+                  detail: { text: search, label: `Opening "${search}"…` }
+                }));
+              }, 3400);
+            });
+            didNavigate = true;
           }
 
           // Zoom + focus marker
@@ -1130,6 +1168,24 @@ export default function ChatPanel() {
             typeIdMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (i * 1800)));
           }
 
+          // Open the navbar search overlay and type a query: __SEARCH:query__
+          const searchMatches = [...cleaned.matchAll(/__SEARCH:([^_]+?)__/g)];
+          if (searchMatches.length) {
+            hasMarkers = true;
+            cleaned = cleaned.replace(/__SEARCH:[^_]+?__/g, "");
+            searchMatches.forEach((m) => {
+              const query = m[1].trim();
+              // Click the search button (aria-label="Search") to open the overlay
+              window.dispatchEvent(new CustomEvent("mdcran:cursor-click", {
+                detail: { selector: '[aria-label="Search"]', label: "Opening search…" },
+              }));
+              // After overlay opens and input is mounted, type the query
+              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", {
+                detail: { target: "nav-search", typeText: query, label: `Searching for "${query}"…` },
+              })), 2000);
+            });
+          }
+
           // Set a slider (percent 0-100): __SLIDER:target|value__
           const sliderMatches = [...cleaned.matchAll(/__SLIDER:([\w-]+)\|(\d{1,3})__/g)];
           if (sliderMatches.length) {
@@ -1187,6 +1243,7 @@ export default function ChatPanel() {
           if (identifyDenyMatch) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__IDENTITY_DENY(?::[^_\s]+)?__\s*/g, " ");
+            const wasAnonymousGate = !identifyDenyMatch[1] && !identityState?.suggestedIdentityId;
             const deniedId = identifyDenyMatch[1] ?? identityState?.suggestedIdentityId;
             const ic = getStoredIdentityContext();
             if (deniedId && ic) {
@@ -1201,6 +1258,10 @@ export default function ChatPanel() {
                   body: JSON.stringify({ action: "deny", serial: fp.serial, identityId: deniedId, gpu: fp.gpu, screen: fp.screen, timezone: fp.timezone, language: fp.language, userAgent: fp.userAgent }),
                 }).catch(() => {});
               }).catch(() => {});
+            }
+            // Consent denied at the identity gate (anonymous user) — close chat after farewell plays
+            if (wasAnonymousGate) {
+              setTimeout(() => setOpen(false), 4500);
             }
           }
 
@@ -1511,9 +1572,10 @@ export default function ChatPanel() {
 
   return (
     <>
-      {/* Bottom-middle transcript interface while reading a reply aloud. */}
+      {/* Bottom-middle transcript interface while reading a reply aloud.
+          Only shown when chat is minimized (mobile); desktop shows words in the chat bubble instead. */}
       <AnimatePresence>
-        {capWords.length > 0 && (
+        {capWords.length > 0 && minimized && (
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.3 }}
@@ -1796,8 +1858,8 @@ export default function ChatPanel() {
               )}
 
               {messages.map((msg, i) => {
-                // Skip the empty placeholder message while streaming — we show the typing indicator instead
-                const isStreamingPlaceholder = streaming && i === messages.length - 1 && msg.role === "assistant" && msg.content === "";
+                // Hide the assistant message while streaming — show typing indicator instead (dots → full reveal on done)
+                const isStreamingPlaceholder = streaming && i === messages.length - 1 && msg.role === "assistant";
                 if (isStreamingPlaceholder) return null;
 
                 // Disconnect marker → status text + divider
@@ -1914,7 +1976,25 @@ export default function ChatPanel() {
                         <TypewriterText text={welcomeText} onComplete={() => setWelcomeTyped(true)} />
                       ) : msg.role === "assistant" ? (
                         <>
-                          {renderChatMarkdown(
+                          {speaking && capWords.length > 0 && i === messages.length - 1 ? (
+                            /* Karaoke: current word bold white, spoken words visible, upcoming words dim */
+                            <span data-no-translate>
+                              {capWords.map((word, wi) => (
+                                <span
+                                  key={wi}
+                                  style={
+                                    wi === capIdx
+                                      ? { color: "var(--theme-text, #fff)", fontWeight: 700 }
+                                      : wi < capIdx
+                                      ? { color: "color-mix(in srgb, var(--theme-text, #fff) 72%, transparent)" }
+                                      : { color: "color-mix(in srgb, var(--theme-text, #fff) 28%, transparent)" }
+                                  }
+                                >
+                                  {word}{wi < capWords.length - 1 ? " " : ""}
+                                </span>
+                              ))}
+                            </span>
+                          ) : renderChatMarkdown(
                             msg.content === "__WELCOME__" ? welcomeText : msg.content,
                             (href) => {
                               router.push(href);
@@ -1943,7 +2023,7 @@ export default function ChatPanel() {
                 );
               })}
 
-              {(welcomeStep === 3 || (streaming && (thinking || messages[messages.length - 1]?.content === ""))) && (
+              {(welcomeStep === 3 || streaming) && (
                 <div className="flex justify-start">
                   <div
                     className="rounded-sm px-3.5 py-2.5"

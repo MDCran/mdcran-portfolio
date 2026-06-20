@@ -223,6 +223,10 @@ export default function AssistantTutorial() {
       setRunning(true);
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
+      // Capture starting location BEFORE any navigation so we can return here at the end.
+      const startPath = window.location.pathname + (window.location.search || "");
+      const startY = window.scrollY;
+
       // Tour always runs from home — navigate there if needed.
       if (window.location.pathname !== "/") {
         router.push("/");
@@ -231,9 +235,6 @@ export default function AssistantTutorial() {
         window.scrollTo({ top: 0, behavior: "smooth" });
         await wait(300);
       }
-
-      const startY = 0;
-      const startPath = "/";
       const lang = langRef.current.split("-")[0];
       const texts = allTourTexts();
 

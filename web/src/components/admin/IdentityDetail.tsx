@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Loader2, Monitor, Smartphone, Tablet, MessageSquare, Mic, Network, Mail, Calendar,
-  Sparkles, Activity, ShieldAlert, X, ExternalLink,
+  Sparkles, Activity, ShieldAlert, X, ExternalLink, ChevronDown, ChevronRight, Copy, Check,
 } from "lucide-react";
 import type { Identity, LinkMethod } from "@/lib/types";
 import IdentityPicker from "@/components/admin/IdentityPicker";
@@ -54,6 +54,82 @@ function DeviceIcon({ type }: { type?: string }) {
   return <Monitor size={12} className="text-white/40" />;
 }
 function fmtDate(s?: string) { try { return s ? new Date(s).toLocaleString() : "—"; } catch { return "—"; } }
+function isActiveSession(lastSeen?: string): boolean {
+  if (!lastSeen) return false;
+  return Date.now() - new Date(lastSeen).getTime() < 5 * 60 * 1000;
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); }}
+      className="text-white/25 hover:text-white/70 transition-colors cursor-pointer"
+      title="Copy"
+    >
+      {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+    </button>
+  );
+}
+
+function DeviceRow({ d, allIdentities, id, onMove, onRemove, canRemove }: {
+  d: import("@/lib/types").IdentityDevice;
+  allIdentities: import("@/lib/types").Identity[];
+  id: string;
+  onMove: (serial: string, toId: string) => void;
+  onRemove: (serial: string) => void;
+  canRemove: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const fingerFields = [
+    { label: "GPU", value: d.gpu },
+    { label: "Screen", value: d.screen },
+    { label: "Timezone", value: d.timezone },
+    { label: "Language", value: d.language },
+    { label: "UA", value: d.userAgent },
+  ].filter((f) => f.value);
+  return (
+    <div className="rounded-sm border border-white/6 bg-white/[0.02]">
+      <div className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 text-[11px]">
+        <button onClick={() => setExpanded((v) => !v)} className="text-white/30 hover:text-white/70 cursor-pointer shrink-0">
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+        <DeviceIcon type={d.device} />
+        <span className="font-mono text-[10px] text-white/55 select-all">{d.serial}</span>
+        <CopyButton value={d.serial} />
+        <span className="font-mono text-white/45">{d.ip ?? "—"}</span>
+        <span className="text-white/40">{d.browser} · {d.os} · {d.device}</span>
+        {d.linkMethod && (
+          <span className="rounded-sm bg-white/8 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-white/45" title={`Linked via ${LINK_METHOD_LABEL[d.linkMethod]}${typeof d.linkConfidence === "number" ? ` · ${Math.round(d.linkConfidence * 100)}%` : ""}`}>
+            {LINK_METHOD_LABEL[d.linkMethod]}{typeof d.linkConfidence === "number" ? ` ${Math.round(d.linkConfidence * 100)}%` : ""}
+          </span>
+        )}
+        <span className="ml-auto text-white/25">{new Date(d.lastSeen).toLocaleDateString()}</span>
+        {allIdentities.length > 1 && <IdentityPicker identities={allIdentities} excludeId={id} onPick={(toId) => onMove(d.serial, toId)} label="Move" icon={<ExternalLink size={11} />} />}
+        {canRemove && <button onClick={() => onRemove(d.serial)} title="Remove device" className="text-white/30 hover:text-[#ef4242] cursor-pointer"><X size={12} /></button>}
+      </div>
+      {expanded && (
+        <div className="border-t border-white/6 px-3 py-2 grid grid-cols-1 gap-0.5">
+          <div className="flex items-center gap-2 text-[10px]">
+            <span className="text-white/30 w-16 shrink-0">First seen</span>
+            <span className="font-mono text-white/55">{fmtDate(d.firstSeen)}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[10px]">
+            <span className="text-white/30 w-16 shrink-0">Last seen</span>
+            <span className="font-mono text-white/55">{fmtDate(d.lastSeen)}</span>
+          </div>
+          {fingerFields.map((f) => (
+            <div key={f.label} className="flex items-start gap-2 text-[10px]">
+              <span className="text-white/30 w-16 shrink-0">{f.label}</span>
+              <span className="font-mono text-white/55 break-all">{f.value}</span>
+              <CopyButton value={f.value!} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Sub-section header with a deep-link to the relevant full admin section. */
 function HubHeader({ icon, label, count, href }: { icon: React.ReactNode; label: string; count: number; href?: string }) {
@@ -122,16 +198,7 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
       <div className="space-y-1.5">
         <HubHeader icon={<Network size={11} />} label="Devices" count={devices.length} href={SECTION.crossdevice} />
         {devices.map((d) => (
-          <div key={d.serial} className="flex flex-wrap items-center gap-2 rounded-sm border border-white/6 bg-white/[0.02] px-2.5 py-1.5 text-[11px]">
-            <DeviceIcon type={d.device} />
-            <span className="font-mono text-white/40">{d.serial.slice(0, 12)}…</span>
-            <span className="font-mono text-white/45">{d.ip ?? "—"}</span>
-            <span className="text-white/40">{d.browser} · {d.os} · {d.device}</span>
-            {d.linkMethod && <span className="rounded-sm bg-white/8 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-white/45" title={`Linked via ${LINK_METHOD_LABEL[d.linkMethod]}${typeof d.linkConfidence === "number" ? ` · ${Math.round(d.linkConfidence * 100)}%` : ""}`}>{LINK_METHOD_LABEL[d.linkMethod]}</span>}
-            <span className="ml-auto text-white/25">{new Date(d.lastSeen).toLocaleDateString()}</span>
-            {allIdentities.length > 1 && <IdentityPicker identities={allIdentities} excludeId={id} onPick={(toId) => moveDevice(d.serial, toId)} label="Move" icon={<ExternalLink size={11} />} />}
-            {devices.length > 1 && <button onClick={() => removeDevice(d.serial)} title="Remove device" className="text-white/30 hover:text-[#ef4242] cursor-pointer"><X size={12} /></button>}
-          </div>
+          <DeviceRow key={d.serial} d={d} allIdentities={allIdentities} id={id} onMove={moveDevice} onRemove={removeDevice} canRemove={devices.length > 1} />
         ))}
       </div>
 
@@ -153,25 +220,55 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
 
       {/* Sessions & traffic */}
       <div className="space-y-1.5">
-        <HubHeader icon={<Activity size={11} />} label="Sessions & traffic" count={data.sessions.length} href={SECTION.sessions} />
-        {data.sessions.length === 0 ? <p className="text-[11px] text-white/30">No sessions recorded.</p> : (
-          <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-            {data.sessions.slice(0, 60).map((s) => (
-              <RowLink key={s.sessionId} href={SECTION.sessions}>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-white/45">
-                  <span className="font-mono text-white/40">{s.ip ?? "—"}</span>
-                  {s.countryName && <span>{s.countryName}</span>}
-                  <span>{s.browser} · {s.os}</span>
-                  {s.lastPath && <span className="text-white/35">{s.lastPath}</span>}
-                  {(s.resolvedSourceLabel || s.utmSource || s.referrerDomain) && (
-                    <span className="rounded-sm bg-white/8 px-1.5 py-0.5 text-white/50">
-                      {s.resolvedSourceLabel || s.utmSource || s.referrerDomain}{s.utmCampaign ? ` · ${s.utmCampaign}` : ""}{s.utmMedium ? ` · ${s.utmMedium}` : ""}
+        {(() => {
+          const activeSessions = data.sessions.filter((s) => isActiveSession(s.lastSeen));
+          const allSessions = [...data.sessions].sort((a, b) => (isActiveSession(b.lastSeen) ? 1 : 0) - (isActiveSession(a.lastSeen) ? 1 : 0));
+          return (
+            <HubHeader
+              icon={
+                <span className="flex items-center gap-1">
+                  <Activity size={11} />
+                  {activeSessions.length > 0 && (
+                    <span className="inline-flex items-center gap-0.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-emerald-400 text-[9px]">{activeSessions.length} live</span>
                     </span>
                   )}
-                  <span className="ml-auto text-white/25">{fmtDate(s.lastSeen)}</span>
-                </div>
-              </RowLink>
-            ))}
+                </span>
+              }
+              label="Sessions & traffic"
+              count={data.sessions.length}
+              href={SECTION.sessions}
+            />
+          );
+        })()}
+        {data.sessions.length === 0 ? <p className="text-[11px] text-white/30">No sessions recorded.</p> : (
+          <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+            {[...data.sessions].sort((a, b) => (isActiveSession(b.lastSeen) ? 1 : 0) - (isActiveSession(a.lastSeen) ? 1 : 0)).slice(0, 60).map((s) => {
+              const active = isActiveSession(s.lastSeen);
+              return (
+                <RowLink key={s.sessionId} href={SECTION.sessions}>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-white/45">
+                    {active && (
+                      <span className="flex items-center gap-1 rounded-sm bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] text-emerald-400 font-medium">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
+                      </span>
+                    )}
+                    <span className="font-mono text-white/40">{s.ip ?? "—"}</span>
+                    {s.countryName && <span>{s.countryName}</span>}
+                    <span>{s.browser} · {s.os}</span>
+                    {s.lastPath && <span className="text-white/35">{s.lastPath}</span>}
+                    {(s.pageviews || s.events) && <span className="text-white/30">{s.pageviews ?? 0}pv · {s.events ?? 0}ev</span>}
+                    {(s.resolvedSourceLabel || s.utmSource || s.referrerDomain) && (
+                      <span className="rounded-sm bg-white/8 px-1.5 py-0.5 text-white/50">
+                        {s.resolvedSourceLabel || s.utmSource || s.referrerDomain}{s.utmCampaign ? ` · ${s.utmCampaign}` : ""}{s.utmMedium ? ` · ${s.utmMedium}` : ""}
+                      </span>
+                    )}
+                    <span className="ml-auto text-white/25">{fmtDate(s.lastSeen)}</span>
+                  </div>
+                </RowLink>
+              );
+            })}
           </div>
         )}
       </div>

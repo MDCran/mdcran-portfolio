@@ -12,6 +12,7 @@ export interface DiscordChannelMap {
   identities: string | null;
   analytics: string | null;
   deviceLinks: string | null;
+  returningVisitors: string | null;
 }
 
 export interface DiscordConfig {
@@ -24,7 +25,7 @@ export interface DiscordConfig {
 export const DISCORD_CONFIG_DEFAULTS: DiscordConfig = {
   enabled: false,
   guildId: "",
-  channels: { forms: null, bookings: null, newsletter: null, identities: null, analytics: null, deviceLinks: null },
+  channels: { forms: null, bookings: null, newsletter: null, identities: null, analytics: null, deviceLinks: null, returningVisitors: null },
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -42,6 +43,7 @@ export async function getDiscordConfig(): Promise<DiscordConfig> {
       identities: doc.channels?.identities || null,
       analytics: doc.channels?.analytics || null,
       deviceLinks: doc.channels?.deviceLinks || null,
+      returningVisitors: doc.channels?.returningVisitors || null,
     },
     updatedAt: String(doc.updatedAt ?? DISCORD_CONFIG_DEFAULTS.updatedAt),
   };
@@ -357,6 +359,58 @@ export async function notifyDeviceLink(data: DeviceLinkPayload): Promise<void> {
     color: data.method === "handshake" ? 0x57F287 : 0xEB459E,
     fields,
     footer: { text: "mdcran.com · Cross-Device Engine" },
+  });
+}
+
+// ─── Event G: Returning Named Visitor ─────────────────────────
+
+export interface ReturningVisitorPayload {
+  id: string;
+  name: string;
+  deviceCount: number;
+  awayMs: number;          // time since this device was last seen before now
+  ip?: string | null;
+  browser?: string | null;
+  os?: string | null;
+  device?: string | null;
+  country?: string | null;
+  currentPath?: string | null;
+  source?: string | null;  // resolved traffic source label, if known
+}
+
+function humanizeAway(ms: number): string {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"}`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? "" : "s"}`;
+}
+
+export async function notifyReturningVisitor(data: ReturningVisitorPayload): Promise<void> {
+  const cfg = await getDiscordConfig();
+  if (!cfg.enabled) return;
+  const channelId = cfg.channels.returningVisitors || cfg.channels.identities;
+  if (!channelId) return;
+
+  const fields: EmbedField[] = [
+    { name: "Name", value: val(data.name), inline: true },
+    { name: "Identity ID", value: `\`${data.id.slice(0, 8)}…\``, inline: true },
+    { name: "Away For", value: humanizeAway(data.awayMs), inline: true },
+    { name: "Device", value: `${val(data.browser)} / ${val(data.os)}${data.device ? ` (${data.device})` : ""}`, inline: true },
+    { name: "IP", value: val(data.ip), inline: true },
+    { name: "Devices", value: String(data.deviceCount), inline: true },
+  ];
+  if (data.country) fields.push({ name: "Country", value: data.country, inline: true });
+  if (data.source) fields.push({ name: "Source", value: data.source, inline: true });
+  if (data.currentPath) fields.push({ name: "Landed On", value: data.currentPath, inline: false });
+
+  await sendEmbed(channelId, {
+    title: "🔁 Returning Visitor",
+    description: `**${val(data.name)}** is back on the site.`,
+    color: 0x9B59B6,
+    fields,
+    footer: { text: "mdcran.com · Returning Visitor" },
   });
 }
 
