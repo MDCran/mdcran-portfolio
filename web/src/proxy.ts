@@ -51,6 +51,4 @@ export const config = {
     // Match all paths except static files and Next.js internals
     "/((?!_next/static|_next/image|favicon\\.ico|icon\\.png|cdn/).*)",
   ],
-  // jsonwebtoken needs Node's crypto module for the admin token check below
-  runtime: "nodejs",
 };
