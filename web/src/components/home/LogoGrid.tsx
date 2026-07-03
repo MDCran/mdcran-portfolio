@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { logoKitUrl, type LogoItem } from "@/lib/tech-stack";
 
-function LogoTile({ name, domain, usage }: LogoItem) {
+function LogoTile({ name, domain, usage, localImage }: LogoItem) {
   const [failed, setFailed] = useState(false);
 
   return (
@@ -14,7 +14,7 @@ function LogoTile({ name, domain, usage }: LogoItem) {
           <span className="text-[9px] font-jb text-white/40 text-center leading-tight">{name}</span>
         ) : (
           <img
-            src={logoKitUrl(domain)}
+            src={logoKitUrl(domain, 128, localImage)}
             alt={name}
             loading="lazy"
             className="max-h-full max-w-full rounded-sm object-contain"
