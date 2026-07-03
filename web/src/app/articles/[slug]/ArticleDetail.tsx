@@ -88,8 +88,12 @@ function renderMarkdown(text: string) {
   });
 }
 
+function escapeHtml(text: string) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function boldify(text: string) {
-  return text.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+  return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
 }
 
 /* ── Article Section Renderer ───────────────────────────── */

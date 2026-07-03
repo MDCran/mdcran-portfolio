@@ -8,20 +8,16 @@ import {
   deleteStatusIncident,
 } from "@/lib/db";
 import type { StatusService, StatusIncident } from "@/lib/types";
+import { isAdminAuthenticated } from "@/lib/auth";
 
-function isAdmin(req: NextRequest): boolean {
-  const token = req.cookies.get("mdcran_admin_token")?.value;
-  return !!token && token.split(".").length === 3;
-}
-
-export async function GET(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET() {
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const [services, incidents] = await Promise.all([getStatusServices(), getStatusIncidents()]);
   return NextResponse.json({ services, incidents });
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const { type } = body;
 
@@ -59,7 +55,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const { type } = body;
 
@@ -89,7 +85,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const id = searchParams.get("id");

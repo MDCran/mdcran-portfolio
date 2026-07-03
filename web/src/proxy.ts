@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyAdminToken } from "@/lib/auth";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -23,10 +24,10 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // Admin dashboard auth check
-  if (pathname.startsWith("/admin/dashboard")) {
+  // Admin area auth check — everything under /admin/ except the login page itself
+  if (pathname.startsWith("/admin/")) {
     const token = req.cookies.get("mdcran_admin_token")?.value;
-    if (!token || token.split(".").length !== 3) {
+    if (!token || !verifyAdminToken(token)) {
       return NextResponse.redirect(new URL("/admin", req.url));
     }
   }
@@ -50,4 +51,6 @@ export const config = {
     // Match all paths except static files and Next.js internals
     "/((?!_next/static|_next/image|favicon\\.ico|icon\\.png|cdn/).*)",
   ],
+  // jsonwebtoken needs Node's crypto module for the admin token check below
+  runtime: "nodejs",
 };

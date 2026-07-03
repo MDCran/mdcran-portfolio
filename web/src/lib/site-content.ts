@@ -71,6 +71,29 @@ export const defaultSiteContent: SiteContent = {
       { key: "yearsActive", label: "Creating", description: "Continuously since 2018" },
     ],
   },
+  aiUsageTracker: {
+    lastUpdated: "2026-07-02",
+    claude: {
+      totalTokens: 146_400_000,
+      totalMessages: 120_846,
+      peakHour: "1 AM",
+      favoriteModel: "Opus 4.8",
+      models: [
+        { name: "Opus 4.8", percent: 75.7, inputTokens: 28_100_000, outputTokens: 82_600_000 },
+        { name: "Sonnet 4.6", percent: 13.6, outputTokens: 19_800_000 },
+        { name: "Opus 4.7", percent: 6.2 },
+        { name: "Fable 5", percent: 3.4 },
+        { name: "Haiku 4.5", percent: 1.1 },
+      ],
+    },
+    openai: {
+      totalTokens: 307_000_000,
+      totalRequests: 2_368,
+    },
+    elevenlabs: {
+      charactersUsed: 0,
+    },
+  },
   homeTimeline: {
     eyebrow: "Career",
     title: "Experience",

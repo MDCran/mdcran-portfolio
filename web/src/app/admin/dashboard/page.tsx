@@ -6719,6 +6719,155 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Home: AI Usage Tracker */}
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-nord text-sm text-white">Home: AI Usage Tracker</p>
+                  <span className="text-[10px] text-white/25">Updates monthly — edit here, then save.</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label>Last Updated</Label>
+                    <DatePicker
+                      value={siteContent.aiUsageTracker?.lastUpdated ?? ""}
+                      onChange={(v) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, lastUpdated: v } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Claude Total Tokens</Label>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.claude.totalTokens ?? 0}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, totalTokens: Number(e.target.value) } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Claude Total Messages</Label>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.claude.totalMessages ?? 0}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, totalMessages: Number(e.target.value) } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Peak Hour</Label>
+                    <input
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.claude.peakHour ?? ""}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, peakHour: e.target.value } } }))}
+                      placeholder="1 AM"
+                    />
+                  </div>
+                </div>
+
+                <div className="max-w-xs">
+                  <Label>Favorite Model</Label>
+                  <input
+                    className={inputCls}
+                    value={siteContent.aiUsageTracker?.claude.favoriteModel ?? ""}
+                    onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, favoriteModel: e.target.value } } }))}
+                    placeholder="Opus 4.8"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Claude Model Breakdown</Label>
+                    <button
+                      className={btnOutline}
+                      onClick={() => setSiteContent((prev) => ({
+                        ...prev,
+                        aiUsageTracker: {
+                          ...prev.aiUsageTracker,
+                          claude: { ...prev.aiUsageTracker.claude, models: [...prev.aiUsageTracker.claude.models, { name: "", percent: 0 }] },
+                        },
+                      }))}
+                    >
+                      + Add Model
+                    </button>
+                  </div>
+                  {(siteContent.aiUsageTracker?.claude.models ?? []).map((model, mi) => (
+                    <div key={mi} className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr_auto] gap-2 items-center">
+                      <input
+                        className={inputCls}
+                        value={model.name}
+                        placeholder="Model name"
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, models: prev.aiUsageTracker.claude.models.map((m, i) => (i === mi ? { ...m, name: e.target.value } : m)) } } }))}
+                      />
+                      <input
+                        type="number"
+                        className={inputCls}
+                        value={model.percent}
+                        placeholder="%"
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, models: prev.aiUsageTracker.claude.models.map((m, i) => (i === mi ? { ...m, percent: Number(e.target.value) } : m)) } } }))}
+                      />
+                      <input
+                        type="number"
+                        className={inputCls}
+                        value={model.inputTokens ?? ""}
+                        placeholder="Input tokens"
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, models: prev.aiUsageTracker.claude.models.map((m, i) => (i === mi ? { ...m, inputTokens: e.target.value ? Number(e.target.value) : undefined } : m)) } } }))}
+                      />
+                      <input
+                        type="number"
+                        className={inputCls}
+                        value={model.outputTokens ?? ""}
+                        placeholder="Output tokens"
+                        onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, models: prev.aiUsageTracker.claude.models.map((m, i) => (i === mi ? { ...m, outputTokens: e.target.value ? Number(e.target.value) : undefined } : m)) } } }))}
+                      />
+                      <button
+                        className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs px-2"
+                        onClick={() => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, models: prev.aiUsageTracker.claude.models.filter((_, i) => i !== mi) } } }))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/6">
+                  <div>
+                    <Label>OpenAI Total Tokens</Label>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.openai.totalTokens ?? 0}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, openai: { ...prev.aiUsageTracker.openai, totalTokens: Number(e.target.value) } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>OpenAI Total Requests</Label>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.openai.totalRequests ?? 0}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, openai: { ...prev.aiUsageTracker.openai, totalRequests: Number(e.target.value) } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>ElevenLabs Characters Used</Label>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.elevenlabs.charactersUsed ?? 0}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, elevenlabs: { ...prev.aiUsageTracker.elevenlabs, charactersUsed: Number(e.target.value) } } }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>ElevenLabs Quota (optional)</Label>
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={siteContent.aiUsageTracker?.elevenlabs.charactersQuota ?? ""}
+                      onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, elevenlabs: { ...prev.aiUsageTracker.elevenlabs, charactersQuota: e.target.value ? Number(e.target.value) : undefined } } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {([
                 ["homeServices", "Home: Services Section"],
                 ["artsAndEntertainment", "Arts & Entertainment Page"],

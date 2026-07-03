@@ -7,9 +7,21 @@ const MODEL = "eleven_multilingual_v2";
 const TOUR_SETTINGS = { stability: 0.72, similarity_boost: 0.90, style: 0.20, use_speaker_boost: true };
 
 export async function GET(req: NextRequest) {
+  // Same-origin guard — this narrates fixed tour copy in Michael's real voice clone,
+  // so block obvious cross-site/direct abuse (a mismatched Referer is a clear signal;
+  // a missing one is left alone since some browsers strip it for legitimate users).
+  const referer = req.headers.get("referer");
+  if (referer) {
+    try {
+      if (new URL(referer).host !== req.nextUrl.host) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+    } catch { /* malformed referer header — ignore */ }
+  }
+
   const text = req.nextUrl.searchParams.get("text")?.trim();
-  if (!text || text.length > 1000) {
-    return NextResponse.json({ error: "text required (max 1000 chars)" }, { status: 400 });
+  if (!text || text.length > 400) {
+    return NextResponse.json({ error: "text required (max 400 chars)" }, { status: 400 });
   }
   // BCP-47 base language code (e.g. "es", "fr") — passed by the client after translating.
   const langParam = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() ?? "en";

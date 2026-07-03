@@ -1,10 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getStatusServices } from "@/lib/db";
-
-function isAdmin(req: NextRequest): boolean {
-  const token = req.cookies.get("mdcran_admin_token")?.value;
-  return !!token && token.split(".").length === 3;
-}
+import { isAdminAuthenticated } from "@/lib/auth";
 
 interface PingResult {
   id: string;
@@ -36,8 +32,8 @@ async function pingUrl(url: string, timeoutMs = 8000): Promise<{ reachable: bool
 }
 
 /** POST /api/admin/status/ping — pings all services with a pingUrl and returns results */
-export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) {
+export async function POST() {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

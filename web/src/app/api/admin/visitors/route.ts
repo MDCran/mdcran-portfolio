@@ -7,14 +7,10 @@ import {
   getVisitorMultiplier,
   setVisitorMultiplier,
 } from "@/lib/db";
+import { isAdminAuthenticated } from "@/lib/auth";
 
-function isAdmin(req: NextRequest): boolean {
-  const token = req.cookies.get("mdcran_admin_token")?.value;
-  return !!token && token.split(".").length === 3;
-}
-
-export async function GET(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET() {
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const [counts, adjustments, multiplier] = await Promise.all([
     getVisitorCountsByCountry(),
     getVisitorAdjustments(),
@@ -24,7 +20,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
 
   // Multiplier update
@@ -51,7 +47,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });

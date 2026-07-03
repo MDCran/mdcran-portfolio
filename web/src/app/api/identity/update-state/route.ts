@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { claimDevice, addIdentityDenial, getDeniedIdentityIds } from "@/lib/identity";
-import { clientIp } from "@/lib/api-rate-limit";
+import { clientIp, apiRateLimit } from "@/lib/api-rate-limit";
 import { rejectCandidateForSerial } from "@/lib/cross-device";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +29,18 @@ interface UpdateStateBody {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+  const allowed = await apiRateLimit("identity-update-state:ip", ip, 30, 60 * 60 * 1000);
+  if (!allowed) {
+    return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });
+  }
+
   const body = await req.json().catch(() => null) as UpdateStateBody | null;
   if (!body?.serial || !body?.action) {
     return new Response(JSON.stringify({ error: "Missing serial or action" }), { status: 400 });
   }
 
   const serial = body.serial.slice(0, 64);
-  const ip = clientIp(req);
   const deviceInput = {
     serial: serial,
     ip,

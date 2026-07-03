@@ -131,7 +131,7 @@ export default async function HomePage() {
     hero: <Hero content={siteContent.homeHero} />,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
-        <Stats content={siteContent.homeStats} />
+        <Stats content={siteContent.homeStats} aiUsageTracker={siteContent.aiUsageTracker} />
       </div>
     ),
     about: (

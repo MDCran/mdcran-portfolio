@@ -6,7 +6,10 @@ import useSWR from "swr";
 import { Area, AreaChart, YAxis } from "recharts";
 import dynamic from "next/dynamic";
 import { ChartContainer } from "@/components/ui/chart";
-import type { SiteContentStats } from "@/lib/types";
+import type { SiteContentAiUsage, SiteContentStats } from "@/lib/types";
+import { AI_TOOLS_LOGOS, TECH_STACK_LOGOS } from "@/lib/tech-stack";
+import LogoGrid from "@/components/home/LogoGrid";
+import AIUsageTracker from "@/components/home/AIUsageTracker";
 
 // Below the live metrics — defer it so its JS + GitHub fetch don't block the
 // initial render. Placeholder reserves height to avoid layout shift.
@@ -274,7 +277,13 @@ function AnimatedNumber({
   );
 }
 
-export default function Stats({ content }: { content?: SiteContentStats }) {
+export default function Stats({
+  content,
+  aiUsageTracker,
+}: {
+  content?: SiteContentStats;
+  aiUsageTracker?: SiteContentAiUsage;
+}) {
   const metricOverrides = new Map((content?.metrics ?? []).map((m) => [m.key, m]));
   const [followersDisplayValue, setFollowersDisplayValue] = useState(CREATOR_FOLLOWERS_LIVE_START);
   const [followersTrend, setFollowersTrend] = useState(() =>
@@ -653,6 +662,20 @@ export default function Stats({ content }: { content?: SiteContentStats }) {
 
         {/* GitHub contributions calendar — live activity */}
         <GitHubContributions />
+
+        <AIUsageTracker content={aiUsageTracker} />
+
+        <LogoGrid
+          eyebrow="Platforms & Tools"
+          title="AI Tools I Work With"
+          items={AI_TOOLS_LOGOS}
+        />
+
+        <LogoGrid
+          eyebrow="Tech Stack"
+          title="A Developer Experienced in Many Different Stacks and Languages"
+          items={TECH_STACK_LOGOS}
+        />
       </div>
     </section>
   );

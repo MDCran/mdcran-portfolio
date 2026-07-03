@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { claimDevice } from "@/lib/identity";
-import { clientIp } from "@/lib/api-rate-limit";
+import { clientIp, apiRateLimit } from "@/lib/api-rate-limit";
 import { parseUserAgent } from "@/lib/ua";
 import { notifyIdentityEvent } from "@/lib/discord";
 import { sanitizeName, sanitizeId, sanitizeText, isValidSerial, isInappropriate } from "@/lib/sanitize";
@@ -11,6 +11,10 @@ export const dynamic = "force-dynamic";
    or visiting an ?identity= link) or create a new one (name).
    Optional: origin = "user" | "ai", aiContext = conversation excerpt when AI extracted the name. */
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+  const allowed = await apiRateLimit("identity-claim:ip", ip, 30, 60 * 60 * 1000);
+  if (!allowed) return Response.json({ error: "Too many requests" }, { status: 429 });
+
   // Accept as unknown — we validate every field manually to prevent NoSQL operator injection.
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
 
@@ -28,7 +32,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "That name isn't allowed — please use your real name." }, { status: 400 });
   }
 
-  const ip = clientIp(req);
   const rawUa = typeof body?.userAgent === "string" ? body.userAgent : "";
   const ua = rawUa || req.headers.get("user-agent") || "";
   const { browser, os, device } = parseUserAgent(ua);
