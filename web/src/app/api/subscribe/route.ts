@@ -9,8 +9,12 @@ import {
 } from "@/lib/contact-validation";
 import { notifyNewsletter } from "@/lib/discord";
 import { sanitizeName } from "@/lib/sanitize";
+import { apiRateLimit, clientIp } from "@/lib/api-rate-limit";
 
 export async function POST(req: NextRequest) {
+  const allowed = await apiRateLimit("subscribe", clientIp(req), 10, 60 * 60 * 1000);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — please try again later." }, { status: 429 });
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });

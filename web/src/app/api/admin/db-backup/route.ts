@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 // Collections included in backup — excludes large ephemeral ones (visitors, translationCache, chatRateLimits)
 const BACKUP_COLLECTIONS = [
@@ -25,13 +26,8 @@ const BACKUP_COLLECTIONS = [
   "visitorAdjustments",
 ];
 
-function isAdmin(req: NextRequest): boolean {
-  const token = req.cookies.get("mdcran_admin_token")?.value;
-  return !!token && token.split(".").length === 3;
-}
-
-export async function GET(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET() {
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = await getDb();
   const backup: Record<string, unknown[]> = {};
@@ -67,7 +63,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: Record<string, unknown>;
   try {

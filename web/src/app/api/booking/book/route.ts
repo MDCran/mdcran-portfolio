@@ -6,12 +6,15 @@ import { isValidEmail, isValidPhoneNumber, normalizeEmail, normalizePhone } from
 import { sendEmail } from "@/lib/mailer";
 import { notifyBooking } from "@/lib/discord";
 import { findIdentityBySerial } from "@/lib/identity";
-import { clientIp } from "@/lib/api-rate-limit";
+import { apiRateLimit, clientIp } from "@/lib/api-rate-limit";
 
 export const dynamic = "force-dynamic";
 
 /* POST /api/booking/book — validates the slot is still open, then records the booking. */
 export async function POST(req: NextRequest) {
+  const allowed = await apiRateLimit("booking", clientIp(req), 5, 60 * 60 * 1000);
+  if (!allowed) return Response.json({ error: "Too many booking attempts — please try again later." }, { status: 429 });
+
   const config = await getBookingConfig();
   if (!config.enabled) return Response.json({ error: "Booking is not available right now." }, { status: 503 });
 

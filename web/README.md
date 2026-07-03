@@ -50,6 +50,9 @@ ELEVENLABS_STT_MODEL=scribe_v1     # optional STT model
 # GitHub contributions calendar (home "By the Numbers" section)
 GITHUB_TOKEN=ghp_...               # PAT with read access to contributions
 GITHUB_USERNAME=mdcran             # optional, defaults to mdcran
+
+# LogoKit — brand logos for the home page AI tools / tech stack grids
+NEXT_PUBLIC_LOGOKIT_TOKEN=pk_...   # publishable key from logokit.com, safe client-side
 ```
 
 The chat tries Claude (Anthropic SDK, streaming + prompt caching) first, then

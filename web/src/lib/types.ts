@@ -687,6 +687,32 @@ export interface SiteContentStats {
   metrics: SiteContentStatMetric[];
 }
 
+export interface SiteContentAiUsageModel {
+  name: string;
+  percent: number;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+export interface SiteContentAiUsage {
+  lastUpdated: string;              // ISO date — set when the admin updates the numbers each month
+  claude: {
+    totalTokens: number;
+    totalMessages: number;
+    peakHour: string;               // e.g. "1 AM"
+    favoriteModel: string;
+    models: SiteContentAiUsageModel[];
+  };
+  openai: {
+    totalTokens: number;
+    totalRequests: number;
+  };
+  elevenlabs: {
+    charactersUsed: number;         // 0 = not yet set by admin, renders as "—"
+    charactersQuota?: number;
+  };
+}
+
 export interface SiteContentBanner {
   enabled: boolean;
   message: string;
@@ -756,6 +782,7 @@ export interface SiteContent {
   homeHero: SiteContentHero;
   homeAbout: SiteContentAbout;
   homeStats: SiteContentStats;
+  aiUsageTracker: SiteContentAiUsage;
   homeTimeline: SiteContentSectionIntro;
   homeServices: SiteContentPageBlock;
   homeFeaturedWork: SiteContentSectionIntro;

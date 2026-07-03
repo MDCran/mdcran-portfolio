@@ -8,12 +8,15 @@ import {
   normalizePhone,
 } from "@/lib/contact-validation";
 import { notifyContactForm } from "@/lib/discord";
-import { clientIp } from "@/lib/api-rate-limit";
+import { apiRateLimit, clientIp } from "@/lib/api-rate-limit";
 import { findIdentityBySerial } from "@/lib/identity";
 import { parseUserAgent } from "@/lib/ua";
 import { sanitizeName, sanitizeText } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
+  const allowed = await apiRateLimit("contact", clientIp(req), 5, 60 * 60 * 1000);
+  if (!allowed) return NextResponse.json({ error: "Too many requests — please try again later." }, { status: 429 });
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
