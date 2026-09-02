@@ -3,8 +3,6 @@
 [![Security checks](https://github.com/MDCran/mdcran-portfolio/actions/workflows/security-checks.yml/badge.svg)](https://github.com/MDCran/mdcran-portfolio/actions/workflows/security-checks.yml) [![CodeQL](https://github.com/MDCran/mdcran-portfolio/actions/workflows/codeql.yml/badge.svg)](https://github.com/MDCran/mdcran-portfolio/actions/workflows/codeql.yml)
 Modern personal portfolio showcasing full-stack projects, enterprise-grade systems, and interactive web experiences. 
 
-![mdcran-portfolio architecture](docs/architecture.svg)
-
 ## App screenshots
 
 These captures show the portfolio running across its main public experiences.
