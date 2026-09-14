@@ -1,31 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { PhoneCall, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import { logoKitUrl, type LogoItem } from "@/lib/tech-stack";
+import { LOGOS_BY_DOMAIN, type LogoItem } from "@/lib/tech-stack";
 
-function LogoTile({ name, domain, usage, localImage }: LogoItem) {
-  const [failed, setFailed] = useState(false);
+function LogoTile({ name, domain, usage, icon, fallbackIcon }: LogoItem) {
+  const resolvedIcon = icon ?? LOGOS_BY_DOMAIN[domain];
+  const FallbackIcon = fallbackIcon === "phone" || domain === "retellai.com" ? PhoneCall : Sparkles;
 
   return (
     <div className="group relative aspect-square">
-      <div className="h-full w-full flex items-center justify-center overflow-hidden rounded-sm border border-white/7 bg-white/2 p-3 transition-colors hover:border-[color-mix(in_srgb,var(--theme-primary,#ef4242)_40%,transparent)]">
-        {failed ? (
-          <span className="text-[9px] font-jb text-white/40 text-center leading-tight">{name}</span>
+      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-sm border border-white/7 bg-white/2 p-4 transition-colors hover:border-[color-mix(in_srgb,var(--theme-primary,#ef4242)_40%,transparent)]">
+        {resolvedIcon ? (
+          <svg
+            viewBox="0 0 24 24"
+            role="img"
+            aria-label={name}
+            className="h-full w-full max-h-12 max-w-12 fill-current text-white"
+          >
+            <path d={resolvedIcon.path} />
+          </svg>
         ) : (
-          <img
-            src={logoKitUrl(domain, 128, localImage)}
-            alt={name}
-            loading="lazy"
-            className="max-h-full max-w-full rounded-sm object-contain"
-            onError={() => setFailed(true)}
-          />
+          <FallbackIcon aria-label={name} className="h-11 w-11 text-white" strokeWidth={1.5} />
         )}
       </div>
 
       <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 scale-95 whitespace-nowrap opacity-0 transition-all duration-150 group-hover:scale-100 group-hover:opacity-100">
         <div className="rounded-sm border border-white/12 bg-[#1a1a1a] px-2.5 py-1.5 text-center">
-          <div className="text-[11px] text-white font-jb">{name}</div>
+          <div className="font-jb text-[11px] text-white">{name}</div>
           <div className="text-[10px] text-white/45">{usage}</div>
         </div>
       </div>
@@ -52,11 +54,11 @@ export default function LogoGrid({
     >
       <div className="mb-5">
         <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">{eyebrow}</div>
-        <div className="font-nord text-sm text-white mt-1">{title}</div>
+        <div className="mt-1 font-nord text-sm text-white">{title}</div>
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+      <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 md:grid-cols-8">
         {items.map((item) => (
-          <LogoTile key={item.domain + item.name} {...item} />
+          <LogoTile key={item.name} {...item} />
         ))}
       </div>
     </motion.div>

@@ -41,7 +41,7 @@ function AnimatedStat({ value, label }: { value: number; label: string }) {
 export default function AIUsageTracker({ content }: { content?: SiteContentAiUsage }) {
   if (!content) return null;
   const { claude, openai, elevenlabs } = content;
-  const totalTokens = claude.totalTokens + openai.totalTokens;
+  const totalTokens = content.totalTokens ?? claude.totalTokens + openai.totalTokens;
 
   return (
     <div className="mt-3 rounded-sm border border-white/6 bg-white/2 px-4 py-2.5 flex items-center gap-x-5 gap-y-1.5 flex-wrap">

@@ -1,12 +1,72 @@
-// Logo data for the homepage "AI tools" and "tech stack" grids. Logos are
-// fetched live from LogoKit by domain; `usage` is shown in the hover tooltip.
+import type { SimpleIcon } from "simple-icons";
+import {
+  siAnthropic, siAtlassian, siCloudflare, siClerk, siCplusplus,
+  siCursor, siDocker, siElevenlabs, siExpo, siFastapi, siGit, siGithub,
+  siGithubactions, siGooglegemini, siHtml5, siJira, siJavascript,
+  siMongodb, siN8n, siNextdotjs, siNginx, siNodedotjs, siNumpy, siNvidia,
+  siOpencv, siOpenai, siOpenjdk, siPandas, siPerplexity, siPostgresql,
+  siPostman, siPython, siRailway, siReact, siRedis, siResend, siSendgrid,
+  siSpring, siStripe, siSupabase, siTailwindcss, siTwilio, siTypescript,
+  siUbuntu, siUpstash, siVercel,
+} from "simple-icons";
 
+// Compiled into the site: no API token or runtime image request is required.
 export interface LogoItem {
   name: string;
   domain: string;
   usage: string;
   localImage?: string;
+  icon?: SimpleIcon;
+  fallbackIcon?: "sparkles" | "phone";
 }
+
+export const LOGOS_BY_DOMAIN: Record<string, SimpleIcon> = {
+  "anthropic.com": siAnthropic,
+  "openai.com": siOpenai,
+  "google.com": siGooglegemini,
+  "elevenlabs.io": siElevenlabs,
+  "twilio.com": siTwilio,
+  "nvidia.com": siNvidia,
+  "github.com": siGithub,
+  "n8n.io": siN8n,
+  "perplexity.ai": siPerplexity,
+  "python.org": siPython,
+  "isocpp.org": siCplusplus,
+  "dev.java": siOpenjdk,
+  "typescriptlang.org": siTypescript,
+  "javascript.com": siJavascript,
+  "nextjs.org": siNextdotjs,
+  "react.dev": siReact,
+  "reactnative.dev": siReact,
+  "expo.dev": siExpo,
+  "nodejs.org": siNodedotjs,
+  "fastapi.tiangolo.com": siFastapi,
+  "tailwindcss.com": siTailwindcss,
+  "w3.org": siHtml5,
+  "postgresql.org": siPostgresql,
+  "mongodb.com": siMongodb,
+  "redis.io": siRedis,
+  "upstash.com": siUpstash,
+  "docker.com": siDocker,
+  "git-scm.com": siGit,
+  "cursor.com": siCursor,
+  "nginx.com": siNginx,
+  "ubuntu.com": siUbuntu,
+  "atlassian.com": siAtlassian,
+  "postman.com": siPostman,
+  "stripe.com": siStripe,
+  "cloudflare.com": siCloudflare,
+  "vercel.com": siVercel,
+  "supabase.com": siSupabase,
+  "railway.app": siRailway,
+  "clerk.com": siClerk,
+  "sendgrid.com": siSendgrid,
+  "resend.com": siResend,
+  "pandas.pydata.org": siPandas,
+  "numpy.org": siNumpy,
+  "opencv.org": siOpencv,
+  "spring.io": siSpring,
+};
 
 const LOCAL_LOGOS: Record<string, string> = {
   "gemini": "/logos/gemini.png",
@@ -28,11 +88,11 @@ const LOCAL_LOGOS: Record<string, string> = {
   "spring": "/logos/spring.png",
 };
 
-export function logoKitUrl(domain: string, size = 128, localImage?: string): string {
+/* export function logoKitUrl(domain: string, size = 128, localImage?: string): string {
   if (localImage) return localImage;
   const token = process.env.NEXT_PUBLIC_LOGOKIT_TOKEN;
   return `https://img.logokit.com/${domain}?token=${token}&size=${size}&format=png&fallback=monogram`;
-}
+} */
 
 export const AI_TOOLS_LOGOS: LogoItem[] = [
   { name: "Claude (Anthropic)", domain: "anthropic.com", usage: "Primary AI for coding, agents & content" },
@@ -77,9 +137,9 @@ export const TECH_STACK_LOGOS: LogoItem[] = [
   { name: "Cursor", domain: "cursor.com", usage: "AI-powered code editor", localImage: LOCAL_LOGOS.cursor },
   { name: "Nginx", domain: "nginx.com", usage: "Reverse proxy & web server" },
   { name: "Ubuntu/Linux", domain: "ubuntu.com", usage: "Server operating system" },
-  { name: "CI/CD (GitHub Actions)", domain: "github.com", usage: "Automated build, test & deploy pipelines" },
+  { name: "CI/CD (GitHub Actions)", domain: "github.com", usage: "Automated build, test & deploy pipelines", icon: siGithubactions },
   { name: "Agile/Scrum", domain: "atlassian.com", usage: "Iterative project management" },
-  { name: "Jira/Confluence", domain: "atlassian.com", usage: "Project tracking & documentation" },
+  { name: "Jira/Confluence", domain: "atlassian.com", usage: "Project tracking & documentation", icon: siJira },
   { name: "RESTful API", domain: "postman.com", usage: "Designing & consuming HTTP APIs" },
   { name: "Stripe", domain: "stripe.com", usage: "Payments & subscription billing" },
   { name: "Cloudflare", domain: "cloudflare.com", usage: "CDN, DNS & edge security" },
