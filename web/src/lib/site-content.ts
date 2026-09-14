@@ -73,6 +73,7 @@ export const defaultSiteContent: SiteContent = {
   },
   aiUsageTracker: {
     lastUpdated: "2026-07-02",
+    totalTokens: 40_200_000_000,
     claude: {
       totalTokens: 146_400_000,
       totalMessages: 120_846,
