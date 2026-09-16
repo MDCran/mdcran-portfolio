@@ -1390,14 +1390,16 @@ export default function ChatPanel() {
             }
           }
 
-          // Update the displayed message with markers stripped + flags
+          // Update the displayed message with markers stripped + flags. When read-aloud
+          // is on, keep the placeholder empty until TTS has decoded and can start; that
+          // makes the typing indicator represent the whole response, not just the LLM.
           if (hasMarkers || didNavigate || pendingHighlightTarget || projectCards || contactCard || bookingCard) {
             cleaned = cleaned.replace(/  +/g, " ").trim();
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {
                 role: "assistant",
-                content: cleaned,
+                content: voiceOnRef.current ? "" : cleaned,
                 autoNavigated: didNavigate,
                 pendingHighlight: pendingHighlightTarget,
                 projectCards,
@@ -1411,9 +1413,11 @@ export default function ChatPanel() {
 
         /* Got a real response */
         if (accumulated.replace(/__[A-Z_]+(?::[^_]+)?__/g, "").trim()) {
-          // In voice mode the message was held as "" (dots) — now reveal the cleaned text
-          // in the chat bubble so the user can read along or reference it after the voice finishes.
+          // In voice mode, do not reveal the completed message until ElevenLabs has
+          // synthesized and decoded the audio. `speak` only resolves after `src.start()`,
+          // so the chat stays in its typing state until the reply is ready to say aloud.
           if (voiceOnRef.current) {
+            await speak(accumulated);
             const displayText = accumulated
               .replace(/\s*__[A-Z_]+:.+?__\s*/g, " ")
               .replace(/\s*__[A-Z_]+__\s*/g, " ")
@@ -1424,8 +1428,9 @@ export default function ChatPanel() {
               updated[updated.length - 1] = { ...updated[updated.length - 1], content: displayText };
               return updated;
             });
+          } else {
+            void speak(accumulated);
           }
-          void speak(accumulated);
           break;
         }
 
