@@ -30,6 +30,7 @@ export default function ProjectsTour() {
   const [wordIdx, setWordIdx] = useState(-1);
 
   const runIdRef = useRef(0);
+  const runningRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const langRef = useRef<string>("en-US");
 
@@ -48,11 +49,20 @@ export default function ProjectsTour() {
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
+    runningRef.current = running;
   }, [running]);
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
 
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const waitForPath = useCallback(async (path: string, myRun: number) => {
+    const deadline = Date.now() + 4500;
+    while (pathRef.current !== path && myRun === runIdRef.current && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    }
+    // Give the newly mounted page one paint before placing its caption/highlight.
+    if (myRun === runIdRef.current) await new Promise<void>((resolve) => setTimeout(resolve, 180));
+  }, []);
 
   /* Speak a line aloud with karaoke captions; timed fallback if TTS is unavailable. */
   const narrate = useCallback((text: string, myRun: number): Promise<void> => {
@@ -114,8 +124,11 @@ export default function ProjectsTour() {
 
   useEffect(() => {
     const run = async () => {
+      // A duplicate chat event should never start a second navigation loop.
+      if (runningRef.current) return;
       const myRun = ++runIdRef.current;
       setRunning(true);
+      runningRef.current = true;
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
       for (let i = 0; i < STOPS.length; i++) {
@@ -125,7 +138,7 @@ export default function ProjectsTour() {
         if (pathRef.current !== stop.path) {
           try { router.prefetch(stop.path); } catch { /* */ }
           router.push(stop.path);
-          await wait(1100); // let the page mount + settle
+          await waitForPath(stop.path, myRun);
         } else {
           await wait(200);
         }
@@ -143,6 +156,7 @@ export default function ProjectsTour() {
 
       if (myRun === runIdRef.current) {
         setCaption(null); setWordIdx(-1); setRunning(false);
+        runningRef.current = false;
         window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
       }
     };
@@ -153,12 +167,12 @@ export default function ProjectsTour() {
       runIdRef.current++;
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router]);
+  }, [narrate, router, waitForPath]);
 
   const stop = () => {
     runIdRef.current++;
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
-    setCaption(null); setWordIdx(-1); setRunning(false);
+    setCaption(null); setWordIdx(-1); setRunning(false); runningRef.current = false;
     window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
   };
 
@@ -183,6 +197,7 @@ export default function ProjectsTour() {
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.3 }}
             className="fixed bottom-8 left-1/2 z-[71] -translate-x-1/2 w-[min(92vw,46rem)] px-4 pointer-events-none"
+            style={{ bottom: "max(1rem, calc(1rem + env(safe-area-inset-bottom)))" }}
           >
             <div
               className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
