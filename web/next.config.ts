@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "mdcran.github.io",
+      },
+      {
+        protocol: "https",
         hostname: "raw.githubusercontent.com",
       },
     ],
