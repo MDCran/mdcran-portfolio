@@ -79,9 +79,11 @@ export default function AssistantTutorial() {
   const [loading, setLoading] = useState(false); // true while awaiting pregen
 
   const runIdRef = useRef(0);
+  const runningRef = useRef(false);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
+    runningRef.current = running;
   }, [running]);
 
   const targetElRef = useRef<HTMLElement | null>(null);
@@ -105,19 +107,30 @@ export default function AssistantTutorial() {
 
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-  /* Keep the spotlight box glued to the target element as the page settles/scrolls. */
+  /* Keep the spotlight box glued to the target while the tour is active. Avoid an
+     unconditional state update every frame: that was enough to make narrow/mobile
+     viewports stutter, especially in Safari and Firefox. */
   useEffect(() => {
+    if (!running) return;
+    let last: Rect | null = null;
     const tick = () => {
       const el = targetElRef.current;
-      if (el) {
+      if (el && el.isConnected) {
         const r = el.getBoundingClientRect();
-        setSpot({ top: r.top, left: r.left, width: r.width, height: r.height });
+        const next = { top: r.top, left: r.left, width: r.width, height: r.height };
+        if (!last || Math.abs(last.top - next.top) > 0.5 || Math.abs(last.left - next.left) > 0.5 || Math.abs(last.width - next.width) > 0.5 || Math.abs(last.height - next.height) > 0.5) {
+          last = next;
+          setSpot(next);
+        }
+      } else if (last) {
+        last = null;
+        setSpot(null);
       }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, []);
+  }, [running]);
 
   /* Spotlight a target and scroll it into view mid-narration. */
   const spotTarget = useCallback((id: string | null) => {
@@ -219,8 +232,12 @@ export default function AssistantTutorial() {
 
   useEffect(() => {
     const run = async () => {
+      // Ignore repeated triggers while a tour is already in progress. This can happen
+      // when a streamed chat marker is delivered twice during a route transition.
+      if (runningRef.current) return;
       const myRun = ++runIdRef.current;
       setRunning(true);
+      runningRef.current = true;
       window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
 
       // Capture starting location BEFORE any navigation so we can return here at the end.
@@ -231,7 +248,7 @@ export default function AssistantTutorial() {
       if (window.location.pathname !== "/") {
         router.push("/");
         await wait(1600);
-        if (myRun !== runIdRef.current) { setRunning(false); return; }
+        if (myRun !== runIdRef.current) { setRunning(false); runningRef.current = false; return; }
         window.scrollTo({ top: 0, behavior: "smooth" });
         await wait(300);
       }
@@ -250,7 +267,7 @@ export default function AssistantTutorial() {
       await fetch(`/api/voice/tour-pregen?lang=${lang}`, { signal: pregenCtrl.signal }).catch(() => {});
       clearTimeout(pregenTimeout);
       clearTimeout(showLoadTimer);
-      if (myRun !== runIdRef.current) { setLoading(false); setRunning(false); return; }
+      if (myRun !== runIdRef.current) { setLoading(false); setRunning(false); runningRef.current = false; return; }
 
       // Phase 2 — Client blob warm: pull all segments from MongoDB into in-memory cache.
       // All should be cached from pregen, so this is fast (~200ms parallel).
@@ -263,7 +280,7 @@ export default function AssistantTutorial() {
         )
       );
       setLoading(false);
-      if (myRun !== runIdRef.current) { setRunning(false); return; }
+      if (myRun !== runIdRef.current) { setRunning(false); runningRef.current = false; return; }
 
       // Phase 3 — Tour narration loop.
       for (let si = 0; si < STEPS.length; si++) {
@@ -502,6 +519,7 @@ export default function AssistantTutorial() {
         setCaption(null);
         setWordIdx(-1);
         setRunning(false);
+        runningRef.current = false;
         window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
       }
     };
@@ -525,17 +543,21 @@ export default function AssistantTutorial() {
     setWordIdx(-1);
     setLoading(false);
     setRunning(false);
+    runningRef.current = false;
     window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
   };
 
   const pad = 14;
-  const box = spot
-    ? {
-        top: Math.max(0, spot.top - pad),
-        left: Math.max(0, spot.left - pad),
-        width: Math.min(window.innerWidth, spot.width + pad * 2),
-        height: Math.min(window.innerHeight, spot.height + pad * 2),
-      }
+  // Clamp all four edges rather than clamping width independently. The old calculation
+  // could leave a spotlight extending past the right/bottom edge on small screens.
+  const box = spot && typeof window !== "undefined"
+    ? (() => {
+        const left = Math.max(0, spot.left - pad);
+        const top = Math.max(0, spot.top - pad);
+        const right = Math.min(window.innerWidth, spot.left + spot.width + pad);
+        const bottom = Math.min(window.innerHeight, spot.top + spot.height + pad);
+        return { top, left, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+      })()
     : null;
   const blurStyle: React.CSSProperties = {
     position: "fixed",
@@ -654,6 +676,7 @@ export default function AssistantTutorial() {
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.3 }}
             className="fixed bottom-8 left-1/2 z-[65] -translate-x-1/2 pointer-events-none"
+            style={{ bottom: "max(1rem, calc(1rem + env(safe-area-inset-bottom)))" }}
           >
             <div
               className="flex items-center gap-2.5 rounded-sm border px-4 py-3 font-jb text-sm"
@@ -679,6 +702,7 @@ export default function AssistantTutorial() {
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.3 }}
             className="fixed bottom-8 left-1/2 z-[65] -translate-x-1/2 w-[min(92vw,46rem)] pointer-events-none px-4"
+            style={{ bottom: "max(1rem, calc(1rem + env(safe-area-inset-bottom)))" }}
           >
             <div
               className="rounded-sm border px-5 py-3.5 text-center text-[15px] sm:text-base leading-relaxed font-jb"
