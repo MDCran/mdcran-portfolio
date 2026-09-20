@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
@@ -19,6 +19,7 @@ export default function FeaturedProjects({
   workOrder?: string[];
   content?: SiteContentSectionIntro;
 }) {
+  const [capability, setCapability] = useState<"all" | "engineering" | "creative" | "worldbuilding" | "writing">("all");
   // Build unified ordered list from workOrder, interleaving projects and articles
   const projectMap = new Map(projects.map((p) => [p.id, p]));
   const articleMap = new Map(articles.map((a) => [a.id, a]));
@@ -32,6 +33,21 @@ export default function FeaturedProjects({
     const art = articleMap.get(id);
     if (art) { orderedItems.push({ type: "article", item: art }); continue; }
   }
+  const capabilityOptions = [
+    ["all", "All work"],
+    ["engineering", "Engineering"],
+    ["creative", "Creative"],
+    ["worldbuilding", "Worldbuilding"],
+    ["writing", "Writing"],
+  ] as const;
+  const visibleItems = useMemo(() => orderedItems.filter((entry) => {
+    if (capability === "all") return true;
+    if (entry.type === "article") return capability === "writing";
+    if (capability === "engineering") return entry.item.category === "coding-projects" || entry.item.category === "software";
+    if (capability === "creative") return entry.item.category === "motion-and-graphics";
+    if (capability === "worldbuilding") return entry.item.category === "arts-and-entertainment";
+    return false;
+  }), [capability, orderedItems]);
   return (
     <section className="py-24 border-t border-white/6">
       <div className="content-container">
@@ -83,9 +99,26 @@ export default function FeaturedProjects({
           </motion.div>
         </div>
 
+        <div className="mb-7 flex flex-wrap gap-2" role="group" aria-label="Filter featured work by capability">
+          {capabilityOptions.map(([value, label]) => {
+            const active = capability === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setCapability(value)}
+                aria-pressed={active}
+                className={`min-h-9 rounded-sm border px-3 text-xs transition-colors ${active ? "border-[var(--cranberry)]/50 bg-[var(--cranberry)]/12 text-white" : "border-white/10 bg-white/[0.02] text-white/50 hover:border-white/25 hover:text-white/75"}`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Combined grid — unified order from admin */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orderedItems.map((entry, i) =>
+          {visibleItems.map((entry, i) =>
             entry.type === "project" ? (
               <ProjectCard key={entry.item.id} project={{ ...entry.item, featured: true }} index={i} />
             ) : (
@@ -93,6 +126,9 @@ export default function FeaturedProjects({
             )
           )}
         </div>
+        {visibleItems.length === 0 && (
+          <p className="py-10 text-center text-sm text-white/40">No featured work in this capability yet.</p>
+        )}
       </div>
     </section>
   );

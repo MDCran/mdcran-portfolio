@@ -106,6 +106,12 @@ export default function AssistantTutorial() {
   }, []);
 
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  // Tour steps own the scroll position. Native smooth scrolling can continue after
+  // the next step starts in Safari/Firefox, fighting the spotlight and causing the
+  // visible jumpiness reported on desktop and mobile.
+  const tourScrollTo = useCallback((top: number) => {
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  }, []);
 
   /* Keep the spotlight box glued to the target while the tour is active. Avoid an
      unconditional state update every frame: that was enough to make narrow/mobile
@@ -145,9 +151,9 @@ export default function AssistantTutorial() {
       const ty = r.height >= avail
         ? window.scrollY + r.top - topInset
         : window.scrollY + r.top - topInset - (avail - r.height) / 2;
-      window.scrollTo({ top: Math.max(0, ty), behavior: "smooth" });
+      tourScrollTo(ty);
     }
-  }, []);
+  }, [tourScrollTo]);
 
   /** Narrate one segment: show karaoke caption and play audio from warm cache.
    *  Falls back to a timed word cadence if audio is unavailable. */
@@ -249,7 +255,7 @@ export default function AssistantTutorial() {
         router.push("/");
         await wait(1600);
         if (myRun !== runIdRef.current) { setRunning(false); runningRef.current = false; return; }
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        tourScrollTo(0);
         await wait(300);
       }
       const lang = langRef.current.split("-")[0];
@@ -326,7 +332,7 @@ export default function AssistantTutorial() {
                   ? window.scrollY + r.top - topInset
                   : window.scrollY + r.top - topInset - (avail - r.height) / 2;
               }
-              window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+              tourScrollTo(targetY);
             };
             const isPan = step.target === "featured" || step.target === "clients";
             if (!isNav) {
@@ -383,7 +389,7 @@ export default function AssistantTutorial() {
             await wait(2400);
             if (myRun !== runIdRef.current) break;
             window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            tourScrollTo(0);
             await wait(400);
             if (myRun !== runIdRef.current) break;
 
@@ -407,7 +413,7 @@ export default function AssistantTutorial() {
               if (secEl) {
                 targetElRef.current = secEl;
                 const sr = secEl.getBoundingClientRect();
-                window.scrollTo({ top: Math.max(0, window.scrollY + sr.top - 100), behavior: "smooth" });
+                tourScrollTo(window.scrollY + sr.top - 100);
                 await wait(400);
               } else {
                 targetElRef.current = null;
@@ -428,7 +434,7 @@ export default function AssistantTutorial() {
               }
               targetElRef.current = armyEl;
               const ar = armyEl.getBoundingClientRect();
-              window.scrollTo({ top: Math.max(0, window.scrollY + ar.top - 80), behavior: "smooth" });
+              tourScrollTo(window.scrollY + ar.top - 80);
               await wait(700);
               if (myRun !== runIdRef.current) break;
 
@@ -451,7 +457,7 @@ export default function AssistantTutorial() {
             await wait(2600);
             if (myRun !== runIdRef.current) break;
             window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            tourScrollTo(0);
             await wait(500);
             if (myRun !== runIdRef.current) break;
 
@@ -468,7 +474,7 @@ export default function AssistantTutorial() {
               if (myRun !== runIdRef.current) { abortedDeep = true; break; }
               if (ti < armyDeepTexts.length - 1) {
                 const totalH = Math.max(0, document.body.scrollHeight - window.innerHeight);
-                window.scrollTo({ top: Math.round(totalH * ((ti + 1) / armyDeepTexts.length) * 0.75), behavior: "smooth" });
+                tourScrollTo(Math.round(totalH * ((ti + 1) / armyDeepTexts.length) * 0.75));
                 await wait(350);
               }
             }
@@ -481,7 +487,7 @@ export default function AssistantTutorial() {
             router.push(startPath);
             await wait(1200);
             if (myRun !== runIdRef.current) break;
-            window.scrollTo({ top: startY, behavior: "smooth" });
+            tourScrollTo(startY);
           }
 
           if (isNav && mobile && !didClickNav) window.dispatchEvent(new CustomEvent("mdcran:close-nav"));
@@ -504,7 +510,7 @@ export default function AssistantTutorial() {
             await wait(1000);
             if (myRun !== runIdRef.current) break;
           }
-          window.scrollTo({ top: startY, behavior: "smooth" });
+          tourScrollTo(startY);
         }
 
         await narrate(step.text, myRun);
@@ -531,7 +537,7 @@ export default function AssistantTutorial() {
       runIdRef.current++;
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router, spotTarget]);
+  }, [narrate, router, spotTarget, tourScrollTo]);
 
   const endTour = () => {
     runIdRef.current++;

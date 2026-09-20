@@ -3385,6 +3385,20 @@ export default function AdminDashboard() {
   const [rizzSort, setRizzSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
   const [adminSearch, setAdminSearch] = useState("");
   const [adminSearchFocused, setAdminSearchFocused] = useState(false);
+  const adminSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Command-palette shortcut for the global admin search. It keeps navigation,
+  // content lookup, and quick section changes equally fast on macOS and Windows.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      adminSearchInputRef.current?.focus();
+      setAdminSearchFocused(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   /* ── Modal state ── */
   const [projectModal, setProjectModal] = useState<{ open: boolean; editing?: Project }>({ open: false });
@@ -4902,6 +4916,7 @@ export default function AdminDashboard() {
           <div className="hidden md:flex flex-1 justify-center px-6">
             <div className="relative w-full max-w-xl">
               <input
+                ref={adminSearchInputRef}
                 className="w-full h-10 rounded-sm border border-white/10 bg-white/4 px-4 text-sm text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors"
                 value={adminSearch}
                 onChange={(e) => setAdminSearch(e.target.value)}
