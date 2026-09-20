@@ -423,11 +423,47 @@ export default function VoiceMode() {
       if (THEMES.some((t) => t.id === id)) setTheme(id);
       cleaned = cleaned.replace(/\s*__THEME:[\w-]+__\s*/g, " ");
     }
+    const textSize = cleaned.match(/__TEXTSIZE:(normal|small|large|larger|largest)__/);
+    if (textSize) {
+      const scale = { small: 0.9, normal: 1, large: 1.15, larger: 1.3, largest: 1.5 }[textSize[1]] ?? 1;
+      cleaned = cleaned.replace(/\s*__TEXTSIZE:[a-z]+__\s*/g, " ");
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { textScale: scale } })));
+    }
+    const accessibilityMatches = [...cleaned.matchAll(/__ACCESS:([a-z-]+)__/g)].map((match) => match[1]);
+    if (accessibilityMatches.length) {
+      cleaned = cleaned.replace(/\s*__ACCESS:[a-z-]+__\s*/g, " ");
+      deferred.push(() => {
+        for (const action of accessibilityMatches) {
+          const detail: Record<string, unknown> = {};
+          if (action === "reset") detail.reset = true;
+          else if (action === "motion-reduce") detail.motion = "reduce";
+          else if (action === "motion-allow") detail.motion = "allow";
+          else if (action === "readaloud-on") detail.speakAloud = true;
+          else if (action === "readaloud-off") detail.speakAloud = false;
+          else if (action.startsWith("cb-")) detail.colorblind = action.slice(3) === "none" ? "none" : action.slice(3);
+          else if (action.startsWith("cursor-")) detail.cursor = action.slice(7);
+          if (Object.keys(detail).length) window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail }));
+        }
+      });
+    }
     const nav = cleaned.match(/__NAV:(\/.+?)__/);
     if (nav) {
       const path = nav[1];
       cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
       setTimeout(() => router.push(path.split("#")[0] || "/"), 200); // navigate early
+    }
+    const gotoItemMatches = [...cleaned.matchAll(/__GOTOITEM:(\/[^|_\s]+)\|([^_]+?)__/g)];
+    if (gotoItemMatches.length) {
+      cleaned = cleaned.replace(/__GOTOITEM:\/[^|_\s]+\|[^_]+?__/g, " ");
+      gotoItemMatches.forEach((match, index) => {
+        const path = match[1].trim();
+        const text = match[2].trim();
+        try { router.prefetch(path); } catch { /* route may not be prefetchable */ }
+        deferred.push(() => setTimeout(() => {
+          router.push(path);
+          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text } })), 1400);
+        }, index * 350));
+      });
     }
     const zoom = cleaned.match(/__ZOOM:(.+?)__/);
     if (zoom) {
@@ -446,6 +482,13 @@ export default function VoiceMode() {
     if (/__PROJECTTOUR__/.test(cleaned)) {
       cleaned = cleaned.replace(/\s*__PROJECTTOUR__\s*/g, " ");
       deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")));
+    }
+    if (/__TOUR__/.test(cleaned)) {
+      cleaned = cleaned.replace(/\s*__TOUR__\s*/g, " ");
+      deferred.push(() => {
+        setOpen(false);
+        setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
+      });
     }
     const hl = cleaned.match(/__HIGHLIGHT:(.+?)__/);
     if (hl) {
@@ -475,6 +518,10 @@ export default function VoiceMode() {
         }, (nav ? 500 : 0) + i * 500);
       }));
     }
+    if (/__CURSORRESET__/.test(cleaned)) {
+      cleaned = cleaned.replace(/\s*__CURSORRESET__\s*/g, " ");
+      deferred.push(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-hide")));
+    }
     // __POINT:text__ — AI cursor points at an element by visible text.
     const pointMatches = [...cleaned.matchAll(/__POINT:([^_]+?)__/g)];
     if (pointMatches.length) {
@@ -502,6 +549,16 @@ export default function VoiceMode() {
     if (typeIdMatches.length) {
       cleaned = cleaned.replace(/__TYPEID:[\w-]+\|[^|]*?__/g, " ");
       deferred.push(() => typeIdMatches.forEach((m, idx) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800)));
+    }
+    // __SEARCH:query__ — open the navbar search and type the requested query.
+    const searchMatches = [...cleaned.matchAll(/__SEARCH:([^_]+?)__/g)];
+    if (searchMatches.length) {
+      cleaned = cleaned.replace(/__SEARCH:[^_]+?__/g, " ");
+      deferred.push(() => searchMatches.forEach((match) => {
+        const query = match[1].trim();
+        window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector: '[aria-label="Search"]' } }));
+        setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: "nav-search", typeText: query } })), 800);
+      }));
     }
     // __SCROLL:dir[:target]__ — directional / container scroll.
     const scrollMatches = [...cleaned.matchAll(/__SCROLL:(up|down|left|right|top|bottom)(?::([\w-]+))?__/gi)];
