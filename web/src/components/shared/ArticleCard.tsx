@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -22,6 +22,8 @@ const ARTICLE_CATEGORY_COLORS: Record<ArticleCategory, string> = {
 export default function ArticleCard({ article, index = 0, featured = false }: { article: Article; index?: number; featured?: boolean }) {
   const coverImage = article.coverImage;
   const coverSrc = imageAssetSrc(coverImage);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <motion.div
@@ -42,15 +44,20 @@ export default function ArticleCard({ article, index = 0, featured = false }: { 
         <Link href={`/articles/${article.slug}`} className="absolute inset-0 z-[1]" aria-label={article.title} />
 
         <div className="relative aspect-video overflow-hidden bg-white/5 shrink-0">
-          {coverSrc ? (
+          {coverSrc && !imageFailed ? (
+            <>
+              {!imageLoaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent" aria-hidden="true" />}
             <Image
               src={coverSrc}
               alt={imageAssetAlt(coverImage, article.title)}
               fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              className={`object-cover transition-all duration-500 group-hover:scale-105 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               unoptimized={shouldBypassImageOptimization(coverSrc)}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageFailed(true)}
             />
+            </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#ef4242]/10 to-transparent">
               <div className="w-16 h-16 rounded-sm bg-[rgba(239,66,66,0.08)] border border-[rgba(239,66,66,0.15)] flex items-center justify-center">

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -114,6 +114,8 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
   const href = projectUrl(project.category, project.slug, project.subcategory);
   const coverImage = project.coverImage ?? project.images?.[0];
   const coverSrc = imageAssetSrc(coverImage);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <motion.div
@@ -137,15 +139,20 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
 
         {/* Cover image */}
         <div className="relative aspect-video overflow-hidden bg-white/5 shrink-0">
-          {coverSrc ? (
+          {coverSrc && !imageFailed ? (
+            <>
+              {!imageLoaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent" aria-hidden="true" />}
             <Image
               src={coverSrc}
               alt={imageAssetAlt(coverImage, project.title)}
               fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              className={`object-cover transition-all duration-500 group-hover:scale-105 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               unoptimized={shouldBypassImageOptimization(coverSrc)}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageFailed(true)}
             />
+            </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-16 h-16 rounded-sm bg-[rgba(239,66,66,0.08)] border border-[rgba(239,66,66,0.15)] flex items-center justify-center">
