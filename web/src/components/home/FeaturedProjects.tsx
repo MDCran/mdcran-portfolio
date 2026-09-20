@@ -19,7 +19,8 @@ export default function FeaturedProjects({
   workOrder?: string[];
   content?: SiteContentSectionIntro;
 }) {
-  const [capability, setCapability] = useState<"all" | "engineering" | "creative" | "worldbuilding" | "writing">("all");
+  type Capability = "all" | "engineering" | "creative" | "games" | "writing";
+  const [capability, setCapability] = useState<Capability>("all");
   // Build unified ordered list from workOrder, interleaving projects and articles
   const projectMap = new Map(projects.map((p) => [p.id, p]));
   const articleMap = new Map(articles.map((a) => [a.id, a]));
@@ -33,21 +34,30 @@ export default function FeaturedProjects({
     const art = articleMap.get(id);
     if (art) { orderedItems.push({ type: "article", item: art }); continue; }
   }
-  const capabilityOptions = [
+  const matchesCapability = (entry: (typeof orderedItems)[number], filter: Capability) => {
+    const projectCategories = entry.type === "project"
+      ? [entry.item.category, ...(entry.item.extraCategories ?? [])]
+      : [];
+    if (filter === "all") return true;
+    if (entry.type === "article") return filter === "writing";
+    if (filter === "engineering") return projectCategories.some((category) => category === "coding-projects" || category === "software");
+    if (filter === "creative") return projectCategories.includes("motion-and-graphics");
+    if (filter === "games") return projectCategories.includes("arts-and-entertainment");
+    return false;
+  };
+  // Only offer filters that have real work behind them. This keeps the home page
+  // useful as new featured work is curated in admin instead of showing dead ends.
+  const capabilityOptions = ([
     ["all", "All work"],
     ["engineering", "Engineering"],
     ["creative", "Creative"],
-    ["worldbuilding", "Worldbuilding"],
+    ["games", "Games & Experiences"],
     ["writing", "Writing"],
-  ] as const;
+  ] as const).filter(([value]) => value === "all" || orderedItems.some((entry) => matchesCapability(entry, value)));
+  const activeCapability = capabilityOptions.some(([value]) => value === capability) ? capability : "all";
   const visibleItems = useMemo(() => orderedItems.filter((entry) => {
-    if (capability === "all") return true;
-    if (entry.type === "article") return capability === "writing";
-    if (capability === "engineering") return entry.item.category === "coding-projects" || entry.item.category === "software";
-    if (capability === "creative") return entry.item.category === "motion-and-graphics";
-    if (capability === "worldbuilding") return entry.item.category === "arts-and-entertainment";
-    return false;
-  }), [capability, orderedItems]);
+    return matchesCapability(entry, activeCapability);
+  }), [activeCapability, orderedItems]);
   return (
     <section className="py-24 border-t border-white/6">
       <div className="content-container">
@@ -101,7 +111,7 @@ export default function FeaturedProjects({
 
         <div className="mb-7 flex flex-wrap gap-2" role="group" aria-label="Filter featured work by capability">
           {capabilityOptions.map(([value, label]) => {
-            const active = capability === value;
+            const active = activeCapability === value;
             return (
               <button
                 key={value}
