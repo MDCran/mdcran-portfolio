@@ -123,6 +123,29 @@ export default function ChatBubble() {
     return () => { cancelled = true; clearTimeout(showTimer); };
   }, []);
 
+  /* The waving first-visit prompt belongs only to the home-page welcome moment.
+     Once a visitor navigates, opens accessibility, or starts a tour, retire it for
+     the session instead of letting the globally-mounted bubble linger or reappear. */
+  useEffect(() => {
+    const retireGreeting = () => {
+      setShowGreeting(false);
+      try { window.localStorage.setItem(GREETING_STORAGE_KEY, "true"); } catch { /* ignore */ }
+    };
+    const onA11yPanel = (e: Event) => {
+      if ((e as CustomEvent).detail?.open) retireGreeting();
+    };
+    const onTour = (e: Event) => {
+      if ((e as CustomEvent).detail?.active) retireGreeting();
+    };
+    if (pathname !== "/") retireGreeting();
+    window.addEventListener("mdcran:a11y-panel", onA11yPanel);
+    window.addEventListener("mdcran:tour-active", onTour);
+    return () => {
+      window.removeEventListener("mdcran:a11y-panel", onA11yPanel);
+      window.removeEventListener("mdcran:tour-active", onTour);
+    };
+  }, [pathname]);
+
   /* Proactive interventions: rage-clicks / scroll hesitation */
   useEffect(() => {
     let clearTimer: ReturnType<typeof setTimeout>;
@@ -208,7 +231,7 @@ export default function ChatBubble() {
     <div className="fixed bottom-6 right-6 z-[70]">
       {/* Greeting popup with waving character */}
       <AnimatePresence>
-        {showGreeting && !chatOpen && (
+        {showGreeting && pathname === "/" && !chatOpen && (
           <motion.div
             initial={{ opacity: 0, y: 12, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

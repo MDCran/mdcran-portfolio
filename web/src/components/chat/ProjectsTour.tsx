@@ -55,6 +55,11 @@ export default function ProjectsTour() {
   pathRef.current = pathname;
 
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  // Keep the walkthrough in control of scrolling; queued browser smooth-scroll
+  // animations can overlap route changes and make the tour look unstable.
+  const tourScrollTo = useCallback((top: number) => {
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  }, []);
   const waitForPath = useCallback(async (path: string, myRun: number) => {
     const deadline = Date.now() + 4500;
     while (pathRef.current !== path && myRun === runIdRef.current && Date.now() < deadline) {
@@ -146,7 +151,7 @@ export default function ProjectsTour() {
         const next = STOPS[i + 1];
         if (next) { try { router.prefetch(next.path); } catch { /* */ } }
         if (stop.highlight) {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          tourScrollTo(0);
           setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: stop.highlight })), 400);
         }
         await narrate(stop.text, myRun);
@@ -167,7 +172,7 @@ export default function ProjectsTour() {
       runIdRef.current++;
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router, waitForPath]);
+  }, [narrate, router, tourScrollTo, waitForPath]);
 
   const stop = () => {
     runIdRef.current++;
