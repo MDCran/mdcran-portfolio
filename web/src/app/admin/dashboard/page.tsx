@@ -4614,6 +4614,20 @@ export default function AdminDashboard() {
       return { name: b.name, value: b.count, fill: colors[i] ?? "#ef4242" };
     });
 
+  // Content-health scan: fast, local checks before publishing so the public grid
+  // does not end up with empty cover areas, weak summaries, or unfindable entries.
+  const contentHealth = {
+    projects: projects.filter((project) => (!project.coverImage && !project.images?.length) || !project.description?.trim() || !project.tags?.length),
+    articles: articles.filter((article) => !article.coverImage || !article.excerpt?.trim() || !article.tags?.length),
+    clients: clients.filter((client) => !client.avatarUrl || !client.bio?.trim()),
+  };
+  const contentHealthTotal = contentHealth.projects.length + contentHealth.articles.length + contentHealth.clients.length;
+  const contentHealthCards = [
+    { label: "Projects", count: contentHealth.projects.length, onClick: () => { setActiveSection("projects"); setProjectSearch(contentHealth.projects[0]?.title ?? ""); } },
+    { label: "Articles", count: contentHealth.articles.length, onClick: () => { setActiveSection("articles"); setArticleSearch(contentHealth.articles[0]?.title ?? ""); } },
+    { label: "Clients", count: contentHealth.clients.length, onClick: () => { setActiveSection("clients"); setClientSearch(contentHealth.clients[0]?.name ?? ""); } },
+  ];
+
   const navItems: { key: NavSection; label: string; unreadCount?: number }[] = [
     { key: "dashboard", label: "Dashboard" },
     { key: "projects", label: "Projects" },
@@ -5174,6 +5188,34 @@ export default function AdminDashboard() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                   View Live Site
                 </a>
+              </div>
+
+              {/* Content health — publishing readiness at a glance */}
+              <div className="border border-white/7 bg-white/2 rounded-sm p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-nord text-sm text-white">Content Health</p>
+                    <p className="mt-1 text-xs text-white/35">Checks public cards for missing cover art, summaries, tags, and client profiles.</p>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${contentHealthTotal === 0 ? "border-emerald-400/25 bg-emerald-400/8 text-emerald-300" : "border-amber-400/25 bg-amber-400/8 text-amber-200"}`}>
+                    {contentHealthTotal === 0 ? "Ready to publish" : `${contentHealthTotal} items need attention`}
+                  </span>
+                </div>
+                {contentHealthTotal > 0 && (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {contentHealthCards.map(({ label, count, onClick }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={onClick}
+                        className="flex items-center justify-between rounded-sm border border-white/8 bg-black/20 px-3 py-2 text-left text-xs transition-colors hover:border-[#ef4242]/35 hover:bg-[#ef4242]/5"
+                      >
+                        <span className="text-white/55">{label}</span>
+                        <span className="text-[#ef4242]">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Seed database utility */}
