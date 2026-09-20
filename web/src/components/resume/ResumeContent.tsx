@@ -235,17 +235,7 @@ export default function ResumeContent({
                     <ExternalLink size={10} />
                   </Link>
                 </div>
-                {featuredWork.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {featuredWork.map((entry, i) =>
-                      entry.type === "project" ? (
-                        <ProjectCard key={entry.project.id} project={entry.project} index={i} />
-                      ) : (
-                        <ArticleCard key={entry.article.id} article={entry.article} index={i} />
-                      )
-                    )}
-                  </div>
-                ) : (
+                {renownedProjects.length > 0 && (
                   <div className="space-y-0">
                     {renownedProjects.map((experience, index) => (
                       <ExperienceCard
@@ -256,6 +246,17 @@ export default function ResumeContent({
                         isLastInSection={index === renownedProjects.length - 1}
                       />
                     ))}
+                  </div>
+                )}
+                {featuredWork.length > 0 && (
+                  <div className={renownedProjects.length > 0 ? "mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4" : "grid grid-cols-1 sm:grid-cols-2 gap-4"}>
+                    {featuredWork.map((entry, i) =>
+                      entry.type === "project" ? (
+                        <ProjectCard key={entry.project.id} project={entry.project} index={i} />
+                      ) : (
+                        <ArticleCard key={entry.article.id} article={entry.article} index={i} />
+                      )
+                    )}
                   </div>
                 )}
               </section>
