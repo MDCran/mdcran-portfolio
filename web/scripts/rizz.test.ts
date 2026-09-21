@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { answerKeys, getOptions, getRizzConfig, parseRizzAnswers, validateRizzAnswers } from "../src/lib/rizz";
+import { accentTextColor, answerKeys, getOptions, getRizzConfig, parseRizzAnswers, sanitizeThemeCustomizations, validateRizzAnswers } from "../src/lib/rizz";
 import { sunshineMessages } from "../src/lib/secret-pages";
 import { publicSiteContent } from "../src/lib/public-site-content";
 import { defaultSiteContent } from "../src/lib/site-content";
@@ -8,7 +8,7 @@ import { defaultSiteContent } from "../src/lib/site-content";
 const valid = { name: "Test rival", phone: "+1 202 555 0142", nickname: "", dateIdeas: ["pokemon-card-night"], vibes: ["chill-and-cozy"], activities: ["pokemon-rematch"], winOvers: ["making-me-laugh"], customAnswers: { dateIdeas: "", vibes: "", activities: "", winOvers: "" } };
 
 test("public content excludes invitation settings without changing the stored configuration", () => {
-  const content = { ...defaultSiteContent, rizzTargetName: "Private recipient", rizzEnabled: true, secretPages: { rivalCard: true, sunshineNotes: ["Private note"] } };
+  const content = { ...defaultSiteContent, rizzTargetName: "Private recipient", rizzEnabled: true, rizzThemeCustomizations: { pokemon: { title: "Private invitation" } }, secretPages: { rivalCard: true, sunshineNotes: ["Private note"] } };
   const published = publicSiteContent(content);
   assert.ok(!Object.keys(published).some(key => key.startsWith("rizz") || key === "secretPages"));
   assert.equal(published.homeHero, content.homeHero);
@@ -22,6 +22,32 @@ test("Pokémon and Monster Hunter prioritize their own game without hiding the o
   assert.equal(getOptions("activities", pokemon)[0].value, "pokemon-rematch");
   assert.equal(getOptions("activities", hunter)[0].value, "monster-hunter");
   assert.ok(getOptions("activities", pokemon).some(option => option.value === "monster-hunter"));
+});
+
+test("theme wording and answer labels stay separate and blank text restores defaults", () => {
+  const customizations = {
+    pokemon: { title: "  A card challenge  ", card: "Custom card", accent: "#112233", optionLabels: { "activities:pokemon-rematch": "Play a practice match" } },
+    cozy: { title: "Movie club" },
+  };
+  const pokemon = getRizzConfig({ rizzTheme: "pokemon", rizzThemeCustomizations: customizations });
+  const cozy = getRizzConfig({ rizzTheme: "cozy", rizzThemeCustomizations: customizations });
+  assert.equal(pokemon.appearance.title, "A card challenge");
+  assert.equal(pokemon.appearance.card, "Custom card");
+  assert.equal(cozy.appearance.title, "Movie club");
+  assert.equal(getOptions("activities", pokemon)[0].label, "Play a practice match");
+  assert.equal(getOptions("activities", cozy).find(option => option.value === "pokemon-rematch")?.label, "Pokémon TCG rematch");
+  assert.equal(getRizzConfig({ rizzTheme: "pokemon", rizzThemeCustomizations: { pokemon: { title: "  " } } }).appearance.title, getRizzConfig({ rizzTheme: "pokemon" }).appearance.title);
+  assert.equal(validateRizzAnswers(valid, pokemon), null);
+});
+
+test("theme customization rejects unknown properties, invalid colors and excessive lengths", () => {
+  const clean = sanitizeThemeCustomizations({ pokemon: { title: "x".repeat(500), accent: "url(https://example.com)", optionLabels: { "activities:unknown": "Unknown", "activities:pokemon-rematch": "y".repeat(200) } } });
+  assert.equal(clean.pokemon?.title?.length, 160);
+  assert.equal(clean.pokemon?.accent, undefined);
+  assert.equal(clean.pokemon?.optionLabels?.["activities:unknown"], undefined);
+  assert.equal(clean.pokemon?.optionLabels?.["activities:pokemon-rematch"].length, 100);
+  assert.equal(accentTextColor("#000000"), "#ffffff");
+  assert.equal(accentTextColor("#ffffff"), "#101014");
 });
 test("indoor-only and outdoor-only plans filter both date and activity suggestions", () => {
   for (const setting of ["indoors", "outdoors"] as const) {

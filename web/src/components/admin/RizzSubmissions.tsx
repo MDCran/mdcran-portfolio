@@ -10,7 +10,7 @@ export default function RizzSubmissions({ entries, onDelete }: { entries: RizzSu
       const legacyValue = entry[legacyKeys[key]];
       const selections = entry[key] ?? (legacyValue ? [legacyValue] : []);
       const written = entry.customAnswers?.[key] || (key === "winOvers" ? entry.winOverOther : undefined);
-      return <div key={key} className="border-t border-white/5 pt-3"><dt className="text-xs text-rose-200/80">{questionLabels[key]}</dt><dd className="mt-1 break-words text-sm leading-relaxed text-white/75">{selections.map(value => allOptions[key].find(option => option.value === value)?.label ?? value.replaceAll("-", " ")).join(" · ") || (written ? "" : "—")}{written && <p className="mt-1 whitespace-pre-wrap break-words text-white/60">{written}</p>}</dd></div>;
+      return <div key={key} className="border-t border-white/5 pt-3"><dt className="text-xs text-rose-200/80">{questionLabels[key]}</dt><dd className="mt-1 break-words text-sm leading-relaxed text-white/75">{selections.map(value => entry.optionLabels?.[`${key}:${value}`] ?? allOptions[key].find(option => option.value === value)?.label ?? value.replaceAll("-", " ")).join(" · ") || (written ? "" : "—")}{written && <p className="mt-1 whitespace-pre-wrap break-words text-white/60">{written}</p>}</dd></div>;
     })}</dl>
   </article>)}</div>;
 }

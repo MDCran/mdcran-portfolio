@@ -4482,6 +4482,7 @@ export default function AdminDashboard() {
       humanizeChoiceList(entry.vibes ?? (entry.vibe ? [entry.vibe] : [])).toLowerCase().includes(q) ||
       humanizeChoiceList(entry.winOvers ?? (entry.winOver ? [entry.winOver] : [])).toLowerCase().includes(q) ||
       Object.values(entry.customAnswers ?? {}).some(answer => answer?.toLowerCase().includes(q)) ||
+      Object.values(entry.optionLabels ?? {}).some(label => label.toLowerCase().includes(q)) ||
       (entry.winOverOther ?? "").toLowerCase().includes(q)
     );
   }).sort((a, b) => {
