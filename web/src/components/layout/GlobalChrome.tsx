@@ -288,7 +288,7 @@ export default function GlobalChrome() {
   // The Rizz and Bar experiences hide the floating buttons (assistant, scroll-to-top,
   // accessibility) so nothing covers the full-screen game/slot. (/2d-pong is fully
   // chromeless above.)
-  const hideFunChrome = ["/rizz", "/bar"].some((p) => pathname.startsWith(p));
+  const hideFunChrome = ["/rizz", "/bar", "/rival-card", "/pocket-sunshine"].some((p) => pathname.startsWith(p));
 
   return (
     <LanguageProvider>

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:rizz": "tsx --test scripts/rizz.test.ts",
     "seed:content": "tsx scripts/seed-content.ts",
     "migrate:cdn-urls": "tsx scripts/migrate-cdn-asset-urls.ts",
     "sync:cdn-to-r2": "tsx scripts/sync-cdn-to-r2.ts",

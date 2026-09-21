@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicSiteContent } from "@/lib/public-site-content";
 import {
   getArticles,
   getAwards,
@@ -45,7 +46,7 @@ export async function GET() {
   const featuredClients = clients.filter((client) => client.featured);
 
   return NextResponse.json({
-    siteContent,
+    siteContent: publicSiteContent(siteContent),
     projects,
     featuredProjects,
     articles,

@@ -37,6 +37,8 @@ import DiscordSettings from "@/components/admin/DiscordSettings";
 import UtmLinkGenerator from "@/components/admin/UtmLinkGenerator";
 import AiRoutingConditions from "@/components/admin/AiRoutingConditions";
 import { synthProjectDate } from "@/lib/project-date";
+import RizzSettings from "@/components/admin/RizzSettings";
+import RizzSubmissions from "@/components/admin/RizzSubmissions";
 import { formatPublishDate } from "@/lib/read-time";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 import type {
@@ -4478,7 +4480,9 @@ export default function AdminDashboard() {
       entry.phone.toLowerCase().includes(q) ||
       humanizeChoiceList(entry.dateIdeas ?? (entry.dateIdea ? [entry.dateIdea] : [])).toLowerCase().includes(q) ||
       humanizeChoiceList(entry.vibes ?? (entry.vibe ? [entry.vibe] : [])).toLowerCase().includes(q) ||
-      humanizeChoiceList(entry.winOvers ?? (entry.winOver ? [entry.winOver] : [])).toLowerCase().includes(q)
+      humanizeChoiceList(entry.winOvers ?? (entry.winOver ? [entry.winOver] : [])).toLowerCase().includes(q) ||
+      Object.values(entry.customAnswers ?? {}).some(answer => answer?.toLowerCase().includes(q)) ||
+      (entry.winOverOther ?? "").toLowerCase().includes(q)
     );
   }).sort((a, b) => {
     if (rizzSort === "az") return compareStrings(a.name, b.name, "asc");
@@ -7935,58 +7939,7 @@ export default function AdminDashboard() {
           ───────────────────────────────────── */}
           {activeSection === "rizz" && (
             <div className="space-y-4">
-              {/* Enable / disable public access to /rizz (404 when off) */}
-              <div className="flex items-center justify-between gap-3 border border-white/8 rounded-sm p-4 bg-white/2">
-                <div>
-                  <p className="font-nord text-sm text-white flex items-center gap-2">
-                    <span className={`inline-block h-2 w-2 rounded-full ${siteContent.rizzEnabled ? "bg-emerald-400" : "bg-white/20"}`} />
-                    /rizz page is {siteContent.rizzEnabled ? "LIVE" : "OFF (404)"}
-                  </p>
-                  <p className="text-xs text-white/35 mt-0.5">When off, visiting /rizz returns Not Found until you turn it back on.</p>
-                </div>
-                <button
-                  className={siteContent.rizzEnabled ? btnOutlineRed : "inline-flex items-center justify-center px-4 h-9 text-xs font-medium bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors"}
-                  onClick={async () => {
-                    const next = { ...siteContent, rizzEnabled: !siteContent.rizzEnabled };
-                    setSiteContent(next);
-                    await fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
-                  }}
-                >
-                  {siteContent.rizzEnabled ? "Disable /rizz" : "Enable /rizz"}
-                </button>
-              </div>
-
-              {/* Rizz personalization name */}
-              <div className="flex items-end gap-3 border border-white/8 rounded-sm p-4 bg-white/2">
-                <div className="flex-1 max-w-xs">
-                  <label className="block text-[10px] tracking-widest uppercase text-white/40 mb-1.5">Personalize Name</label>
-                  <input
-                    className={inputCls}
-                    placeholder="Enter a name to personalize /rizz..."
-                    value={siteContent.rizzTargetName ?? ""}
-                    onChange={(e) => setSiteContent((prev) => ({ ...prev, rizzTargetName: e.target.value }))}
-                  />
-                </div>
-                <button
-                  className={btnOutline}
-                  onClick={() => setSiteContent((prev) => ({ ...prev, rizzTargetName: "" }))}
-                >
-                  Clear
-                </button>
-                <button
-                  className="inline-flex items-center justify-center px-3 h-8 text-[11px] bg-[#ef4242] hover:bg-[#d93838] text-white rounded-sm transition-colors"
-                  onClick={async () => {
-                    await fetch("/api/admin/site-content", {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(siteContent),
-                    });
-                  }}
-                >
-                  Save
-                </button>
-                <span className="text-[10px] text-white/25">Sets the name on /rizz page title</span>
-              </div>
+              <RizzSettings content={siteContent} onChange={setSiteContent} />
 
               <div className="flex flex-wrap gap-3">
                 <input
@@ -8007,68 +7960,7 @@ export default function AdminDashboard() {
                 </select>
                 <span className="text-xs text-white/30 self-center ml-auto">{filteredRizzEntries.length} entries</span>
               </div>
-              <div className="border border-white/8 rounded-sm overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-white/2 border-b border-white/8">
-                    <tr>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Name</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Nickname</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden xl:table-cell">Phone</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Date Idea</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden md:table-cell">Vibe</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden xl:table-cell">Activity</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35">Wins Over</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] tracking-widest uppercase text-white/35 hidden lg:table-cell">Date</th>
-                      <th className="px-3 py-2.5 text-right text-[10px] tracking-widest uppercase text-white/35">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRizzEntries.map((entry) => (
-                      <tr key={entry.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
-                        <td className="px-3 py-2.5 text-white/75">
-                          <div>{entry.name}</div>
-                          <div className="text-[10px] text-white/25 lg:hidden">{entry.nickname}</div>
-                        </td>
-                        <td className="px-3 py-2.5 text-white/45 hidden lg:table-cell">{entry.nickname}</td>
-                        <td className="px-3 py-2.5 text-white/35 hidden xl:table-cell">{entry.phone}</td>
-                        <td className="px-3 py-2.5 text-white/40 hidden md:table-cell">{humanizeChoiceList(entry.dateIdeas ?? (entry.dateIdea ? [entry.dateIdea] : []))}</td>
-                        <td className="px-3 py-2.5 text-white/40 hidden md:table-cell">{humanizeChoiceList(entry.vibes ?? (entry.vibe ? [entry.vibe] : []))}</td>
-                        <td className="px-3 py-2.5 text-white/35 hidden xl:table-cell">{humanizeChoiceList(entry.activities ?? (entry.activity ? [entry.activity] : []))}</td>
-                        <td className="px-3 py-2.5 text-white/60">
-                          <div>{humanizeChoiceList(entry.winOvers ?? (entry.winOver ? [entry.winOver] : []))}</div>
-                          {(entry.winOvers?.includes("other") || entry.winOver === "other") && entry.winOverOther && (
-                            <div className="text-[10px] text-white/25">{entry.winOverOther}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-white/30 hidden lg:table-cell">{fmtDate(entry.createdAt)}</td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex justify-end">
-                            <button
-                              className={btnOutlineRed}
-                              onClick={() =>
-                                setDeleteConfirm({
-                                  type: "rizz",
-                                  id: entry.id,
-                                  label: `${entry.name} (${entry.nickname})`,
-                                })
-                              }
-                            >
-                              Del
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredRizzEntries.length === 0 && (
-                      <tr>
-                        <td colSpan={9} className="px-3 py-8 text-center text-white/25 text-xs">
-                          No rizz submissions found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <RizzSubmissions entries={filteredRizzEntries} onDelete={(entry) => setDeleteConfirm({ type: "rizz", id: entry.id, label: entry.name })} />
             </div>
           )}
 

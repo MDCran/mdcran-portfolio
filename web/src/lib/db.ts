@@ -31,6 +31,7 @@ import type {
   CrossDeviceAutoConfig,
 } from "./types";
 import { defaultSiteContent } from "./site-content";
+import { getRizzConfig } from "./rizz";
 import { assetUrl } from "./utils";
 
 const CLIENT_SOCIAL_REFRESH_KEY = "client_social_metrics_refreshed_at";
@@ -256,8 +257,19 @@ export async function getSiteContent(): Promise<SiteContent> {
 
 export async function saveSiteContent(content: SiteContent): Promise<void> {
   const db = await getDb();
+  const rizz = getRizzConfig(content);
   const sanitizedContent: SiteContent = {
     ...content,
+    rizzTheme: rizz.theme,
+    rizzSetting: rizz.setting,
+    rizzAllowCustomAnswers: rizz.allowCustomAnswers,
+    secretPages: {
+      rivalCard: content.secretPages?.rivalCard === true,
+      pocketSunshine: content.secretPages?.pocketSunshine === true,
+      sunshineNotes: Array.isArray(content.secretPages?.sunshineNotes)
+        ? content.secretPages.sunshineNotes.filter(note => typeof note === "string" && note.trim()).slice(0, 20).map(note => note.trim().slice(0, 300))
+        : [],
+    },
     id: defaultSiteContent.id,
     featuredProjectIds: Array.isArray(content.featuredProjectIds) ? content.featuredProjectIds : [],
     featuredArticleIds: Array.isArray(content.featuredArticleIds) ? content.featuredArticleIds : [],
@@ -1251,6 +1263,11 @@ export async function getRizzSubmissions(): Promise<RizzSubmission[]> {
   return submissions.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+}
+
+export async function createRizzSubmission(submission: RizzSubmission): Promise<void> {
+  const db = await getDb();
+  await db.collection("rizz").insertOne({ ...submission });
 }
 
 // ─── Admin password ────────────────────────────────────────────────────────────
