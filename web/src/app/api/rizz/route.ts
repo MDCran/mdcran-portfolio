@@ -1,144 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRizzSubmissions, saveRizzSubmissions } from "@/lib/db";
+import { createRizzSubmission, getSiteContent } from "@/lib/db";
 import { clientIp } from "@/lib/api-rate-limit";
 import { findIdentityBySerial } from "@/lib/identity";
-import type {
-  RizzActivity,
-  RizzDateIdea,
-  RizzSubmission,
-  RizzVibe,
-  RizzWinOver,
-} from "@/lib/types";
-
-const validDateIdeas: RizzDateIdea[] = [
-  "fancy-dinner-date",
-  "spontaneous-adventure",
-  "food-and-walking",
-  "coffee-and-talking",
-  "surprise-me",
-];
-
-const validVibes: RizzVibe[] = [
-  "chill-and-cozy",
-  "fun-and-chaotic",
-  "romantic-and-cute",
-  "adventurous",
-];
-
-const validActivities: RizzActivity[] = [
-  "ice-cream-date",
-  "night-drive",
-  "movie-night",
-  "arcade",
-  "disney-fireworks",
-  "surprise-me",
-];
-
-const validWinOvers: RizzWinOver[] = [
-  "food",
-  "attention",
-  "effort",
-  "making-me-laugh",
-  "being-sweet",
-  "consistency",
-  "touch",
-  "other",
-];
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-function asArray<T>(value: T | T[] | undefined | null): T[] {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean);
-  }
-
-  return value ? [value] : [];
-}
-
-function isValidPhoneNumber(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return false;
-
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length < 10 || digits.length > 15) return false;
-  if (/^(\d)\1+$/.test(digits)) return false;
-
-  return true;
-}
+import { getRizzConfig, parseRizzAnswers, validateRizzAnswers } from "@/lib/rizz";
+import type { RizzSubmission } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  if (!body) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  try {
+    const content = await getSiteContent();
+    if (!content.rizzEnabled) return NextResponse.json({ error: "This invitation is currently closed." }, { status: 404 });
+    const body = await req.json().catch(() => null);
+    const answers = parseRizzAnswers(body);
+    if (!answers) return NextResponse.json({ error: "Invalid answers. Please check your entries." }, { status: 400 });
+    const config = getRizzConfig(content);
+    const error = validateRizzAnswers(answers, config);
+    if (error) return NextResponse.json({ error }, { status: 400 });
+    const serial = typeof body.serial === "string" ? body.serial.slice(0, 64) : "";
+    const identityId = serial ? await findIdentityBySerial(serial).then(identity => identity?.id ?? null).catch(() => null) : null;
+    const submission: RizzSubmission = {
+      ...answers,
+      dateIdeas: answers.dateIdeas as RizzSubmission["dateIdeas"],
+      vibes: answers.vibes as RizzSubmission["vibes"],
+      activities: answers.activities as RizzSubmission["activities"],
+      winOvers: answers.winOvers as RizzSubmission["winOvers"],
+      id: crypto.randomUUID(), createdAt: new Date().toISOString(),
+      theme: config.theme, setting: config.setting,
+      winOverOther: answers.customAnswers.winOvers || undefined,
+      serial: serial || undefined, ip: clientIp(req), identityId,
+    };
+    await createRizzSubmission(submission);
+    return NextResponse.json({ ok: true, id: submission.id });
+  } catch {
+    return NextResponse.json({ error: "Couldn't save your plan right now. Your answers are still here—please try again." }, { status: 503 });
   }
-
-  const serial = String(body.serial ?? "").slice(0, 64);
-  const ip = clientIp(req);
-  const identityId = serial ? (await findIdentityBySerial(serial))?.id ?? null : null;
-
-  const submission: RizzSubmission = {
-    id: uid(),
-    name: String(body.name ?? "").trim(),
-    nickname: String(body.nickname ?? "").trim(),
-    phone: String(body.phone ?? "").trim(),
-    dateIdeas: asArray<RizzDateIdea>(body.dateIdeas ?? body.dateIdea),
-    vibes: asArray<RizzVibe>(body.vibes ?? body.vibe),
-    activities: asArray<RizzActivity>(body.activities ?? body.activity),
-    winOvers: asArray<RizzWinOver>(body.winOvers ?? body.winOver),
-    winOverOther: String(body.winOverOther ?? "").trim() || undefined,
-    createdAt: new Date().toISOString(),
-    serial: serial || undefined,
-    ip,
-    identityId,
-  };
-
-  if (!submission.name || !submission.phone) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
-
-  if (!isValidPhoneNumber(submission.phone)) {
-    return NextResponse.json({ error: "Enter a valid phone number" }, { status: 400 });
-  }
-
-  if (
-    submission.dateIdeas.length === 0 ||
-    submission.dateIdeas.some((dateIdea) => !validDateIdeas.includes(dateIdea))
-  ) {
-    return NextResponse.json({ error: "Invalid date idea" }, { status: 400 });
-  }
-
-  if (
-    submission.vibes.length === 0 ||
-    submission.vibes.some((vibe) => !validVibes.includes(vibe))
-  ) {
-    return NextResponse.json({ error: "Invalid vibe" }, { status: 400 });
-  }
-
-  if (
-    submission.activities.length === 0 ||
-    submission.activities.some((activity) => !validActivities.includes(activity))
-  ) {
-    return NextResponse.json({ error: "Invalid activity" }, { status: 400 });
-  }
-
-  if (
-    submission.winOvers.length === 0 ||
-    submission.winOvers.some((winOver) => !validWinOvers.includes(winOver))
-  ) {
-    return NextResponse.json({ error: "Invalid win-over selection" }, { status: 400 });
-  }
-
-  if (submission.winOvers.includes("other") && !submission.winOverOther) {
-    return NextResponse.json({ error: "Please describe the other answer" }, { status: 400 });
-  }
-
-  const existing = await getRizzSubmissions();
-  await saveRizzSubmissions([submission, ...existing]);
-
-  return NextResponse.json({ ok: true, id: submission.id });
 }

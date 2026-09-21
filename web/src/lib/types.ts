@@ -492,6 +492,10 @@ export interface Campaign {
 }
 
 export type RizzDateIdea =
+  | "pokemon-card-night"
+  | "co-op-hunt"
+  | "cozy-night-in"
+  | "picnic"
   | "fancy-dinner-date"
   | "spontaneous-adventure"
   | "food-and-walking"
@@ -505,6 +509,11 @@ export type RizzVibe =
   | "adventurous";
 
 export type RizzActivity =
+  | "pokemon-rematch"
+  | "monster-hunter"
+  | "board-games"
+  | "nature-walk"
+  | "stargazing"
   | "ice-cream-date"
   | "night-drive"
   | "movie-night"
@@ -536,6 +545,9 @@ export interface RizzSubmission {
   activity?: RizzActivity;
   winOver?: RizzWinOver;
   winOverOther?: string;
+  customAnswers?: Partial<Record<"dateIdeas" | "vibes" | "activities" | "winOvers", string>>;
+  theme?: "romance" | "pokemon" | "monster-hunter" | "outdoors" | "cozy";
+  setting?: "any" | "indoors" | "outdoors";
   createdAt: string;
   // Cross-device identity tie
   serial?: string;
@@ -800,6 +812,14 @@ export interface SiteContent {
   privacyPage: SiteContentLegalPage;
   rizzTargetName?: string;  // personalize /rizz page with a name
   rizzEnabled?: boolean;    // when false, /rizz returns 404
+  rizzTheme?: RizzSubmission["theme"];
+  rizzSetting?: RizzSubmission["setting"];
+  rizzAllowCustomAnswers?: Partial<Record<"dateIdeas" | "vibes" | "activities" | "winOvers", boolean>>;
+  secretPages?: {
+    rivalCard?: boolean;
+    pocketSunshine?: boolean;
+    sunshineNotes?: string[];
+  };
   barEnabled?: boolean;     // when false, /bar returns 404
   barCategories?: BarDrinkCategory[]; // the drink roulette wheel content
 }
