@@ -531,6 +531,22 @@ export type RizzWinOver =
   | "touch"
   | "other";
 
+export type RizzThemeId = "romance" | "pokemon" | "monster-hunter" | "outdoors" | "cozy";
+
+export interface RizzThemeCustomization {
+  tag?: string;
+  title?: string;
+  description?: string;
+  card?: string;
+  move?: string;
+  cardDescription?: string;
+  button?: string;
+  successTitle?: string;
+  footer?: string;
+  accent?: string;
+  optionLabels?: Record<string, string>;
+}
+
 export interface RizzSubmission {
   id: string;
   name: string;
@@ -546,7 +562,8 @@ export interface RizzSubmission {
   winOver?: RizzWinOver;
   winOverOther?: string;
   customAnswers?: Partial<Record<"dateIdeas" | "vibes" | "activities" | "winOvers", string>>;
-  theme?: "romance" | "pokemon" | "monster-hunter" | "outdoors" | "cozy";
+  theme?: RizzThemeId;
+  optionLabels?: Record<string, string>;
   setting?: "any" | "indoors" | "outdoors";
   createdAt: string;
   // Cross-device identity tie
@@ -813,6 +830,7 @@ export interface SiteContent {
   rizzTargetName?: string;  // personalize /rizz page with a name
   rizzEnabled?: boolean;    // when false, /rizz returns 404
   rizzTheme?: RizzSubmission["theme"];
+  rizzThemeCustomizations?: Partial<Record<RizzThemeId, RizzThemeCustomization>>;
   rizzSetting?: RizzSubmission["setting"];
   rizzAllowCustomAnswers?: Partial<Record<"dateIdeas" | "vibes" | "activities" | "winOvers", boolean>>;
   secretPages?: {

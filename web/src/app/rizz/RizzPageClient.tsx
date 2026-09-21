@@ -4,13 +4,14 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Heart, Sparkles, Check } from "lucide-react";
 import { computeFingerprint } from "@/lib/device-fingerprint";
-import { allOptions, answerKeys, getOptions, getRizzConfig, questionLabels, rizzThemes, validateRizzAnswers, type AnswerKey, type RizzAnswers, type RizzConfig } from "@/lib/rizz";
+import { accentTextColor, answerKeys, getOptions, getRizzConfig, questionLabels, validateRizzAnswers, type AnswerKey, type RizzAnswers, type RizzConfig } from "@/lib/rizz";
+import InvitationHeader from "@/components/secret/InvitationHeader";
 import styles from "./rizz.module.css";
 
 const steps = ["Hello, you", ...answerKeys.map(key => questionLabels[key]), "Your little plan"];
 
 export function RizzCard({ targetName, config }: { targetName?: string; config: RizzConfig }) {
-  const theme = rizzThemes[config.theme];
+  const theme = config.appearance;
   return <div className={styles.collectible}>
     <div className={styles.cardTop}><span>ONE OF A KIND</span><span>♡ ∞</span></div>
     <div className={styles.cardArt} aria-hidden="true">
@@ -20,15 +21,15 @@ export function RizzCard({ targetName, config }: { targetName?: string; config: 
       <span className={styles.artCaption}>better together</span>
     </div>
     <div className={styles.cardBody}>
-      <div className={styles.cardLabel}>{theme.card}</div><h2>{targetName || "You, obviously."}</h2>
-      <div className={styles.cardMove}><span aria-hidden="true">{theme.icon}</span><div><strong>{theme.move}</strong><p>Super effective against a boring evening.</p></div></div>
+      <div className={styles.cardLabel}>{theme.card}</div><h2>{targetName?.trim() || "Your invitation"}</h2>
+      <div className={styles.cardMove}><span aria-hidden="true">{theme.icon}</span><div><strong>{theme.move}</strong><p>{theme.cardDescription}</p></div></div>
       <div className={styles.cardBottom}><span>RARITY: IRREPLACEABLE</span><span>001 / 001</span></div>
     </div>
   </div>;
 }
 
 export default function RizzPageClient({ targetName, config = getRizzConfig({}) }: { targetName?: string; config?: RizzConfig }) {
-  const theme = rizzThemes[config.theme];
+  const theme = config.appearance;
   const [stage, setStage] = useState<"pitch" | "form" | "success" | "declined">("pitch");
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -72,14 +73,14 @@ export default function RizzPageClient({ targetName, config = getRizzConfig({}) 
     } finally { submitLock.current = false; setSubmitting(false); }
   }
   const key = step > 0 && step < 5 ? answerKeys[step - 1] : null;
-  return <main className={styles.page} data-theme={config.theme} style={{ "--rizz-accent": theme.accent } as CSSProperties}>
+  return <main className={styles.page} data-theme={config.theme} style={{ "--rizz-accent": theme.accent, "--rizz-on-accent": accentTextColor(theme.accent) } as CSSProperties}>
     <div className={styles.shell}>
-      <header className={styles.topline}><Link href="/" className={styles.homeLink}><ArrowLeft size={14} /> Back to the world</Link><span><Heart size={13} /> made for {targetName || "you"}</span></header>
+      <InvitationHeader name={targetName} />
       {stage === "pitch" && <div className={styles.hero}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}><Sparkles size={14} /> {theme.tag}</p><h1>{theme.title}</h1>
           <p className={styles.intro}>{targetName && <strong>{targetName}, </strong>}{theme.description}</p>
-          <div className={styles.heroActions}><button className={styles.primary} onClick={() => setStage("form")}>I&apos;m in. Let&apos;s make a plan <ArrowRight size={17} /></button><button className={styles.quiet} onClick={() => setStage("declined")}>Maybe another time</button></div>
+          <div className={styles.heroActions}><button className={styles.primary} onClick={() => setStage("form")}>{theme.button} <ArrowRight size={17} /></button><button className={styles.quiet} onClick={() => setStage("declined")}>Maybe another time</button></div>
           <p className={styles.smallNote}>A few little questions. A plan that feels like you.</p>
         </div>
         <div className={styles.cardWrap}><RizzCard targetName={targetName} config={config} /><p className={styles.cardFootnote}>a very rare pull, if you ask me.</p></div>
@@ -104,7 +105,7 @@ export default function RizzPageClient({ targetName, config = getRizzConfig({}) 
           </div>}
           {step === 5 && <div className={styles.review}>
             <div className={styles.reviewRow}><div><span>The lovely human</span><p>{form.name}{form.nickname && ` (${form.nickname})`}</p><p>{form.phone}</p></div><button type="button" onClick={() => { setStep(0); setError(""); }} aria-label="Edit contact details">Edit</button></div>
-            {answerKeys.map((answerKey, index) => <div className={styles.reviewRow} key={answerKey}><div><span>{questionLabels[answerKey]}</span><p>{form[answerKey].map(value => allOptions[answerKey].find(option => option.value === value)?.label).join(" · ")}</p>{form.customAnswers[answerKey].trim() && <p className={styles.written}>{form.customAnswers[answerKey]}</p>}</div><button type="button" onClick={() => { setStep(index + 1); setError(""); }} aria-label={`Edit ${questionLabels[answerKey]}`}>Edit</button></div>)}
+            {answerKeys.map((answerKey, index) => <div className={styles.reviewRow} key={answerKey}><div><span>{questionLabels[answerKey]}</span><p>{form[answerKey].map(value => getOptions(answerKey, config).find(option => option.value === value)?.label).join(" · ")}</p>{form.customAnswers[answerKey].trim() && <p className={styles.written}>{form.customAnswers[answerKey]}</p>}</div><button type="button" onClick={() => { setStep(index + 1); setError(""); }} aria-label={`Edit ${questionLabels[answerKey]}`}>Edit</button></div>)}
           </div>}
           {error && <p className={styles.error} role="alert">{error}</p>}
           <div className={styles.formActions}><button className={styles.back} type="button" onClick={() => { setError(""); if (step === 0) setStage("pitch"); else setStep(step - 1); }}><ArrowLeft size={16} /><span>Back</span></button><button className={styles.primary} type="submit">{submitting ? "Sending your plan…" : step === 5 ? "Send my little plan" : "Continue"}{!submitting && (step === 5 ? <Heart size={16} /> : <ArrowRight size={16} />)}</button></div>
@@ -112,11 +113,11 @@ export default function RizzPageClient({ targetName, config = getRizzConfig({}) 
       </section>}
       {(stage === "success" || stage === "declined") && <section className={styles.finish}>
         <div className={styles.finishIcon} aria-hidden="true">{stage === "success" ? theme.icon : "♡"}</div><p className={styles.eyebrow}>{stage === "success" ? "INVITATION ACCEPTED" : "ALL GOOD, PROMISE"}</p>
-        <h1 ref={heading} tabIndex={-1}>{stage === "success" ? config.theme === "pokemon" ? "It's a date. Bring your best deck." : "Well, now I'm smiling." : "Another time is okay."}</h1>
+        <h1 ref={heading} tabIndex={-1}>{stage === "success" ? theme.successTitle : "Another time is okay."}</h1>
         <p>{stage === "success" ? "Your answers are sent. I'll be in touch to turn our little plan into a real one." : "Thanks for stopping by this little corner of the internet. No pressure, just a little affection."}</p>
         {stage === "declined" && <button className={styles.primary} onClick={() => setStage("pitch")}>Back to the invitation <ArrowRight size={16} /></button>}<Link className={styles.quiet} href="/">Back to the world</Link>
       </section>}
-      <footer className={styles.bottomNote}>handmade invitation · very real feelings</footer>
+      <footer className={styles.bottomNote}>{theme.footer}</footer>
     </div>
   </main>;
 }

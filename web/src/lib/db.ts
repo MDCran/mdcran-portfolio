@@ -31,7 +31,7 @@ import type {
   CrossDeviceAutoConfig,
 } from "./types";
 import { defaultSiteContent } from "./site-content";
-import { getRizzConfig } from "./rizz";
+import { getRizzConfig, sanitizeThemeCustomizations } from "./rizz";
 import { assetUrl } from "./utils";
 
 const CLIENT_SOCIAL_REFRESH_KEY = "client_social_metrics_refreshed_at";
@@ -261,6 +261,8 @@ export async function saveSiteContent(content: SiteContent): Promise<void> {
   const sanitizedContent: SiteContent = {
     ...content,
     rizzTheme: rizz.theme,
+    rizzTargetName: typeof content.rizzTargetName === "string" ? content.rizzTargetName.trim().slice(0, 100) : "",
+    rizzThemeCustomizations: sanitizeThemeCustomizations(content.rizzThemeCustomizations),
     rizzSetting: rizz.setting,
     rizzAllowCustomAnswers: rizz.allowCustomAnswers,
     secretPages: {

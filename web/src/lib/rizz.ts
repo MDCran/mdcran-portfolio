@@ -1,18 +1,24 @@
-import type { RizzActivity, RizzDateIdea, RizzVibe, RizzWinOver, SiteContent } from "./types";
+import type { RizzActivity, RizzDateIdea, RizzVibe, RizzWinOver, RizzThemeCustomization, SiteContent } from "./types";
 
 export type RizzTheme = NonNullable<SiteContent["rizzTheme"]>;
 export type RizzSetting = NonNullable<SiteContent["rizzSetting"]>;
 export type AnswerKey = "dateIdeas" | "vibes" | "activities" | "winOvers";
-export type RizzConfig = { theme: RizzTheme; setting: RizzSetting; allowCustomAnswers: Record<AnswerKey, boolean> };
+export type RizzConfig = {
+  theme: RizzTheme;
+  setting: RizzSetting;
+  allowCustomAnswers: Record<AnswerKey, boolean>;
+  appearance: Required<Omit<RizzThemeCustomization, "optionLabels">> & { icon: string; name: string };
+  optionLabels: Record<string, string>;
+};
 export const answerKeys: AnswerKey[] = ["dateIdeas", "vibes", "activities", "winOvers"];
 export const questionLabels: Record<AnswerKey, string> = {
   dateIdeas: "Your ideal hangout", vibes: "Set the vibe", activities: "Pick our side quest", winOvers: "The way to your heart",
 };
 
 export const rizzThemes: Record<RizzTheme, { name: string; tag: string; title: string; description: string; icon: string; card: string; move: string; accent: string }> = {
-  romance: { name: "Sweetheart", tag: "A little courage. A lot of feelings.", title: "You. Me. A little adventure?", description: "I made you a whole page. A little extra? Absolutely. Worth it? You are.", icon: "♡", card: "My favorite person", move: "Make a little time for us", accent: "#ff9dbb" },
-  pokemon: { name: "Pokémon · card rivals", tag: "A new challenger (with feelings)", title: "My favorite rival. My first pick.", description: "One more Pokémon card rematch? I'll bring my deck, you bring that annoyingly cute winning streak.", icon: "✦", card: "Favorite rival", move: "Rematch + snacks", accent: "#ffda75" },
-  "monster-hunter": { name: "Monster Hunter · co-op", tag: "An invitation from your hunting partner", title: "My next quest? More time with you.", description: "Big monsters. Questionable strategy. Excellent company. There's a spot in my party with your name on it.", icon: "⚔", card: "Favorite hunting partner", move: "One hunt. Then one more.", accent: "#e9c58c" },
+  romance: { name: "Classic", tag: "An invitation, made for you", title: "Good company. A plan for two.", description: "Choose a few things you enjoy and let's plan some time together.", icon: "♡", card: "One of a kind", move: "A little time together", accent: "#ff9dbb" },
+  pokemon: { name: "Pokémon · card rivals", tag: "A new challenger awaits", title: "Your next favorite rematch.", description: "Bring your favorite deck. Pick a game, plan a rematch, and make an evening of it.", icon: "✦", card: "Card rival", move: "Rematch + snacks", accent: "#ffda75" },
+  "monster-hunter": { name: "Monster Hunter · co-op", tag: "An invitation from your hunting partner", title: "Your next co-op quest.", description: "Choose the next hunt, bring your favorite loadout, and make a plan for the next session.", icon: "⚔", card: "Hunting partner", move: "One hunt. Then one more.", accent: "#e9c58c" },
   outdoors: { name: "Little adventures", tag: "Good company. The scenic route.", title: "Let's take the long way together.", description: "A little fresh air, something good to eat, and absolutely nowhere we need to rush to.", icon: "☀", card: "My favorite view", move: "Take the scenic route", accent: "#a7e6ba" },
   cozy: { name: "Cozy club", tag: "Reserved: the spot next to me", title: "Big fan of doing very little with you.", description: "Comfy clothes, a snack situation, and something good on screen. Staying in is a perfectly good adventure.", icon: "☾", card: "Comfort person", move: "Snacks + a night in", accent: "#c9b5ff" },
 };
@@ -60,18 +66,72 @@ export const winOverOptions: Option<RizzWinOver>[] = [
 ];
 export const allOptions = { dateIdeas: dateOptions, vibes: vibeOptions, activities: activityOptions, winOvers: winOverOptions };
 
-export function getRizzConfig(content: Pick<SiteContent, "rizzTheme" | "rizzSetting" | "rizzAllowCustomAnswers">): RizzConfig {
+export const themeCopyFields = [
+  { key: "tag", label: "Eyebrow text", max: 100 },
+  { key: "title", label: "Headline", max: 160 },
+  { key: "description", label: "Invitation message", max: 600 },
+  { key: "card", label: "Card label", max: 80 },
+  { key: "move", label: "Card move / activity", max: 100 },
+  { key: "cardDescription", label: "Card description", max: 300 },
+  { key: "button", label: "Invitation button", max: 80 },
+  { key: "successTitle", label: "Confirmation headline", max: 160 },
+  { key: "footer", label: "Footer note", max: 120 },
+] as const;
+
+export function sanitizeThemeCustomizations(value: SiteContent["rizzThemeCustomizations"]): NonNullable<SiteContent["rizzThemeCustomizations"]> {
+  const result: NonNullable<SiteContent["rizzThemeCustomizations"]> = {};
+  for (const theme of Object.keys(rizzThemes) as RizzTheme[]) {
+    const source = value?.[theme];
+    if (!source || typeof source !== "object") continue;
+    const clean: RizzThemeCustomization = {};
+    for (const field of themeCopyFields) {
+      const text = source[field.key];
+      if (typeof text === "string" && text.trim()) clean[field.key] = text.trim().slice(0, field.max);
+    }
+    if (typeof source.accent === "string" && /^#[0-9a-f]{6}$/i.test(source.accent)) clean.accent = source.accent;
+    const labels: Record<string, string> = {};
+    for (const key of answerKeys) {
+      for (const option of allOptions[key]) {
+        const id = `${key}:${option.value}`;
+        const label = source.optionLabels?.[id];
+        if (typeof label === "string" && label.trim()) labels[id] = label.trim().slice(0, 100);
+      }
+    }
+    if (Object.keys(labels).length) clean.optionLabels = labels;
+    if (Object.keys(clean).length) result[theme] = clean;
+  }
+  return result;
+}
+
+export function accentTextColor(hex: string): string {
+  const rgb = [1, 3, 5].map(start => parseInt(hex.slice(start, start + 2), 16) / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722 > 0.179 ? "#101014" : "#ffffff";
+}
+
+export function getRizzConfig(content: Pick<SiteContent, "rizzTheme" | "rizzSetting" | "rizzAllowCustomAnswers" | "rizzThemeCustomizations">): RizzConfig {
   const theme = content.rizzTheme && Object.hasOwn(rizzThemes, content.rizzTheme) ? content.rizzTheme : "romance";
   const setting = content.rizzSetting === "indoors" || content.rizzSetting === "outdoors" ? content.rizzSetting : "any";
   const allowCustomAnswers = Object.fromEntries(answerKeys.map(key => [key, content.rizzAllowCustomAnswers?.[key] !== false])) as Record<AnswerKey, boolean>;
-  return { theme, setting, allowCustomAnswers };
+  const custom = sanitizeThemeCustomizations(content.rizzThemeCustomizations)[theme] ?? {};
+  const { optionLabels = {}, ...copy } = custom;
+  const appearance = {
+    ...rizzThemes[theme],
+    cardDescription: "Super effective against a boring evening.",
+    button: "Let's make a plan",
+    successTitle: theme === "pokemon" ? "Bring your best deck." : "Your plan is on its way.",
+    footer: "A personal invitation · MDCran",
+    ...copy,
+  };
+  return { theme, setting, allowCustomAnswers, appearance, optionLabels };
 }
 
 export function getOptions(key: AnswerKey, config: RizzConfig): Option[] {
   return allOptions[key].filter(option =>
     (!option.setting || config.setting === "any" || option.setting === config.setting) &&
     (option.value !== "other" || config.allowCustomAnswers.winOvers)
-  ).sort((a, b) => Number(b.theme === config.theme) - Number(a.theme === config.theme));
+  ).map(option => ({ ...option, label: config.optionLabels[`${key}:${option.value}`] || option.label }))
+    .sort((a, b) => Number(b.theme === config.theme) - Number(a.theme === config.theme));
 }
 
 export function isValidPhoneNumber(value: string) {

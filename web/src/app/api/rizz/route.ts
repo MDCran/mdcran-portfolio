@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRizzSubmission, getSiteContent } from "@/lib/db";
 import { clientIp } from "@/lib/api-rate-limit";
 import { findIdentityBySerial } from "@/lib/identity";
-import { getRizzConfig, parseRizzAnswers, validateRizzAnswers } from "@/lib/rizz";
+import { answerKeys, getOptions, getRizzConfig, parseRizzAnswers, validateRizzAnswers } from "@/lib/rizz";
 import type { RizzSubmission } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
       winOvers: answers.winOvers as RizzSubmission["winOvers"],
       id: crypto.randomUUID(), createdAt: new Date().toISOString(),
       theme: config.theme, setting: config.setting,
+      optionLabels: Object.fromEntries(answerKeys.flatMap(key => getOptions(key, config)
+        .filter(option => answers[key].includes(option.value))
+        .map(option => [`${key}:${option.value}`, option.label]))),
       winOverOther: answers.customAnswers.winOvers || undefined,
       serial: serial || undefined, ip: clientIp(req), identityId,
     };
