@@ -43,7 +43,7 @@ const METRICS: Metric[] = [
     key: "totalProjectViews",
     label: "Project Views",
     description: "Total views on embedded content",
-    fallback: 120_000_000,
+    fallback: 0,
     suffix: "",
     format: (n) => n.toLocaleString("en-US"),
   },
@@ -110,7 +110,6 @@ function useGithubContributions() {
   );
 }
 
-const PROJECT_VIEWS_FALLBACK = METRICS.find((metric) => metric.key === "totalProjectViews")?.fallback ?? 120_000_000;
 const CREATOR_FOLLOWERS_LIVE_START = 189_232_941;
 const FOLLOWERS_STORAGE_KEY = "mdcran_live_followers_floor_v1";
 const FOLLOWERS_STATE_STORAGE_KEY = "mdcran_live_followers_state_v1";
@@ -289,30 +288,31 @@ export default function Stats({
   const [followersTrend, setFollowersTrend] = useState(() =>
     Array.from({ length: 18 }, (_, index) => ({ slot: index, views: CREATOR_FOLLOWERS_LIVE_START }))
   );
-  const [projectDisplayValue, setProjectDisplayValue] = useState(PROJECT_VIEWS_FALLBACK);
+  // Project views must never show an invented fallback. The card reserves space
+  // until /api/metrics has refreshed and returned the authoritative aggregate.
+  const [projectDisplayValue, setProjectDisplayValue] = useState<number | null>(null);
   const [projectTrend, setProjectTrend] = useState(() =>
-    Array.from({ length: 18 }, (_, index) => ({ slot: index, views: PROJECT_VIEWS_FALLBACK }))
+    Array.from({ length: 18 }, (_, index) => ({ slot: index, views: 0 }))
   );
   const followersDisplayRef = useRef(CREATOR_FOLLOWERS_LIVE_START);
   const followersFloorRef = useRef(CREATOR_FOLLOWERS_LIVE_START);
   const followersRateRef = useRef(FOLLOWER_ESTIMATE_FLOOR);
   const followerDriftHoldRef = useRef(0);
   const followerDriftDirectionRef = useRef<"up" | "dip">("up");
-  const projectDisplayRef = useRef(PROJECT_VIEWS_FALLBACK);
-  const projectActualRef = useRef(PROJECT_VIEWS_FALLBACK);
+  const projectDisplayRef = useRef(0);
+  const projectActualRef = useRef(0);
   const projectRateRef = useRef(PROJECT_VIEW_ESTIMATE_FLOOR);
   const projectDriftHoldRef = useRef(0);
   const projectDriftModeRef = useRef<"cruise" | "crawl">("cruise");
   const lastActualSyncRef = useRef(0);
   const lastCorrectionRef = useRef(0);
-  const restoredProjectStateRef = useRef(false);
 
   useEffect(() => {
     followersDisplayRef.current = followersDisplayValue;
   }, [followersDisplayValue]);
 
   useEffect(() => {
-    projectDisplayRef.current = projectDisplayValue;
+    if (projectDisplayValue !== null) projectDisplayRef.current = projectDisplayValue;
   }, [projectDisplayValue]);
 
   useEffect(() => {
@@ -325,10 +325,6 @@ export default function Stats({
       const storedFollowerState = window.localStorage.getItem(FOLLOWERS_STATE_STORAGE_KEY);
       const parsedFollowerState = storedFollowerState
         ? (JSON.parse(storedFollowerState) as StoredMetricState)
-        : null;
-      const storedProjectState = window.localStorage.getItem(PROJECT_VIEWS_STATE_STORAGE_KEY);
-      const parsedProjectState = storedProjectState
-        ? (JSON.parse(storedProjectState) as StoredMetricState)
         : null;
 
       if (Number.isFinite(parsed) && parsed > CREATOR_FOLLOWERS_LIVE_START) {
@@ -376,35 +372,6 @@ export default function Stats({
         });
       }
 
-      if (
-        parsedProjectState &&
-        Number.isFinite(parsedProjectState.display) &&
-        Number.isFinite(parsedProjectState.savedAt)
-      ) {
-        const elapsedSeconds = Math.max(0, Math.min((now - parsedProjectState.savedAt) / 1000, 300));
-        const restoredRate = Math.min(
-          Math.max(parsedProjectState.rate ?? PROJECT_VIEW_ESTIMATE_FLOOR, PROJECT_VIEW_ESTIMATE_FLOOR),
-          PROJECT_VIEW_ESTIMATE_CAP
-        );
-        const restoredDisplay = Math.max(
-          parsedProjectState.display,
-          parsedProjectState.display + elapsedSeconds * restoredRate * 0.32
-        );
-
-        restoredProjectStateRef.current = true;
-        projectRateRef.current = restoredRate;
-        projectDisplayRef.current = restoredDisplay;
-        projectActualRef.current = Math.max(projectActualRef.current, restoredDisplay);
-        frameId = window.requestAnimationFrame(() => {
-          setProjectDisplayValue(restoredDisplay);
-          setProjectTrend(
-            Array.from({ length: 18 }, (_, index) => ({
-              slot: index,
-              views: Math.round(restoredDisplay - (17 - index) * restoredRate * 0.3),
-            }))
-          );
-        });
-      }
     } catch {
       // Ignore localStorage access issues and fall back to the built-in baseline.
     }
@@ -443,7 +410,7 @@ export default function Stats({
       projectActualRef.current = actual;
       lastActualSyncRef.current = now;
 
-      if (lastCorrectionRef.current === 0 && !restoredProjectStateRef.current) {
+      if (lastCorrectionRef.current === 0) {
         lastCorrectionRef.current = now;
         projectDisplayRef.current = actual;
         setProjectDisplayValue(actual);
@@ -452,7 +419,10 @@ export default function Stats({
     },
   });
 
+  const projectViewsReady = typeof data?.totalProjectViews === "number" && projectDisplayValue !== null;
+
   useEffect(() => {
+    if (!projectViewsReady) return;
     const timer = window.setInterval(() => {
       const now = Date.now();
       if (followerDriftHoldRef.current <= 0) {
@@ -526,7 +496,7 @@ export default function Stats({
         projectDriftModeRef.current === "crawl"
           ? baseRate * (0.06 + Math.random() * 0.12)
           : baseRate * (0.52 + Math.random() * 0.58);
-      let nextValue = Math.max(projectDisplayRef.current, projectDisplayRef.current + drift);
+      let nextValue = Math.max(projectActualRef.current, projectDisplayRef.current, projectDisplayRef.current + drift);
 
       if (lastCorrectionRef.current > 0 && now - lastCorrectionRef.current >= PROJECT_VIEW_CORRECTION_MS) {
         nextValue = Math.max(nextValue, projectActualRef.current);
@@ -552,7 +522,7 @@ export default function Stats({
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [projectViewsReady]);
 
   return (
     <section className="py-24 border-y border-white/6 overflow-hidden">
@@ -575,12 +545,9 @@ export default function Stats({
             const isLiveMetric = isFollowers || isProjectViews || isGithub;
             // Show a skeleton until real data arrives — never a fabricated fallback.
             // ("Creating" is computed locally from 2018, so it's always accurate.)
-            const cardLoading = isGithub ? !github : metric.key === "yearsActive" ? false : !data;
+            const cardLoading = isGithub ? !github : isProjectViews ? !projectViewsReady : metric.key === "yearsActive" ? false : !data;
             const value = data?.[metric.key as keyof MetricsResponse] ?? metric.fallback;
-            const displayedProjectViews = Math.max(
-              Math.round(projectDisplayValue),
-              typeof value === "number" ? value : PROJECT_VIEWS_FALLBACK
-            );
+            const displayedProjectViews = Math.max(Math.round(projectDisplayValue ?? 0), typeof value === "number" ? value : 0);
             const displayedFollowers = Math.round(followersDisplayValue);
 
             return (

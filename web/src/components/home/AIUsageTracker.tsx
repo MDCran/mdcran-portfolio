@@ -30,8 +30,8 @@ function AnimatedStat({ value, label }: { value: number; label: string }) {
   }, [inView, value]);
 
   return (
-    <span ref={ref} className="flex items-center gap-1.5 text-[11px] font-jb whitespace-nowrap">
-      <span className="font-nord text-white">{formatCompact(display)}</span>
+    <span ref={ref} className="flex min-w-[17rem] items-center gap-1.5 text-[11px] font-jb whitespace-nowrap">
+      <span className="w-[8ch] text-right font-nord tabular-nums text-white">{formatCompact(display)}</span>
       <span className="text-white/35">{label}</span>
     </span>
   );
@@ -44,7 +44,7 @@ export default function AIUsageTracker({ content }: { content?: SiteContentAiUsa
   const totalTokens = content.totalTokens ?? claude.totalTokens + openai.totalTokens;
 
   return (
-    <div className="mt-3 rounded-sm border border-white/6 bg-white/2 px-4 py-2.5 flex items-center gap-x-5 gap-y-1.5 flex-wrap">
+    <div className="mt-3 rounded-sm border border-white/6 bg-white/2 px-4 py-2.5 flex items-center gap-x-5 gap-y-2.5 flex-wrap">
       <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/30 shrink-0">
         <span className="relative flex h-1.5 w-1.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ef4242] opacity-60" />
@@ -52,7 +52,7 @@ export default function AIUsageTracker({ content }: { content?: SiteContentAiUsa
         </span>
         AI-Assisted Workflow
       </span>
-      <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap text-white/60">
+      <div className="flex min-w-0 items-center gap-x-4 gap-y-1.5 flex-wrap text-white/60">
         <AnimatedStat value={totalTokens} label="AI tokens processed · reported" />
         {elevenlabs.charactersUsed > 0 && <AnimatedStat value={elevenlabs.charactersUsed} label="ElevenLabs chars" />}
       </div>
