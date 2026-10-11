@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Check, Loader2 } from "lucide-react";
 import { SUPPORTED_LANGUAGES, useLanguage } from "@/lib/i18n";
 
+const FLAG_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+
 // Country code (ISO 3166-1 alpha-2) → BCP-47 language code
 const COUNTRY_LANG: Record<string, string> = {
   US: "en-US", GB: "en-US", CA: "en-US", AU: "en-US", NZ: "en-US", IE: "en-US", ZA: "en-US",
@@ -85,7 +87,7 @@ export default function LanguageSelector() {
         <span className="relative flex items-center gap-1.5">
           {isTranslating
             ? <Loader2 size={12} className="animate-spin shrink-0 text-[#ef4242]" />
-            : <span aria-hidden="true">{current.flag}</span>
+            : <span aria-hidden="true" className="text-sm leading-none" style={{ fontFamily: FLAG_FONT }}>{current.flag}</span>
           }
           <span>
             {isTranslating
@@ -122,7 +124,7 @@ export default function LanguageSelector() {
                   }`}
                 >
                   <span className="flex items-center gap-2">
-                    <span aria-hidden="true" className="text-sm leading-none">{lang.flag}</span>
+                    <span aria-hidden="true" className="text-sm leading-none" style={{ fontFamily: FLAG_FONT }}>{lang.flag}</span>
                     <span className="flex flex-col leading-tight">
                       <span>{shortLabel}</span>
                       <span className="text-[10px] opacity-50">{lang.name}</span>

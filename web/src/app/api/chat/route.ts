@@ -33,6 +33,32 @@ function getRateLimitKey(req: NextRequest): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
 }
 
+const SSE_HEADERS = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+  "X-Accel-Buffering": "no",
+};
+
+/** Reject attempts to replace the concierge's role or inspect its hidden instructions
+ * before untrusted visitor text reaches a model provider. */
+const PROMPT_ATTACK_PATTERNS = [
+  /\b(?:ignore|disregard|override|forget)\b.{0,80}\b(?:previous|prior|system|developer|instructions?)\b/i,
+  /\b(?:system|developer|hidden|internal)\s+(?:prompt|message|instructions?|rules?)\b/i,
+  /\b(?:reveal|show|print|dump|extract|repeat|summari[sz]e|paraphrase|decode)\b.{0,80}\b(?:prompt|instructions?|system message|developer message|hidden rules?)\b/i,
+  /\b(?:jailbreak|dan mode|developer mode|prompt injection|roleplay as|you are now)\b/i,
+  /<\s*(?:system|developer|assistant)\b/i,
+  /(?:^|\n)\s*(?:system|developer|assistant)\s*:/i,
+];
+
+function isPromptAttack(value: string): boolean {
+  return PROMPT_ATTACK_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function behaviorResponse(): Response {
+  return new Response("data: {\"text\":\"__BEHAVIOR__\"}\n\ndata: [DONE]\n\n", { headers: SSE_HEADERS });
+}
+
 /* ── GitHub contribution total (current year) — cached so chat replies stay fast.
    Best-effort: returns null if not configured or the request hiccups. ── */
 let _ghCache: { at: number; total: number | null } | null = null;
@@ -201,12 +227,29 @@ async function handlePost(req: NextRequest): Promise<Response> {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
   }
 
-  const messages = body.messages;
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 20) {
+  const rawMessages = body.messages;
+  if (!Array.isArray(rawMessages) || rawMessages.length === 0 || rawMessages.length > 20) {
     return new Response(JSON.stringify({ error: "Invalid messages" }), { status: 400 });
   }
 
-  const currentPage = typeof body.currentPage === "string" ? body.currentPage : "/";
+  // Conversation history is supplied by the browser, so keep only the narrow shape
+  // the API accepts and reject malformed or oversized turns instead of forwarding them.
+  const messages = rawMessages.map((message) => ({ role: message?.role, content: message?.content }));
+  const totalCharacters = messages.reduce((sum, message) => sum + (typeof message.content === "string" ? message.content.length : 0), 0);
+  const validConversation = messages.every((message) =>
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.content === "string" &&
+    message.content.trim().length > 0 &&
+    message.content.length <= 6_000,
+  );
+  const latestUser = [...messages].reverse().find((message) => message.role === "user")?.content;
+  if (!validConversation || totalCharacters > 30_000 || typeof latestUser !== "string") {
+    return new Response(JSON.stringify({ error: "Invalid messages" }), { status: 400 });
+  }
+  if (isPromptAttack(latestUser)) return behaviorResponse();
+
+  const requestedPage = typeof body.currentPage === "string" ? body.currentPage : "/";
+  const currentPage = /^\/[a-zA-Z0-9/_-]*$/.test(requestedPage) ? requestedPage : "/";
   const agentName = typeof body.agentName === "string" ? body.agentName : "Michael";
   const tone = body.tone === "professional" || body.tone === "concise" ? body.tone : "friendly";
   const toneInstruction =
@@ -819,6 +862,9 @@ OFF-LIMITS — you may operate every public page, but you must NEVER navigate to
 UI CONTROL — IMPORTANT:
 You are an interactive concierge that can manipulate the website UI in real time. When a question warrants visual assistance, DO IT — don't just describe where to look, SHOW them by using the markers above. Prefer __HIGHLIGHT__ for "where is X", __ZOOM__ for "let me see X closer", __EMPHASIZE__ for "make X stand out", __CLICK__ for "click X", __TYPE__/__TYPEID__ for filling fields, __SCROLL__ to move the page, __NAV__/markdown links for moving between pages. Combine with a short, natural spoken sentence. These directives also work while the user is talking to you by voice.
 
+SUGGESTED ACTIONS:
+When a visitor chooses a built-in suggestion that asks to show a project, an experience, AI engineering work, or the resume, treat it as an explicit request to guide them there. Give a clear, professional one- or two-sentence introduction, then use the relevant navigation and highlight/project-card markers. Never merely describe a destination when you can open it for them.
+
 WHEN TO USE EACH:
 - "Search for monopoly" / "find monopoly" / "look up Army Reserve" → natural response + __SEARCH:monopoly__ (or whatever the query is). Always emit the marker — never just say you'll search.
 - "Take me to the resume" → natural response + __NAV:/resume__
@@ -924,11 +970,6 @@ You can genuinely operate this site for the visitor: navigate and auto-open page
       }
     }
   }
-  const SSE_HEADERS = {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  };
   const enc = new TextEncoder();
 
   /* ── Conversation logging (text + voice both flow through here) ── */

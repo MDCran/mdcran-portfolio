@@ -19,10 +19,10 @@ const AGENT_NAME = "Michael";
 
 /* Example prompts the tutorial nudges first-time users to try. */
 const TUTORIAL_PROMPTS = [
-  "Break down what I'm looking at",
-  "Tell me about yourself",
-  "Who have you worked with?",
-  "Why should I hire you?",
+  "Show me your best project",
+  "Walk me through Army Reserve Mercury",
+  "Show me your AI engineering work",
+  "Take me to your resume",
 ];
 
 /* In-memory TTS cache — avoids re-billing ElevenLabs for identical phrases (intro, farewell, tour). */
