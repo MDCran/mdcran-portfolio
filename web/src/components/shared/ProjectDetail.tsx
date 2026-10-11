@@ -15,6 +15,7 @@ import {
   Heart,
   Link2,
   Play,
+  MessageCircle,
   Share2,
   ShoppingCart,
   Tag,
@@ -125,6 +126,11 @@ export default function ProjectDetail({
   const allImages = [...galleryImageSources, ...sectionImages];
   const allImageCaptions = [...galleryImageCaptions, ...sectionImageCaptions];
   const sectionImageBase = galleryImageSources.length;
+  const askAboutProject = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("mdcran:ask-about-project", {
+      detail: { title: project.title, slug: project.slug, category: project.category },
+    }));
+  }, [project.category, project.slug, project.title]);
 
   return (
     <>
@@ -256,6 +262,12 @@ export default function ProjectDetail({
                 <div>
                   <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Appreciate this project</p>
                   <ProjectTapsButton projectId={project.id} />
+                </div>
+                <div>
+                  <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>AI guide</p>
+                  <button onClick={askAboutProject} data-highlight-id="ask-about-project" className="inline-flex items-center gap-2 rounded-sm border border-[var(--cranberry)]/30 bg-[var(--cranberry)]/8 px-4 py-2 text-xs text-white/70 transition-colors hover:border-[var(--cranberry)]/60 hover:text-white">
+                    <MessageCircle size={13} className="text-[var(--cranberry)]" /> Ask about this project
+                  </button>
                 </div>
                 <div>
                   <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Share</p>

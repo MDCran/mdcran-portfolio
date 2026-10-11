@@ -406,7 +406,7 @@ export default function VoiceMode() {
     } catch {
       fireStart();
     }
-  }, [setPhaseSafe]);
+  }, [currentLang, setPhaseSafe]);
 
   /* ── Parse action markers from a reply. Navigation + theme fire immediately (so the
      destination page is mounting while the audio loads), but the on-page motions —
@@ -745,7 +745,7 @@ export default function VoiceMode() {
       setPhaseSafe("listening");
       try { recRef.current?.start(); } catch { /* already running */ }
     }
-  }, [pathname, runDirectives, speak, setPhaseSafe]);
+  }, [currentLang, pathname, runDirectives, speak, setPhaseSafe, visitorGeo, visitorName]);
 
   /* ── Open: set up mic, analyser, and either SpeechRecognition or the
      MediaRecorder+STT fallback (so it works in Safari, Firefox, Brave, Chrome). ── */

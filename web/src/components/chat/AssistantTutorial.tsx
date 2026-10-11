@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pause, Play, RotateCcw, SkipForward, Accessibility } from "lucide-react";
 import { TOUR_TEXTS } from "@/lib/tour-texts";
 
 const PAGE_TREE = [
@@ -77,9 +77,11 @@ export default function AssistantTutorial() {
   const [wordIdx, setWordIdx] = useState(-1);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false); // true while awaiting pregen
+  const [paused, setPaused] = useState(false);
 
   const runIdRef = useRef(0);
   const runningRef = useRef(false);
+  const pausedRef = useRef(false);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("mdcran:tour-active", { detail: { active: running } }));
@@ -106,6 +108,9 @@ export default function AssistantTutorial() {
   }, []);
 
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const waitForResume = useCallback(async () => {
+    while (pausedRef.current) await wait(100);
+  }, []);
   // Tour steps own the scroll position. Native smooth scrolling can continue after
   // the next step starts in Safari/Firefox, fighting the spotlight and causing the
   // visible jumpiness reported on desktop and mobile.
@@ -180,6 +185,7 @@ export default function AssistantTutorial() {
         let i = 0;
         const iv = setInterval(() => {
           if (myRun !== runIdRef.current) { clearInterval(iv); return done(); }
+          if (pausedRef.current) return;
           i++;
           if (i >= w.length) { clearInterval(iv); setWordIdx(w.length - 1); setTimeout(done, 600); }
           else setWordIdx(i);
@@ -291,6 +297,8 @@ export default function AssistantTutorial() {
       // Phase 3 — Tour narration loop.
       for (let si = 0; si < STEPS.length; si++) {
         const step = STEPS[si];
+        if (myRun !== runIdRef.current) break;
+        await waitForResume();
         if (myRun !== runIdRef.current) break;
 
         if (step.kind === "intro") {
@@ -537,9 +545,9 @@ export default function AssistantTutorial() {
       runIdRef.current++;
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router, spotTarget, tourScrollTo]);
+  }, [narrate, router, spotTarget, tourScrollTo, waitForResume]);
 
-  const endTour = () => {
+  const endTour = (reopenChat = true) => {
     runIdRef.current++;
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
     targetElRef.current = null;
@@ -548,9 +556,25 @@ export default function AssistantTutorial() {
     setCaption(null);
     setWordIdx(-1);
     setLoading(false);
+    setPaused(false);
+    pausedRef.current = false;
     setRunning(false);
     runningRef.current = false;
-    window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
+    if (reopenChat) window.dispatchEvent(new CustomEvent("mdcran:chat-open"));
+  };
+
+  const togglePause = () => {
+    const next = !pausedRef.current;
+    pausedRef.current = next;
+    setPaused(next);
+    if (audioRef.current) {
+      if (next) audioRef.current.pause();
+      else void audioRef.current.play().catch(() => {});
+    }
+  };
+  const restartTour = () => {
+    endTour(false);
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 80);
   };
 
   const pad = 14;
@@ -575,19 +599,22 @@ export default function AssistantTutorial() {
 
   return (
     <>
-      {/* End-tour button */}
+      {/* Keyboard-accessible tour controls */}
       <AnimatePresence>
         {running && (
-          <motion.button
+          <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            onClick={endTour}
-            className="fixed top-5 left-5 z-[75] inline-flex items-center gap-1.5 rounded-sm border border-white/20 bg-black/70 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-white/70 backdrop-blur-md hover:text-white hover:border-white/40 transition-colors"
-            aria-label="End tour"
+            className="fixed top-5 left-5 z-[75] flex items-center gap-1 rounded-sm border border-white/20 bg-black/70 p-1 backdrop-blur-md"
           >
-            End tour
-          </motion.button>
+            <button type="button" onClick={togglePause} className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/70 hover:bg-white/10 hover:text-white" aria-label={paused ? "Resume tour" : "Pause tour"} title={paused ? "Resume tour" : "Pause tour"}>
+              {paused ? <Play size={12} /> : <Pause size={12} />}{paused ? "Resume" : "Pause"}
+            </button>
+            <button type="button" onClick={restartTour} className="rounded-sm p-2 text-white/55 hover:bg-white/10 hover:text-white" aria-label="Restart tour" title="Restart tour"><RotateCcw size={13} /></button>
+            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { motion: "reduce" } }))} className="rounded-sm p-2 text-white/55 hover:bg-white/10 hover:text-white" aria-label="Reduce motion" title="Reduce motion"><Accessibility size={13} /></button>
+            <button type="button" onClick={() => endTour()} className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/70 hover:bg-white/10 hover:text-white" aria-label="Skip tour" title="Skip tour"><SkipForward size={12} />Skip</button>
+          </motion.div>
         )}
       </AnimatePresence>
 

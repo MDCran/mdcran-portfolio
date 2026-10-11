@@ -75,13 +75,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LANG_STORAGE_KEY);
-      if (stored && SUPPORTED_LANGUAGES.some((l) => l.code === stored)) setCurrentLang(stored);
+      if (stored && SUPPORTED_LANGUAGES.some((l) => l.code === stored)) {
+        setCurrentLang(stored);
+        document.documentElement.lang = getLanguageCode(stored);
+      }
     } catch { /* localStorage unavailable */ }
   }, []);
 
   const setLanguage = useCallback((code: string) => {
     if (!SUPPORTED_LANGUAGES.some((l) => l.code === code)) return;
     setCurrentLang(code);
+    document.documentElement.lang = getLanguageCode(code);
     try { localStorage.setItem(LANG_STORAGE_KEY, code); } catch { /* */ }
     window.dispatchEvent(new CustomEvent("mdcran:language-change", { detail: { code } }));
   }, []);
