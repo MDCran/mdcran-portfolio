@@ -71,7 +71,6 @@ export default function ProjectDetail({
   const coverImage = project.coverImage ?? project.images?.[0];
   const coverSrc = imageAssetSrc(coverImage);
   const hasCover = !!coverSrc;
-  const hasGallery = !!project.images?.length;
   const hasVideos = !!project.videos?.length;
   const showPricing = project.pricing.status !== "unavailable";
   const hasTopSidebarContent =
@@ -117,7 +116,13 @@ export default function ProjectDetail({
     }
   }
 
-  const galleryImages = project.images ?? [];
+  // Editors sometimes use the cover as both desktop and mobile gallery artwork.
+  // Show that image once instead of presenting duplicate gallery tiles.
+  const galleryImages = (project.images ?? []).filter((image, index, images) => {
+    const src = imageAssetSrc(image);
+    return Boolean(src) && images.findIndex((candidate) => imageAssetSrc(candidate) === src) === index;
+  });
+  const hasGallery = galleryImages.length > 0;
   const galleryImageCaptions = galleryImages.map(
     (image, index) => imageAssetAlt(image, `${project.title} screenshot ${index + 1}`)
   );
@@ -428,7 +433,7 @@ export default function ProjectDetail({
             </div>
             )}
 
-            <aside className="hidden lg:block sticky top-24 p-5 rounded-sm border border-white/7 bg-white/2 space-y-5" aria-label="Project engagement">
+            <aside className="hidden lg:block p-5 rounded-sm border border-white/7 bg-white/2 space-y-5" aria-label="Project engagement">
               <div>
                 <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">AI guide</p>
                 <button onClick={askAboutProject} data-highlight-id="ask-about-project-sidebar" className="inline-flex w-full items-center justify-center gap-2 rounded-sm border border-[var(--cranberry)]/30 bg-[var(--cranberry)]/8 px-3 py-2.5 text-xs text-white/70 transition-colors hover:border-[var(--cranberry)]/60 hover:text-white">
@@ -898,7 +903,7 @@ function renderMarkdown(text: string) {
 function renderInline(text: string): ReactNode[] {
   return text.split(/(\*\*.+?\*\*|https?:\/\/[^\s<]+)/g).filter(Boolean).map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={index} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
-    if (/^https?:\/\//.test(part)) return <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-[var(--cranberry)] underline decoration-[var(--cranberry)]/40 underline-offset-2 hover:text-white">{part}</a>;
+    if (/^https?:\/\//.test(part)) return <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 break-all rounded-sm bg-[var(--cranberry)]/10 px-1.5 py-0.5 font-medium text-[var(--cranberry)] underline decoration-[var(--cranberry)]/50 underline-offset-2 hover:bg-[var(--cranberry)]/20 hover:text-white"><span>{part}</span><ExternalLink size={11} className="shrink-0" aria-hidden="true" /></a>;
     return <Fragment key={index}>{part}</Fragment>;
   });
 }
