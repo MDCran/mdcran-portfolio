@@ -66,6 +66,14 @@ function findTarget(id: string): HTMLElement | null {
   return byId || byAttr || (id === "nav-resume" ? (document.querySelector('a[href="/resume"]') as HTMLElement | null) : null);
 }
 
+function tourViewport() {
+  const viewport = window.visualViewport;
+  return {
+    width: Math.round(viewport?.width ?? window.innerWidth),
+    height: Math.round(viewport?.height ?? window.innerHeight),
+  };
+}
+
 interface Rect { top: number; left: number; width: number; height: number }
 
 export default function AssistantTutorial() {
@@ -115,8 +123,21 @@ export default function AssistantTutorial() {
   // the next step starts in Safari/Firefox, fighting the spotlight and causing the
   // visible jumpiness reported on desktop and mobile.
   const tourScrollTo = useCallback((top: number) => {
-    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    const { height } = tourViewport();
+    const maxTop = Math.max(0, document.documentElement.scrollHeight - height);
+    window.scrollTo({ top: Math.min(maxTop, Math.max(0, Math.round(top))), behavior: "auto" });
   }, []);
+
+  // Disable page-level CSS smooth scrolling while the guided sequence owns the
+  // position. Firefox and Safari otherwise queue old scroll animations behind a
+  // route change, which produces the visible jump on phones.
+  useEffect(() => {
+    if (!running) return;
+    const root = document.documentElement;
+    const previous = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    return () => { root.style.scrollBehavior = previous; };
+  }, [running]);
 
   /* Keep the spotlight box glued to the target while the tour is active. Avoid an
      unconditional state update every frame: that was enough to make narrow/mobile
@@ -150,7 +171,7 @@ export default function AssistantTutorial() {
     if (el) {
       targetElRef.current = el;
       const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
+      const { height: vh } = tourViewport();
       const topInset = 76;
       const avail = Math.max(120, vh - topInset - 100);
       const ty = r.height >= avail
@@ -309,7 +330,7 @@ export default function AssistantTutorial() {
         } else if (step.kind === "spot") {
           setShowTree(false);
           const isNav = step.target === "nav-resume";
-          const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+          const mobile = typeof window !== "undefined" && tourViewport().width < 768;
 
           if (isNav && mobile) {
             window.dispatchEvent(new CustomEvent("mdcran:open-nav"));
@@ -328,7 +349,7 @@ export default function AssistantTutorial() {
           if (el) {
             const centerInBand = (node: HTMLElement) => {
               const r = node.getBoundingClientRect();
-              const vh = window.innerHeight;
+              const { height: vh } = tourViewport();
               const topInset = 76;
               let targetY: number;
               if (mobile) {
@@ -357,7 +378,7 @@ export default function AssistantTutorial() {
               const node = el;
               const r0 = node.getBoundingClientRect();
               const panStartY = Math.max(0, window.scrollY + r0.top - 76);
-              const panEndY = Math.max(panStartY, window.scrollY + r0.top + r0.height - window.innerHeight + 48);
+              const panEndY = Math.max(panStartY, window.scrollY + r0.top + r0.height - tourViewport().height + 48);
               const t0 = performance.now();
               const PAN_MS = 5200;
               const panStep = () => {
@@ -481,7 +502,7 @@ export default function AssistantTutorial() {
               await narrate(armyDeepTexts[ti], myRun);
               if (myRun !== runIdRef.current) { abortedDeep = true; break; }
               if (ti < armyDeepTexts.length - 1) {
-                const totalH = Math.max(0, document.body.scrollHeight - window.innerHeight);
+                const totalH = Math.max(0, document.documentElement.scrollHeight - tourViewport().height);
                 tourScrollTo(Math.round(totalH * ((ti + 1) / armyDeepTexts.length) * 0.75));
                 await wait(350);
               }
@@ -584,8 +605,9 @@ export default function AssistantTutorial() {
     ? (() => {
         const left = Math.max(0, spot.left - pad);
         const top = Math.max(0, spot.top - pad);
-        const right = Math.min(window.innerWidth, spot.left + spot.width + pad);
-        const bottom = Math.min(window.innerHeight, spot.top + spot.height + pad);
+        const viewport = tourViewport();
+        const right = Math.min(viewport.width, spot.left + spot.width + pad);
+        const bottom = Math.min(viewport.height, spot.top + spot.height + pad);
         return { top, left, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
       })()
     : null;

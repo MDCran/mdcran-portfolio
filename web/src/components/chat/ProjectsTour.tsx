@@ -21,6 +21,10 @@ const STOPS: Stop[] = [
   { path: "/", text: "And that brings us back to the highlights. Want to dive into any one of these?", highlight: "featured" },
 ];
 
+function tourViewportHeight() {
+  return Math.round(window.visualViewport?.height ?? window.innerHeight);
+}
+
 export default function ProjectsTour() {
   const router = useRouter();
   const pathname = usePathname();
@@ -58,8 +62,17 @@ export default function ProjectsTour() {
   // Keep the walkthrough in control of scrolling; queued browser smooth-scroll
   // animations can overlap route changes and make the tour look unstable.
   const tourScrollTo = useCallback((top: number) => {
-    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    const maxTop = Math.max(0, document.documentElement.scrollHeight - tourViewportHeight());
+    window.scrollTo({ top: Math.min(maxTop, Math.max(0, Math.round(top))), behavior: "auto" });
   }, []);
+
+  useEffect(() => {
+    if (!running) return;
+    const root = document.documentElement;
+    const previous = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    return () => { root.style.scrollBehavior = previous; };
+  }, [running]);
   const waitForPath = useCallback(async (path: string, myRun: number) => {
     const deadline = Date.now() + 4500;
     while (pathRef.current !== path && myRun === runIdRef.current && Date.now() < deadline) {
