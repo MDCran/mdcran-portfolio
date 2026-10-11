@@ -1496,6 +1496,17 @@ export default function ChatPanel() {
     return () => window.removeEventListener("mdcran:ask-about-project", onAskAboutProject);
   }, [handleSend]);
 
+  useEffect(() => {
+    const onAskAboutArticle = (event: Event) => {
+      const title = (event as CustomEvent<{ title?: string }>).detail?.title?.trim();
+      if (!title) return;
+      setOpen(true);
+      setTimeout(() => void handleSend(`Tell me about the article \"${title}\": its key ideas, Michael's perspective, and the most useful takeaway.`), 150);
+    };
+    window.addEventListener("mdcran:ask-about-article", onAskAboutArticle);
+    return () => window.removeEventListener("mdcran:ask-about-article", onAskAboutArticle);
+  }, [handleSend]);
+
   /* ── Microphone recording — live transcription (SpeechRecognition) with STT fallback ── */
   const startRecording = useCallback(async () => {
     if (recording || transcribing || streaming) return;
