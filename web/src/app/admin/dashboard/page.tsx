@@ -1129,6 +1129,9 @@ function ProjectModal({
   const [liveUrl, setLiveUrl] = useState(initial?.liveUrl ?? "");
   const [externalUrl, setExternalUrl] = useState(initial?.externalUrl ?? "");
   const [githubUrl, setGithubUrl] = useState(initial?.githubUrl ?? "");
+  const [repositories, setRepositories] = useState(
+    () => (initial?.repositories ?? []).map((repository) => [repository.label, repository.url, repository.description ?? ""].join(" | ")).join("\n")
+  );
   const [featured, setFeatured] = useState(initial?.featured ?? false);
   const [visible, setVisible] = useState(initial?.visible !== false);
   const [publishDate, setPublishDate] = useState(initial?.publishDate ?? "");
@@ -1174,6 +1177,10 @@ function ProjectModal({
     const cleanedCredits = credits
       .map((c) => ({ name: c.name.trim(), role: c.role.trim() }))
       .filter((c) => c.name && c.role);
+    const cleanedRepositories = repositories.split("\n").map((line) => {
+      const [label = "", url = "", ...description] = line.split("|").map((part) => part.trim());
+      return { label, url, description: description.join(" | ").trim() || undefined };
+    }).filter((repository) => repository.label && /^https?:\/\//i.test(repository.url));
     const cleanedSections = sections
       .map((section) => normalizeSectionForSave(section))
       .filter((section) => section.type !== "gallery" || (section.images?.length ?? 0) > 0);
@@ -1199,6 +1206,7 @@ function ProjectModal({
       liveUrl: liveUrl.trim() || undefined,
       externalUrl: externalUrl.trim() || undefined,
       githubUrl: githubUrl.trim() || undefined,
+      repositories: cleanedRepositories.length ? cleanedRepositories : undefined,
       videos: cleanedVideos.length ? cleanedVideos : undefined,
       credits: cleanedCredits.length ? cleanedCredits : undefined,
       sections: cleanedSections.length ? cleanedSections : undefined,
@@ -1531,6 +1539,18 @@ function ProjectModal({
             onChange={(e) => setGithubUrl(e.target.value)}
             placeholder="https://github.com/… (repository link)"
           />
+        </Field>
+
+        <Field>
+          <Label>Additional public repositories</Label>
+          <textarea
+            className={textareaCls}
+            rows={3}
+            value={repositories}
+            onChange={(e) => setRepositories(e.target.value)}
+            placeholder={"Label | https://github.com/… | What this repository demonstrates\nAPI integration examples | https://github.com/… | Public integration layer"}
+          />
+          <p className="mt-1.5 text-[10px] leading-relaxed text-white/35">One per line. These appear as labeled technical resources; keep private repositories out of this list.</p>
         </Field>
 
         <Field>

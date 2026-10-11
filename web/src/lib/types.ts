@@ -85,6 +85,12 @@ export interface ProjectCredit {
   profileUrl?: string;
 }
 
+export interface ProjectRepository {
+  label: string;
+  url: string;
+  description?: string;
+}
+
 // ─── Project ─────────────────────────────────────────────
 export type Category =
   | "arts-and-entertainment"
@@ -133,6 +139,7 @@ export interface Project {
   liveUrl?: string;
   externalUrl?: string;   // Army Reserve article link, etc.
   githubUrl?: string;     // optional link to GitHub repository
+  repositories?: ProjectRepository[]; // public repositories, packages, and example integrations
   sections?: ArticleSection[];
 }
 

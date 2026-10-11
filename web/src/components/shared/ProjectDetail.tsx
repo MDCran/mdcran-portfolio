@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -81,6 +81,7 @@ export default function ProjectDetail({
     !!project.liveUrl ||
     !!project.externalUrl ||
     !!project.githubUrl ||
+    !!project.repositories?.length ||
     hasVideos;
   const priceFormatted = project.pricing.price
     ? `$${(project.pricing.price / 100).toFixed(2)}`
@@ -353,6 +354,18 @@ export default function ProjectDetail({
                   </svg>
                   View on GitHub
                 </a>
+              )}
+
+              {!!project.repositories?.length && (
+                <div className="py-1 space-y-2">
+                  <p className="text-[10px] tracking-widest uppercase text-white/35">Additional technical resources</p>
+                  {project.repositories?.map((repository) => (
+                    <a key={`${repository.label}-${repository.url}`} href={repository.url} target="_blank" rel="noopener noreferrer" className="block rounded-sm border border-white/8 px-3 py-2 text-xs text-white/60 hover:border-white/20 hover:text-white transition-colors">
+                      <span className="flex items-center gap-2"><ExternalLink size={11} className="text-[var(--cranberry)] shrink-0" /><span className="truncate">{repository.label}</span></span>
+                      {repository.description && <span className="mt-1 block text-[10px] leading-relaxed text-white/35">{repository.description}</span>}
+                    </a>
+                  ))}
+                </div>
               )}
 
               {(project.sections ?? []).some((s) => s.type === "pdf" && s.src) && (
@@ -868,24 +881,26 @@ function renderMarkdown(text: string) {
           {items.map((item, i) => (
             <li key={i} className="text-[15px] text-white/65 leading-relaxed flex items-start gap-2">
               <span className="text-[var(--cranberry)] mt-1 text-xs shrink-0">◆</span>
-              <span dangerouslySetInnerHTML={{ __html: boldify(item.slice(2)) }} />
+              <span>{renderInline(item.slice(2))}</span>
             </li>
           ))}
         </ul>
       );
     }
     return (
-      <p
-        key={blockIdx}
-        className="text-[15px] text-white/70 leading-relaxed my-6"
-        dangerouslySetInnerHTML={{ __html: boldify(block) }}
-      />
+      <p key={blockIdx} className="text-[15px] text-white/70 leading-relaxed my-6">
+        {renderInline(block)}
+      </p>
     );
   });
 }
 
-function boldify(text: string) {
-  return text.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+function renderInline(text: string): ReactNode[] {
+  return text.split(/(\*\*.+?\*\*|https?:\/\/[^\s<]+)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+    if (/^https?:\/\//.test(part)) return <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-[var(--cranberry)] underline decoration-[var(--cranberry)]/40 underline-offset-2 hover:text-white">{part}</a>;
+    return <Fragment key={index}>{part}</Fragment>;
+  });
 }
 
 function ProjectSection({
