@@ -32,11 +32,11 @@ export const defaultSiteContent: SiteContent = {
   featuredWorkOrder: [],
   featuredClientIds: [],
   homeHero: {
-    eyebrow: "Software Engineer",
+    eyebrow: "Software & AI Engineer",
     titlePrimary: "MD",
     titleAccent: "CRAN",
     description:
-      "Designing and building digital projects for creators, companies, and secure enterprise platforms.",
+      "Building business automations, AI integrations, and software that connects customer experiences with everyday operations.",
     supportingText: "B.S. in Computer Science @UCF",
     locationText: "Orlando, FL - OPEN FOR WORK",
     serviceTags: [
@@ -73,7 +73,8 @@ export const defaultSiteContent: SiteContent = {
   },
   aiUsageTracker: {
     lastUpdated: "2026-07-02",
-    totalTokens: 40_200_000_000,
+    accessNote: "Daybreak access · Authorized user",
+    accessNoteEnabled: true,
     claude: {
       totalTokens: 146_400_000,
       totalMessages: 120_846,
@@ -297,7 +298,7 @@ export const defaultSiteContent: SiteContent = {
     statusLabel: "Open for work",
     emailHref: "/contact",
     githubHref: "https://github.com/mdcran",
-    blurb: "Designing and building digital projects for creators, companies, and secure enterprise platforms.",
+    blurb: "Software engineering, AI integrations, and business automation for companies and creators.",
     linkGroups: [
       {
         title: "Arts & Entertainment",

@@ -29,9 +29,9 @@ import { assetUrl } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildSeoMetadata({
-  title: "Michael Cran | Software, Design, and Digital Experiences",
+  title: "Michael Cran | Software & AI Engineer, Business Automation",
   description:
-    "Michael David Cran (MDCran) builds software, web platforms, Minecraft maps, and creative digital work for creators and companies.",
+    "Michael David Cran (MDCran) builds software, AI integrations, business automations, and digital experiences for companies and creators.",
   path: "/",
   keywords: [
     "MDCran", "Michael Cran", "Michael David Cran", "MD Cran",
@@ -141,7 +141,7 @@ export default async function HomePage() {
     ),
     timeline: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "400px" }}>
-        <Timeline experiences={experiences} content={siteContent.homeTimeline} />
+        <Timeline experiences={experiences} projects={featuredProjects} articles={featuredArticles} content={siteContent.homeTimeline} />
       </div>
     ),
     services: (

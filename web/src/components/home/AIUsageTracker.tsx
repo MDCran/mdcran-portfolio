@@ -53,9 +53,11 @@ export default function AIUsageTracker({ content }: { content?: SiteContentAiUsa
         AI-Assisted Workflow
       </span>
       <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap text-white/60">
-        <AnimatedStat value={totalTokens} label="AI tokens processed" />
+        <AnimatedStat value={totalTokens} label="AI tokens processed · reported" />
         {elevenlabs.charactersUsed > 0 && <AnimatedStat value={elevenlabs.charactersUsed} label="ElevenLabs chars" />}
       </div>
+      {content.lastUpdated && <span className="text-[10px] text-white/40">Updated {content.lastUpdated}</span>}
+      {content.accessNoteEnabled && content.accessNote && <span className="text-[10px] text-white/55 border-l border-white/10 pl-3">{content.accessNote}</span>}
     </div>
   );
 }

@@ -726,6 +726,8 @@ export interface SiteContentAiUsageModel {
 export interface SiteContentAiUsage {
   lastUpdated: string;              // ISO date — set when the admin updates the numbers each month
   totalTokens?: number;             // optional all-provider total for the homepage workflow signal
+  accessNote?: string;
+  accessNoteEnabled?: boolean;
   claude: {
     totalTokens: number;
     totalMessages: number;

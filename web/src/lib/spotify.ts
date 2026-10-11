@@ -41,6 +41,8 @@ export async function getSpotifyAccessToken(): Promise<string | null> {
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   const res = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
     headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken }),
   });

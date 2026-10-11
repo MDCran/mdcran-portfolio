@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import Link from "next/link";
-import type { Experience, SiteContentSectionIntro } from "@/lib/types";
+import { projectUrl } from "@/lib/utils";
+import type { Article, Experience, Project, SiteContentSectionIntro } from "@/lib/types";
 
 function parseDate(d: string): number {
   // Handles "MM-YYYY" and "YYYY-MM" and "YYYY-MM-DD"
@@ -15,6 +16,7 @@ function parseDate(d: string): number {
 }
 
 function extractYear(d: string): string {
+  if (/^\d{2}-\d{2}-\d{4}$/.test(d)) return d.slice(-4);
   if (/^\d{2}-\d{4}$/.test(d)) return d.split("-")[1];
   if (/^\d{4}/.test(d)) return d.slice(0, 4);
   return d;
@@ -23,6 +25,8 @@ function extractYear(d: string): string {
 interface TimelineProps {
   experiences: Experience[];
   content?: SiteContentSectionIntro;
+  projects?: Project[];
+  articles?: Article[];
 }
 
 // Fallback tags for experiences that don't have timelineTags in the DB yet
@@ -36,9 +40,21 @@ function getTimelineTags(job: Experience) {
   return FALLBACK_TAGS[job.id] ?? [];
 }
 
-export default function Timeline({ experiences, content }: TimelineProps) {
-  const END_FUTURE = Date.now() + 999999999;
-  const jobs = experiences
+export default function Timeline({ experiences, content, projects = [], articles = [] }: TimelineProps) {
+  const work: (Experience & { href: string })[] = [
+    ...projects.filter(p => p.visible !== false && p.publishDate).map(p => ({
+      id: `project-${p.id}`, type: "job" as const, role: p.title, companyName: "Featured project",
+      startDate: p.publishDate!, endDate: p.publishDate!, description: p.description || "",
+      href: projectUrl(p.category, p.slug, p.subcategory), timelineTags: [{ label: "Project", color: "blue" as const }],
+    })),
+    ...articles.filter(a => a.publishDate).map(a => ({
+      id: `article-${a.id}`, type: "job" as const, role: a.title, companyName: "Featured article",
+      startDate: a.publishDate, endDate: a.publishDate, description: "",
+      href: `/articles/${a.slug}`, timelineTags: [{ label: "Article", color: "purple" as const }],
+    })),
+  ];
+  const END_FUTURE = Number.MAX_SAFE_INTEGER;
+  const jobs = [...experiences.map(e => ({ ...e, href: "/resume" })), ...work]
     .filter((e) => e.type === "job" || e.type === "volunteer")
     .sort((a, b) => {
       const endA = a.current || !a.endDate ? END_FUTURE : parseDate(a.endDate);
@@ -65,7 +81,7 @@ export default function Timeline({ experiences, content }: TimelineProps) {
   // Drag to scroll
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || (e.target as HTMLElement).closest("a, button") || e.pointerType === "touch") return;
     dragState.current = { dragging: true, startX: e.clientX, scrollLeft: el.scrollLeft };
     el.style.cursor = "grabbing";
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -99,6 +115,7 @@ export default function Timeline({ experiences, content }: TimelineProps) {
           <div>
             <p className="text-[11px] tracking-[0.25em] uppercase text-[#ef4242] mb-2">{content?.eyebrow || "Career"}</p>
             <h2 className="font-nord text-2xl sm:text-3xl text-white tracking-wider">{content?.title || "Experience"}</h2>
+            <p className="mt-3 text-xs text-white/50">Career milestones & featured work · Swipe or scroll to explore</p>
           </div>
           <Link
             href="/resume"
@@ -128,7 +145,10 @@ export default function Timeline({ experiences, content }: TimelineProps) {
           <div
             ref={scrollRef}
             data-highlight-id="experience-scroller"
-            className="flex gap-0 overflow-x-auto h-full scrollbar-hide select-none"
+            className="flex gap-0 overflow-x-auto h-full scrollbar-hide select-none focus-visible:outline focus-visible:outline-white/50"
+            tabIndex={0}
+            role="region"
+            aria-label="Career and featured work timeline"
             style={{ scrollbarWidth: "none", cursor: "grab" }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -159,6 +179,7 @@ export default function Timeline({ experiences, content }: TimelineProps) {
                     {isAbove && (
                       <>
                         <TimelineCard
+                          href={job.href}
                           role={job.role}
                           company={job.companyName}
                           startYear={startYear}
@@ -207,6 +228,7 @@ export default function Timeline({ experiences, content }: TimelineProps) {
                           <div className="w-px h-3 bg-[#ef4242]/25" />
                         </div>
                         <TimelineCard
+                          href={job.href}
                           role={job.role}
                           company={job.companyName}
                           startYear={startYear}
@@ -276,6 +298,7 @@ const TAG_COLORS: Record<TimelineTag["color"], string> = {
 };
 
 function TimelineCard({
+  href,
   role,
   company,
   startYear,
@@ -284,6 +307,7 @@ function TimelineCard({
   isVolunteer = false,
   tags = [],
 }: {
+  href: string;
   role: string;
   company: string;
   startYear: string;
@@ -293,7 +317,7 @@ function TimelineCard({
   tags?: TimelineTag[];
 }) {
   return (
-    <div className="rounded-sm border border-white/8 bg-white/[0.02] p-2.5 hover:border-[rgba(239,66,66,0.2)] hover:bg-white/[0.04] transition-all duration-200 group">
+    <Link href={href} className="block rounded-sm border border-white/8 bg-white/[0.02] p-2.5 hover:border-[rgba(239,66,66,0.2)] hover:bg-white/[0.04] transition-all duration-200 group focus-visible:outline focus-visible:outline-white/50">
       {/* Year range */}
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-[9px] tracking-wider tabular-nums text-white/35">{startYear}</span>
@@ -336,6 +360,6 @@ function TimelineCard({
           ))}
         </div>
       )}
-    </div>
+    </Link>
   );
 }
