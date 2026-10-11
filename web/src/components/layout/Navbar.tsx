@@ -2,11 +2,10 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { assetUrl } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Menu, ChevronDown } from "lucide-react";
-import { cn, projectUrl, imageAssetSrc } from "@/lib/utils";
+import { assetUrl, cn, projectUrl, imageAssetSrc } from "@/lib/utils";
 import { useTheme } from "@/lib/ThemeContext";
 import type { Project, Client, Article, SiteContent } from "@/lib/types";
 
@@ -31,6 +30,17 @@ const navLinks = [
   { label: "Code", href: "/code" },
   { label: "Articles", href: "/articles" },
 ];
+
+const SEARCH_RESULT_IMAGE_FALLBACK = assetUrl("/cdn/WEB_ASSETS/IMAGES/FAIL_TO_LOAD.jpg")!;
+
+function applySearchResultImageFallback(event: React.SyntheticEvent<HTMLImageElement>) {
+  const image = event.currentTarget;
+  if (image.src === SEARCH_RESULT_IMAGE_FALLBACK) {
+    image.style.display = "none";
+    return;
+  }
+  image.src = SEARCH_RESULT_IMAGE_FALLBACK;
+}
 
 interface SearchablePage {
   title: string;
@@ -582,7 +592,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                   <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5">
                                     {thumb ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={thumb} alt={p.title} className="w-full h-full object-cover" />
+                                      <img src={thumb} alt={p.title} className="w-full h-full object-cover" onError={applySearchResultImageFallback} />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
                                         <div className="w-3 h-3 bg-[var(--cranberry)] rotate-45 opacity-40" />
@@ -617,7 +627,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                 <div className={`relative w-11 h-11 shrink-0 rounded-full overflow-hidden group-hover:scale-110 transition-transform duration-200 ${isLight ? "bg-black/6 border border-black/10" : "bg-white/8 border border-white/10"}`}>
                                   {c.avatarUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={c.avatarUrl} alt={c.name} className="w-full h-full object-cover" />
+                                    <img src={c.avatarUrl} alt={c.name} className="w-full h-full object-cover" onError={applySearchResultImageFallback} />
                                   ) : (
                                     <div className={`w-full h-full flex items-center justify-center text-sm font-medium ${isLight ? "text-black/40" : "text-white/40"}`}>
                                       {c.name.charAt(0).toUpperCase()}
@@ -649,7 +659,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                                 <div className="relative w-11 h-11 shrink-0 rounded-sm overflow-hidden bg-white/5">
                                   {imageAssetSrc(a.coverImage) ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={imageAssetSrc(a.coverImage)} alt={a.title} className="w-full h-full object-cover" />
+                                    <img src={imageAssetSrc(a.coverImage)} alt={a.title} className="w-full h-full object-cover" onError={applySearchResultImageFallback} />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                       <div className="w-3 h-3 bg-purple-400/40 rounded-sm" />
