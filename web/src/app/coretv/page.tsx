@@ -5,14 +5,13 @@ import CoreTVClient from "./CoreTVClient";
 import { buildSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildSeoMetadata({
-  title: "CoreTV Networks | The Future of Minecraft Content",
+  title: "CoreTV.co | Business Technology & AI Automation",
   description:
-    "CoreTV Networks is a premium Minecraft content organization connecting creators, brands, and communities through events, partnerships, and content production.",
+    "Michael Cran’s work on CORE Business Technology: websites, AI reception, connected business systems, and workflow automation at CoreTV.co.",
   path: "/coretv",
   keywords: [
-    "CoreTV Networks", "Minecraft Content Network", "Minecraft Organization",
-    "Minecraft Creator Network", "Gaming Network", "Minecraft Events",
-    "Content Creator Partnership", "Minecraft Brand Deals",
+    "CoreTV", "CORE Business Technology", "Business Automation",
+    "AI Engineer", "Next.js", "Workflow Automation",
   ],
 });
 

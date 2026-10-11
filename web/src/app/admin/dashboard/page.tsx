@@ -22,6 +22,7 @@ import {
   Legend,
 } from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
+import SpotifyConnection from "@/components/admin/SpotifyConnection";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import SessionsControl from "@/components/admin/SessionsControl";
 import { R2StatsBar, R2AssetDetailPanel } from "@/components/admin/R2AssetDetail";
@@ -3150,7 +3151,7 @@ function SeedDatabaseCard({ onSeeded }: { onSeeded: () => void }) {
 
   return (
     <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
         <div>
           <p className="font-nord text-sm text-white">Seed Database</p>
           <p className="text-xs text-white/35 mt-0.5">
@@ -3388,6 +3389,37 @@ export default function AdminDashboard() {
   const [adminSearch, setAdminSearch] = useState("");
   const [adminSearchFocused, setAdminSearchFocused] = useState(false);
   const adminSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    document.querySelector('nav[aria-label="Admin sections"] [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeSection]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    const dialog = document.querySelector<HTMLElement>('[aria-label="Admin navigation"]');
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+      if (event.key !== "Tab" || !dialog) return;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>("button, a[href]"));
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    const onResize = () => { if (window.innerWidth >= 768) setMobileNavOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [mobileNavOpen]);
 
   // Command-palette shortcut for the global admin search. It keeps navigation,
   // content lookup, and quick section changes equally fast on macOS and Windows.
@@ -4700,7 +4732,7 @@ export default function AdminDashboard() {
     ? []
     : [
         ...navItems
-          .filter((item) => item.label.toLowerCase().includes(adminSearchQuery))
+          .filter((item) => `${item.label} ${item.key === "dashboard" ? "spotify connection reconnect" : ""} ${item.key === "site-content" ? "homepage tokens ai usage daybreak" : ""}`.toLowerCase().includes(adminSearchQuery))
           .map((item) => ({
             id: `section-${item.key}`,
             label: item.label,
@@ -4921,18 +4953,18 @@ export default function AdminDashboard() {
             }}
           />
           {/* Row 1 — brand, title, search, actions */}
-          <div className="relative h-14 px-3 sm:px-6 flex items-center justify-between gap-3 sm:gap-4">
+          <div className="relative px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3 min-w-0 sm:min-w-[200px] shrink">
-              <span className="font-nord text-base text-white tracking-wide">
+              <span className="font-nord text-sm sm:text-base text-white tracking-wide">
                 MDCran<span className="text-[#ef4242]">.admin</span>
               </span>
-              <span className="h-4 w-px bg-white/10" />
-              <div className="leading-none">
+              <span className="hidden sm:block h-4 w-px bg-white/10" />
+              <div className="hidden sm:block leading-none">
                 <span className="block text-[9px] uppercase tracking-[0.22em] text-[#ef4242]/70">Section</span>
                 <h1 className="font-nord text-sm text-white">{sectionTitles[activeSection]}</h1>
               </div>
             </div>
-          <div className="hidden md:flex flex-1 justify-center px-6">
+          <div className="flex order-last md:order-none w-full md:w-auto md:flex-1 justify-center md:px-4">
             <div className="relative w-full max-w-xl">
               <input
                 ref={adminSearchInputRef}
@@ -4942,9 +4974,14 @@ export default function AdminDashboard() {
                 onFocus={() => setAdminSearchFocused(true)}
                 onBlur={() => window.setTimeout(() => setAdminSearchFocused(false), 120)}
                 placeholder="Search admin center..."
+                aria-label="Search admin sections and content"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") { setAdminSearch(""); setAdminSearchFocused(false); }
+                  if (event.key === "Enter" && adminSearchResults[0]) adminSearchResults[0].onSelect();
+                }}
               />
               {adminSearchFocused && adminSearchQuery && (
-                <div className="absolute top-full mt-2 w-full rounded-sm border border-white/10 bg-[#0b0b0b]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+                <div className="absolute z-50 top-full mt-2 w-full rounded-sm border border-white/10 bg-[#0b0b0b]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
                   {adminSearchResults.length === 0 ? (
                     <div className="px-4 py-3 text-xs text-white/30">No matches found.</div>
                   ) : (
@@ -4954,13 +4991,13 @@ export default function AdminDashboard() {
                           key={result.id}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={result.onSelect}
-                          className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-white/4 transition-colors"
+                          className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-white/4 transition-colors"
                         >
                           <div className="min-w-0">
                             <div className="truncate text-sm text-white/80">{result.label}</div>
                             <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">{result.hint}</div>
                           </div>
-                          <span className="text-[10px] uppercase tracking-[0.18em] text-[#ef4242]/80">
+                          <span className="shrink-0 text-[9px] uppercase text-[#ef4242]/80">
                             {sectionTitles[result.section]}
                           </span>
                         </button>
@@ -5001,7 +5038,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Row 2 — grouped section tabs (desktop) */}
-          <nav className="hidden md:flex items-stretch gap-0 px-1 overflow-x-auto border-t border-white/6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          <nav aria-label="Admin sections" className="hidden md:flex items-stretch gap-0 px-1 overflow-x-auto border-t border-white/6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
             {NAV_GROUPS.map((group, gi) => (
               <div key={group.label} className={`flex items-center shrink-0 ${gi > 0 ? "border-l border-white/8 ml-px pl-px" : ""}`}>
                 <span className="hidden 2xl:block px-1.5 text-[7px] tracking-[0.22em] uppercase text-white/20 whitespace-nowrap self-center select-none">{group.label}</span>
@@ -5014,7 +5051,8 @@ export default function AdminDashboard() {
                       key={key}
                       onClick={() => setActiveSection(key)}
                       title={sectionTitles[key]}
-                      className={`relative flex items-center gap-1 whitespace-nowrap px-2 py-2 text-[10px] tracking-wide transition-colors shrink-0 ${
+                      aria-current={active ? "page" : undefined}
+                      className={`relative flex min-h-11 items-center gap-1 whitespace-nowrap px-3 py-2 text-[11px] tracking-wide transition-colors shrink-0 ${
                         active ? "text-[#ef4242]" : "text-white/40 hover:text-white/80"
                       }`}
                     >
@@ -5053,13 +5091,13 @@ export default function AdminDashboard() {
           </div>
 
           {/* Mobile nav drawer */}
-          {mobileNavOpen && (
-            <div className="md:hidden fixed inset-0 z-[200] flex">
+          {mobileNavOpen && createPortal(
+            <div className="md:hidden fixed inset-0 z-[200] flex" role="dialog" aria-modal="true" aria-label="Admin navigation">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
               <div className="relative z-10 w-72 max-w-[85vw] h-full bg-[#0b0b0b] border-r border-white/10 flex flex-col overflow-y-auto">
                 <div className="flex items-center justify-between px-4 h-14 border-b border-white/8 shrink-0">
                   <span className="font-nord text-sm text-white">MDCran<span className="text-[#ef4242]">.admin</span></span>
-                  <button onClick={() => setMobileNavOpen(false)} className="inline-flex items-center justify-center h-8 w-8 text-white/40 hover:text-white transition-colors">
+                  <button aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} className="inline-flex items-center justify-center h-11 w-11 text-white/40 hover:text-white transition-colors">
                     <X size={16} />
                   </button>
                 </div>
@@ -5102,11 +5140,11 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-          )}
+          , document.body)}
         </header>
 
         {/* Content */}
-        <div className="flex-1 px-3 sm:px-6 lg:px-8 py-5 sm:py-7 max-w-[1440px] w-full mx-auto">
+        <div className="flex-1 min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-7 max-w-[1440px] w-full mx-auto">
 
           {/* Section intro header — compact */}
           <div className="mb-6 flex items-start justify-between gap-4">
@@ -5541,25 +5579,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-nord text-sm text-white">Spotify Connection</p>
-                      <p className="text-xs text-white/35">Reconnect the Spotify OAuth token used by the homepage now-playing / last-played widget.</p>
-                    </div>
-                    <a
-                      href="/api/spotify/auth"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-9 items-center justify-center px-4 bg-[#ef4242] hover:bg-[#d93838] text-white text-xs font-medium rounded-sm transition-colors"
-                    >
-                      Connect / Reconnect
-                    </a>
-                  </div>
-                  <div className="rounded-sm border border-white/8 bg-black/20 px-3 py-3 text-xs text-white/40">
-                    This opens Spotify authorization in a new tab and refreshes the token used by the home page widget.
-                  </div>
-                </div>
+                <SpotifyConnection />
               </div>
 
             </div>
@@ -6081,7 +6101,7 @@ export default function AdminDashboard() {
                       In-memory rate limits for the AI chat assistant. Changes take effect immediately.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <label className="text-[10px] tracking-widest uppercase text-white/35">Limit per IP:</label>
                     <input
                       type="number"
@@ -6278,7 +6298,7 @@ export default function AdminDashboard() {
                   {filteredMessageEntries.map((entry) => (
                     <div
                       key={entry.id}
-                      className={`rounded-sm border p-4 ${
+                      className={`rounded-sm border p-4 [overflow-wrap:anywhere] ${
                         entry.messageRead
                           ? "border-white/8 bg-white/[0.02]"
                           : "border-[#ef4242]/20 bg-[#ef4242]/[0.03]"
@@ -6324,7 +6344,7 @@ export default function AdminDashboard() {
                           </button>
                         </div>
                       </div>
-                      <div className="mt-4 whitespace-pre-wrap rounded-sm border border-white/6 bg-black/20 px-3 py-3 text-xs leading-relaxed text-white/55">
+                      <div className="mt-4 whitespace-pre-wrap break-words rounded-sm border border-white/6 bg-black/20 px-3 py-3 text-xs leading-relaxed text-white/55">
                         {entry.message}
                       </div>
                     </div>
@@ -6762,7 +6782,7 @@ export default function AdminDashboard() {
                 <div className="space-y-2">
                   <Label>Metric labels (live values are computed automatically)</Label>
                   {(siteContent.homeStats?.metrics ?? []).map((m, mi) => (
-                    <div key={m.key} className="grid grid-cols-[120px_1fr_1.4fr] gap-2 items-center">
+                    <div key={m.key} className="grid grid-cols-1 sm:grid-cols-[120px_1fr_1.4fr] gap-2 items-center">
                       <span className="text-[10px] text-white/30 font-jb truncate">{m.key}</span>
                       <input
                         className={inputCls}
@@ -6789,6 +6809,21 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="col-span-2">
+                    <Label>Combined AI Tokens (optional override)</Label>
+                    <input type="number" min="0" step="1" className={inputCls}
+                      placeholder="Auto: Claude + OpenAI totals"
+                      value={siteContent.aiUsageTracker?.totalTokens ?? ""}
+                      onChange={(e) => setSiteContent(prev => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, totalTokens: e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)) } }))} />
+                    <p className="mt-2 text-[10px] text-white/40">Use a verified usage report. This is a reported metric; ChatGPT lifetime usage is not synced.</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Access Note</Label>
+                    <input className={inputCls} value={siteContent.aiUsageTracker?.accessNote ?? ""}
+                      onChange={(e) => setSiteContent(prev => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, accessNote: e.target.value } }))} />
+                    <label className="mt-2 flex min-h-11 items-center gap-2 text-xs text-white/60"><input type="checkbox" checked={siteContent.aiUsageTracker?.accessNoteEnabled ?? false}
+                      onChange={(e) => setSiteContent(prev => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, accessNoteEnabled: e.target.checked } }))} />Show access note on homepage</label>
+                  </div>
                   <div className="col-span-2 sm:col-span-1">
                     <Label>Last Updated</Label>
                     <DatePicker
@@ -6852,7 +6887,7 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                   {(siteContent.aiUsageTracker?.claude.models ?? []).map((model, mi) => (
-                    <div key={mi} className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr_auto] gap-2 items-center">
+                    <div key={mi} className="grid grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_1fr_1fr_auto] gap-2 items-center">
                       <input
                         className={inputCls}
                         value={model.name}
@@ -7239,7 +7274,7 @@ export default function AdminDashboard() {
                               {item.kind === "article" ? "Article" : "Project"}
                             </span>
                             <span className="flex-1 text-xs text-white/80 truncate min-w-0">{item.title}</span>
-                            <span className="text-[10px] text-white/25 shrink-0">{item.label}</span>
+                            <span className="hidden sm:inline text-[10px] text-white/25 shrink-0">{item.label}</span>
                             <div className="flex gap-1 shrink-0">
                               <button type="button" disabled={i === 0}
                                 className="h-6 w-6 flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/25 rounded-sm disabled:opacity-20 transition-colors"
@@ -7278,7 +7313,7 @@ export default function AdminDashboard() {
                       <p className="text-xs text-white/40 mt-1">Only featured clients are listed. Use arrows to set the display order — saves instantly.</p>
                     </div>
                     {ordered.length === 0 ? (
-                      <p className="text-xs text-white/30 italic">No clients are marked as featured. Mark a client as "Featured" in the Clients tab first.</p>
+                      <p className="text-xs text-white/30 italic">No clients are marked as featured. Mark a client as &quot;Featured&quot; in the Clients tab first.</p>
                     ) : (
                       <DragReorderList
                         items={ordered}
@@ -8312,7 +8347,7 @@ export default function AdminDashboard() {
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={() => handleResumeDrop("skillCategories", idx)}
                             onDragEnd={() => setDraggedResumeItem(null)}
-                            className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center cursor-move"
+                            className="grid grid-cols-2 md:grid-cols-[1fr_1fr_auto_auto] gap-2 items-center cursor-move"
                           >
                             <input className={inputCls} value={cat.id} onChange={(e) => setSkillCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, id: e.target.value } : c)))} placeholder="Category id (e.g. technology)" />
                             <input className={inputCls} value={cat.label} onChange={(e) => setSkillCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, label: e.target.value } : c)))} placeholder="Display label" />
@@ -8342,7 +8377,7 @@ export default function AdminDashboard() {
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={() => handleResumeDrop("skills", idx)}
                             onDragEnd={() => setDraggedResumeItem(null)}
-                            className="grid grid-cols-[1fr_auto_180px_auto] gap-2 items-center cursor-move"
+                            className="grid grid-cols-2 md:grid-cols-[1fr_auto_180px_auto] gap-2 items-center cursor-move"
                           >
                             <input className={inputCls} value={skill.name} onChange={(e) => setSkills((prev) => prev.map((item, i) => (i === idx ? { ...item, name: e.target.value } : item)))} placeholder="Skill" />
                             <IconPickerButton value={skill.icon} onChange={(icon) => setSkills((prev) => prev.map((item, i) => (i === idx ? { ...item, icon } : item)))} label="Icon" />

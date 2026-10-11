@@ -91,14 +91,14 @@ export default function BookingAdmin() {
         <p className="text-sm text-white">Business hours</p>
         <div className="space-y-1.5">
           {config.hours.map((h, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <label className="flex w-32 items-center gap-2 cursor-pointer">
+            <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:flex items-center gap-3">
+              <label className="col-span-3 flex sm:w-32 items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={h.enabled} onChange={(e) => setHour(i, { enabled: e.target.checked })} className="accent-[var(--cranberry,#ef4242)]" />
                 <span className="text-xs text-white/70">{DAY_NAMES[i]}</span>
               </label>
-              <input type="time" disabled={!h.enabled} value={h.start} onChange={(e) => setHour(i, { start: e.target.value })} className={`${input} w-28 disabled:opacity-40`} />
+              <input aria-label={`${DAY_NAMES[i]} opening time`} type="time" disabled={!h.enabled} value={h.start} onChange={(e) => setHour(i, { start: e.target.value })} className={`${input} min-w-0 w-full sm:w-28 disabled:opacity-40`} />
               <span className="text-white/30 text-xs">to</span>
-              <input type="time" disabled={!h.enabled} value={h.end} onChange={(e) => setHour(i, { end: e.target.value })} className={`${input} w-28 disabled:opacity-40`} />
+              <input aria-label={`${DAY_NAMES[i]} closing time`} type="time" disabled={!h.enabled} value={h.end} onChange={(e) => setHour(i, { end: e.target.value })} className={`${input} min-w-0 w-full sm:w-28 disabled:opacity-40`} />
             </div>
           ))}
         </div>
@@ -158,7 +158,7 @@ export default function BookingAdmin() {
           {config.meetingTypes.map((t) => (
             <div key={t.id} className="rounded-sm border border-white/8 bg-white/2 p-3 space-y-2.5">
               <div className="flex items-center gap-2">
-                <input className={`${input} flex-1`} value={t.name} onChange={(e) => setType(t.id, { name: e.target.value })} placeholder="Name (e.g. Consultation)" />
+                <input className={`${input} flex-1 min-w-0`} value={t.name} onChange={(e) => setType(t.id, { name: e.target.value })} placeholder="Name (e.g. Consultation)" />
                 <label className="flex items-center gap-1.5 text-[11px] text-white/55 cursor-pointer whitespace-nowrap">
                   <input type="checkbox" checked={t.enabled} onChange={(e) => setType(t.id, { enabled: e.target.checked })} className="accent-[var(--cranberry,#ef4242)]" /> Enabled
                 </label>

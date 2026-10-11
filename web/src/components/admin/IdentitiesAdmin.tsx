@@ -161,9 +161,9 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
       </div>
 
       {/* Create a named identity, then copy its tracking link to hand out. */}
-      <div className="flex items-center gap-2 rounded-sm border border-white/8 bg-white/2 p-2.5">
+      <div className="flex flex-wrap items-center gap-2 rounded-sm border border-white/8 bg-white/2 p-2.5">
         <UserPlus size={15} className="text-[var(--cranberry)] ml-0.5" />
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") create(); }} placeholder='New identity name (e.g. "Michael")' className="h-8 flex-1 rounded-sm border border-white/10 bg-white/4 px-2 text-sm text-white outline-none focus:border-white/30" />
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") create(); }} placeholder='New identity name (e.g. "Michael")' className="h-8 flex-1 min-w-0 rounded-sm border border-white/10 bg-white/4 px-2 text-sm text-white outline-none focus:border-white/30" />
         <button onClick={create} disabled={busy || !newName.trim()} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-sm bg-[var(--cranberry)] text-white text-[11px] font-medium disabled:opacity-40 hover:opacity-90 cursor-pointer">
           <UserPlus size={13} /> Create & copy link
         </button>
