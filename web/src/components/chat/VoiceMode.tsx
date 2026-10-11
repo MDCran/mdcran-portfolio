@@ -786,6 +786,7 @@ export default function VoiceMode() {
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const isBrave = typeof navigator !== "undefined" && Boolean((navigator as unknown as { brave?: unknown }).brave);
     const isIOS = /iPad|iPhone|iPod/.test(ua) || (typeof navigator !== "undefined" && navigator.platform === "MacIntel" && (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints! > 1);
+    const canUseMicrophone = Boolean(navigator.mediaDevices?.getUserMedia);
     // SR on iOS/Brave is missing or unreliable → use the recorder fallback there.
     const useVad = !SR || isBrave || isIOS;
     // Warm up the on-device Whisper model when it will be the STT engine (recorder path).
@@ -794,6 +795,11 @@ export default function VoiceMode() {
     setPhaseSafe("connecting");
     setTurns([]);
     setInterim("");
+    setSupported(canUseMicrophone);
+    if (!canUseMicrophone) {
+      setPhaseSafe("error");
+      return;
+    }
 
     (async () => {
       try {
@@ -921,7 +927,11 @@ export default function VoiceMode() {
           vadRafRef.current = requestAnimationFrame(vad);
         }
       } catch {
-        if (!cancelled) { setSupported(false); setPhaseSafe("error"); }
+        // A denied or temporarily unavailable microphone is not a browser support
+        // failure. Chrome, Edge, Firefox, Safari, and mobile browsers all reach
+        // this path when site permission is blocked, so keep the recovery message
+        // accurate and let the visitor retry after enabling the microphone.
+        if (!cancelled) { setSupported(canUseMicrophone); setPhaseSafe("error"); }
       }
     })();
 
