@@ -110,12 +110,22 @@ function PricingAction({ project }: { project: Project }) {
   return null;
 }
 
+function engineeringFocus(project: Project): string | null {
+  const searchable = [project.title, project.description, project.longDescription, ...(project.tags ?? [])].filter(Boolean).join(" ").toLowerCase();
+  const isEngineering = project.category === "coding-projects" || project.category === "software" || (project.extraCategories ?? []).some((category) => category === "coding-projects" || category === "software");
+  if (!isEngineering) return null;
+  if (/\b(ai|llm|agent|mcp|rag|machine learning)\b/.test(searchable)) return "AI Engineering";
+  if (/\b(automation|integration|workflow)\b/.test(searchable)) return "Automation & Integrations";
+  return "Software Engineering";
+}
+
 export default function ProjectCard({ project, index = 0, className }: ProjectCardProps) {
   const href = projectUrl(project.category, project.slug, project.subcategory);
   const coverImage = project.coverImage ?? project.images?.[0];
   const coverSrc = imageAssetSrc(coverImage);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const focus = engineeringFocus(project);
 
   return (
     <motion.div
@@ -169,6 +179,11 @@ export default function ProjectCard({ project, index = 0, className }: ProjectCa
             )}
             <PricingBadge project={project} />
           </div>
+          {focus && (
+            <span className="absolute bottom-3 left-3 z-[2] rounded-sm border border-cyan-300/30 bg-black/75 px-2 py-1 text-[9px] font-jb uppercase tracking-[0.14em] text-cyan-100 backdrop-blur-sm">
+              {focus}
+            </span>
+          )}
         </div>
 
         {/* Content */}

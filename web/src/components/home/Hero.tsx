@@ -5,18 +5,15 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, ChevronDown, MapPin } from "lucide-react";
 import Link from "next/link";
 import type { SiteContentHero } from "@/lib/types";
-import { PERSON_FULL_NAME, PERSON_NAME } from "@/lib/seo";
 
 const SpotifyWidget = lazy(() => import("./SpotifyWidget"));
 const BibleWidget = lazy(() => import("./BibleWidget"));
 const MapWidget = lazy(() => import("./MapWidget"));
 
-const defaultServices = [
-  { label: "Minecraft Maps", href: "/arts-and-entertainment/minecraft-maps" },
-  { label: "Events", href: "/arts-and-entertainment/events" },
-  { label: "Thumbnail Design", href: "/motion-and-graphics/thumbnail-design" },
-  { label: "Video Editing", href: "/motion-and-graphics/video-editing" },
-  { label: "Web Dev & Design", href: "/motion-and-graphics/web-dev-design" },
+const hiringSignals = [
+  { label: "AI Engineering", href: "/code" },
+  { label: "Automation & Integrations", href: "/code" },
+  { label: "MCP & Agent Systems", href: "/code" },
 ];
 
 const ambientParticles = Array.from({ length: 6 }, (_, i) => ({
@@ -38,7 +35,8 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
   const y = useTransform(scrollYProgress, [0, 1], [0, 120]);
   const opacity = useTransform(scrollYProgress, [0, 0.85], [1, 0]);
   const scale = useTransform(scrollYProgress, [0, 1], [1, 0.92]);
-  const services = content?.serviceTags?.length ? content.serviceTags : defaultServices;
+  const savedServices = content?.serviceTags ?? [];
+  const services = [...hiringSignals, ...savedServices.filter((service) => !hiringSignals.some((signal) => signal.label === service.label))];
   const titlePrimary = content?.titlePrimary ?? "MD";
   const titleAccent = content?.titleAccent ?? "CRAN";
 
@@ -145,7 +143,7 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
             className="text-white/45 text-sm md:text-base max-w-xl mx-auto mb-6 leading-relaxed"
           >
             {content?.description ??
-              "Designing and building digital projects for creators, companies, and secure enterprise platforms."}
+              "Software and AI engineer building production systems, automation, integrations, and high-impact digital products."}
             <span className="block text-white/25">
               {content?.supportingText ?? "B.S. in Computer Science @UCF"}
             </span>

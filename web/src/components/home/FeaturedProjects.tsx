@@ -1,12 +1,21 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import ProjectCard from "@/components/shared/ProjectCard";
 import ArticleCard from "@/components/shared/ArticleCard";
 import type { Article, Project, SiteContentSectionIntro } from "@/lib/types";
+
+function engineeringPriority(project: Project): number {
+  const searchable = [project.title, project.description, project.longDescription, ...(project.tags ?? [])].filter(Boolean).join(" ").toLowerCase();
+  const isEngineering = project.category === "coding-projects" || project.category === "software" || (project.extraCategories ?? []).some((category) => category === "coding-projects" || category === "software");
+  if (!isEngineering) return 0;
+  if (/\b(ai|llm|agent|mcp|automation|integration|rag|machine learning)\b/.test(searchable)) return 3;
+  if (/\b(api|backend|full[ -]?stack|cloud|platform|infrastructure|software)\b/.test(searchable)) return 2;
+  return 1;
+}
 
 export default function FeaturedProjects({
   projects,
@@ -34,6 +43,16 @@ export default function FeaturedProjects({
     const art = articleMap.get(id);
     if (art) { orderedItems.push({ type: "article", item: art }); continue; }
   }
+  // The portfolio is still broad, but the home page leads with the work that best
+  // represents Michael for engineering and AI opportunities.
+  const prioritizedItems = orderedItems
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const aScore = a.entry.type === "project" ? engineeringPriority(a.entry.item) : 0;
+      const bScore = b.entry.type === "project" ? engineeringPriority(b.entry.item) : 0;
+      return bScore - aScore || a.index - b.index;
+    })
+    .map(({ entry }) => entry);
   const matchesCapability = (entry: (typeof orderedItems)[number], filter: Capability) => {
     const projectCategories = entry.type === "project"
       ? [entry.item.category, ...(entry.item.extraCategories ?? [])]
@@ -53,11 +72,9 @@ export default function FeaturedProjects({
     ["creative", "Creative"],
     ["games", "Games & Experiences"],
     ["writing", "Writing"],
-  ] as const).filter(([value]) => value === "all" || orderedItems.some((entry) => matchesCapability(entry, value)));
+  ] as const).filter(([value]) => value === "all" || prioritizedItems.some((entry) => matchesCapability(entry, value)));
   const activeCapability = capabilityOptions.some(([value]) => value === capability) ? capability : "all";
-  const visibleItems = useMemo(() => orderedItems.filter((entry) => {
-    return matchesCapability(entry, activeCapability);
-  }), [activeCapability, orderedItems]);
+  const visibleItems = prioritizedItems.filter((entry) => matchesCapability(entry, activeCapability));
   return (
     <section className="py-24 border-t border-white/6">
       <div className="content-container">
@@ -82,7 +99,7 @@ export default function FeaturedProjects({
               transition={{ delay: 0.1 }}
               className="font-nord text-3xl md:text-4xl text-white tracking-wider"
             >
-              {content?.title ?? "Featured Work"}
+              {content?.title ?? "Engineering & Featured Work"}
             </motion.h2>
             <motion.p
               initial={{ opacity: 0 }}
@@ -91,7 +108,7 @@ export default function FeaturedProjects({
               transition={{ delay: 0.15 }}
               className="mt-3 max-w-md text-sm text-white/40 leading-relaxed"
             >
-              {content?.description ?? "Featured projects pulled automatically from the portfolio."}
+              {content?.description ?? "AI systems, software engineering, automation, integrations, and the broader creative work behind them."}
             </motion.p>
           </div>
           <motion.div
