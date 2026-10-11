@@ -12,6 +12,7 @@ import { logAiTurn, getRecentMessagesForContext } from "@/lib/ai-conversations";
 import { clientIp } from "@/lib/api-rate-limit";
 import { getTopCandidateForSerial } from "@/lib/cross-device";
 import { matchesConditionTrigger, passesGuardrail } from "@/lib/referrer";
+import { getPromptAttackSummary, recordBlockedPromptAttack } from "@/lib/ai-security-analytics";
 import type { ImageAsset, ArticleSection, ReferrerContext } from "@/lib/types";
 
 /** Strip AI control markers so the stored transcript reads naturally. */
@@ -130,8 +131,8 @@ export async function GET() {
   if (!(await isAdminAuthenticated())) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
-  const [config, entries] = await Promise.all([getChatConfig(), getChatRateLimitEntries()]);
-  return Response.json({ config, entries });
+  const [config, entries, security] = await Promise.all([getChatConfig(), getChatRateLimitEntries(), getPromptAttackSummary()]);
+  return Response.json({ config, entries, security });
 }
 
 /* DELETE — admin: clear all chat rate limits or a specific IP */
@@ -246,7 +247,10 @@ async function handlePost(req: NextRequest): Promise<Response> {
   if (!validConversation || totalCharacters > 30_000 || typeof latestUser !== "string") {
     return new Response(JSON.stringify({ error: "Invalid messages" }), { status: 400 });
   }
-  if (isPromptAttack(latestUser)) return behaviorResponse();
+  if (isPromptAttack(latestUser)) {
+    void recordBlockedPromptAttack(latestUser);
+    return behaviorResponse();
+  }
 
   const requestedPage = typeof body.currentPage === "string" ? body.currentPage : "/";
   const currentPage = /^\/[a-zA-Z0-9/_-]*$/.test(requestedPage) ? requestedPage : "/";

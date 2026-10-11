@@ -273,6 +273,14 @@ export default function ChatPanel() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [activeAiAction, setActiveAiAction] = useState<string | null>(null);
+  const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const announceAiAction = useCallback((label: string, duration = 2800) => {
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+    setActiveAiAction(label);
+    actionTimerRef.current = setTimeout(() => setActiveAiAction(null), duration);
+  }, []);
+  useEffect(() => () => { if (actionTimerRef.current) clearTimeout(actionTimerRef.current); }, []);
 
   // Notify the on-screen keyboard to hide while AI is generating
   const prevStreamingRef = useRef(false);
@@ -772,6 +780,7 @@ export default function ChatPanel() {
                 deviceSerial: deviceSerialRef.current || undefined,
                 memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(),
                 tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(),
+                language: (() => { try { const code = localStorage.getItem("mdcran_language"); return code && code !== "en-US" ? code : undefined; } catch { return undefined; } })(),
                 visitorName: recycledIdentity?.name && recycledIdentity.name !== "Guest"
                   ? recycledIdentity.name
                   : undefined,
@@ -1007,6 +1016,7 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
             didNavigate = true;
             const navBase = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
+            announceAiAction(`AI is opening ${navBase === "/" ? "the home page" : navBase.replace(/^\//, "").replace(/[-/]/g, " ")}`);
             // Prefetch immediately so the page loads in the background while cursor animates
             try { router.prefetch(navBase); } catch { /* */ }
             // Animate cursor to the matching nav link
@@ -1054,6 +1064,7 @@ export default function ChatPanel() {
               }, 3400);
             });
             didNavigate = true;
+            announceAiAction(`AI is opening ${gotoItemMatches[0][2].trim()}`);
           }
 
           // Zoom + focus marker
@@ -1370,6 +1381,7 @@ export default function ChatPanel() {
 
           // Handle highlight based on context
           if (highlightTarget) {
+            announceAiAction(`AI is highlighting ${highlightTarget.replace(/[-_]/g, " ")}`);
             if (didNavigate) {
               // Auto-navigating: fire highlight after page loads
               setTimeout(() => {
@@ -1470,6 +1482,19 @@ export default function ChatPanel() {
       lastAgentMessageRef.current = Date.now();
     }
   }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak]);
+
+  // Project pages can open the chat with a focused, high-quality question without
+  // exposing their internal data to the browser event payload.
+  useEffect(() => {
+    const onAskAboutProject = (event: Event) => {
+      const title = (event as CustomEvent<{ title?: string }>).detail?.title?.trim();
+      if (!title) return;
+      setOpen(true);
+      setTimeout(() => void handleSend(`Tell me about the ${title} project: Michael's role, the problem it solves, and the strongest outcome.`), 150);
+    };
+    window.addEventListener("mdcran:ask-about-project", onAskAboutProject);
+    return () => window.removeEventListener("mdcran:ask-about-project", onAskAboutProject);
+  }, [handleSend]);
 
   /* ── Microphone recording — live transcription (SpeechRecognition) with STT fallback ── */
   const startRecording = useCallback(async () => {
@@ -1640,6 +1665,20 @@ export default function ChatPanel() {
                 })}
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeAiAction && (
+          <motion.div
+            role="status"
+            aria-live="polite"
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+            className="fixed top-20 left-1/2 z-[79] -translate-x-1/2 rounded-full border border-[var(--theme-primary,#ef4242)]/30 bg-black/85 px-3 py-1.5 text-[11px] text-white/75 shadow-xl backdrop-blur-md"
+          >
+            <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--theme-primary,#ef4242)] animate-pulse" />
+            {activeAiAction}
           </motion.div>
         )}
       </AnimatePresence>

@@ -3327,6 +3327,7 @@ export default function AdminDashboard() {
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [chatRateLimitConfig, setChatRateLimitConfig] = useState<{ rateLimit: number; rateWindowHours: number; extraContext?: string }>({ rateLimit: 10, rateWindowHours: 24, extraContext: "" });
   const [chatRateLimitEntries, setChatRateLimitEntries] = useState<{ ip: string; count: number; resetAt: string }[]>([]);
+  const [chatSecurity, setChatSecurity] = useState<{ total: number; last7Days: number; byCategory: Record<string, number> } | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rizzEntries, setRizzEntries] = useState<RizzEntry[]>([]);
   const [tapCounts, setTapCounts] = useState<Record<string, number>>({});
@@ -3492,6 +3493,7 @@ export default function AdminDashboard() {
           const chatData = await chatRlRes.json();
           setChatRateLimitConfig(chatData.config);
           setChatRateLimitEntries(chatData.entries);
+          setChatSecurity(chatData.security ?? null);
         }
         if (rizzRes.ok) setRizzEntries(await rizzRes.json());
         else setRizzEntries([]);
@@ -6185,6 +6187,32 @@ export default function AdminDashboard() {
 
           {activeSection === "ai" && (
             <div className="space-y-6">
+              <div className="rounded-sm border border-white/8 bg-white/[0.02] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="font-nord text-sm text-white">AI safety activity</p>
+                    <p className="text-xs text-white/35 mt-0.5">Blocked prompt attacks are counted by broad category only. No message content, IP address, device, or identity is saved.</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-nord text-white">{chatSecurity?.last7Days ?? "—"}</p>
+                    <p className="text-[10px] tracking-widest uppercase text-white/35">last 7 days</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ["Instruction override", "instruction-override"],
+                    ["Prompt exposure", "prompt-exposure"],
+                    ["Role manipulation", "role-manipulation"],
+                    ["Message forgery", "message-forgery"],
+                  ].map(([label, key]) => (
+                    <div key={key} className="rounded-sm border border-white/6 bg-white/[0.02] px-3 py-2">
+                      <p className="text-lg text-white/75">{chatSecurity?.byCategory[key] ?? "—"}</p>
+                      <p className="text-[10px] leading-snug text-white/35">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* What the assistant already knows (read-only, from the live site data) */}
               <div className="rounded-sm border border-white/8 bg-white/[0.02] p-5 space-y-3">
                 <div>
