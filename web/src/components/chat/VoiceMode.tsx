@@ -351,7 +351,36 @@ export default function VoiceMode() {
       if (!ctx) { unavailable(); return; }
       try { await ctx.resume(); } catch { /* */ }
       let audioBuf: AudioBuffer;
-      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { unavailable(); return; }
+      try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch {
+        // Safari can reject a valid streaming response in decodeAudioData even though
+        // its media element can play it. Keep a native audio fallback for Safari,
+        // Firefox, and any device with a restricted Web Audio implementation.
+        const url = URL.createObjectURL(new Blob([arr], { type: "audio/mpeg" }));
+        const audio = new Audio();
+        audioElRef.current = audio;
+        audio.preload = "auto";
+        audio.setAttribute("playsinline", "");
+        await new Promise<void>((resolve) => {
+          let finished = false;
+          const finish = () => {
+            if (finished) return;
+            finished = true;
+            URL.revokeObjectURL(url);
+            if (audioElRef.current === audio) audioElRef.current = null;
+            interruptTtsRef.current = null;
+            setCaptionWords([]);
+            setCaptionIdx(-1);
+            resolve();
+          };
+          audio.onplaying = () => { setTtsPreparing(false); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); };
+          audio.onended = finish;
+          audio.onerror = () => { finish(); unavailable(); };
+          interruptTtsRef.current = () => { try { audio.pause(); } catch { /* */ } finish(); setPhaseSafe("listening"); };
+          audio.src = url;
+          void audio.play().catch(() => { finish(); unavailable(); });
+        });
+        return;
+      }
       const analyser = ttsAnalyserRef.current;
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
@@ -404,7 +433,7 @@ export default function VoiceMode() {
         catch { setTtsPreparing(false); fireStart(); finish(); }
       });
     } catch {
-      fireStart();
+      unavailable();
     }
   }, [currentLang, setPhaseSafe]);
 
@@ -850,7 +879,10 @@ export default function VoiceMode() {
                   try { t = await transcribeBlobLocal(blob); localOk = true; } catch { localOk = false; }
                 }
                 if (!localOk) {
-                  const fd = new FormData(); fd.set("file", blob, "voice.webm");
+                  // Safari often records MP4/AAC; preserve that extension so the
+                  // transcription service receives the right container metadata.
+                  const extension = mr.mimeType.includes("mp4") ? "mp4" : "webm";
+                  const fd = new FormData(); fd.set("file", blob, `voice.${extension}`);
                   const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
                   const data = await res.json().catch(() => null);
                   t = typeof data?.text === "string" ? data.text.trim() : "";
