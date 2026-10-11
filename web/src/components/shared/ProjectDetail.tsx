@@ -415,6 +415,23 @@ export default function ProjectDetail({
             </div>
             )}
 
+            <aside className="hidden lg:block sticky top-24 p-5 rounded-sm border border-white/7 bg-white/2 space-y-5" aria-label="Project engagement">
+              <div>
+                <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">AI guide</p>
+                <button onClick={askAboutProject} data-highlight-id="ask-about-project-sidebar" className="inline-flex w-full items-center justify-center gap-2 rounded-sm border border-[var(--cranberry)]/30 bg-[var(--cranberry)]/8 px-3 py-2.5 text-xs text-white/70 transition-colors hover:border-[var(--cranberry)]/60 hover:text-white">
+                  <MessageCircle size={13} className="text-[var(--cranberry)]" /> Ask about this project
+                </button>
+              </div>
+              <div className="border-t border-white/8 pt-5">
+                <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">Appreciate this project</p>
+                <ProjectTapsButton projectId={project.id} />
+              </div>
+              <div className="border-t border-white/8 pt-5">
+                <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">Share</p>
+                <ProjectShareButtons />
+              </div>
+            </aside>
+
             {project.tags && project.tags.length > 0 && (
               <div className="p-5 rounded-sm border border-white/7 bg-white/2" data-highlight-id="project-tags">
                 <div className="flex items-center gap-2 mb-4">

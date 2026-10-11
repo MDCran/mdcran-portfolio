@@ -8,7 +8,7 @@ import TaggableImage from "@/components/shared/TaggableImage";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Link2, Check, Share2, ArrowLeft } from "lucide-react";
+import { Heart, Link2, Check, Share2, ArrowLeft, MessageCircle } from "lucide-react";
 import type { Article, ArticleSection, ArticleCategory } from "@/lib/types";
 import Lightbox from "@/components/shared/Lightbox";
 import AuthorByline from "@/components/shared/AuthorByline";
@@ -605,6 +605,11 @@ export default function ArticleDetail({ article }: { article: Article }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxAiOpened, setLightboxAiOpened] = useState(false);
   const coverSrc = imageAssetSrc(article.coverImage);
+  const askAboutArticle = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("mdcran:ask-about-article", {
+      detail: { title: article.title, slug: article.slug, category: article.category },
+    }));
+  }, [article.category, article.slug, article.title]);
 
   useEffect(() => {
     const onOpenImage = (e: Event) => {
@@ -716,10 +721,9 @@ export default function ArticleDetail({ article }: { article: Article }) {
       </section>
 
       {/* ── Content ── */}
-      <article
-        className="max-w-5xl mx-auto px-4 sm:px-8 py-16"
-        data-highlight-id="article"
-      >
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-12">
+      <div>
+      <article className="py-16" data-highlight-id="article">
         <div data-highlight-id="article-body">
         {article.sections.map((section, i) => (
           <div
@@ -748,7 +752,7 @@ export default function ArticleDetail({ article }: { article: Article }) {
 
       {/* ── Tags ── */}
       {article.tags.length > 0 && (
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 pb-8" data-highlight-id="article-tags">
+        <div className="pb-8" data-highlight-id="article-tags">
           <div className="flex flex-wrap gap-2">
             {article.tags.map((tag) => {
               const label = tag.replace(/^#+/, ""); const display = label.charAt(0).toUpperCase() + label.slice(1);
@@ -764,6 +768,27 @@ export default function ArticleDetail({ article }: { article: Article }) {
           </div>
         </div>
       )}
+      </div>
+
+      <aside className="hidden lg:block pt-16" aria-label="Article engagement">
+        <div className="sticky top-24 p-5 rounded-sm border border-white/7 bg-white/2 space-y-5">
+          <div>
+            <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">AI guide</p>
+            <button onClick={askAboutArticle} data-highlight-id="ask-about-article-sidebar" className="inline-flex w-full items-center justify-center gap-2 rounded-sm border border-[var(--cranberry)]/30 bg-[var(--cranberry)]/8 px-3 py-2.5 text-xs text-white/70 transition-colors hover:border-[var(--cranberry)]/60 hover:text-white">
+              <MessageCircle size={13} className="text-[var(--cranberry)]" /> Ask about this article
+            </button>
+          </div>
+          <div className="border-t border-white/8 pt-5">
+            <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">Appreciate this article</p>
+            <TapsButton articleId={article.id} />
+          </div>
+          <div className="border-t border-white/8 pt-5">
+            <p className="text-[10px] tracking-widest uppercase mb-3 text-white/35">Share</p>
+            <ShareButtons />
+          </div>
+        </div>
+      </aside>
+      </div>
 
       {/* ── Taps + Share ── */}
       <section className="max-w-5xl mx-auto px-4 sm:px-8 py-8 border-t border-white/8">
@@ -771,6 +796,12 @@ export default function ArticleDetail({ article }: { article: Article }) {
           <div>
             <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Appreciate this article</p>
             <TapsButton articleId={article.id} />
+          </div>
+          <div>
+            <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>AI guide</p>
+            <button onClick={askAboutArticle} data-highlight-id="ask-about-article" className="inline-flex items-center gap-2 rounded-sm border border-[var(--cranberry)]/30 bg-[var(--cranberry)]/8 px-4 py-2 text-xs text-white/70 transition-colors hover:border-[var(--cranberry)]/60 hover:text-white">
+              <MessageCircle size={13} className="text-[var(--cranberry)]" /> Ask about this article
+            </button>
           </div>
           <div>
             <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Share</p>
