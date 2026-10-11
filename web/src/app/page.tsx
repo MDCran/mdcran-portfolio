@@ -37,7 +37,7 @@ export const metadata: Metadata = buildSeoMetadata({
     "MDCran", "Michael Cran", "Michael David Cran", "MD Cran",
     "Minecraft Map Maker", "Minecraft Maps", "Level Designer",
     "Thumbnail Designer", "Video Editor", "Content Creator",
-    "Software Developer", "Web Developer", "UCF Computer Science",
+    "Software Engineer", "AI Engineer", "AI Automation", "MCP Integration", "Full-Stack Engineer", "Software Developer", "Web Developer", "UCF Computer Science",
     "Orlando Freelancer", "Independent Contractor",
   ],
 });

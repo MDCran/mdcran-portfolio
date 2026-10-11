@@ -47,7 +47,7 @@ export default function Services({
 }: {
   content?: SiteContentPageBlock;
 }) {
-  const services = content?.cards?.length
+  const suppliedServices = content?.cards?.length
     ? content.cards.map((card) => ({
         icon: serviceIconForHref(card.href),
         title: card.title,
@@ -57,6 +57,16 @@ export default function Services({
         accent: "#ef4242",
       }))
     : defaultServices;
+  const services = suppliedServices
+    .map((service) => service.href === "/code"
+      ? {
+          ...service,
+          title: "Software & AI Engineering",
+          description: "Production software, AI-enabled automation, integrations, APIs, and systems built for real operations.",
+          items: ["AI & MCPs", "Automation", "Full-Stack Systems"],
+        }
+      : service)
+    .sort((a, b) => Number(b.href === "/code") - Number(a.href === "/code"));
 
   return (
     <section className="py-24">
