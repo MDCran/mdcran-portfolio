@@ -15,6 +15,8 @@ import PersonalIdentity from "@/components/shared/PersonalIdentity";
 import LanguageSelector from "@/components/shared/LanguageSelector";
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
 
+const FLAG_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+
 type Colorblind = "none" | "deuteranopia" | "protanopia" | "tritanopia";
 type CursorMode = "default" | "large" | "circle" | "contrast";
 
@@ -396,7 +398,7 @@ export default function AccessibilityMenu() {
 
             <Section label="Location">
               <div className="flex items-center gap-2 text-sm text-white/70">
-                <span className="text-lg leading-none">{flagEmoji(countryCode)}</span>
+                <span role="img" aria-label={`${country} flag`} className="text-lg leading-none" style={{ fontFamily: FLAG_FONT }}>{flagEmoji(countryCode)}</span>
                 <span>{country}</span>
                 <Lock size={11} className="text-white/30 ml-auto" />
               </div>

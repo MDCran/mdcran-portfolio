@@ -161,9 +161,9 @@ const ChatContactCard = dynamicImport(() => import("@/components/chat/ChatAction
 const ChatBookingCard = dynamicImport(() => import("@/components/chat/ChatActionCards").then((m) => m.ChatBookingCard), { ssr: false });
 
 const SUGGESTIONS = [
-  "Break down what I'm looking at",
   "Show me your best project",
-  "Are you available for hire?",
+  "Show me your AI engineering work",
+  "Take me to your resume",
 ];
 
 function TypingIndicator() {
