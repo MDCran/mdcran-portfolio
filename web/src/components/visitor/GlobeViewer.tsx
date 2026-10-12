@@ -4,7 +4,7 @@ import React from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { COUNTRY_CENTROIDS } from "./countryCentroids";
-import { flagEmoji } from "@/lib/flag";
+import CountryFlag from "@/components/shared/CountryFlag";
 
 export type CountryStat = {
   country: string;
@@ -454,7 +454,7 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal, 
               boxShadow: "0 0 18px rgba(239,66,66,0.18)",
             }}
           >
-            <span style={{ marginRight: 6 }}>{flagEmoji(hovered.stat.country)}</span>
+            <span style={{ marginRight: 6 }}><CountryFlag countryCode={hovered.stat.country} label="" /></span>
             <span style={{ color: "#ef4242" }}>{hovered.stat.countryName}</span>
             <span style={{ color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>
               {hovered.stat.count.toLocaleString()} visitor{hovered.stat.count !== 1 ? "s" : ""}
@@ -534,7 +534,7 @@ export default function GlobeViewer({ stats: initialStats, total: initialTotal, 
         {topCountries.map((s, i) => (
           <div key={s.country} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
             <span style={{ color: "rgba(255,255,255,0.25)", width: 16, textAlign: "right" }}>{i + 1}</span>
-            <span style={{ fontSize: 14, lineHeight: 1 }}>{flagEmoji(s.country)}</span>
+            <CountryFlag countryCode={s.country} label="" />
             <span style={{ color: "rgba(255,255,255,0.65)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {s.countryName}
             </span>
