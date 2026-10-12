@@ -73,7 +73,7 @@ import type {
   Identity,
 } from "@/lib/types";
 import { DEGREE_LEVELS, RESUME_SECTIONS, RESUME_SECTION_LABELS } from "@/lib/types";
-import { flagEmoji } from "@/lib/flag";
+import CountryFlag from "@/components/shared/CountryFlag";
 import { defaultSiteContent } from "@/lib/site-content";
 import { SKILL_ICON_NAMES, SkillIcon } from "@/lib/skill-icons";
 import { assetUrl } from "@/lib/utils";
@@ -9161,7 +9161,7 @@ function AdminVisitorsSection() {
           <tbody>
             {(data?.counts ?? []).map((c) => (
               <tr key={c.country} className="border-b border-white/5 last:border-0 hover:bg-white/3">
-                <td className="px-3 py-2 text-white/75"><span className="mr-1.5">{flagEmoji(c.country)}</span>{c.countryName}</td>
+                <td className="px-3 py-2 text-white/75"><span className="mr-1.5"><CountryFlag countryCode={c.country} label="" /></span>{c.countryName}</td>
                 <td className="px-3 py-2 text-white/40">{c.country}</td>
                 <td className="px-3 py-2 text-right text-white/60">{c.count.toLocaleString()}</td>
               </tr>
@@ -9195,7 +9195,7 @@ function AdminVisitorsSection() {
               <tbody>
                 {(data?.adjustments ?? []).map((adj) => (
                   <tr key={adj.id} className="border-b border-white/5 last:border-0 hover:bg-white/3">
-                    <td className="px-3 py-2 text-white/75"><span className="mr-1.5">{flagEmoji(adj.country)}</span>{adj.countryName} ({adj.country})</td>
+                    <td className="px-3 py-2 text-white/75"><span className="mr-1.5"><CountryFlag countryCode={adj.country} label="" /></span>{adj.countryName} ({adj.country})</td>
                     <td className="px-3 py-2 text-right text-white/60">+{adj.addedCount.toLocaleString()}</td>
                     <td className="px-3 py-2 text-right">
                       <button onClick={() => handleDelete(adj.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>

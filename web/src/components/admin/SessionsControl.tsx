@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import { flagEmoji } from "@/lib/flag";
+import CountryFlag from "@/components/shared/CountryFlag";
 
 const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)));
 
@@ -148,7 +148,7 @@ export default function SessionsControl() {
                     </span>
                   </div>
                   <div className="text-[11px] text-white/40">
-                    {v.countryCode ? `${flagEmoji(v.countryCode)} ` : ""}{v.countryName ?? "—"} · {v.browser} · {v.os} · {v.device} · {v.visitCount} visit{v.visitCount === 1 ? "" : "s"} · {v.activeTabs}/{v.tabs.length} tab{v.tabs.length === 1 ? "" : "s"} active
+                    {v.countryCode && <><CountryFlag countryCode={v.countryCode} label="" /> </>}{v.countryName ?? "—"} · {v.browser} · {v.os} · {v.device} · {v.visitCount} visit{v.visitCount === 1 ? "" : "s"} · {v.activeTabs}/{v.tabs.length} tab{v.tabs.length === 1 ? "" : "s"} active
                   </div>
                 </div>
               </div>
