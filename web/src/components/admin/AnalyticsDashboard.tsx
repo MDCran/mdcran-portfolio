@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
-import { flagEmoji } from "@/lib/flag";
+import CountryFlag from "@/components/shared/CountryFlag";
 
 const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)));
 
@@ -65,7 +65,7 @@ function BarList({ items, max }: { items: { name: string; count: number; code?: 
           <div className="absolute inset-y-0 left-0 rounded-sm bg-[#ef4242]/12" style={{ width: `${(it.count / top) * 100}%` }} />
           <div className="relative flex items-center justify-between px-2 py-1 text-xs">
             <span className="text-white/70 truncate flex items-center gap-1.5">
-              {it.code && <span className="text-sm leading-none">{flagEmoji(it.code)}</span>}
+              {it.code && <CountryFlag countryCode={it.code} label="" />}
               {it.name}
             </span>
             <span className="text-white/40 tabular-nums">{fmt(it.count)}</span>
