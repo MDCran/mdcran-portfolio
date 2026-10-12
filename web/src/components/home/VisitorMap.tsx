@@ -4,7 +4,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { flagEmoji } from "@/lib/flag";
+import CountryFlag from "@/components/shared/CountryFlag";
 import { ArrowRight, Globe } from "lucide-react";
 import type { SiteContentSectionIntro } from "@/lib/types";
 
@@ -96,7 +96,7 @@ export default function VisitorMap({ countries, content }: VisitorMapProps) {
                 {topCountries.map((entry, i) => (
                   <div key={entry.country} className="flex items-center gap-3 text-[12px] font-jb" title={entry.countryName}>
                     <span className="w-4 text-right text-white/20 tabular-nums">{i + 1}</span>
-                    <span className="text-base leading-none">{flagEmoji(entry.country)}</span>
+                    <CountryFlag countryCode={entry.country} label="" />
                     <span className="flex-1 text-white/55 truncate">{entry.countryName}</span>
                     <span className="text-[#ef4242] font-semibold tabular-nums">
                       {entry.count.toLocaleString("en-US")}
