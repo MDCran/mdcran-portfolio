@@ -1,80 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portfolio application
 
-## Getting Started!
+The Next.js application behind [Michael Cran's portfolio](https://mdcran.com/). See the [repository overview](../README.md) for screenshots, source navigation, and verification notes.
 
-First, run the development server:
+## Getting started
+
+Run these commands from `web/` after configuring your development MongoDB connection below:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:4000](http://localhost:4000). The development script uses webpack and port 4000. The home page is [src/app/page.tsx](src/app/page.tsx).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a git-ignored `.env.local` in this directory. Use your own development database and credentials; the deployed portfolio's data and service access are not included.
 
-## Environment Variables
+```dotenv
+# Database (required for content-backed pages)
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DB=mdcran_dev
 
-Create a `.env.local` file (git-ignored) with the keys you need:
+# Admin authentication
+JWT_SECRET=replace-with-a-unique-development-secret
+ADMIN_PASSWORD_HASH=replace-with-your-password-hash
+# ADMIN_PASSWORD is also supported; prefer a hash.
+
+# Optional Anthropic chat
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=
+
+# Optional providers used when ANTHROPIC_API_KEY is absent
+OPENAI_API_KEY=
+OPENAI_MODEL=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=
+
+# Optional ElevenLabs voice services
+ELEVENLABS_API_KEY=
+ELEVENLABS_STT_MODEL=scribe_v1
+
+# Optional GitHub contributions display
+GITHUB_TOKEN=
+GITHUB_USERNAME=mdcran
+
+# Optional LogoKit browser-visible publishable token
+NEXT_PUBLIC_LOGOKIT_TOKEN=
+```
+
+Keep secrets out of Git. Values prefixed with `NEXT_PUBLIC_` are exposed to the browser and must not contain private credentials. Production admin authentication requires an explicitly configured `JWT_SECRET`.
+
+### Chat and voice behavior
+
+When `ANTHROPIC_API_KEY` is set, [the chat route](src/app/api/chat/route.ts) uses Anthropic and its model fallback chain. If that key is absent, configured OpenAI is tried before OpenRouter. An Anthropic error does not switch to those other providers. With no provider key, chat returns a not-configured response.
+
+Chat can emit interface directives for navigation, highlighting, and focus. Review the application source when extending that behavior.
+
+[Voice mode](src/components/chat/VoiceMode.tsx) uses browser speech recognition where supported, or a recording path that tries local transcription before the server transcription fallback. Availability depends on the browser, microphone permission, and configured services.
+
+The [speech-to-text route](src/app/api/voice/stt/route.ts) uses `ELEVENLABS_STT_MODEL`, defaulting to `scribe_v1`. The [text-to-speech route](src/app/api/voice/tts/route.ts) pins its voice and model in source; `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL` do not configure that route. Reusing it requires a voice you are authorized to use and corresponding service access.
+
+## Development checks
 
 ```bash
-# Database
-MONGODB_URI=...
-MONGODB_DB=...
-
-# Admin auth
-JWT_SECRET=...
-ADMIN_PASSWORD_HASH=...   # or ADMIN_PASSWORD
-
-# AI chat assistant — Claude (Anthropic) is primary; OpenRouter/OpenAI are fallbacks
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-opus-4-7    # optional; e.g. claude-haiku-4-5 for a faster/cheaper widget
-OPENROUTER_API_KEY=...             # fallback (defaults to a Claude model)
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet  # optional fallback model
-OPENAI_API_KEY=sk-...              # optional fallback
-OPENAI_MODEL=gpt-4o-mini           # optional fallback model
-
-# ElevenLabs voice (TTS replies + microphone speech-to-text)
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=...            # optional, defaults to the "Rachel" voice
-ELEVENLABS_MODEL=eleven_turbo_v2_5 # optional TTS model
-ELEVENLABS_STT_MODEL=scribe_v1     # optional STT model
-
-# GitHub contributions calendar (home "By the Numbers" section)
-GITHUB_TOKEN=ghp_...               # PAT with read access to contributions
-GITHUB_USERNAME=mdcran             # optional, defaults to mdcran
-
-# LogoKit — brand logos for the home page AI tools / tech stack grids
-NEXT_PUBLIC_LOGOKIT_TOKEN=pk_...   # publishable key from logokit.com, safe client-side
+npm run lint
+npm run test:rizz
+npm run build
 ```
 
-The chat tries Claude (Anthropic SDK, streaming + prompt caching) first, then
-OpenRouter, then OpenAI. If none are set it returns a "not configured" response.
-The assistant can also drive the UI — it emits invisible directives that the
-frontend executes: navigate, highlight, zoom-and-focus, glassmorphism emphasize,
-and reset. The voice controls (speaker toggle, mic, and the full **Voice mode**
-overlay with the audio-reactive circle + live transcription) only appear when
-`ELEVENLABS_API_KEY` is configured. Live voice transcription uses the browser's
-SpeechRecognition API (Chrome/Edge/Safari); replies are spoken via ElevenLabs.
+`test:rizz` is a focused test file, not a full application test suite. Optional integrations require their own configuration and runtime verification. See the root [quality and security notes](../README.md#quality-and-security-checks) for the actual CI coverage.
 
-## Learn More
+## Framework references
 
-To learn more about Next.js, take a look at the following resources:
+Originally bootstrapped with [create-next-app](https://nextjs.org/docs/app/api-reference/cli/create-next-app). The application uses [next/font](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) and Geist.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js documentation](https://nextjs.org/docs)
+- [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying)
