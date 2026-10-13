@@ -96,6 +96,10 @@ export default function VoiceMode() {
 
   const [open, setOpen] = useState(false);
   const [supported, setSupported] = useState(true);
+  const [micError, setMicError] = useState("");
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState("");
+  const [micRetryKey, setMicRetryKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [interim, setInterim] = useState("");
   const [userSaid, setUserSaid] = useState(""); // last transcribed question (shown at top)
@@ -174,6 +178,13 @@ export default function VoiceMode() {
   /* Broadcast open/close so the chat bubble can track which mode is active. */
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(open ? "mdcran:voice-state-open" : "mdcran:voice-state-close"));
+  }, [open]);
+
+  /* Start a fresh transcript only when the visitor opens a new voice session. */
+  useEffect(() => {
+    if (!open) return;
+    setTurns([]);
+    setInterim("");
   }, [open]);
 
   /* Silence detection — show a tip after 45s of mic inactivity while listening. */
@@ -776,6 +787,11 @@ export default function VoiceMode() {
     }
   }, [currentLang, pathname, runDirectives, speak, setPhaseSafe, visitorGeo, visitorName]);
 
+  // Keep microphone callbacks pointed at the latest handler without restarting
+  // capture or clearing the transcript when visitor identity/page data changes.
+  const sendToAgentRef = useRef(sendToAgent);
+  sendToAgentRef.current = sendToAgent;
+
   /* ── Open: set up mic, analyser, and either SpeechRecognition or the
      MediaRecorder+STT fallback (so it works in Safari, Firefox, Brave, Chrome). ── */
   useEffect(() => {
@@ -788,26 +804,45 @@ export default function VoiceMode() {
     const isIOS = /iPad|iPhone|iPod/.test(ua) || (typeof navigator !== "undefined" && navigator.platform === "MacIntel" && (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints! > 1);
     const canUseMicrophone = Boolean(navigator.mediaDevices?.getUserMedia);
     // SR on iOS/Brave is missing or unreliable → use the recorder fallback there.
-    const useVad = !SR || isBrave || isIOS;
+    // Browser SpeechRecognition can't be told which physical input to use. If
+    // the visitor chooses one, use the recorder path so that choice is honored.
+    const useVad = !SR || isBrave || isIOS || Boolean(selectedMicId);
     // Warm up the on-device Whisper model when it will be the STT engine (recorder path).
     if (useVad && isLocalSttSupported()) preloadLocalStt();
 
     setPhaseSafe("connecting");
-    setTurns([]);
-    setInterim("");
+    setMicError("");
     setSupported(canUseMicrophone);
     if (!canUseMicrophone) {
+      setMicError("Microphone access is unavailable in this browser. Open this site in a secure browser window and try again.");
       setPhaseSafe("error");
       return;
     }
 
+    const refreshAudioInputs = async () => {
+      try {
+        const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "audioinput");
+        if (cancelled) return;
+        setAudioInputs(inputs);
+        if (selectedMicId && !inputs.some((device) => device.deviceId === selectedMicId)) setSelectedMicId("");
+      } catch { /* Device labels and enumeration vary by browser. */ }
+    };
+
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: {
+            ...(selectedMicId ? { deviceId: { exact: selectedMicId } } : {}),
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         micStreamRef.current = stream;
+        setMicError("");
+        await refreshAudioInputs();
+        navigator.mediaDevices.addEventListener?.("devicechange", refreshAudioInputs);
 
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ctx = new Ctx();
@@ -848,7 +883,7 @@ export default function VoiceMode() {
               sendTimerRef.current = setTimeout(() => {
                 const toSend = pendingFinalRef.current.trim();
                 pendingFinalRef.current = "";
-                if (toSend && !isNoisyTranscript(toSend)) void sendToAgent(toSend);
+                if (toSend && !isNoisyTranscript(toSend)) void sendToAgentRef.current(toSend);
               }, 700);
             }
           };
@@ -893,7 +928,7 @@ export default function VoiceMode() {
                   const data = await res.json().catch(() => null);
                   t = typeof data?.text === "string" ? data.text.trim() : "";
                 }
-                if (t && !isNoisyTranscript(t)) await sendToAgent(t);
+                if (t && !isNoisyTranscript(t)) await sendToAgentRef.current(t);
                 else if (openRef.current) setPhaseSafe("listening");
               } catch { if (openRef.current) setPhaseSafe("listening"); }
             };
@@ -926,17 +961,49 @@ export default function VoiceMode() {
           setPhaseSafe("listening");
           vadRafRef.current = requestAnimationFrame(vad);
         }
-      } catch {
+      } catch (error) {
         // A denied or temporarily unavailable microphone is not a browser support
         // failure. Chrome, Edge, Firefox, Safari, and mobile browsers all reach
         // this path when site permission is blocked, so keep the recovery message
         // accurate and let the visitor retry after enabling the microphone.
-        if (!cancelled) { setSupported(canUseMicrophone); setPhaseSafe("error"); }
+        if (!cancelled) {
+          const name = error instanceof DOMException ? error.name : "";
+          setSupported(canUseMicrophone);
+          setMicError(
+            name === "NotAllowedError" || name === "SecurityError"
+              ? "Microphone permission is blocked. Allow microphone access for this site in your browser settings, then try again."
+              : name === "NotFoundError" || name === "OverconstrainedError"
+                ? "That microphone isn't available. Choose another input or use the system default."
+                : "Couldn't start the microphone. Check that it's connected, then try again.",
+          );
+          setPhaseSafe("error");
+        }
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [open, startMeter, sendToAgent, setPhaseSafe]);
+    return () => {
+      cancelled = true;
+      navigator.mediaDevices?.removeEventListener?.("devicechange", refreshAudioInputs);
+      // Tear down the old input before a retry or input switch, and keep a
+      // SpeechRecognition onend callback from restarting during the switch.
+      setPhaseSafe("connecting");
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      if (vadRafRef.current) { cancelAnimationFrame(vadRafRef.current); vadRafRef.current = null; }
+      if (mediaRecorderRef.current) {
+        const recorder = mediaRecorderRef.current;
+        recorder.onstop = null;
+        try { if (recorder.state !== "inactive") recorder.stop(); } catch { /* */ }
+        mediaRecorderRef.current = null;
+      }
+      vadRecordingRef.current = false;
+      if (recRef.current) { try { recRef.current.abort(); } catch { /* */ } recRef.current = null; }
+      if (micSourceRef.current) { try { micSourceRef.current.disconnect(); } catch { /* */ } micSourceRef.current = null; }
+      if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((track) => track.stop()); micStreamRef.current = null; }
+      if (audioCtxRef.current) { try { void audioCtxRef.current.close(); } catch { /* */ } audioCtxRef.current = null; }
+      analyserRef.current = null;
+      ttsAnalyserRef.current = null;
+    };
+  }, [open, selectedMicId, micRetryKey, startMeter, setPhaseSafe]);
 
   /* ── Teardown on close ── */
   useEffect(() => {
@@ -984,6 +1051,7 @@ export default function VoiceMode() {
     phase === "thinking" ? "Thinking" :
     phase === "speaking" ? "Speaking" :
     "Voice";
+  const selectableAudioInputs = audioInputs.filter((device) => device.deviceId && device.deviceId !== "default" && device.deviceId !== "communications");
   const lastAssistantText = [...turns].reverse().find((t) => t.role === "assistant")?.text || "";
 
   return createPortal(
@@ -1061,7 +1129,7 @@ export default function VoiceMode() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.25 }}
-                className="fixed top-20 left-1/2 z-[72] -translate-x-1/2 w-[min(92vw,40rem)] px-4 pointer-events-none"
+                className={`fixed top-20 left-1/2 z-[72] -translate-x-1/2 w-[min(92vw,40rem)] px-4 ${phase === "error" ? "pointer-events-auto" : "pointer-events-none"}`}
               >
                 <div
                   className="rounded-sm border px-5 py-3 text-center text-[14px] sm:text-[15px] leading-relaxed font-jb"
@@ -1072,9 +1140,20 @@ export default function VoiceMode() {
                     boxShadow: "0 16px 50px rgba(0,0,0,0.5)",
                   }}
                 >
-                  {phase === "error"
-                    ? <span className="text-white/55">{(supported || /Firefox\/|Waterfox\//.test(typeof navigator !== "undefined" ? navigator.userAgent : "")) ? "Allow mic access, then reopen voice mode." : "Live voice isn't available in this browser — use the chat mic instead."}</span>
-                    : <span className="text-white/90">{interim || userSaid}</span>}
+                  {phase === "error" ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <p className="text-white/65">{micError || (supported ? "Microphone access couldn't start." : "Live voice isn't available in this browser — use the chat mic instead.")}</p>
+                      {supported && (
+                        <button
+                          type="button"
+                          onClick={() => { setMicError(""); setPhaseSafe("connecting"); setMicRetryKey((key) => key + 1); }}
+                          className="rounded-sm border border-[#ef4242]/40 bg-[#ef4242]/10 px-3 py-1.5 text-[12px] text-white/85 transition-colors hover:border-[#ef4242]/75 hover:bg-[#ef4242]/20"
+                        >
+                          Try microphone access again
+                        </button>
+                      )}
+                    </div>
+                  ) : <span className="text-white/90">{interim || userSaid}</span>}
                 </div>
               </motion.div>
             )}
@@ -1155,6 +1234,25 @@ export default function VoiceMode() {
             <div className="flex items-center gap-2">
               <span className="rounded-sm border border-[#ef4242]/40 bg-black/75 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#ef4242] backdrop-blur-sm font-medium">{shortLabel}</span>
               <span className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-[10px] tabular-nums text-white/65 backdrop-blur-sm">{elapsedStr}</span>
+              {selectableAudioInputs.length > 1 && (
+                <label className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-white/70 backdrop-blur-sm">
+                  <span className="sr-only">Select microphone</span>
+                  <select
+                    aria-label="Select microphone"
+                    value={selectedMicId}
+                    onChange={(event) => setSelectedMicId(event.target.value)}
+                    className="max-w-40 bg-transparent text-[10px] outline-none"
+                    title="Select microphone"
+                  >
+                    <option value="" className="bg-[#0c0c0e]">System default microphone</option>
+                    {selectableAudioInputs.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId} className="bg-[#0c0c0e]">
+                        {device.label || `Microphone ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
 
             {/* The orb — tap to interrupt while speaking, otherwise tap to exit voice chat */}

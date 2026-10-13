@@ -38,7 +38,9 @@ export function proxy(req: NextRequest) {
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("X-Frame-Options", "SAMEORIGIN");
-  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // Voice mode requests microphone access after the visitor opens it. Keep
+  // camera and geolocation disabled while allowing same-origin mic capture.
+  res.headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
   if (!isDev) {
     res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   }
