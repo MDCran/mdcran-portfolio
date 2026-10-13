@@ -21,7 +21,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/motion-and-graphics/video-editing`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.78 },
     { url: `${BASE_URL}/motion-and-graphics/web-dev-design`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.78 },
     { url: `${BASE_URL}/motion-and-graphics/graphic-design`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.78 },
-    { url: `${BASE_URL}/code`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     // Content pages
     { url: `${BASE_URL}/articles`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.8 },
     { url: `${BASE_URL}/publications`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.65 },
@@ -53,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  const projectRoutes: MetadataRoute.Sitemap = projects.map((project) => ({
+  const projectRoutes: MetadataRoute.Sitemap = projects.filter((project) => project.category !== "coding-projects").map((project) => ({
     url: `${BASE_URL}${projectUrl(project.category, project.slug, project.subcategory)}`,
     lastModified: new Date(),
     changeFrequency: "monthly",

@@ -16,7 +16,7 @@ const STOPS: Stop[] = [
   { path: "/motion-and-graphics/thumbnail-design", text: "Here's my thumbnail design — click-worthy art made for creators." },
   { path: "/motion-and-graphics/video-editing", text: "My video editing — pacing, motion, and storytelling that keeps people watching." },
   { path: "/motion-and-graphics/web-dev-design", text: "Web development and design — the sites and interfaces I've built." },
-  { path: "/code", text: "My coding projects — the engineering side of what I do." },
+  { path: "/engineering", text: "My software and AI engineering projects, with implementation notes and public evidence.", highlight: "projects" },
   { path: "/articles", text: "And a few articles I've written about my creations and process." },
   { path: "/", text: "And that brings us back to the highlights. Want to dive into any one of these?", highlight: "featured" },
 ];

@@ -177,7 +177,7 @@ const VALID_DIRS = new Set([
   "/motion-and-graphics/thumbnail-design",
   "/motion-and-graphics/video-editing",
   "/motion-and-graphics/web-dev-design",
-  "/code",
+  "/engineering",
   "/articles",
   "/clients",
   "/featured-work",
@@ -558,7 +558,7 @@ function directoryItems(path: string[], data: TerminalData): string[] {
       )
       .map((p) => proj(p.slug, p.title));
   }
-  if (key === "/code") {
+  if (key === "/engineering") {
     return data.projects
       .filter(isCodeProject)
       .map((p) => proj(p.slug, p.title));

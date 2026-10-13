@@ -28,7 +28,6 @@ const navLinks = [
       { label: "Web Dev & Design", href: "/motion-and-graphics/web-dev-design" },
     ],
   },
-  { label: "Code", href: "/code" },
   { label: "Articles", href: "/articles" },
 ];
 

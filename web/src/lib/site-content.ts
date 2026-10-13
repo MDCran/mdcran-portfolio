@@ -123,11 +123,11 @@ export const defaultSiteContent: SiteContent = {
         items: ["Thumbnails", "Video Editing", "Web Design"],
       },
       {
-        title: "Code",
+        title: "Engineering",
         description:
-          "Development of secure software, backend systems, web applications, plugins and more...",
-        href: "/code",
-        items: ["Minecraft Plugins", "Web Apps", "Internal Tools"],
+          "AI-enabled applications, APIs, backend systems, and cloud software built for real operations.",
+        href: "/engineering",
+        items: ["AI & Agents", "Full-Stack Apps", "APIs & Cloud"],
       },
     ],
   },
@@ -218,9 +218,9 @@ export const defaultSiteContent: SiteContent = {
         items: ["Thumbnail Design", "Video Editing", "Web Dev & Design"],
       },
       {
-        title: "Code",
-        description: "Software, systems, tools, and web applications.",
-        href: "/code",
+        title: "Engineering",
+        description: "AI, software, APIs, systems, and full-stack applications.",
+        href: "/engineering",
         items: [],
       },
       {
@@ -317,9 +317,9 @@ export const defaultSiteContent: SiteContent = {
         ],
       },
       {
-        title: "Code & Articles",
+        title: "Engineering & Articles",
         links: [
-          { label: "Code", href: "/code" },
+          { label: "Engineering", href: "/engineering" },
           { label: "Articles", href: "/articles" },
         ],
       },

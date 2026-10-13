@@ -49,7 +49,9 @@ export default async function WorkPage() {
     getClients(),
   ]);
   const header = siteContent.workPage;
-  const sections = header.cards ?? [];
+  const sections = (header.cards ?? []).map((section) => section.href === "/code"
+    ? { ...section, title: "Engineering", href: "/engineering", description: "AI, software, APIs, systems, and full-stack applications." }
+    : section);
 
   const clientMap = new Map(clients.map((c) => [c.id, c.name]));
   const rows: WorkRow[] = [

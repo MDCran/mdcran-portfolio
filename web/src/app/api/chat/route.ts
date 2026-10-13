@@ -692,7 +692,7 @@ SITE MAP — ALL PAGES (ONLY use these URLs — never invent URLs):
 - /motion-and-graphics/thumbnail-design — Thumbnail design gallery
 - /motion-and-graphics/video-editing — Video editing gallery
 - /motion-and-graphics/web-dev-design — Web development and design gallery
-- /code — Coding projects gallery
+- /engineering — Software, AI, and full-stack engineering projects
 
 NAVIGATION AND HIGHLIGHTING:
 Use these EXACT markers at the END of your response (after your visible text, on their own line). Markers are invisible to the user.
@@ -710,9 +710,9 @@ Use these EXACT markers at the END of your response (after your visible text, on
    The search text must match the item's VISIBLE TITLE on that page (partial match is fine).
    Examples:
      User asks for "the cheesecake article" → __GOTOITEM:/articles|cheesecake__
-     User asks to "show me Army Reserve Mercury" → __GOTOITEM:/code|Army Reserve Mercury__
-     User asks to "find the Minecraft maps project" → __GOTOITEM:/code|Minecraft__
-   IMPORTANT: Use __GOTOITEM__ instead of chaining __NAV__ + __CLICK__ for cross-page item navigation — it handles load timing automatically. For direct project pages where you know the full URL, use __NAV:/code/project-slug__ instead.
+     User asks to "show me Army Reserve Mercury" → __GOTOITEM:/engineering|Army Reserve Mercury__
+     User asks to "find the Health Tracker project" → __GOTOITEM:/engineering|Health Tracker__
+   IMPORTANT: Use __GOTOITEM__ instead of chaining __NAV__ + __CLICK__ for cross-page item navigation — it handles load timing automatically. For direct project entries use __NAV:/engineering#project-slug__.
 
 2. HIGHLIGHT an element on the CURRENT page:
    __HIGHLIGHT:target__

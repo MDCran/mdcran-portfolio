@@ -38,7 +38,7 @@ ${ENGINEERING_SUMMARY} His broader portfolio includes web design, digital conten
 - [Video Editing](${SITE_URL}/motion-and-graphics/video-editing) — Video production work
 - [Web Dev & Design](${SITE_URL}/motion-and-graphics/web-dev-design) — Websites and web applications
 - [Graphic Design](${SITE_URL}/motion-and-graphics/graphic-design) — Visual design work
-- [Code](${SITE_URL}/code) — Software projects and tools
+- [Engineering](${SITE_URL}/engineering) — Software projects, implementation notes, and tools
 
 ## Official profiles
 ${SAME_AS_URLS.map((url) => `- [${url.replace(/^https?:\/\//, "")}](${url})`).join("\n")}

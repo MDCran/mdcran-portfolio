@@ -122,7 +122,7 @@ export default async function HomePage() {
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Arts & Entertainment", url: `${SITE_URL}/arts-and-entertainment` },
       { "@type": "ListItem", position: 2, name: "Motion & Graphics", url: `${SITE_URL}/motion-and-graphics` },
-      { "@type": "ListItem", position: 3, name: "Code", url: `${SITE_URL}/code` },
+      { "@type": "ListItem", position: 3, name: "Engineering", url: `${SITE_URL}/engineering` },
       { "@type": "ListItem", position: 4, name: "Articles", url: `${SITE_URL}/articles` },
       { "@type": "ListItem", position: 5, name: "Resume", url: `${SITE_URL}/resume` },
     ],

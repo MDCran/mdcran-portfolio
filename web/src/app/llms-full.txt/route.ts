@@ -109,7 +109,7 @@ ${ENGINEERING_SUMMARY}
   - Video editing: ${SITE_URL}/motion-and-graphics/video-editing
   - Web development and design: ${SITE_URL}/motion-and-graphics/web-dev-design
   - Graphic design: ${SITE_URL}/motion-and-graphics/graphic-design
-- Code portfolio: ${SITE_URL}/code
+- Engineering portfolio: ${SITE_URL}/engineering
 - Publications: ${SITE_URL}/publications
 - Service status: ${SITE_URL}/status
 

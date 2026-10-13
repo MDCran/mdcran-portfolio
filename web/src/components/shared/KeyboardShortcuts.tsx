@@ -16,7 +16,7 @@ const DISPLAY_SHORTCUTS: ShortcutItem[] = [
   { keys: ["G", "H"], label: "Home" },
   { keys: ["G", "E"], label: "Arts & Entertainment" },
   { keys: ["G", "M"], label: "Motion & Graphics" },
-  { keys: ["G", "C"], label: "Code" },
+  { keys: ["G", "C"], label: "Engineering" },
   { keys: ["G", "A"], label: "Articles" },
   { keys: ["G", "S"], label: "Spotify" },
   { keys: ["G", "R"], label: "Resume" },
@@ -29,7 +29,7 @@ const SEQUENCE_ROUTES: Record<string, string> = {
   e: "/arts-and-entertainment",
   m: "/motion-and-graphics",
   g: "/motion-and-graphics",
-  c: "/code",
+  c: "/engineering",
   a: "/articles",
   r: "/resume",
 };
@@ -146,7 +146,7 @@ export default function KeyboardShortcuts() {
           { id: "go-home",     key: getKey("go-home",     "h"), path: "/"                       },
           { id: "go-ae",       key: getKey("go-ae",       "e"), path: "/arts-and-entertainment" },
           { id: "go-motion",   key: getKey("go-motion",   "m"), path: "/motion-and-graphics"   },
-          { id: "go-code",     key: getKey("go-code",     "c"), path: "/code"                  },
+          { id: "go-code",     key: getKey("go-code",     "c"), path: "/engineering"           },
           { id: "go-articles", key: getKey("go-articles", "a"), path: "/articles"              },
           { id: "go-resume",   key: getKey("go-resume",   "r"), path: "/resume"                },
         ];

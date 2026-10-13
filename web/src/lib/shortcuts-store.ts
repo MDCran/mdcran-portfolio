@@ -10,7 +10,7 @@ export const ALL_SHORTCUTS = [
   { id: "go-home",     keys: ["G", "H"],             label: "Go Home",              defaultKey: "h",  remappable: true  },
   { id: "go-ae",       keys: ["G", "E"],             label: "Arts & Entertainment", defaultKey: "e",  remappable: true  },
   { id: "go-motion",   keys: ["G", "M"],             label: "Motion & Graphics",    defaultKey: "m",  remappable: true  },
-  { id: "go-code",     keys: ["G", "C"],             label: "Go Code",              defaultKey: "c",  remappable: true  },
+  { id: "go-code",     keys: ["G", "C"],             label: "Go Engineering",       defaultKey: "c",  remappable: true  },
   { id: "go-articles", keys: ["G", "A"],             label: "Go Articles",          defaultKey: "a",  remappable: true  },
   { id: "go-spotify",  keys: ["G", "S"],             label: "Go Spotify",           defaultKey: "s",  remappable: true  },
   { id: "go-resume",   keys: ["G", "R"],             label: "Go Resume",            defaultKey: "r",  remappable: true  },

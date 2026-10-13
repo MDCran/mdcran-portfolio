@@ -27,11 +27,11 @@ const defaultServices = [
   },
   {
     icon: Code2,
-    title: "Code",
+    title: "Engineering",
     description:
-      "Development of secure software, backend systems, web applications, plugins and more...",
-    href: "/code",
-    items: ["Minecraft Plugins", "Web Apps", "Internal Tools"],
+      "AI-enabled applications, APIs, backend systems, and cloud software built for real operations.",
+    href: "/engineering",
+    items: ["AI & Agents", "Full-Stack Apps", "APIs & Cloud"],
     accent: "#ef4242",
   },
 ];
@@ -58,15 +58,16 @@ export default function Services({
       }))
     : defaultServices;
   const services = suppliedServices
-    .map((service) => service.href === "/code"
+    .map((service) => service.href === "/code" || service.title.toLowerCase() === "code"
       ? {
           ...service,
-          title: "Software & AI Engineering",
+          title: "Engineering",
           description: "Production software, AI-enabled automation, integrations, APIs, and systems built for real operations.",
-          items: ["AI & MCPs", "Automation", "Full-Stack Systems"],
+          href: "/engineering",
+          items: ["AI & Agents", "Full-Stack Apps", "APIs & Cloud"],
         }
       : service)
-    .sort((a, b) => Number(b.href === "/code") - Number(a.href === "/code"));
+    .sort((a, b) => Number(b.href === "/engineering") - Number(a.href === "/engineering"));
 
   return (
     <section className="py-24">

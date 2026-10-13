@@ -1,10 +1,11 @@
 import { buildSeoMetadata } from "@/lib/seo";
 
 export const metadata = buildSeoMetadata({
-  title: "Code",
+  title: "Engineering",
   description:
-    "Software projects by Michael Cran — secure web applications, backend systems, custom plugins, and developer tools.",
-  path: "/code",
+    "Michael Cran's software, AI, full-stack, and cloud engineering projects.",
+  path: "/engineering",
+  noIndex: true,
   keywords: [
     "MDCran code",
     "Michael Cran software",

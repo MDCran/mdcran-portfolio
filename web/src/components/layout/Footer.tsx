@@ -43,8 +43,16 @@ export default function Footer() {
   })();
   // Also sanitize the link-group columns so they don't list Terms/Privacy separately.
   const linkGroups = footer.linkGroups.map((section) => {
-    const links = section.links.filter((l) => !isLegacyLegal(l.href, l.label));
-    return { ...section, links };
+    const links = section.links
+      .filter((l) => !isLegacyLegal(l.href, l.label))
+      .map((link) => link.href === "/code"
+        ? { ...link, label: "Engineering", href: "/engineering" }
+        : link);
+    return {
+      ...section,
+      title: section.title.replace(/\bCode\b/gi, "Engineering"),
+      links,
+    };
   });
 
   return (

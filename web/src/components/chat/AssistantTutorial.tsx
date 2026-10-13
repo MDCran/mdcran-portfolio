@@ -290,7 +290,7 @@ export default function AssistantTutorial() {
 
       // Prefetch pages while audio warms (non-blocking).
       try { router.prefetch("/resume"); } catch { /* */ }
-      try { router.prefetch("/code/army-reserve-mercury"); } catch { /* */ }
+      try { router.prefetch("/engineering#project-army-reserve-mercury"); } catch { /* */ }
 
       // Phase 1 — Server pregen: generate ALL segments in ONE sequential ElevenLabs call
       // so they share tonal baseline. Shows "Warming tour audio…" if it takes >700ms.
@@ -482,7 +482,7 @@ export default function AssistantTutorial() {
             // ── Navigate to Army Reserve Mercury project page ──
             targetElRef.current = null;
             setSpot(null);
-            router.push("/code/army-reserve-mercury");
+            router.push("/engineering#project-army-reserve-mercury");
             await wait(2600);
             if (myRun !== runIdRef.current) break;
             window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
