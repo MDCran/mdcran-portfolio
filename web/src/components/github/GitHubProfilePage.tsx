@@ -5,11 +5,11 @@ import {
   ArrowRight,
   Code2,
   Cpu,
+  Cloud,
   MapPin,
   Sparkles,
-  Wrench,
 } from "lucide-react";
-import { textDecorationLine } from "html2canvas/dist/types/css/property-descriptors/text-decoration-line";
+import type { SiteContentAiUsage } from "@/lib/types";
 
 type ProfileSection = {
   title: string;
@@ -19,24 +19,24 @@ type ProfileSection = {
 
 const PROFILE_SECTIONS: ProfileSection[] = [
   {
-    title: "Programming Languages",
+    title: "Languages",
     icon: Code2,
-    tags: ["TypeScript", "JavaScript", "Java", "Python", "C / C++"],
+    tags: ["TypeScript", "Python", "JavaScript", "Java"],
   },
   {
-    title: "Developer Tools",
-    icon: Wrench,
-    tags: ["Git", "Docker", "Figma", "pgAdmin4", "Vercel", "Supabase", "Render"],
-  },
-  {
-    title: "Frameworks & Libraries",
+    title: "Frameworks & APIs",
     icon: Cpu,
-    tags: ["React", "ExpressJS", "NextJS", "ThreeJS", "Tailwind CSS", "Stripe"],
+    tags: ["React", "Next.js", "FastAPI", "REST APIs", "Spring Boot", "Node.js"],
   },
   {
-    title: "AI",
+    title: "AI & Data",
     icon: Sparkles,
-    tags: ["OpenAI Codex", "Claude Code", "GitHub Copilot", "Cursor", "Paperclip"],
+    tags: ["LLM integrations", "AI automation", "PostgreSQL", "MongoDB", "pgvector"],
+  },
+  {
+    title: "Cloud & Delivery",
+    icon: Cloud,
+    tags: ["AWS", "Docker", "Linux", "Cloudflare", "GitHub Actions", "Vercel"],
   },
 ];
 
@@ -78,7 +78,17 @@ function SectionCard({ section }: { section: ProfileSection }) {
   );
 }
 
-export default function GitHubProfilePage() {
+function formatTokenCount(totalTokens: number): string {
+  return totalTokens >= 1_000_000_000
+    ? `${(totalTokens / 1_000_000_000).toFixed(1)}B`
+    : totalTokens >= 1_000_000
+      ? `${(totalTokens / 1_000_000).toFixed(1)}M`
+      : totalTokens.toLocaleString("en-US");
+}
+
+export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiUsage }) {
+  const totalTokens = aiUsage.totalTokens ?? aiUsage.claude.totalTokens + aiUsage.openai.totalTokens;
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 pt-6 pb-10 sm:px-6 sm:pt-8 sm:pb-12 lg:pt-10 lg:pb-16">
       <div className="pointer-events-none absolute inset-0">
@@ -137,7 +147,7 @@ export default function GitHubProfilePage() {
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-[#ef4242] animate-pulse" />
                     <span className="text-[11px] uppercase tracking-[0.3em] text-[#ef4242]">
-                      Software Engineer
+                      Software &amp; AI Engineer
                     </span>
                   </div>
                 </div>
@@ -147,8 +157,7 @@ export default function GitHubProfilePage() {
                 </h1>
 
                 <p className="mt-5 max-w-3xl text-sm leading-relaxed text-white/55 sm:text-base lg:text-lg">
-                  Experienced in Java development, secure software engineering,
-                  and creative digital projects.
+                  I build full-stack and backend software that connects web products with AI, data, and cloud systems. My focus is reliable applications, APIs, and automation using TypeScript, Python, and modern cloud tools.
                 </p>
 
                 <div className="mt-7 flex flex-wrap gap-3">
@@ -156,8 +165,8 @@ export default function GitHubProfilePage() {
                     <MapPin size={14} className="text-[#ef4242]" />
                     Based in Orlando, FL
                   </div>
-                  <div className="inline-flex items-center rounded-sm border border-[#ef4242]/35 bg-[#ef4242]/8 px-4 py-3 text-[13px] uppercase tracking-[0.16em] text-[#ef4242] sm:text-[14px]">
-                    Open For Work
+                  <div className="inline-flex items-center rounded-sm border border-[#ef4242]/35 bg-[#ef4242]/8 px-4 py-3 text-[12px] uppercase tracking-[0.12em] text-[#ef4242] sm:text-[13px]">
+                    Open to software, AI &amp; cloud roles
                   </div>
                 </div>
               </div>
@@ -167,10 +176,12 @@ export default function GitHubProfilePage() {
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(239,66,66,0.08),transparent_40%)]" />
 
                   <div className="relative z-[1] text-center">
-                    <h2 className="font-jb text-[1.3rem] uppercase tracking-[0.14em] text-white sm:text-[1.45rem]">
-                      Turning Your
-                      <span className="block text-[#ef4242] text-glow">Dreams Into Reality!</span>
+                    <h2 className="font-nord text-4xl leading-none tracking-[0.03em] text-white sm:text-5xl">
+                      {formatTokenCount(totalTokens)}
                     </h2>
+                    <p className="mt-3 text-[10px] uppercase tracking-[0.17em] text-white/45 sm:text-[11px]">
+                      AI tokens processed · reported
+                    </p>
                   </div>
                 </article>
 
@@ -192,16 +203,21 @@ export default function GitHubProfilePage() {
             <div className="mt-auto pt-4 pb-4 sm:pb-5 lg:pt-6 lg:pb-6">
               <div className="flex min-h-[78px] flex-wrap items-center justify-between gap-4 border border-white/6 bg-black/24 px-4 py-3 sm:px-5 sm:py-4 lg:px-6">
                 <div className="max-w-[40rem] text-[11px] leading-none uppercase tracking-[0.24em] text-white/28 sm:text-[12px]">
-                  Learn more about my projects & experience on my website!
+                  Founder and lead engineer at CoreTV · Software engineering intern at ICE
                 </div>
 
-                <Link href="/work" className="group relative shrink-0">
+                <div className="flex shrink-0 flex-wrap gap-2">
+                <Link href="/resume" className="inline-flex h-11 items-center border border-white/15 px-4 text-[11px] uppercase tracking-[0.16em] text-white/75 transition-colors hover:border-white/35 hover:text-white sm:h-12">
+                  Resume
+                </Link>
+                <Link href="/engineering" className="group relative">
                   <div className="absolute -inset-1 bg-[#ef4242] opacity-30 blur-md transition-opacity duration-300 group-hover:opacity-55" />
                   <div className="relative flex h-11 items-center gap-2 bg-[#ef4242] px-6 text-[12px] uppercase tracking-[0.18em] text-white shadow-[0_0_28px_rgba(239,66,66,0.34)] transition-colors duration-200 hover:bg-[#dd3030] sm:h-12 sm:px-7">
-                    View My Profolio
+                    Engineering Work
                     <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1" />
                   </div>
                 </Link>
+                </div>
               </div>
             </div>
           </div>

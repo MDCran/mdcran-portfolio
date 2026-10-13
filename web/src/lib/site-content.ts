@@ -72,7 +72,8 @@ export const defaultSiteContent: SiteContent = {
     ],
   },
   aiUsageTracker: {
-    lastUpdated: "2026-07-02",
+    lastUpdated: "2026-10-13",
+    totalTokens: 73_653_400_000,
     accessNote: "Daybreak access · Authorized user",
     accessNoteEnabled: true,
     claude: {

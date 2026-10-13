@@ -237,6 +237,23 @@ export async function getSiteContent(): Promise<SiteContent> {
         ? content.footer.bottomLinks
         : defaultSiteContent.footer.bottomLinks,
     },
+    aiUsageTracker: {
+      ...defaultSiteContent.aiUsageTracker,
+      ...content?.aiUsageTracker,
+      totalTokens: content?.aiUsageTracker?.totalTokens ?? defaultSiteContent.aiUsageTracker.totalTokens,
+      claude: {
+        ...defaultSiteContent.aiUsageTracker.claude,
+        ...content?.aiUsageTracker?.claude,
+      },
+      openai: {
+        ...defaultSiteContent.aiUsageTracker.openai,
+        ...content?.aiUsageTracker?.openai,
+      },
+      elevenlabs: {
+        ...defaultSiteContent.aiUsageTracker.elevenlabs,
+        ...content?.aiUsageTracker?.elevenlabs,
+      },
+    },
     termsPage: {
       ...defaultSiteContent.termsPage,
       ...content?.termsPage,
