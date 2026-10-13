@@ -19,24 +19,24 @@ type ProfileSection = {
 
 const PROFILE_SECTIONS: ProfileSection[] = [
   {
-    title: "Languages",
+    title: "Languages & Fundamentals",
     icon: Code2,
-    tags: ["TypeScript", "Python", "JavaScript", "Java"],
+    tags: ["Java", "Python", "C / C++", "C#", "JavaScript", "TypeScript", "HTML / CSS", "Algorithm Design"],
   },
   {
     title: "Frameworks & APIs",
     icon: Cpu,
-    tags: ["React", "Next.js", "FastAPI", "REST APIs", "Spring Boot", "Node.js"],
+    tags: ["React", "Next.js", "Angular", "Node.js", "Expo", "Tailwind CSS", "FastAPI", "RESTful APIs", "Server Architecture"],
   },
   {
     title: "AI & Data",
     icon: Sparkles,
-    tags: ["LLM integrations", "AI automation", "PostgreSQL", "MongoDB", "pgvector"],
+    tags: ["CUDA", "Triton", "LLM Integration", "AI Automation", "PostgreSQL", "MongoDB / NoSQL", "pgvector", "pandas", "NumPy", "Matplotlib", "OpenCV"],
   },
   {
-    title: "Cloud & Delivery",
+    title: "Cloud, Delivery & Tools",
     icon: Cloud,
-    tags: ["AWS", "Docker", "Linux", "Cloudflare", "GitHub Actions", "Vercel"],
+    tags: ["AWS EC2", "S3", "RDS", "IAM", "SAM CLI", "Lambda", "Git", "Docker", "Nginx", "Ubuntu / Linux", "GitHub Actions", "CI / CD", "Cloudflare", "Vercel / Netlify", "n8n / Zapier", "Jira / Confluence", "Agile / Scrum", "Cursor", "RenderDoc"],
   },
 ];
 
@@ -114,7 +114,7 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
       </div>
 
       <section className="relative z-[1] w-full max-w-[1200px]">
-        <div className="relative overflow-hidden border border-white/8 bg-[#070707]/94 shadow-[0_28px_90px_rgba(0,0,0,0.55)] lg:h-[930px]">
+        <div className="relative overflow-hidden border border-white/8 bg-[#070707]/94 shadow-[0_28px_90px_rgba(0,0,0,0.55)] lg:min-h-[930px]">
           <div
             className="pointer-events-none absolute inset-0 opacity-65"
             style={{
@@ -139,7 +139,7 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
           <div className="pointer-events-none absolute bottom-6 left-6 h-14 w-14 border-b-2 border-l-2 border-[#ef4242]/14" />
           <div className="pointer-events-none absolute bottom-6 right-6 h-14 w-14 border-b-2 border-r-2 border-[#ef4242]/12" />
 
-          <div className="relative z-[1] flex h-full flex-col px-6 pt-7 pb-5 sm:px-8 sm:pt-8 sm:pb-6 lg:px-10 lg:pt-10 lg:pb-12">
+          <div className="relative z-[1] flex min-h-[900px] flex-col px-6 pt-7 pb-5 sm:px-8 sm:pt-8 sm:pb-6 lg:min-h-[930px] lg:px-10 lg:pt-10 lg:pb-12">
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_340px] lg:items-start">
               <div>
                 <div className="mb-6 flex items-center gap-3">

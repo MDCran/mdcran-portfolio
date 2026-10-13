@@ -4,7 +4,20 @@ import { getSiteContent } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "Software & AI Engineer",
-  description: "Michael Cran builds full-stack software, AI integrations, APIs, and cloud systems. Explore selected skills and engineering work.",
+  description: "Michael Cran's skills span Python, Java, TypeScript, React, AWS, AI/ML, APIs, data systems, and cloud delivery. Explore engineering work and experience.",
+  keywords: [
+    "Michael Cran",
+    "software engineer",
+    "AI engineer",
+    "Python",
+    "Java",
+    "TypeScript",
+    "React",
+    "AWS",
+    "machine learning",
+    "cloud engineering",
+    "full-stack development",
+  ],
 };
 
 export default async function Page() {
