@@ -1378,7 +1378,7 @@ function ProjectModal({
             >
               <option value="arts-and-entertainment">Arts & Entertainment</option>
               <option value="motion-and-graphics">Motion & Graphics</option>
-              <option value="coding-projects">Code</option>
+              <option value="coding-projects">Engineering</option>
             </select>
           </Field>
           <Field>
@@ -3586,7 +3586,7 @@ export default function AdminDashboard() {
 
   function getProjectHref(project: Project): string {
     if (project.category === "coding-projects") {
-      return `/code/${project.slug}`;
+      return `/engineering#project-${project.slug}`;
     }
 
     if (project.category === "arts-and-entertainment") {
@@ -5632,7 +5632,7 @@ export default function AdminDashboard() {
                   <option value="">All categories</option>
                   <option value="arts-and-entertainment">Arts & Entertainment</option>
                   <option value="motion-and-graphics">Motion & Graphics</option>
-                  <option value="coding-projects">Code</option>
+                  <option value="coding-projects">Engineering</option>
                 </select>
                 <select
                   className={`${inputCls} max-w-[170px]`}

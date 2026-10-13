@@ -9,8 +9,48 @@ import { getSiteContent, getProjects, getArticles, getClients } from "@/lib/db";
 import { projectUrl, imageAssetSrc } from "@/lib/utils";
 import { effectiveProjectDate } from "@/lib/project-date";
 import WorkTable, { type WorkRow } from "@/components/work/WorkTable";
+import type { SiteContentLinkCard } from "@/lib/types";
+
+const ENGINEERING_CARD: SiteContentLinkCard = {
+  title: "Engineering",
+  description: "Software engineering, AI systems, full-stack applications, APIs, and cloud infrastructure, with public project details and implementation evidence.",
+  href: "/engineering",
+  items: [],
+};
+
+function normalizeWorkCards(cards: SiteContentLinkCard[]): SiteContentLinkCard[] {
+  const pathOf = (card: SiteContentLinkCard) => card.href.trim().replace(/\/+$/, "").toLowerCase();
+  const isEngineering = (card: SiteContentLinkCard) => pathOf(card) === "/engineering" || card.title.trim().toLowerCase() === "engineering";
+  const isLegacyCode = (card: SiteContentLinkCard) => {
+    const path = pathOf(card);
+    const title = card.title.trim().toLowerCase();
+    return path === "/code" || path === "/coding-projects" || title === "code" || title === "coding projects";
+  };
+
+  const engineeringCards = cards.filter(isEngineering);
+  const legacyCodeCards = cards.filter(isLegacyCode);
+  const firstEngineeringIndex = cards.findIndex((card) => isEngineering(card) || isLegacyCode(card));
+  const engineeringItems = [...new Set([
+    ...engineeringCards.flatMap((card) => card.items ?? []),
+    ...legacyCodeCards.flatMap((card) => card.items ?? []),
+  ])];
+  const engineeringCard: SiteContentLinkCard = {
+    ...(engineeringCards[0] ?? legacyCodeCards[0] ?? {}),
+    ...ENGINEERING_CARD,
+    items: engineeringItems,
+  };
+  const remainingCards = cards.filter((card) => !isEngineering(card) && !isLegacyCode(card));
+  const articlesIndex = remainingCards.findIndex((card) => pathOf(card) === "/articles");
+  const insertAt = firstEngineeringIndex >= 0
+    ? Math.min(firstEngineeringIndex, remainingCards.length)
+    : articlesIndex >= 0 ? articlesIndex : remainingCards.length;
+
+  remainingCards.splice(insertAt, 0, engineeringCard);
+  return remainingCards;
+}
 
 function labelFromSlug(slug: string): string {
+  if (["coding-projects", "code"].includes(slug.toLowerCase())) return "Engineering";
   return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -30,14 +70,20 @@ function parseDate(raw?: string): { sort: number; label?: string } {
 
 const STATUS_LABELS: Record<string, string> = { free: "Free", for_sale: "For sale", unavailable: "Unavailable" };
 
-export async function generateMetadata() {
-  const siteContent = await getSiteContent();
-  const header = siteContent.workPage;
-
+export function generateMetadata() {
   return buildSeoMetadata({
-    title: header.title || "Portfolio & Projects",
-    description: header.description || "Browse all work categories across portfolio projects, code, and articles.",
+    title: "Engineering, Creative Work & Articles",
+    description: "Explore Michael Cran's software engineering, AI projects, creative work, and articles. Review full-stack applications, public implementations, project details, and writing.",
     path: "/work",
+    keywords: [
+      "Michael Cran portfolio",
+      "software engineering projects",
+      "AI engineering portfolio",
+      "full-stack development",
+      "cloud infrastructure projects",
+      "creative portfolio",
+      "articles",
+    ],
   });
 }
 
@@ -49,9 +95,7 @@ export default async function WorkPage() {
     getClients(),
   ]);
   const header = siteContent.workPage;
-  const sections = (header.cards ?? []).map((section) => section.href === "/code"
-    ? { ...section, title: "Engineering", href: "/engineering", description: "AI, software, APIs, systems, and full-stack applications." }
-    : section);
+  const sections = normalizeWorkCards(header.cards ?? []);
 
   const clientMap = new Map(clients.map((c) => [c.id, c.name]));
   const rows: WorkRow[] = [

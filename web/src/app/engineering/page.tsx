@@ -225,11 +225,14 @@ function CoreAiContractsCard() {
 
 export default async function EngineeringPage() {
   const allProjects = await getProjects({ refreshVideoViews: false });
-  const codeProjects = allProjects.filter((project) => project.category === "coding-projects");
-  const projectsBySlug = new Map(codeProjects.map((project) => [project.slug, project]));
+  const engineeringWork = allProjects.filter((project) =>
+    ["coding-projects", "code"].includes(project.category.toLowerCase()) ||
+    (project.extraCategories ?? []).some((category) => ["coding-projects", "code"].includes(category.toLowerCase())),
+  );
+  const projectsBySlug = new Map(engineeringWork.map((project) => [project.slug, project]));
   const orderedProjects = [
     ...engineeringProjectOrder.map((slug) => projectsBySlug.get(slug)).filter((project): project is Project => !!project),
-    ...codeProjects.filter((project) => !engineeringProjectOrder.includes(project.slug as (typeof engineeringProjectOrder)[number])),
+    ...engineeringWork.filter((project) => !engineeringProjectOrder.includes(project.slug as (typeof engineeringProjectOrder)[number])),
   ];
 
   return (
@@ -265,7 +268,7 @@ export default async function EngineeringPage() {
 
         <section id="projects" aria-labelledby="projects-heading" className="mt-16 scroll-mt-28">
           <h2 id="projects-heading" className="font-nord text-2xl text-white">Engineering work</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/65">{codeProjects.length} public software projects are gathered here with their implementation notes, screenshots, demos, and source links. Open a project’s notes to review its full write-up.</p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/65">{engineeringWork.length} public software projects are gathered here with their implementation notes, screenshots, demos, and source links. Open a project’s notes to review its full write-up.</p>
           <div className="mt-7 grid gap-6 lg:grid-cols-2">
             {orderedProjects.map((project) => <ProjectCard key={project.id} project={project} />)}
             <CoreAiContractsCard />

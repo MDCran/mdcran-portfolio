@@ -24,6 +24,17 @@ export interface WorkRow {
 type SortKey = "title" | "type" | "category" | "date";
 type SortDir = "asc" | "desc";
 
+function categoryFilterValue(category: string): string {
+  return ["coding-projects", "code"].includes(category.toLowerCase()) ? "engineering" : category;
+}
+
+function SortIcon({ k, sortKey, sortDir }: { k: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (sortKey !== k) return <ArrowUpDown size={11} className="opacity-30" />;
+  return sortDir === "asc"
+    ? <ArrowUp size={11} className="text-[var(--cranberry,#ef4242)]" />
+    : <ArrowDown size={11} className="text-[var(--cranberry,#ef4242)]" />;
+}
+
 const TYPE_FILTERS = [
   { value: "all", label: "All" },
   { value: "project", label: "Projects" },
@@ -40,7 +51,11 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
   // Category options come from PROJECTS only (articles aren't categorized here).
   const categories = useMemo(() => {
     const map = new Map<string, string>();
-    rows.forEach((r) => { if (r.type === "project" && !map.has(r.category)) map.set(r.category, r.categoryLabel); });
+    rows.forEach((r) => {
+      if (r.type !== "project") return;
+      const value = categoryFilterValue(r.category);
+      if (!map.has(value)) map.set(value, value === "engineering" ? "Engineering" : r.categoryLabel);
+    });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [rows]);
 
@@ -48,7 +63,7 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
     const q = query.trim().toLowerCase();
     let out = rows.filter((r) => {
       if (type !== "all" && r.type !== type) return false;
-      if (category !== "all" && r.category !== category) return false;
+      if (category !== "all" && categoryFilterValue(r.category) !== category) return false;
       if (!q) return true;
       return (
         r.title.toLowerCase().includes(q) ||
@@ -72,11 +87,6 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir(key === "date" ? "desc" : "asc"); }
   };
-
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey !== k ? <ArrowUpDown size={11} className="opacity-30" /> :
-    sortDir === "asc" ? <ArrowUp size={11} className="text-[var(--cranberry,#ef4242)]" /> :
-    <ArrowDown size={11} className="text-[var(--cranberry,#ef4242)]" />;
 
   return (
     <section className="mt-16">
@@ -131,16 +141,16 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
             <thead className="bg-[#0c0c0e]">
               <tr className="text-[10px] uppercase tracking-[0.15em] text-white/40">
                 <th className="px-3 sm:px-4 py-3 font-medium">
-                  <button onClick={() => toggleSort("title")} className="inline-flex items-center gap-1.5 hover:text-white">Title <SortIcon k="title" /></button>
+                  <button onClick={() => toggleSort("title")} className="inline-flex items-center gap-1.5 hover:text-white">Title <SortIcon k="title" sortKey={sortKey} sortDir={sortDir} /></button>
                 </th>
                 <th className="px-3 sm:px-4 py-3 font-medium hidden sm:table-cell">
-                  <button onClick={() => toggleSort("type")} className="inline-flex items-center gap-1.5 hover:text-white">Type <SortIcon k="type" /></button>
+                  <button onClick={() => toggleSort("type")} className="inline-flex items-center gap-1.5 hover:text-white">Type <SortIcon k="type" sortKey={sortKey} sortDir={sortDir} /></button>
                 </th>
                 <th className="px-3 sm:px-4 py-3 font-medium hidden md:table-cell">
-                  <button onClick={() => toggleSort("category")} className="inline-flex items-center gap-1.5 hover:text-white">Category <SortIcon k="category" /></button>
+                  <button onClick={() => toggleSort("category")} className="inline-flex items-center gap-1.5 hover:text-white">Category <SortIcon k="category" sortKey={sortKey} sortDir={sortDir} /></button>
                 </th>
                 <th className="px-3 sm:px-4 py-3 font-medium hidden sm:table-cell">
-                  <button onClick={() => toggleSort("date")} className="inline-flex items-center gap-1.5 hover:text-white">Date <SortIcon k="date" /></button>
+                  <button onClick={() => toggleSort("date")} className="inline-flex items-center gap-1.5 hover:text-white">Date <SortIcon k="date" sortKey={sortKey} sortDir={sortDir} /></button>
                 </th>
                 <th className="px-3 sm:px-4 py-3 font-medium text-right">Link</th>
               </tr>
