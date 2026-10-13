@@ -80,6 +80,14 @@ async function getProjectsRaw(): Promise<Project[]> {
   return readCollection<Project>("projects");
 }
 
+// Keep this private product out of every public project surface while retaining
+// its record for authenticated administration and internal reference.
+const PRIVATE_PUBLIC_PROJECT_SLUGS = new Set(["lucky-block-creator-website"]);
+
+function isPublicProject(project: Project): boolean {
+  return project.visible !== false && !PRIVATE_PUBLIC_PROJECT_SLUGS.has(project.slug);
+}
+
 function normalizeAssetPaths<T>(value: T): T {
   if (typeof value === "string") {
     if (
@@ -112,7 +120,7 @@ export async function getProjects(options?: { refreshVideoViews?: boolean; inclu
 
   const projects = await getProjectsRaw();
   if (options?.includeHidden) return projects;
-  return projects.filter((p) => p.visible !== false);
+  return projects.filter(isPublicProject);
 }
 
 export async function getSiteContent(): Promise<SiteContent> {
@@ -1033,7 +1041,7 @@ export async function getFeaturedProjects(): Promise<Project[]> {
 
 export async function getProjectBySlug(slug: string): Promise<Project | undefined> {
   const projects = await getProjects({ includeHidden: true });
-  return projects.find((project) => project.slug === slug);
+  return projects.find((project) => project.slug === slug && isPublicProject(project));
 }
 
 type VideoStats = {
