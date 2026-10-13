@@ -152,7 +152,7 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
                   </div>
                 </div>
 
-                <h1 className="font-nord text-[clamp(2.6rem,6vw,5rem)] leading-[0.94] tracking-[0.05em] text-white">
+                <h1 className="font-nord text-[clamp(2.45rem,5vw,4rem)] leading-[0.98] tracking-[0.05em] text-white">
                   Hi, I&apos;m <span className="text-[#ef4242] text-glow">Michael Cran</span>
                 </h1>
 
@@ -202,8 +202,8 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
 
             <div className="mt-auto pt-4 pb-4 sm:pb-5 lg:pt-6 lg:pb-6">
               <div className="flex min-h-[78px] flex-wrap items-center justify-between gap-4 border border-white/6 bg-black/24 px-4 py-3 sm:px-5 sm:py-4 lg:px-6">
-                <div className="max-w-[40rem] text-[11px] leading-none uppercase tracking-[0.24em] text-white/28 sm:text-[12px]">
-                  Founder and lead engineer at CoreTV · Software engineering intern at ICE
+                <div className="max-w-[40rem] text-[11px] leading-relaxed uppercase tracking-[0.16em] text-white/50 sm:text-[12px]">
+                  CoreTV founder &amp; lead engineer · ICE software intern
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">
