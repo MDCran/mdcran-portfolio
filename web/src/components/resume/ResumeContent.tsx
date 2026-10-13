@@ -12,6 +12,7 @@ import type {
 import { RESUME_SECTIONS } from "@/lib/types";
 import { resolveSkillIcon } from "@/lib/skill-icons";
 import { imageAssetSrc } from "@/lib/utils";
+import { ENGINEERING_SUMMARY } from "@/lib/engineering";
 import {
   Briefcase,
   Heart,
@@ -197,6 +198,13 @@ export default function ResumeContent({
       />
 
       <main className="content-container py-14 md:py-16">
+
+        <section aria-label="Engineering summary" className="mb-12 rounded-sm border border-white/12 bg-white/3 p-6">
+          <p className="max-w-3xl text-sm leading-relaxed text-white/75">{ENGINEERING_SUMMARY}</p>
+          <Link href="/engineering" className="mt-4 inline-block text-sm text-[var(--cranberry)] hover:underline underline-offset-4">
+            Review engineering projects, architecture & public source
+          </Link>
+        </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12 items-start">
           <div className="lg:col-span-2 flex flex-col gap-14 pt-0">

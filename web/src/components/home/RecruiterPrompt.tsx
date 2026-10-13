@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Briefcase, Compass, X } from "lucide-react";
+import { Briefcase, Code2, X } from "lucide-react";
 import { getConsent } from "@/components/shared/CookieConsent";
 
 const STORAGE_KEY = "mdcran_recruiter_prompt_seen_v1";
@@ -43,13 +43,6 @@ export default function RecruiterPrompt() {
   const dismiss = () => {
     markSeen();
     setVisible(false);
-  };
-
-  const handleTour = () => {
-    dismiss();
-    // mark the chat tour as seen so it doesn't also pop
-    try { document.cookie = `mdcran_toured=1; path=/; max-age=${60 * 60 * 24 * 365}`; } catch { /* */ }
-    window.dispatchEvent(new CustomEvent("mdcran:run-tutorial"));
   };
 
   return (
@@ -105,7 +98,7 @@ export default function RecruiterPrompt() {
                   Are you a recruiter?
                 </p>
                 <p className="mt-1 text-[12px] leading-relaxed text-white/45">
-                  Jump straight to my resume or let Michael walk you through the portfolio.
+                  Review my engineering projects and public source, or jump straight to my resume.
                 </p>
 
                 <div className="mt-3 flex gap-2">
@@ -118,14 +111,14 @@ export default function RecruiterPrompt() {
                     View Resume
                   </Link>
 
-                  <button
-                    type="button"
-                    onClick={handleTour}
+                  <Link
+                    href="/engineering"
+                    onClick={dismiss}
                     className="group flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm border border-white/10 bg-white/4 px-3 text-[11px] uppercase tracking-[0.16em] text-white/65 transition-all duration-200 hover:border-white/20 hover:bg-white/8 hover:text-white/90"
                   >
-                    <Compass size={11} />
-                    Take Tour
-                  </button>
+                    <Code2 size={11} />
+                    Engineering
+                  </Link>
                 </div>
               </div>
             </div>

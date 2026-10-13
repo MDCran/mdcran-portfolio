@@ -47,7 +47,9 @@ export async function generateMetadata(): Promise<Metadata> {
     description: DEFAULT_SOCIAL_DESCRIPTION,
     keywords: [
       "MDCran", "Michael Cran", "Michael David Cran", "MD Cran",
-      "software engineer", "web developer", "web designer", "motion graphics",
+      "software engineer", "AI engineer", "full-stack engineer", "backend engineer",
+      "Python", "TypeScript", "React", "PostgreSQL", "AWS", "REST APIs",
+      "web developer", "web designer", "motion graphics",
       "Minecraft map maker", "level designer", "content manager",
       "thumbnail designer", "video editor", "UCF", "Orlando developer",
     ],

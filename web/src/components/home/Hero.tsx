@@ -11,9 +11,9 @@ const BibleWidget = lazy(() => import("./BibleWidget"));
 const MapWidget = lazy(() => import("./MapWidget"));
 
 const hiringSignals = [
-  { label: "AI Engineering", href: "/code" },
-  { label: "Automation & Integrations", href: "/code" },
-  { label: "MCP & Agent Systems", href: "/code" },
+  { label: "AI & Agent Systems", href: "/engineering#ai" },
+  { label: "Full-Stack & APIs", href: "/engineering#full-stack" },
+  { label: "Cloud & Infrastructure", href: "/engineering#cloud" },
 ];
 
 const ambientParticles = Array.from({ length: 6 }, (_, i) => ({
@@ -148,6 +148,13 @@ export default function Hero({ content }: { content?: SiteContentHero }) {
               {content?.supportingText ?? "B.S. in Computer Science @UCF"}
             </span>
           </motion.p>
+
+          <p className="mb-5 text-xs leading-relaxed text-white/60">
+            Python · TypeScript · React · PostgreSQL · AWS
+            <Link href="/engineering" className="mt-2 block text-[var(--cranberry)] hover:underline underline-offset-4">
+              Explore engineering projects & public source
+            </Link>
+          </p>
 
           <motion.div
             initial={{ opacity: 0 }}

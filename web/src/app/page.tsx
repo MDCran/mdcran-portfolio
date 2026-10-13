@@ -5,6 +5,7 @@ import Footer from "@/components/layout/Footer";
 import HomeAmbient from "@/components/home/HomeAmbient";
 import HomeLoader from "@/components/home/HomeLoader";
 import Hero from "@/components/home/Hero";
+import EngineeringHighlights from "@/components/home/EngineeringHighlights";
 import Stats from "@/components/home/Stats";
 import Services from "@/components/home/Services";
 import FeaturedProjects from "@/components/home/FeaturedProjects";
@@ -29,9 +30,9 @@ import { assetUrl } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildSeoMetadata({
-  title: "Michael Cran | Software & AI Engineer, Business Automation",
+  title: "Michael Cran | Software, AI & Full-Stack Engineer",
   description:
-    "Michael David Cran (MDCran) builds software, AI integrations, business automations, and digital experiences for companies and creators.",
+    "Michael Cran builds full-stack applications, APIs, AI integrations, and business automation. Explore public code, architecture, and experience across software, AI, and cloud engineering.",
   path: "/",
   keywords: [
     "MDCran", "Michael Cran", "Michael David Cran", "MD Cran",
@@ -128,7 +129,7 @@ export default async function HomePage() {
   };
 
   const sectionMap: Record<string, ReactNode> = {
-    hero: <Hero content={siteContent.homeHero} />,
+    hero: <><Hero content={siteContent.homeHero} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights /></div></>,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
         <Stats content={siteContent.homeStats} aiUsageTracker={siteContent.aiUsageTracker} />

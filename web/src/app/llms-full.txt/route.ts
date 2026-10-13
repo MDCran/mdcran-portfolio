@@ -1,6 +1,7 @@
 import { CONTACT_EMAIL, PERSON_FULL_NAME, PERSON_NAME, SAME_AS_URLS, SITE_URL } from "@/lib/seo";
 import { getProjects, getClients, getArticles, getExperiences, getSkills, getCertifications } from "@/lib/db";
 import { projectUrl } from "@/lib/utils";
+import { ENGINEERING_SUMMARY } from "@/lib/engineering";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 3600; // revalidate every hour
@@ -84,6 +85,9 @@ mdcran.com is the official website for ${PERSON_FULL_NAME}. It is the canonical 
 - B.S. in Computer Science, University of Central Florida (UCF)
 
 ## Core areas of work
+${ENGINEERING_SUMMARY}
+- AI integrations, agent systems, and business automation
+- APIs, backend services, PostgreSQL, and cloud infrastructure
 - Software engineering and web development (Next.js, React, TypeScript, Java, Spring Boot)
 - Web design and UI/UX
 - Motion graphics and video editing
@@ -92,6 +96,7 @@ mdcran.com is the official website for ${PERSON_FULL_NAME}. It is the canonical 
 
 ## Site pages
 - Homepage: ${SITE_URL}/
+- Engineering portfolio: ${SITE_URL}/engineering
 - Work overview: ${SITE_URL}/work
 - Resume: ${SITE_URL}/resume
 - Articles: ${SITE_URL}/articles

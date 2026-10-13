@@ -17,6 +17,7 @@ import {
   getArticles,
 } from "@/lib/db";
 import { buildSeoMetadata, SITE_URL } from "@/lib/seo";
+import { ENGINEERING_SUMMARY } from "@/lib/engineering";
 
 export async function generateMetadata() {
   const siteContent = await getSiteContent();
@@ -125,10 +126,7 @@ export default async function ResumePage() {
     name: profile.fullName,
     alternateName: "MDCran",
     jobTitle: profile.title,
-    description:
-      "Minecraft map maker, graphic designer, video editor, and web developer based in " +
-      profile.location +
-      ".",
+    description: ENGINEERING_SUMMARY,
     url: SITE_URL,
     sameAs: [profile.githubUrl, profile.linkedinUrl].filter(Boolean),
     address: {

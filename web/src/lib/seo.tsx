@@ -22,7 +22,7 @@ export const DEFAULT_SITE_ICON = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.p
 export const DEFAULT_OG_IMAGE = assetUrl("/cdn/WEB_ASSETS/LOGOS/AI_MDCRAN_RED.png")!;
 export const DEFAULT_SOCIAL_TITLE = "Michael Cran | MDCran";
 export const DEFAULT_SOCIAL_DESCRIPTION =
-  "Portfolio of Michael David Cran (MDCran) — software engineering, web design, motion graphics, and Minecraft projects in Orlando, FL.";
+  "Michael Cran's portfolio: full-stack applications, APIs, AI integrations, business automation, and cloud infrastructure. Explore public source, project architecture, and experience.";
 
 type SeoOptions = {
   title: string;
@@ -98,7 +98,7 @@ export function buildPersonJsonLd() {
     url: SITE_URL,
     image: absoluteUrl(DEFAULT_SITE_ICON),
     description:
-      "Software engineer, web developer, digital designer, motion graphics creator, and Minecraft experience builder based in Orlando, Florida.",
+      "Software and AI engineer building full-stack applications, APIs, AI integrations, and business automation, based in Orlando, Florida.",
     email: CONTACT_EMAIL,
     sameAs: [...SAME_AS_URLS],
     homeLocation: {
@@ -116,7 +116,7 @@ export function buildPersonJsonLd() {
       name: "University of Central Florida",
       url: "https://www.ucf.edu",
     },
-    jobTitle: "Independent Contractor",
+    jobTitle: "Software & AI Engineer",
     worksFor: {
       "@type": "Organization",
       name: BRAND_NAME,
@@ -124,6 +124,14 @@ export function buildPersonJsonLd() {
     },
     knowsAbout: [
       "Software engineering",
+      "AI integration",
+      "Workflow automation",
+      "REST APIs",
+      "Python",
+      "React",
+      "PostgreSQL",
+      "AWS",
+      "Docker",
       "Web development",
       "Web design",
       "Motion graphics",

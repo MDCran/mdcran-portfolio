@@ -10,6 +10,7 @@ import { useTheme } from "@/lib/ThemeContext";
 import type { Project, Client, Article, SiteContent } from "@/lib/types";
 
 const navLinks = [
+  { label: "Engineering", href: "/engineering" },
   {
     label: "Arts & Entertainment",
     href: "/arts-and-entertainment",
@@ -49,6 +50,7 @@ interface SearchablePage {
 }
 
 const SEARCHABLE_PAGES: SearchablePage[] = [
+  { title: "Engineering Portfolio", href: "/engineering", keywords: ["engineering", "recruiter", "AI", "agents", "backend", "full-stack", "cloud", "Python", "TypeScript", "AWS", "architecture"] },
   { title: "Visitor Map", href: "/visitor-map", keywords: ["visitor", "map", "globe", "traffic", "analytics"] },
   { title: "Status", href: "/status", keywords: ["status", "uptime", "incident", "outage", "health"] },
   { title: "Resume", href: "/resume", keywords: ["resume", "cv", "experience", "work", "education", "skills"] },
