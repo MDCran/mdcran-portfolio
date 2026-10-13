@@ -203,7 +203,7 @@ export const defaultSiteContent: SiteContent = {
   workPage: {
     eyebrow: "Portfolio",
     title: "Work",
-    description: "Jump into every major section of the site from one place.",
+    description: "Explore software engineering and AI projects, creative work, and articles from across the portfolio.",
     cards: [
       {
         title: "Arts & Entertainment",

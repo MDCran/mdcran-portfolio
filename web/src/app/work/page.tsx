@@ -17,6 +17,7 @@ const ENGINEERING_CARD: SiteContentLinkCard = {
   href: "/engineering",
   items: [],
 };
+const WORK_PAGE_DESCRIPTION = "Explore software engineering and AI projects, creative work, and articles from across the portfolio.";
 
 function normalizeWorkCards(cards: SiteContentLinkCard[]): SiteContentLinkCard[] {
   const pathOf = (card: SiteContentLinkCard) => card.href.trim().replace(/\/+$/, "").toLowerCase();
@@ -143,7 +144,7 @@ export default async function WorkPage() {
       <PageHeader
         eyebrow={header.eyebrow}
         title={header.title}
-        description={header.description}
+        description={WORK_PAGE_DESCRIPTION}
         breadcrumbs={[{ label: "Work" }]}
       />
       <main className="content-container py-14 sm:py-16">
