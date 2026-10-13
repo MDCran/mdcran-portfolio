@@ -13,7 +13,7 @@ import {
   MapPin,
 } from "lucide-react";
 
-const MONTH_LABELS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."];
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatTimelineDate(date?: string): string {
   if (!date) return "";
@@ -40,6 +40,14 @@ function formatTimelineDate(date?: string): string {
   }
 
   return date;
+}
+
+function formatLocation(location?: string): string {
+  if (!location) return "";
+  return location.trim().replace(/\s*\((remote|hybrid|on-site|onsite)\)$/i, (_, mode: string) => {
+    const label = mode.toLowerCase() === "onsite" ? "On-site" : mode[0].toUpperCase() + mode.slice(1).toLowerCase();
+    return ` · ${label}`;
+  });
 }
 
 function ClientAvatar({ client }: { client: Client }) {
@@ -109,6 +117,7 @@ export default function ExperienceCard({
   const hasHighlights = !!exp.highlights?.length;
   const startLabel = formatTimelineDate(exp.startDate);
   const endLabel = exp.current ? "Present" : formatTimelineDate(exp.endDate);
+  const locationLabel = formatLocation(exp.location);
 
   return (
     <div className="relative pl-6 pb-12 last:pb-0" data-highlight-id={exp.id}>
@@ -173,16 +182,18 @@ export default function ExperienceCard({
               </div>
             </div>
             <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
-              <div className="flex items-center gap-1.5 text-xs text-white/35">
-                <Calendar size={11} />
-                <span>{startLabel}{endLabel ? ` - ${endLabel}` : ""}</span>
+              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-x-4 gap-y-1 text-xs">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-white/35">
+                  <Calendar size={11} />
+                  <span>{startLabel}{endLabel ? ` – ${endLabel}` : ""}</span>
+                </span>
+                {locationLabel && (
+                  <span className="inline-flex items-center gap-1.5 text-white/25">
+                    <MapPin size={11} />
+                    <span>{locationLabel}</span>
+                  </span>
+                )}
               </div>
-              {exp.location && (
-                <div className="flex items-center gap-1.5 text-xs text-white/25">
-                  <MapPin size={11} />
-                  <span>{exp.location}</span>
-                </div>
-              )}
               {exp.current && (
                 <span className="text-[10px] text-[#ef4242] tracking-widest uppercase border border-[rgba(239,66,66,0.3)] px-2 py-0.5 rounded-sm mt-1">
                   Current
