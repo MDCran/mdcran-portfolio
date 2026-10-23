@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { adminRequest, recordVersion, recordId, removedRecords, contentSignature } from "@/lib/admin-client";
+import { adminRequest, AdminRequestError, recordVersion, recordId, removedRecords, contentSignature } from "@/lib/admin-client";
 import { useSWRConfig } from "swr";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell } from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
@@ -5774,68 +5774,113 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
 
 /* ─── Admin Visitors Section ────────────────────────────────────────────── */
 function AdminVisitorsSection() {
-  const [data, setData] = useState<{
+  type VisitorData = {
     counts: { country: string; countryName: string; count: number }[];
     adjustments: { id: string; country: string; countryName: string; addedCount: number; createdAt: string }[];
     multiplier: number;
-  } | null>(null);
+  };
+  const [data, setData] = useState<VisitorData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
   const [form, setForm] = useState({ country: "", countryName: "", addedCount: "" });
-  const [saving, setSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [multiplierInput, setMultiplierInput] = useState("");
-  const [savingMultiplier, setSavingMultiplier] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const lifecycleRef = useRef<AbortController | null>(null);
+  const mutationActiveRef = useRef(false);
+  const saving = pendingAction === "add";
+  const savingMultiplier = pendingAction === "multiplier";
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/visitors");
-      if (res.ok) {
-        const d = await res.json();
-        setData(d);
-        setMultiplierInput(String(d.multiplier ?? 1));
-      }
-    } catch {}
-    setLoading(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifecycleRef.current = controller;
+    adminRequest<VisitorData>("/api/admin/visitors", { signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setData(result);
+        setMultiplierInput(String(result.multiplier ?? 1));
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load visitor data.");
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  async function refreshData() {
+    const controller = lifecycleRef.current;
+    if (!controller || controller.signal.aborted || refreshing || mutationActiveRef.current) return;
+    setRefreshing(true); setError("");
+    try {
+      const result = await adminRequest<VisitorData>("/api/admin/visitors", { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setData(result);
+      setRefreshRequired(false);
+      if (!data) setMultiplierInput(String(result.multiplier ?? 1));
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to refresh visitor data.");
+    } finally { if (!controller.signal.aborted) setRefreshing(false); }
+  }
+
+  async function saveChange(action: string, url: string, init: RequestInit, onSuccess?: () => void) {
+    const controller = lifecycleRef.current;
+    if (!controller || controller.signal.aborted || mutationActiveRef.current || refreshing || refreshRequired) return;
+    mutationActiveRef.current = true;
+    setPendingAction(action); setError(""); setNotice("");
+    let committed = false;
+    try {
+      await adminRequest(url, { ...init, signal: controller.signal });
+      committed = true;
+      if (controller.signal.aborted) return;
+      onSuccess?.();
+      setNotice(action === "add" ? "Adjustment added." : action === "multiplier" ? "Multiplier saved." : "Adjustment deleted.");
+      const result = await adminRequest<VisitorData>("/api/admin/visitors", { signal: controller.signal });
+      if (!controller.signal.aborted) setData(result);
+    } catch (cause) {
+      if (!controller.signal.aborted && (committed || (cause instanceof AdminRequestError && cause.status >= 200 && cause.status < 300))) setRefreshRequired(true);
+      if (!controller.signal.aborted) setError(committed ? "The change was saved, but the latest visitor data could not be loaded. Refresh the data before making another change." : cause instanceof Error ? cause.message : "The change could not be saved. Your entries are still here.");
+    } finally {
+      mutationActiveRef.current = false;
+      if (!controller.signal.aborted) setPendingAction(null);
+    }
+  }
 
   const handleAdd = async () => {
-    if (!form.country || !form.countryName || !form.addedCount) return;
-    setSaving(true);
-    await fetch("/api/admin/visitors", {
+    const submitted = { ...form };
+    const count = Number(submitted.addedCount);
+    if (!submitted.country.trim() || !submitted.countryName.trim() || !Number.isSafeInteger(count) || count < 1) {
+      setError("Enter a country code, country name and positive whole-number count.");
+      return;
+    }
+    await saveChange("add", "/api/admin/visitors", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ country: form.country, countryName: form.countryName, addedCount: Number(form.addedCount) }),
-    });
-    setForm({ country: "", countryName: "", addedCount: "" });
-    setSaving(false);
-    fetchData();
+      body: JSON.stringify({ country: submitted.country.trim(), countryName: submitted.countryName.trim(), addedCount: count }),
+    }, () => setForm((current) => JSON.stringify(current) === JSON.stringify(submitted) ? { country: "", countryName: "", addedCount: "" } : current));
   };
 
-  const handleDelete = async (id: string) => {
-    await fetch(`/api/admin/visitors?id=${id}`, { method: "DELETE" });
-    fetchData();
-  };
+  const handleDelete = (id: string) => saveChange(`delete:${id}`, `/api/admin/visitors?${new URLSearchParams({ id })}`, { method: "DELETE" });
 
   const handleSaveMultiplier = async () => {
-    const m = parseFloat(multiplierInput);
-    if (!isFinite(m) || m < 1) return;
-    setSavingMultiplier(true);
-    await fetch("/api/admin/visitors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "multiplier", multiplier: m }),
-    });
-    setSavingMultiplier(false);
-    fetchData();
+    const multiplier = Number(multiplierInput);
+    if (!Number.isFinite(multiplier) || multiplier < 1) { setError("Enter a multiplier of at least 1."); return; }
+    await saveChange("multiplier", "/api/admin/visitors", { method: "POST", body: JSON.stringify({ type: "multiplier", multiplier }) });
   };
 
-  if (loading) return <p className="text-white/30 text-xs">Loading visitor data...</p>;
+  if (loading) return <p role="status" className="text-white/30 text-xs">Loading visitor data...</p>;
+  if (!data) return <div className="space-y-3 text-xs"><p role="alert" className="text-red-300">{error || "Visitor data is unavailable."}</p><button onClick={() => void refreshData()} disabled={refreshing} className={btnOutline}>{refreshing ? "Loading..." : "Retry loading visitor data"}</button></div>;
 
   const inputCls = "h-9 rounded-sm border border-white/10 bg-white/4 px-3 text-xs text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors";
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div aria-live="polite">{notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}{pendingAction && <p role="status" className="text-xs text-white/50">Saving visitor changes...</p>}</div>
+        <button onClick={() => void refreshData()} disabled={refreshing || Boolean(pendingAction)} className={btnOutline}>{refreshing ? "Refreshing..." : "Refresh visitor data"}</button>
+      </div>
+      {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+      {refreshRequired && <p role="status" className="text-xs text-amber-300">Read-only: displayed data may be out of date. Refresh successfully to enable changes.</p>}
       {/* Auto-inflation multiplier */}
       <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
         <div>
@@ -5853,7 +5898,7 @@ function AdminVisitorsSection() {
             onKeyDown={(e) => { if (e.key === "Enter") handleSaveMultiplier(); }}
           />
           <span className="text-xs text-white/35">× multiplier</span>
-          <button onClick={handleSaveMultiplier} disabled={savingMultiplier} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
+          <button onClick={handleSaveMultiplier} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
             {savingMultiplier ? "..." : "Save"}
           </button>
           {data?.multiplier && data.multiplier > 1 && (
@@ -5892,7 +5937,7 @@ function AdminVisitorsSection() {
           <input className={inputCls} placeholder="Code (e.g. US)" value={form.country} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value.toUpperCase() }))} />
           <input className={inputCls} placeholder="Country name" value={form.countryName} onChange={(e) => setForm((f) => ({ ...f, countryName: e.target.value }))} />
           <input className={`${inputCls} w-24`} placeholder="Count" type="number" min="1" value={form.addedCount} onChange={(e) => setForm((f) => ({ ...f, addedCount: e.target.value }))} />
-          <button onClick={handleAdd} disabled={saving} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
+          <button onClick={handleAdd} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
             {saving ? "..." : "Add"}
           </button>
         </div>
@@ -5912,7 +5957,7 @@ function AdminVisitorsSection() {
                     <td className="px-3 py-2 text-white/75"><span className="mr-1.5"><CountryFlag countryCode={adj.country} label="" /></span>{adj.countryName} ({adj.country})</td>
                     <td className="px-3 py-2 text-right text-white/60">+{adj.addedCount.toLocaleString()}</td>
                     <td className="px-3 py-2 text-right">
-                      <button onClick={() => handleDelete(adj.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
+                      <button onClick={() => void handleDelete(adj.id)} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-40">{pendingAction === `delete:${adj.id}` ? "Deleting..." : "Delete"}</button>
                     </td>
                   </tr>
                 ))}
@@ -5927,71 +5972,112 @@ function AdminVisitorsSection() {
 
 /* ─── Admin Status Section ──────────────────────────────────────────────── */
 function AdminStatusSection() {
-  const [services, setServices] = useState<{ id: string; name: string; group?: string; sortOrder: number; pingUrl?: string; defunct?: boolean; createdAt: string }[]>([]);
-  const [incidents, setIncidents] = useState<{ id: string; serviceId: string; title: string; message: string; severity: string; status: string; startedAt: string; resolvedAt?: string; createdAt: string; updatedAt?: string }[]>([]);
-  const [pingResults, setPingResults] = useState<Record<string, { reachable: boolean; latencyMs: number | null; error?: string }>>({});
-  const [pinging, setPinging] = useState(false);
+  type Service = { id: string; name: string; group?: string; sortOrder: number; pingUrl?: string; defunct?: boolean; createdAt: string };
+  type Incident = { id: string; serviceId: string; title: string; message: string; severity: string; status: string; startedAt: string; resolvedAt?: string; createdAt: string; updatedAt?: string };
+  type StatusData = { services: Service[]; incidents: Incident[] };
+  type Ping = { reachable: boolean; latencyMs: number | null; error?: string };
+  const [services, setServices] = useState<Service[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [pingResults, setPingResults] = useState<Record<string, Ping>>({});
+  const [pinging, setPinging] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
   const [incForm, setIncForm] = useState({ title: "", message: "", severity: "minor", serviceId: "" });
-  const [saving, setSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [pingError, setPingError] = useState("");
+  const [notice, setNotice] = useState("");
+  const lifecycleRef = useRef<AbortController | null>(null);
+  const mutationActiveRef = useRef(false);
+  const saving = pendingAction === "create";
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/status");
-      if (res.ok) {
-        const d = await res.json();
-        setServices(d.services);
-        setIncidents(d.incidents);
-      }
-    } catch {}
-    setLoading(false);
+  const readPings = useCallback(async (signal: AbortSignal): Promise<Record<string, Ping>> => {
+    const result = await adminRequest<{ results: (Ping & { id: string })[] }>("/api/admin/status/ping", { method: "POST", signal });
+    return Object.fromEntries(result.results.map(({ id, ...ping }) => [id, ping]));
   }, []);
 
-  const runPings = useCallback(async () => {
-    setPinging(true);
-    try {
-      const res = await fetch("/api/admin/status/ping", { method: "POST" });
-      if (res.ok) {
-        const d = await res.json();
-        const map: Record<string, { reachable: boolean; latencyMs: number | null; error?: string }> = {};
-        for (const r of d.results) { map[r.id] = { reachable: r.reachable, latencyMs: r.latencyMs, error: r.error }; }
-        setPingResults(map);
-      }
-    } catch {}
-    setPinging(false);
-  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifecycleRef.current = controller;
+    adminRequest<StatusData>("/api/admin/status", { signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setServices(result.services); setIncidents(result.incidents); setLoaded(true);
+      })
+      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load service status."); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    readPings(controller.signal)
+      .then((result) => { if (!controller.signal.aborted) setPingResults(result); })
+      .catch((cause: unknown) => { if (!controller.signal.aborted) setPingError(cause instanceof Error ? cause.message : "Service pings could not be completed."); })
+      .finally(() => { if (!controller.signal.aborted) setPinging(false); });
+    return () => controller.abort();
+  }, [readPings]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { runPings(); }, [runPings]);
+  async function refreshData() {
+    const controller = lifecycleRef.current;
+    if (!controller || controller.signal.aborted || refreshing || mutationActiveRef.current) return;
+    setRefreshing(true); setError("");
+    try {
+      const result = await adminRequest<StatusData>("/api/admin/status", { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setServices(result.services); setIncidents(result.incidents); setLoaded(true);
+      setRefreshRequired(false);
+    } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to refresh status data."); }
+    finally { if (!controller.signal.aborted) setRefreshing(false); }
+  }
+
+  async function runPings() {
+    const controller = lifecycleRef.current;
+    if (!controller || controller.signal.aborted || pinging) return;
+    setPinging(true); setPingError("");
+    try {
+      const result = await readPings(controller.signal);
+      if (!controller.signal.aborted) setPingResults(result);
+    } catch (cause) { if (!controller.signal.aborted) setPingError(cause instanceof Error ? cause.message : "Service pings could not be completed."); }
+    finally { if (!controller.signal.aborted) setPinging(false); }
+  }
+
+  async function saveIncidentChange(action: string, url: string, init: RequestInit, onSuccess?: () => void) {
+    const controller = lifecycleRef.current;
+    if (!controller || controller.signal.aborted || mutationActiveRef.current || refreshing || refreshRequired) return;
+    mutationActiveRef.current = true;
+    setPendingAction(action); setError(""); setNotice("");
+    let committed = false;
+    try {
+      await adminRequest(url, { ...init, signal: controller.signal });
+      committed = true;
+      if (controller.signal.aborted) return;
+      onSuccess?.();
+      setNotice(action === "create" ? "Incident created." : action.startsWith("resolve:") ? "Incident resolved." : "Incident deleted.");
+      const result = await adminRequest<StatusData>("/api/admin/status", { signal: controller.signal });
+      if (!controller.signal.aborted) { setServices(result.services); setIncidents(result.incidents); }
+    } catch (cause) {
+      if (!controller.signal.aborted && (committed || (cause instanceof AdminRequestError && cause.status >= 200 && cause.status < 300))) setRefreshRequired(true);
+      if (!controller.signal.aborted) setError(committed ? "The change was saved, but the latest status data could not be loaded. Refresh the data before making another change." : cause instanceof Error ? cause.message : "The incident change could not be saved. Your entries are still here.");
+    } finally {
+      mutationActiveRef.current = false;
+      if (!controller.signal.aborted) setPendingAction(null);
+    }
+  }
 
   const handleCreateIncident = async () => {
-    if (!incForm.title || !incForm.serviceId) return;
-    setSaving(true);
-    await fetch("/api/admin/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "incident", ...incForm }),
-    });
-    setIncForm({ title: "", message: "", severity: "minor", serviceId: "" });
-    setSaving(false);
-    fetchData();
+    const submitted = { ...incForm };
+    if (!submitted.title.trim() || !submitted.serviceId) { setError("Select a service and enter an incident title."); return; }
+    await saveIncidentChange("create", "/api/admin/status", {
+      method: "POST", body: JSON.stringify({ type: "incident", ...submitted, title: submitted.title.trim() }),
+    }, () => setIncForm((current) => JSON.stringify(current) === JSON.stringify(submitted) ? { title: "", message: "", severity: "minor", serviceId: "" } : current));
   };
 
-  const handleResolve = async (inc: typeof incidents[0]) => {
-    await fetch("/api/admin/status", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "incident", ...inc, status: "resolved", resolvedAt: new Date().toISOString() }),
-    });
-    fetchData();
-  };
+  const handleResolve = (incident: Incident) => saveIncidentChange(`resolve:${incident.id}`, "/api/admin/status", {
+    method: "PUT", body: JSON.stringify({ type: "incident", ...incident, status: "resolved", resolvedAt: new Date().toISOString() }),
+  });
 
-  const handleDeleteIncident = async (id: string) => {
-    await fetch(`/api/admin/status?type=incident&id=${id}`, { method: "DELETE" });
-    fetchData();
-  };
+  const handleDeleteIncident = (id: string) => saveIncidentChange(`delete:${id}`, `/api/admin/status?${new URLSearchParams({ type: "incident", id })}`, { method: "DELETE" });
 
-  if (loading) return <p className="text-white/30 text-xs">Loading status data...</p>;
+  if (loading) return <p role="status" className="text-white/30 text-xs">Loading status data...</p>;
+  if (!loaded) return <div className="space-y-3 text-xs"><p role="alert" className="text-red-300">{error || "Service status is unavailable."}</p><button onClick={() => void refreshData()} disabled={refreshing} className={btnOutline}>{refreshing ? "Loading..." : "Retry loading status data"}</button></div>;
 
   const inputCls = "h-9 rounded-sm border border-white/10 bg-white/4 px-3 text-xs text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors";
   const activeIncidents = incidents.filter((i) => i.status !== "resolved");
@@ -5999,6 +6085,13 @@ function AdminStatusSection() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div aria-live="polite">{notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}{pendingAction && <p role="status" className="text-xs text-white/50">Saving incident changes...</p>}</div>
+        <button onClick={() => void refreshData()} disabled={refreshing || Boolean(pendingAction)} className={btnOutline}>{refreshing ? "Refreshing..." : "Refresh status data"}</button>
+      </div>
+      {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+      {refreshRequired && <p role="status" className="text-xs text-amber-300">Read-only: displayed data may be out of date. Refresh successfully to enable changes.</p>}
+      {pingError && <p role="alert" className="text-xs text-amber-300">{pingError} Previous ping results may be out of date.</p>}
       <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-3">
         <div className="flex items-center justify-between">
           <p className="font-nord text-sm text-white">Services ({services.length})</p>
@@ -6071,7 +6164,7 @@ function AdminStatusSection() {
           value={incForm.message}
           onChange={(e) => setIncForm((f) => ({ ...f, message: e.target.value }))}
         />
-        <button onClick={handleCreateIncident} disabled={saving} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
+        <button onClick={handleCreateIncident} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="h-9 px-4 text-xs tracking-widest uppercase bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] transition-colors disabled:opacity-50">
           {saving ? "..." : "Create Incident"}
         </button>
       </div>
@@ -6087,8 +6180,8 @@ function AdminStatusSection() {
                 <div className="text-[10px] text-white/25 mt-1">{services.find((s) => s.id === inc.serviceId)?.name} — {inc.severity} — {inc.status}</div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button onClick={() => handleResolve(inc)} className="text-[10px] text-green-400 hover:text-green-300">Resolve</button>
-                <button onClick={() => handleDeleteIncident(inc.id)} className="text-[10px] text-red-400 hover:text-red-300">Delete</button>
+                <button onClick={() => void handleResolve(inc)} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="text-[10px] text-green-400 hover:text-green-300 disabled:opacity-40">{pendingAction === `resolve:${inc.id}` ? "Resolving..." : "Resolve"}</button>
+                <button onClick={() => void handleDeleteIncident(inc.id)} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-40">{pendingAction === `delete:${inc.id}` ? "Deleting..." : "Delete"}</button>
               </div>
             </div>
           ))}
@@ -6104,7 +6197,7 @@ function AdminStatusSection() {
                 <div className="text-xs text-white/50">{inc.title}</div>
                 <div className="text-[10px] text-white/25 mt-0.5">{services.find((s) => s.id === inc.serviceId)?.name} — {inc.resolvedAt ? new Date(inc.resolvedAt).toLocaleDateString() : ""}</div>
               </div>
-              <button onClick={() => handleDeleteIncident(inc.id)} className="text-[10px] text-red-400/50 hover:text-red-300 shrink-0">Delete</button>
+              <button onClick={() => void handleDeleteIncident(inc.id)} disabled={Boolean(pendingAction) || refreshing || refreshRequired} className="text-[10px] text-red-400/50 hover:text-red-300 shrink-0 disabled:opacity-40">{pendingAction === `delete:${inc.id}` ? "Deleting..." : "Delete"}</button>
             </div>
           ))}
         </div>

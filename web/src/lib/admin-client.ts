@@ -4,11 +4,27 @@ export class AdminRequestError extends Error {
 
 /** A resolved fetch is not a successful save. All editor mutations use this boundary. */
 export async function adminRequest<T = Record<string, unknown>>(url: string, init?: RequestInit): Promise<T> {
+  init?.signal?.throwIfAborted();
   const response = await fetch(url, { ...init, headers: { ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers } });
-  const payload = await response.json().catch(() => null);
+  init?.signal?.throwIfAborted();
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    // Cancellation during body consumption must remain cancellation, not a bad-response error.
+    init?.signal?.throwIfAborted();
+    if (error instanceof Error && error.name === "AbortError") throw error;
+  }
+  init?.signal?.throwIfAborted();
   if (!response.ok) {
-    const message = payload?.error || (response.status === 409 ? "This record changed in another window. Reload it before saving." : `Request failed (${response.status}). Your edits are still here.`);
+    const detail = payload && typeof payload === "object" && "error" in payload ? payload.error : undefined;
+    const message = detail || (response.status === 409 ? "This record changed in another window. Reload it before saving." : `Request failed (${response.status}). Your edits are still here.`);
     throw new AdminRequestError(typeof message === "string" ? message : JSON.stringify(message), response.status);
+  }
+  // Every caller expects an object or collection; none uses a bodyless success contract.
+  // A mutation may already have committed, so ask for a refresh instead of a blind retry.
+  if (!payload || typeof payload !== "object") {
+    throw new AdminRequestError("The server returned an invalid response. Refresh to confirm the latest data before trying again. Your edits are still here.", response.status);
   }
   return payload as T;
 }

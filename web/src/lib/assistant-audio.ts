@@ -13,7 +13,8 @@ export async function playStreamingSpeech(response: Response, options: {
   const operationSignal = AbortSignal.any([options.signal, failed.signal]);
   let source: MediaElementAudioSourceNode | undefined;
   let rejectPlayback: (reason: unknown) => void = () => {};
-  const stopped = () => operationSignal.aborted;
+  let finished = false;
+  const stopped = () => operationSignal.aborted || finished;
   const abort = () => { audio.pause(); void reader?.cancel().catch(() => {}); rejectPlayback(new DOMException("Cancelled", "AbortError")); };
   operationSignal.addEventListener("abort", abort, { once: true });
   try {
@@ -30,7 +31,7 @@ export async function playStreamingSpeech(response: Response, options: {
     reader = response.body.getReader();
     let started = false;
     audio.onplaying = () => { if (!started && !stopped()) { started = true; options.onStart(); } };
-    audio.ontimeupdate = () => options.onProgress?.(audio.currentTime);
+    audio.ontimeupdate = () => { if (!stopped()) options.onProgress?.(audio.currentTime); };
     const playback = new Promise<void>((resolve, reject) => { rejectPlayback = reject; audio.onended = () => resolve(); audio.onerror = () => { failed.abort(new Error("Audio playback failed")); reject(new Error("Audio playback failed")); }; });
     // Attach a rejection handler immediately while the body is still arriving.
     const play = audio.play(); void play.catch(error => { failed.abort(error); rejectPlayback(error); }); void playback.catch(() => {});
@@ -55,6 +56,8 @@ export async function playStreamingSpeech(response: Response, options: {
     if (!options.signal.aborted && !reader) return false;
     throw error;
   } finally {
+    finished = true;
+    audio.onplaying = null; audio.ontimeupdate = null; audio.onended = null; audio.onerror = null;
     operationSignal.removeEventListener("abort", abort); audio.pause(); audio.removeAttribute("src"); audio.load(); source?.disconnect(); options.onAudio?.(null); URL.revokeObjectURL(url); void reader?.cancel().catch(() => {});
   }
 }

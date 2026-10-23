@@ -6,7 +6,10 @@ import { comparisonEvidence, matchesRole, normalizeRole, readShortlist, tracking
 import EngineeringHighlights from "../src/components/home/EngineeringHighlights";
 import Hero from "../src/components/home/Hero";
 import ProjectWalkthrough from "../src/components/work/ProjectWalkthrough";
-import type { Project } from "../src/lib/types";
+import Stats from "../src/components/home/Stats";
+import AIUsageTracker from "../src/components/home/AIUsageTracker";
+import { SWRConfig } from "swr";
+import type { Project, SiteContentAiUsage } from "../src/lib/types";
 
 test("role views reject unknown roles and select relevant evidence", () => {
   assert.equal(normalizeRole("backend"), "backend");
@@ -61,4 +64,33 @@ test("flagship walkthrough labels illustrative data and distinguishes next evalu
   assert.match(markup, /download="sample-health-export.csv"/);
   assert.match(flagshipReviews.coretex.result, /No adoption or latency measurement/);
   assert.equal(renderToStaticMarkup(<ProjectWalkthrough slug="unknown" />), "");
+});
+
+test("available metrics render their real totals before scrolling or hydration", () => {
+  const markup = renderToStaticMarkup(<SWRConfig value={{ provider: () => new Map(), fallback: {
+    "/api/metrics": { totalProjectViews: 1234567, totalProjects: 42, yearsActive: 8 },
+    "github-contrib-summary": { total: 9876, trend: [] },
+  } }}><Stats /></SWRConfig>);
+  const cards = markup.split("Public Projects")[0];
+  assert.match(cards, /1,234,567/);
+  assert.match(cards, /9,876/);
+  assert.match(cards, />42</);
+  assert.doesNotMatch(cards, /opacity:0|transform:|Loading metric/);
+});
+
+test("unloaded metrics expose loading rather than a fabricated zero", () => {
+  const markup = renderToStaticMarkup(<SWRConfig value={{ provider: () => new Map() }}><Stats /></SWRConfig>);
+  const cards = markup.split("Public Projects")[0];
+  assert.match(cards, /aria-label="Loading metric"/);
+  assert.doesNotMatch(cards, /class="stat-value[^\"]*">0</);
+});
+
+test("reported AI total is immediate and exact for assistive readers, retaining adjustment", () => {
+  const content = { totalTokens: 73_200_000_123, claude: { totalTokens: 100 }, openai: { totalTokens: 23 }, elevenlabs: { charactersUsed: 2345 } } as SiteContentAiUsage;
+  const markup = renderToStaticMarkup(<AIUsageTracker content={content} />);
+  assert.match(markup, />73\.2B</);
+  assert.match(markup, /class="sr-only">73,200,000,123</);
+  assert.match(markup, /class="sr-only">2,345</);
+  const fallback = renderToStaticMarkup(<AIUsageTracker content={{ ...content, totalTokens: undefined }} />);
+  assert.match(fallback, /class="sr-only">123</);
 });

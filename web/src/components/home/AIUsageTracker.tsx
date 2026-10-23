@@ -1,37 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useInView } from "framer-motion";
 import type { SiteContentAiUsage } from "@/lib/types";
 
 function formatCompact(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString("en-US");
 }
 
-function AnimatedStat({ value, label }: { value: number; label: string }) {
-  const [display, setDisplay] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-
-  useEffect(() => {
-    if (!inView) return;
-    const duration = 1400;
-    const steps = 60;
-    const increment = value / steps;
-    let current = 0;
-    const timer = setInterval(() => {
-      current = Math.min(current + increment, value);
-      setDisplay(current);
-      if (current >= value) clearInterval(timer);
-    }, duration / steps);
-    return () => clearInterval(timer);
-  }, [inView, value]);
-
+function ReportedStat({ value, label }: { value: number; label: string }) {
   return (
-    <span ref={ref} className="flex min-w-0 max-w-full items-baseline gap-1.5">
-      <span className="w-[8ch] shrink-0 text-right font-nord tabular-nums text-white">{formatCompact(display)}</span>
+    <span className="flex min-w-0 max-w-full items-baseline gap-1.5">
+      <span className="w-[8ch] shrink-0 text-right font-nord tabular-nums text-white" title={value.toLocaleString("en-US")}>
+        <span aria-hidden="true">{formatCompact(value)}</span>
+        <span className="sr-only">{value.toLocaleString("en-US")}</span>
+      </span>
       <span className="text-white/35">{label}</span>
     </span>
   );
@@ -53,8 +37,8 @@ export default function AIUsageTracker({ content }: { content?: SiteContentAiUsa
         AI-Assisted Workflow
       </span>
       <div className="flex min-w-0 max-w-full items-baseline gap-x-4 gap-y-1.5 flex-wrap text-white/60">
-        <AnimatedStat value={totalTokens} label="AI tokens processed · reported" />
-        {elevenlabs.charactersUsed > 0 && <AnimatedStat value={elevenlabs.charactersUsed} label="ElevenLabs chars" />}
+        <ReportedStat value={totalTokens} label="AI tokens processed · reported" />
+        {elevenlabs.charactersUsed > 0 && <ReportedStat value={elevenlabs.charactersUsed} label="ElevenLabs chars" />}
       </div>
       {content.lastUpdated && <time dateTime={content.lastUpdated} className="whitespace-nowrap text-white/40">Updated {content.lastUpdated}</time>}
       {content.accessNoteEnabled && content.accessNote && <span className="text-white/55 border-l border-white/10 pl-3">{content.accessNote}</span>}

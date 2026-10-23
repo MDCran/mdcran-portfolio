@@ -342,9 +342,9 @@ export default function VoiceMode() {
      isn't blocked by mobile autoplay the way a plain <audio>.play() is. ── */
   const speak = useCallback(async (text: string, onStart?: () => void): Promise<void> => {
     const generation = generationRef.current;
-    const active = () => openRef.current && generation === generationRef.current;
-    if (!active()) return;
     const controller = new AbortController();
+    const active = () => openRef.current && generation === generationRef.current && !controller.signal.aborted;
+    if (!active()) return;
     speechAbortRef.current?.abort();
     speechAbortRef.current = controller;
     const synthesisStartedAt = performance.now();
@@ -377,6 +377,7 @@ export default function VoiceMode() {
         const ctx = audioCtxRef.current;
         if (ctx) {
           await ctx.resume();
+          if (!active()) return;
           interruptTtsRef.current = () => { controller.abort(); setPhaseSafe("listening"); setTtsPreparing(false); setCaptionWords([]); setCaptionIdx(-1); };
           const streamed = await playStreamingSpeech(res, { signal: controller.signal, context: ctx, analyser: ttsAnalyserRef.current,
             onAudio: audio => { audioElRef.current = audio; },
@@ -416,10 +417,10 @@ export default function VoiceMode() {
             setCaptionIdx(-1);
             resolve();
           };
-          audio.onplaying = () => { setTtsPreparing(false); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); };
+          audio.onplaying = () => { if (!active()) return; setTtsPreparing(false); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); };
           audio.onended = finish;
           audio.onerror = () => { finish(); unavailable(); };
-          interruptTtsRef.current = () => { try { audio.pause(); } catch { /* */ } finish(); setPhaseSafe("listening"); };
+          interruptTtsRef.current = () => { controller.abort(); try { audio.pause(); } catch { /* */ } finish(); setPhaseSafe("listening"); };
           audio.src = url;
           void audio.play().catch(() => { finish(); unavailable(); });
         });
@@ -466,6 +467,7 @@ export default function VoiceMode() {
           if (el < dur) captionRafRef.current = requestAnimationFrame(karaoke);
         };
         interruptTtsRef.current = () => {
+          controller.abort();
           try { src.stop(); } catch { /* */ }
           setInterrupted(true);
           setTimeout(() => setInterrupted(false), 1400);
@@ -479,6 +481,12 @@ export default function VoiceMode() {
       });
     } catch {
       unavailable();
+    } finally {
+      // Cancellation while synthesis is pending has no playback interrupt hook
+      // yet. Clear its loading UI, without touching a newer speech operation.
+      if (controller.signal.aborted && speechAbortRef.current === controller) {
+        setTtsPreparing(false); setCaptionWords([]); setCaptionIdx(-1);
+      }
     }
   }, [currentLang, setPhaseSafe]);
 
@@ -860,6 +868,7 @@ export default function VoiceMode() {
   useEffect(() => {
     if (!open || paused) return;
     let cancelled = false;
+    const captureAbort = new AbortController();
 
     const SR = getSpeechRecognition();
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
@@ -905,12 +914,14 @@ export default function VoiceMode() {
         micStreamRef.current = stream;
         setMicError("");
         await refreshAudioInputs();
+        if (cancelled) return;
         navigator.mediaDevices.addEventListener?.("devicechange", refreshAudioInputs);
 
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ctx = new Ctx();
         audioCtxRef.current = ctx;
         try { await ctx.resume(); } catch { /* */ }
+        if (cancelled) return;
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
         analyser.smoothingTimeConstant = 0.75;
@@ -932,7 +943,7 @@ export default function VoiceMode() {
           rec.interimResults = true;
           rec.lang = "en-US";
           rec.onresult = (e: SREvent) => {
-            if (phaseRef.current !== "listening") return;
+            if (cancelled || phaseRef.current !== "listening") return;
             let interimText = "";
             for (let i = e.resultIndex; i < e.results.length; i++) {
               const r = e.results[i];
@@ -944,6 +955,7 @@ export default function VoiceMode() {
             if (pendingFinalRef.current) {
               if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
               sendTimerRef.current = setTimeout(() => {
+                if (cancelled) return;
                 const toSend = pendingFinalRef.current.trim();
                 pendingFinalRef.current = "";
                 if (toSend && !isNoisyTranscript(toSend)) void sendToAgentRef.current(toSend);
@@ -951,7 +963,7 @@ export default function VoiceMode() {
             }
           };
           rec.onerror = () => { /* transient */ };
-          rec.onend = () => { if (openRef.current && phaseRef.current !== "connecting" && phaseRef.current !== "error") { try { rec.start(); } catch { /* */ } } };
+          rec.onend = () => { if (!cancelled && openRef.current && phaseRef.current !== "connecting" && phaseRef.current !== "error") { try { rec.start(); } catch { /* */ } } };
           recRef.current = rec;
           setPhaseSafe("listening");
           try { rec.start(); } catch { /* */ }
@@ -966,8 +978,9 @@ export default function VoiceMode() {
             vadChunksRef.current = [];
             let mr: MediaRecorder;
             try { mr = new MediaRecorder(s); } catch { return; }
-            mr.ondataavailable = (e) => { if (e.data.size) vadChunksRef.current.push(e.data); };
+            mr.ondataavailable = (e) => { if (!cancelled && e.data.size) vadChunksRef.current.push(e.data); };
             mr.onstop = async () => {
+              if (cancelled) return;
               vadRecordingRef.current = false;
               const blob = new Blob(vadChunksRef.current, { type: mr.mimeType || "audio/webm" });
               if (blob.size < 2000 || sendingRef.current) { if (openRef.current && phaseRef.current === "thinking") setPhaseSafe("listening"); return; }
@@ -982,25 +995,27 @@ export default function VoiceMode() {
                 if (isLocalSttSupported()) {
                   try { t = await transcribeBlobLocal(blob); localOk = true; } catch { localOk = false; }
                 }
+                if (cancelled) return;
                 if (!localOk) {
                   // Safari often records MP4/AAC; preserve that extension so the
                   // transcription service receives the right container metadata.
                   const extension = mr.mimeType.includes("mp4") ? "mp4" : "webm";
                   const fd = new FormData(); fd.set("file", blob, `voice.${extension}`);
-                  const res = await fetch("/api/voice/stt", { method: "POST", body: fd });
+                  const res = await fetch("/api/voice/stt", { method: "POST", body: fd, signal: captureAbort.signal });
                   const data = await res.json().catch(() => null);
                   t = typeof data?.text === "string" ? data.text.trim() : "";
                 }
+                if (cancelled) return;
                 if (t && !isNoisyTranscript(t)) await sendToAgentRef.current(t);
                 else if (openRef.current) setPhaseSafe("listening");
-              } catch { if (openRef.current) setPhaseSafe("listening"); }
+              } catch { if (!cancelled && openRef.current) setPhaseSafe("listening"); }
             };
             mediaRecorderRef.current = mr;
             vadRecordingRef.current = true;
             mr.start();
           };
           const vad = () => {
-            if (!openRef.current) return;
+            if (cancelled || !openRef.current) return;
             const now = performance.now(); const dt = now - lastTs; lastTs = now;
             analyser.getByteTimeDomainData(buf);
             let rms = 0; for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; rms += v * v; } rms = Math.sqrt(rms / buf.length);
@@ -1030,6 +1045,7 @@ export default function VoiceMode() {
         // this path when site permission is blocked, so keep the recovery message
         // accurate and let the visitor retry after enabling the microphone.
         if (!cancelled) {
+          stopCapture();
           const name = error instanceof DOMException ? error.name : "";
           setSupported(canUseMicrophone);
           setMicError(
@@ -1044,8 +1060,11 @@ export default function VoiceMode() {
       }
     })();
 
-    return () => {
+    function stopCapture() {
       cancelled = true;
+      captureAbort.abort();
+      if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+      pendingFinalRef.current = "";
       navigator.mediaDevices?.removeEventListener?.("devicechange", refreshAudioInputs);
       // Tear down the old input before a retry or input switch, and keep a
       // SpeechRecognition onend callback from restarting during the switch.
@@ -1055,6 +1074,8 @@ export default function VoiceMode() {
       if (mediaRecorderRef.current) {
         const recorder = mediaRecorderRef.current;
         recorder.onstop = null;
+        recorder.ondataavailable = null;
+        recorder.onerror = null;
         try { if (recorder.state !== "inactive") recorder.stop(); } catch { /* */ }
         mediaRecorderRef.current = null;
       }
@@ -1062,10 +1083,11 @@ export default function VoiceMode() {
       if (recRef.current) { try { recRef.current.abort(); } catch { /* */ } recRef.current = null; }
       if (micSourceRef.current) { try { micSourceRef.current.disconnect(); } catch { /* */ } micSourceRef.current = null; }
       if (micStreamRef.current) { micStreamRef.current.getTracks().forEach((track) => track.stop()); micStreamRef.current = null; }
-      if (audioCtxRef.current) { try { void audioCtxRef.current.close(); } catch { /* */ } audioCtxRef.current = null; }
+      if (audioCtxRef.current) { try { void audioCtxRef.current.close().catch(() => {}); } catch { /* */ } audioCtxRef.current = null; }
       analyserRef.current = null;
       ttsAnalyserRef.current = null;
-    };
+    }
+    return stopCapture;
   }, [open, paused, selectedMicId, micRetryKey, startMeter, setPhaseSafe]);
 
   /* ── Teardown on close ── */

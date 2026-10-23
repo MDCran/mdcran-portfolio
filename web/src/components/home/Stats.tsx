@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { motion, useInView } from "framer-motion";
+import React from "react";
 import useSWR from "swr";
 import { Area, AreaChart, YAxis } from "recharts";
 import dynamic from "next/dynamic";
@@ -245,8 +244,7 @@ function LiveMetricBackground({
             stroke="var(--color-views)"
             strokeWidth={2}
             fill={`url(#${gradientId})`}
-            isAnimationActive
-            animationDuration={900}
+            isAnimationActive={false}
             dot={false}
           />
         </AreaChart>
@@ -255,7 +253,7 @@ function LiveMetricBackground({
   );
 }
 
-function AnimatedNumber({
+function MetricNumber({
   value,
   format,
   suffix,
@@ -266,31 +264,10 @@ function AnimatedNumber({
   suffix: string;
   render?: (display: string) => React.ReactNode;
 }) {
-  const [display, setDisplay] = useState("0");
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-
-  useEffect(() => {
-    if (!inView) return;
-    const duration = 2000;
-    const steps = 80;
-    let current = 0;
-    const increment = value / steps;
-    const timer = setInterval(() => {
-      current = Math.min(current + increment, value);
-      if (format) {
-        setDisplay(format(Math.floor(current)));
-      } else {
-        setDisplay(String(Math.floor(current)));
-      }
-      if (current >= value) clearInterval(timer);
-    }, duration / steps);
-    return () => clearInterval(timer);
-  }, [inView, value, format]);
+  const display = format ? format(value) : String(value);
 
   return (
     <span
-      ref={ref}
       className="stat-value text-white tracking-tight leading-none"
     >
       {render ? render(display) : display}
@@ -325,20 +302,17 @@ export default function Stats({
   return (
     <section className="py-24 border-y border-white/6 overflow-hidden">
       <div className="content-container">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, amount: 0 }}
+        <div
           className="flex items-center gap-3 mb-14"
         >
           <div className="h-px w-8 bg-[var(--cranberry)]" />
           <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">
             {content?.eyebrow || "By the Numbers"}
           </span>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          {METRICS.map((metric, i) => {
+          {METRICS.map((metric) => {
             const isProjectViews = metric.key === "totalProjectViews";
             const isGithub = metric.key === "githubContributions";
             const isLiveMetric = isGithub;
@@ -365,24 +339,16 @@ export default function Stats({
             );
 
             return (
-              <motion.div
+              <div
                 key={metric.key}
                 data-highlight-id={`stat-${metric.label
                   .toLowerCase()
                   .replace(/[^a-z0-9]+/g, "-")
                   .replace(/^-+|-+$/g, "")}`}
-                initial={{ opacity: 0, y: 32 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0 }}
-                transition={{
-                  duration: 0.6,
-                  delay: i * 0.1,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
                 className="group h-full"
               >
                 <div className="relative h-full min-h-[138px] md:min-h-[148px] p-5 md:p-6 rounded-sm border border-white/7 bg-white/2 overflow-hidden transition-all duration-500 hover:border-[color-mix(in_srgb,var(--theme-primary,#ef4242)_25%,transparent)] hover:bg-white/4 hover:-translate-y-1 hover:shadow-[0_20px_60px_color-mix(in_srgb,var(--theme-primary,#ef4242)_8%,transparent)]">
-                  {isGithub && github?.trend && (
+                  {isGithub && github && github.trend.length > 0 && (
                     <LiveMetricBackground
                       data={github.trend}
                       color="rgba(34,197,94,0.9)"
@@ -405,22 +371,21 @@ export default function Stats({
                           Currently unavailable
                         </span>
                       ) : cardLoading ? (
-                        <span
+                        <span role="status" aria-label="Loading metric"
                           className="block h-9 w-28 rounded-sm bg-white/10 animate-pulse"
-                          aria-hidden
                         />
                       ) : isProjectViews ? (
                         <span className="stat-value text-white tracking-tight leading-none">
                           {displayedProjectViews.toLocaleString("en-US")}
                         </span>
                       ) : isGithub ? (
-                        <AnimatedNumber
+                        <MetricNumber
                           value={github?.total ?? 0}
                           format={metric.format}
                           suffix={metric.suffix}
                         />
                       ) : (
-                        <AnimatedNumber
+                        <MetricNumber
                           value={value as number}
                           format={metric.format}
                           suffix={metric.suffix}
@@ -440,7 +405,7 @@ export default function Stats({
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>
