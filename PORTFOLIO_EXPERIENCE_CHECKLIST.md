@@ -55,4 +55,6 @@ The implementation reuses existing public CMS records, resume data, media, theme
 
 ## Verification limits
 
-Real voice synthesis/recognition, live AI answers, and provider interruption behavior require configured provider credentials and microphone testing. The implementation agent did not use production credentials or write production data. The parent agent owns final deployment/browser verification, commit, and deployment.
+The production release returned HTTP 200 for Engineering, Work, the printable resume, GitHub profile, and sitemap; `/code` redirected to Engineering. Live chat streamed an evidence-linked answer and acknowledged missing Kubernetes evidence. Voice synthesis returned valid MPEG audio. A follow-up corrects the assistant's public-contracts/private-platform distinction and the portfolio source link to `MDCran/mdcran-portfolio`.
+
+Physical microphone recognition and interruption behavior still require a real microphone session. The implementation agent did not use production credentials or write production data. The parent verified the deployed provider endpoints and owns commit and deployment.

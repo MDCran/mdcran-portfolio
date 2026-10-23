@@ -33,6 +33,7 @@ export interface EngineeringProjectDetail {
   contribution: string;
   decisions: string[];
   skills: string[];
+  sourceUrl?: string;
   sourceLabel?: string;
   evidence?: string;
   evidenceLabel?: string;
@@ -86,6 +87,7 @@ export const engineeringProjects: Record<string, EngineeringProjectDetail> = {
     skills: ["Next.js 15", "React 19", "TypeScript", "Three.js", "GSAP", "Twitch API", "Zod"],
   },
   "webdesign-portfolio": {
+    sourceUrl: "https://github.com/MDCran/mdcran-portfolio",
     category: "Full-stack · AI & service integrations",
     status: "Live at mdcran.com",
     summary: "The application behind this site: a responsive portfolio with managed content, API integrations, streaming AI chat, voice features, and analytics.",

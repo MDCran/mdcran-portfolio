@@ -360,7 +360,7 @@ function ProjectSectionContent({
 function ProjectCard({ project }: { project: Project }) {
   const detail = engineeringProjects[project.slug];
   const cover = project.coverImage ?? project.images?.[0];
-  const sourceUrl = project.githubUrl ?? project.repositories?.[0]?.url;
+  const sourceUrl = detail?.sourceUrl ?? project.githubUrl ?? project.repositories?.[0]?.url;
   const additionalRepositories = (project.repositories ?? []).filter(
     (repository) => repository.url !== sourceUrl,
   );
