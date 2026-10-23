@@ -3,17 +3,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import Link from "next/link";
+import { validPublishDate } from "@/lib/project-date";
 import { projectUrl } from "@/lib/utils";
 import type { Article, Experience, Project, SiteContentSectionIntro } from "@/lib/types";
 
-function parseDate(d: string): number {
-  // Handles "MM-YYYY" and "YYYY-MM" and "YYYY-MM-DD"
-  if (/^\d{2}-\d{4}$/.test(d)) {
-    const [mm, yyyy] = d.split("-");
-    return new Date(Number(yyyy), Number(mm) - 1).getTime();
-  }
-  return new Date(d).getTime();
-}
+function parseDate(d: string): number { return validPublishDate(d)?.getTime() ?? 0; }
 
 function extractYear(d: string): string {
   if (/^\d{2}-\d{2}-\d{4}$/.test(d)) return d.slice(-4);
@@ -42,12 +36,12 @@ function getTimelineTags(job: Experience) {
 
 export default function Timeline({ experiences, content, projects = [], articles = [] }: TimelineProps) {
   const work: (Experience & { href: string })[] = [
-    ...projects.filter(p => p.visible !== false && p.publishDate).map(p => ({
+    ...projects.filter(p => p.visible !== false && validPublishDate(p.publishDate)).map(p => ({
       id: `project-${p.id}`, type: "job" as const, role: p.title, companyName: "Featured project",
       startDate: p.publishDate!, endDate: p.publishDate!, description: p.description || "",
       href: projectUrl(p.category, p.slug, p.subcategory), timelineTags: [{ label: "Project", color: "blue" as const }],
     })),
-    ...articles.filter(a => a.publishDate).map(a => ({
+    ...articles.filter(a => validPublishDate(a.publishDate)).map(a => ({
       id: `article-${a.id}`, type: "job" as const, role: a.title, companyName: "Featured article",
       startDate: a.publishDate, endDate: a.publishDate, description: "",
       href: `/articles/${a.slug}`, timelineTags: [{ label: "Article", color: "purple" as const }],

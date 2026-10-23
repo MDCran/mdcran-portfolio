@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Lightbox from "@/components/shared/Lightbox";
+import SectionActions from "./SectionActions";
 import BeforeAfterSlider from "@/components/shared/BeforeAfterSlider";
 import type { ArticleSection, Client, Project } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
@@ -174,6 +175,8 @@ export default function ProjectDetail({
       </section>
 
       <main className="content-container py-12 sm:py-16" data-highlight-id={project.id}>
+        <nav aria-label="Breadcrumb" className="mb-4 text-xs text-white/60"><Link href="/">Home</Link> / <Link href={backHref}>{backLabel}</Link> / <span aria-current="page">{project.title}</span></nav>
+        <SectionActions />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12">
           <div className="lg:col-span-2 space-y-12">
             {project.sections && project.sections.length > 0 && (
@@ -259,7 +262,7 @@ export default function ProjectDetail({
             <section>
               <div className="flex items-center gap-2 text-xs text-white/45 border-t border-white/8 pt-5">
                 <Calendar size={12} className="text-[var(--cranberry)]" />
-                <span>Published {formatProjectDate(effectiveProjectDate(project))}</span>
+                <span>{effectiveProjectDate(project) ? `Published ${formatProjectDate(effectiveProjectDate(project))}` : "Publish date not provided"}</span>
               </div>
             </section>
 

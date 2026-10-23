@@ -1,37 +1,37 @@
-/* Deterministic placeholder dates for projects that have no saved publish date.
-   The same project always maps to the same date (derived from its id/slug), so it
-   never flickers between renders. Range: Jan 1 2021 → Dec 31 2024. */
-
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+/** Dates must come from a saved public record; never manufacture chronology. */
+export function validPublishDate(value?: string): Date | null {
+  if (!value?.trim()) return null;
+  let y = 0,
+    m = 1,
+    d = 1;
+  let match = value.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?(?:T.*)?$/);
+  if (match) {
+    y = +match[1];
+    m = +match[2];
+    d = +(match[3] || 1);
+  } else {
+    match = value.match(/^(\d{2})-(?:(\d{2})-)?(\d{4})$/);
+    if (!match) return null;
+    m = +match[1];
+    d = +(match[2] || 1);
+    y = +match[3];
   }
-  return h >>> 0;
+  if (
+    y < 1900 ||
+    y > new Date().getFullYear() + 1 ||
+    m < 1 ||
+    m > 12 ||
+    d < 1 ||
+    d > 31
+  )
+    return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y &&
+    date.getUTCMonth() === m - 1 &&
+    date.getUTCDate() === d
+    ? date
+    : null;
 }
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** Stable "MM-DD-YYYY" date in [2021-01-01, 2024-12-31] derived from a seed. */
-export function synthProjectDate(seed: string): string {
-  const start = Date.UTC(2021, 0, 1);
-  const end = Date.UTC(2024, 11, 31);
-  const days = Math.floor((end - start) / 86_400_000);
-  const offset = hashStr(seed || "mdcran") % (days + 1);
-  const d = new Date(start + offset * 86_400_000);
-  return `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}-${d.getUTCFullYear()}`;
-}
-
-type DatedProject = { id?: string; slug?: string; title?: string; publishDate?: string };
-
-/** Real publish date if set, otherwise a stable synthetic one. */
-export function effectiveProjectDate(p: DatedProject): string {
-  if (p.publishDate && p.publishDate.trim()) return p.publishDate;
-  return synthProjectDate(p.id || p.slug || p.title || "");
-}
-
-/** True when the project has no real saved date (so the displayed date is synthetic). */
-export function isSyntheticDate(p: { publishDate?: string }): boolean {
-  return !(p.publishDate && p.publishDate.trim());
+export function effectiveProjectDate(p: { publishDate?: string }): string {
+  return validPublishDate(p.publishDate) ? p.publishDate!.trim() : "";
 }

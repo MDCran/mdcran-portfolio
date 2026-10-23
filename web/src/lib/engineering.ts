@@ -100,18 +100,6 @@ export const engineeringProjects: Record<string, EngineeringProjectDetail> = {
     evidence: "https://github.com/MDCran/mdcran-portfolio/tree/main/web/src/app/api",
     evidenceLabel: "API routes & integrations",
   },
-  "lucky-block-creator-website": {
-    category: "Web application · Creator tools",
-    status: "Live at LuckyBlockCreator.com",
-    summary: "A web dashboard for Minecraft server owners to create and customize Lucky Block content, then deploy it directly to a server.",
-    contribution: "Organized the product around the server-owner workflow: configure content, review the result, and move it into deployment from one dashboard. The project page includes interface screenshots and a live product link.",
-    decisions: [
-      "Keep creation, customization, and deployment in one connected workflow.",
-      "Design the interface around server owners who need to manage content without editing server files by hand.",
-      "Use a live product and interface captures to make the result reviewable.",
-    ],
-    skills: ["Web application design", "Frontend development", "Backend integration", "Minecraft tooling"],
-  },
   "health-tracker": {
     category: "Full-stack · APIs & data",
     status: "Live at healthtracker.mdcran.com · Source available",
@@ -183,5 +171,4 @@ export const engineeringProjectOrder = [
   "army-reserve-mercury",
   "core-website",
   "webdesign-ice",
-  "lucky-block-creator-website",
 ] as const;

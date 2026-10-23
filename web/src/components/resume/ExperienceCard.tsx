@@ -1,5 +1,6 @@
 "use client";
 
+import { formatResumeDate as formatTimelineDate } from "@/lib/resume-data";
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -12,35 +13,6 @@ import {
   ExternalLink,
   MapPin,
 } from "lucide-react";
-
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function formatTimelineDate(date?: string): string {
-  if (!date) return "";
-
-  // MM-YYYY
-  const mmYyyy = date.match(/^(\d{2})-(\d{4})$/);
-  if (mmYyyy) {
-    const label = MONTH_LABELS[Number(mmYyyy[1]) - 1];
-    if (label) return `${label} ${mmYyyy[2]}`;
-  }
-
-  // YYYY-MM
-  const yyyyMm = date.match(/^(\d{4})-(\d{2})$/);
-  if (yyyyMm) {
-    const label = MONTH_LABELS[Number(yyyyMm[2]) - 1];
-    if (label) return `${label} ${yyyyMm[1]}`;
-  }
-
-  // YYYY-MM-DD — parse manually to avoid timezone shift
-  const yyyyMmDd = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (yyyyMmDd) {
-    const label = MONTH_LABELS[Number(yyyyMmDd[2]) - 1];
-    if (label) return `${label} ${yyyyMmDd[1]}`;
-  }
-
-  return date;
-}
 
 function formatLocation(location?: string): string {
   if (!location) return "";

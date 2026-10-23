@@ -61,6 +61,7 @@ function mkMsg(
 }
 
 export interface LogAiTurnInput {
+  memoryEpoch?: string;
   sessionId: string;
   serial: string | null;
   channel: AiChannel;
@@ -138,7 +139,7 @@ export async function logAiTurn(input: LogAiTurnInput): Promise<void> {
       const at = new Date(Date.parse(t) + 1).toISOString();
       docs.push(mkMsg(conversationId, sessionId, serial, identityId, input.channel, "assistant", assistantText, currentPage, at));
     }
-    if (docs.length) await db.collection(MSG).insertMany(docs as unknown as Record<string, unknown>[]);
+    if (docs.length) await db.collection(MSG).insertMany(docs.map(doc => ({ ...doc, memoryEpoch: input.memoryEpoch ?? null })) as unknown as Record<string, unknown>[]);
 
     // Backfill identityId onto this device's earlier orphan messages once known.
     if (identityId && serial) {
@@ -178,20 +179,23 @@ export async function getRecentMessagesForContext(
   serial: string | null,
   sessionId: string,
   hoursBack = 3,
+  notBefore = 0,
+  memoryEpoch = "",
 ): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
   try {
+    if (!memoryEpoch) return [];
     const db = await getDb();
-    const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+    const since = new Date(Math.max(Date.now() - hoursBack * 60 * 60 * 1000, Number.isFinite(notBefore) ? notBefore : 0)).toISOString();
     const or: Record<string, unknown>[] = [];
     if (serial) or.push({ serial });
     if (sessionId) or.push({ sessionId });
     if (!or.length) return [];
     const msgs = await db.collection(MSG)
-      .find({ $or: or, createdAt: { $gte: since } }, { projection: { _id: 0, role: 1, content: 1 } })
-      .sort({ createdAt: 1 })
+      .find({ $or: or, memoryEpoch, createdAt: { $gte: since } }, { projection: { _id: 0, role: 1, content: 1 } })
+      .sort({ createdAt: -1 })
       .limit(20)
       .toArray() as unknown as Array<{ role: "user" | "assistant"; content: string }>;
-    return msgs;
+    return msgs.reverse();
   } catch {
     return [];
   }

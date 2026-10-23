@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -7,7 +8,7 @@ import { ArrowRight } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
 import { getSiteContent, getProjects, getArticles, getClients } from "@/lib/db";
 import { projectUrl, imageAssetSrc } from "@/lib/utils";
-import { effectiveProjectDate } from "@/lib/project-date";
+import { effectiveProjectDate, validPublishDate } from "@/lib/project-date";
 import WorkTable, { type WorkRow } from "@/components/work/WorkTable";
 import type { SiteContentLinkCard } from "@/lib/types";
 
@@ -57,7 +58,7 @@ function labelFromSlug(slug: string): string {
 
 /** Parse the mixed date formats (MM-YYYY, MM-DD-YYYY, YYYY-MM-DD) to epoch + label. */
 function parseDate(raw?: string): { sort: number; label?: string } {
-  if (!raw) return { sort: 0 };
+  if (!raw || !validPublishDate(raw)) return { sort: 0 };
   const s = raw.trim();
   let y = 0, m = 1, d = 1;
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { const [yy, mm, dd] = s.split("-"); y = +yy; m = +mm; d = +dd; }
@@ -206,7 +207,7 @@ export default async function WorkPage() {
           ))}
         </div>
 
-        <WorkTable rows={rows} />
+        <Suspense fallback={<p className="py-8 text-white/60">Loading work filters…</p>}><WorkTable rows={rows} /></Suspense>
       </main>
       <Footer />
     </>

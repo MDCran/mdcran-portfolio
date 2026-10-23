@@ -498,3 +498,17 @@ button:disabled,
 [aria-disabled="true"] {
   cursor: not-allowed;
 }
+
+/* Public documents remain readable without decorative chrome when printed. */
+[id] { scroll-margin-top: 8rem; }
+@media print {
+  @page { margin: 16mm; }
+  html, body, main, article, section, .ats-resume { background: white !important; color: black !important; }
+  nav, footer, button, iframe, video, [data-assistant-ui], [class*="fixed"], [role="dialog"] { display: none !important; }
+  main { padding-top: 0 !important; max-width: none !important; }
+  main * { color: black !important; text-shadow: none !important; box-shadow: none !important; }
+  h1, h2, h3, h4 { break-after: avoid; }
+  article, figure, li { break-inside: avoid; }
+  a { text-decoration: underline; }
+  .ats-resume { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.45; }
+}

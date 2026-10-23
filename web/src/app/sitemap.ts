@@ -1,3 +1,4 @@
+import { validPublishDate } from "@/lib/project-date";
 import { MetadataRoute } from "next";
 import { getArticles, getClients, getProjects } from "@/lib/db";
 import { projectUrl } from "@/lib/utils";
@@ -12,6 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/resume`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/engineering`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.95 },
     { url: `${BASE_URL}/contact`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.7 },
+    { url: `${BASE_URL}/resume/print`, changeFrequency: "monthly", priority: 0.6 },
     // Category pages
     { url: `${BASE_URL}/arts-and-entertainment`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
     { url: `${BASE_URL}/arts-and-entertainment/minecraft-maps`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
@@ -61,7 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
     url: `${BASE_URL}/articles/${article.slug}`,
-    lastModified: new Date(article.updatedDate ?? article.publishDate),
+    lastModified: validPublishDate(article.updatedDate ?? article.publishDate) ?? undefined,
     changeFrequency: "monthly",
     priority: 0.7,
   }));

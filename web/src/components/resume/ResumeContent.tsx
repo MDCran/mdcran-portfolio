@@ -1,5 +1,7 @@
 "use client";
 
+import { formatResumeDate as formatMonthYear } from "@/lib/resume-data";
+import { evidenceForSkill } from "@/lib/portfolio-evidence";
 import Link from "next/link";
 import ExperienceCard from "@/components/resume/ExperienceCard";
 import ProjectCard from "@/components/shared/ProjectCard";
@@ -47,23 +49,8 @@ function humanizeCategory(category: string) {
   return category.replace(/[-_]+/g, " ").trim().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const MONTH_ABBRS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."];
-
-function formatMonthYear(date?: string) {
-  if (!date) return "";
-
-  // MM-YYYY
-  const mmYyyy = date.match(/^(\d{2})-(\d{4})$/);
-  if (mmYyyy) return `${MONTH_ABBRS[parseInt(mmYyyy[1], 10) - 1] ?? mmYyyy[1]} ${mmYyyy[2]}`;
-
-  // YYYY-MM or YYYY-MM-DD — parse month/year directly to avoid timezone shift
-  const yyyyMm = date.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
-  if (yyyyMm) return `${MONTH_ABBRS[parseInt(yyyyMm[2], 10) - 1] ?? yyyyMm[2]} ${yyyyMm[1]}`;
-
-  return date;
-}
-
 interface ResumeContentProps {
+  publicProjectSlugs: string[];
   header: { eyebrow: string; title: string; description: string };
   jobs: Experience[];
   renownedProjects: Experience[];
@@ -82,6 +69,7 @@ interface ResumeContentProps {
 
 export default function ResumeContent({
   header,
+  publicProjectSlugs,
   jobs,
   renownedProjects,
   derivedEducations,
@@ -198,6 +186,10 @@ export default function ResumeContent({
       />
 
       <main className="content-container py-14 md:py-16">
+        <nav aria-label="Resume sections" className="mb-8 flex flex-wrap gap-3 rounded-sm border border-white/15 p-4 text-sm text-white/75">
+          {[['experience','Experience'], ...((featuredWork.length || renownedProjects.length) ? [['renowned-projects','Featured work']] : []), ...(derivedEducations.length ? [['education','Education']] : []), ['skills','Skills'], ...(certifications.length ? [['certifications','Certifications']] : []), ...(awards.length ? [['awards','Awards']] : [])].map(([id,label]) => <a key={id} className="hover:text-[var(--cranberry)]" href={`#${id}`}>{label}</a>)}
+          <Link className="text-[var(--cranberry)] underline" href="/resume/print">Print / Save ATS PDF</Link>
+        </nav>
 
         <section aria-label="Engineering summary" className="mb-12 rounded-sm border border-white/12 bg-white/3 p-6">
           <p className="max-w-3xl text-sm leading-relaxed text-white/75">{ENGINEERING_SUMMARY}</p>
@@ -358,13 +350,15 @@ export default function ResumeContent({
                         {categorySkills.map((skill) => {
                           const SkillIconCmp = skill.icon ? resolveSkillIcon(skill.icon) : null;
                           return (
-                            <span
+                            <a
+                              href={evidenceForSkill(skill.name, publicProjectSlugs)[0]?.href ?? `/engineering?q=${encodeURIComponent(skill.name)}#projects`}
+                              title={`Review project evidence for ${skill.name}`}
                               key={skill.name}
                               className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-sm border border-white/10 bg-white/5 text-white/60 hover:text-white/80 hover:border-white/20 transition-colors"
                             >
                               {SkillIconCmp && <SkillIconCmp size={10} className="text-[#ef4242]/70" />}
                               {skill.name}
-                            </span>
+                            </a>
                           );
                         })}
                       </div>

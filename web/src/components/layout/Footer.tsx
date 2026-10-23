@@ -11,6 +11,8 @@ import type { SiteContent } from "@/lib/types";
 import { defaultSiteContent } from "@/lib/site-content";
 
 export default function Footer() {
+  const [location, setLocation] = useState("");
+  useEffect(() => { let active=true; fetch("/api/data/profile-location").then(r=>r.ok ? r.json() : null).then(p=>{if(active && typeof p?.location === "string") setLocation(p.location);}).catch(()=>{}); return ()=>{active=false;}; }, []);
   const [siteContent, setSiteContent] = useState<SiteContent>(defaultSiteContent);
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function Footer() {
               </Link>
             </div>
             <p className="text-sm text-white/40 leading-relaxed max-w-[240px] mb-5">
-              {footer.locationText}
+              {location || "Florida"}
             </p>
             <p className="text-sm text-white/30 leading-relaxed max-w-[260px] mb-5">
               {footer.blurb}

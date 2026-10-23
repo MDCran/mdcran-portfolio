@@ -48,7 +48,18 @@ export function assetUrl(path?: string | null): string | undefined {
 
 export function imageAssetSrc(image?: string | ImageAsset | null): string | undefined {
   if (!image) return undefined;
-  return assetUrl(typeof image === "string" ? image : image.src);
+  const src = assetUrl(typeof image === "string" ? image : image.src);
+  if (!src) return src;
+  // CMS screenshots sometimes contain GitHub's HTML blob URL with ?raw=true.
+  // Normalize public repository image files to the already-allowed raw asset host.
+  try {
+    const url = new URL(src);
+    if (url.protocol === "https:" && url.hostname === "github.com" &&
+        /^\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/blob\/.+\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(url.pathname)) {
+      return `https://raw.githubusercontent.com${url.pathname.replace("/blob/", "/")}`;
+    }
+  } catch { /* Relative local assets need no URL normalization. */ }
+  return src;
 }
 
 export function shouldBypassImageOptimization(src?: string | null): boolean {

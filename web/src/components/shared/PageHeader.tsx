@@ -34,7 +34,7 @@ export default function PageHeader({
   const crumbChevron = isLight ? 'rgba(0,0,0,0.3)' : 'color-mix(in srgb, var(--theme-text, #fff) 20%, transparent)';
 
   return (
-    <div className="pt-28 sm:pt-32 pb-12 sm:pb-14 border-b" style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}>
+    <div className="pt-36 sm:pt-36 pb-12 sm:pb-14 border-b" style={{ borderColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }}>
       <div className="content-container">
         {/* Breadcrumbs */}
         {breadcrumbs && (
@@ -52,7 +52,7 @@ export default function PageHeader({
               onMouseEnter={(e) => { e.currentTarget.style.color = crumbHover; }}
               onMouseLeave={(e) => { e.currentTarget.style.color = crumbBase; }}
             >
-              <Home size={11} />
+              <Home size={11} aria-label="Home" />
             </Link>
             {breadcrumbs.map((crumb, i) => (
               <React.Fragment key={crumb.label}>

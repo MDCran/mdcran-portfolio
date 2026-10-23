@@ -37,10 +37,8 @@ import DeviceCandidates from "@/components/admin/DeviceCandidates";
 import DiscordSettings from "@/components/admin/DiscordSettings";
 import UtmLinkGenerator from "@/components/admin/UtmLinkGenerator";
 import AiRoutingConditions from "@/components/admin/AiRoutingConditions";
-import { synthProjectDate } from "@/lib/project-date";
 import RizzSettings from "@/components/admin/RizzSettings";
 import RizzSubmissions from "@/components/admin/RizzSubmissions";
-import { formatPublishDate } from "@/lib/read-time";
 import { isValidEmail, isValidPhoneNumber } from "@/lib/contact-validation";
 import type {
   Project,
@@ -1558,8 +1556,7 @@ function ProjectModal({
           <DatePicker value={publishDate} onChange={setPublishDate} />
           {!publishDate && (
             <p className="mt-1.5 text-[11px] text-white/40">
-              No date set — publicly shown as <span className="text-white/70">{formatPublishDate(synthProjectDate(initial?.id || slug || title || ""))}</span>
-              <span title="Auto-generated placeholder — not an official date. Set a date to make it official." className="text-[var(--cranberry)] cursor-help">&nbsp;*</span>
+              No publish date set — no date will be shown publicly.
             </p>
           )}
         </Field>

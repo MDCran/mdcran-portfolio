@@ -7,6 +7,10 @@ import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart, rememberTopic } from "@/lib/visitor-memory";
+import { createStreamLines } from "@/lib/stream-lines";
+import { readAssistantPreferences, pageQuestions } from "@/lib/assistant-preferences";
+import { offerConversation, takeConversation } from "@/lib/conversation-handoff";
+import AssistantControls from "./AssistantControls";
 import { extractPageContext } from "@/lib/page-context";
 import type { ContactData, BookingData } from "@/components/chat/ChatActionCards";
 import { useIdentity } from "@/context/IdentityContext";
@@ -160,12 +164,6 @@ const ChatLinkPreview = dynamicImport(() => import("@/components/chat/ChatLinkPr
 const ChatContactCard = dynamicImport(() => import("@/components/chat/ChatActionCards").then((m) => m.ChatContactCard), { ssr: false });
 const ChatBookingCard = dynamicImport(() => import("@/components/chat/ChatActionCards").then((m) => m.ChatBookingCard), { ssr: false });
 
-const SUGGESTIONS = [
-  "Show me your best project",
-  "Show me your AI engineering work",
-  "Take me to your resume",
-];
-
 function TypingIndicator() {
   const [paused, setPaused] = useState(false);
 
@@ -263,6 +261,10 @@ export default function ChatPanel() {
   const { identity: recycledIdentity } = useIdentity();
   const isLight = themeInfo.id === "light";
   const [open, setOpen] = useState(false);
+  const chatOpenRef = useRef(false);
+  chatOpenRef.current = open;
+  const speechGenerationRef = useRef(0);
+  const speechAbortRef = useRef<AbortController | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   /* welcomeStep: 0=not started, 1=connecting, 2=connected, 3=typing, 4=done, 5=failed */
   const [welcomeStep, setWelcomeStep] = useState(0);
@@ -296,6 +298,7 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const chatRequestGenerationRef = useRef(0);
   // Stable per-open session id + device serial so chat turns can be logged + stitched.
   const chatSessionIdRef = useRef<string>(
     (() => { try { return crypto.randomUUID(); } catch { return `cs-${Date.now()}-${Math.random().toString(36).slice(2)}`; } })(),
@@ -375,6 +378,9 @@ export default function ChatPanel() {
   }, []);
 
   const stopSpeaking = useCallback(() => {
+    speechGenerationRef.current += 1;
+    speechAbortRef.current?.abort();
+    speechAbortRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -388,6 +394,8 @@ export default function ChatPanel() {
     setCapIdx(-1);
     setMinimized(false);
   }, []);
+
+  useEffect(() => { if (!open || !voiceOn) stopSpeaking(); }, [open, voiceOn, stopSpeaking]);
 
   /* Tapping the bottom-right bubble while the assistant is preparing/speaking stops it —
      aborts any in-flight reply stream and cuts the read-aloud. */
@@ -409,7 +417,12 @@ export default function ChatPanel() {
      voice + word-highlighting as the guided tour). On mobile it minimizes the chat
      so the caption takes the stage, then restores it — WITHOUT clearing the log. */
   const speak = useCallback(async (text: string) => {
-    if (!voiceOnRef.current) return;
+    if (!voiceOnRef.current || !chatOpenRef.current) return;
+    stopSpeaking();
+    const generation = speechGenerationRef.current;
+    const controller = new AbortController();
+    speechAbortRef.current = controller;
+    const active = () => !controller.signal.aborted && generation === speechGenerationRef.current && chatOpenRef.current && voiceOnRef.current;
     const clean = stripForSpeech(text);
     if (!clean) return;
     const words = clean.split(/\s+/).filter(Boolean);
@@ -417,6 +430,7 @@ export default function ChatPanel() {
     const stopKaraoke = () => { if (capRafRef.current) cancelAnimationFrame(capRafRef.current); capRafRef.current = null; };
     const broadcast = (state: "preparing" | "speaking" | "idle") => window.dispatchEvent(new CustomEvent("mdcran:voice-busy", { detail: { state } }));
     const endCaption = () => {
+      if (!active()) return;
       stopKaraoke(); setCapWords([]); setCapIdx(-1); broadcast("idle");
       // Reopen chat on all platforms; dispatch open event on mobile to ensure panel appears.
       setMinimized(false);
@@ -427,17 +441,20 @@ export default function ChatPanel() {
       broadcast("preparing");
       const currentLang = (() => { try { return localStorage.getItem("mdcran_language") ?? "en-US"; } catch { return "en-US"; } })();
       const res = await fetch("/api/voice/tts", {
+        signal: controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean, language: currentLang }),
+        body: JSON.stringify({ text: clean, language: currentLang, pace: readAssistantPreferences().pace }),
       });
       if (!res.ok) { endCaption(); return; }
       const arr = await res.arrayBuffer();
+      if (!active()) return;
       const ctx = ensureAudioCtx();
       if (!ctx) { endCaption(); return; }
       try { await ctx.resume(); } catch { /* */ }
       let audioBuf: AudioBuffer;
       try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { endCaption(); return; }
+      if (!active()) return;
       try { ttsSrcRef.current?.stop(); } catch { /* */ }
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
@@ -454,70 +471,29 @@ export default function ChatPanel() {
       const startedAt = ctx.currentTime;
       let lastSyncIdx = -1;
       const sync = () => {
+        if (!active()) return;
         const el = ctx.currentTime - startedAt;
         const idx = Math.min(words.length - 1, Math.floor((el / Math.max(dur, 0.1)) * words.length));
         if (idx !== lastSyncIdx) { lastSyncIdx = idx; setCapIdx(idx); }
         if (el < dur) capRafRef.current = requestAnimationFrame(sync);
       };
-      src.onended = () => { setSpeaking(false); endCaption(); };
+      src.onended = () => { if (!active()) return; setSpeaking(false); endCaption(); };
       try { src.start(); capRafRef.current = requestAnimationFrame(sync); }
       catch { setSpeaking(false); endCaption(); }
     } catch {
+      if (!active()) return;
       setSpeaking(false);
       endCaption();
     }
-  }, [ensureAudioCtx]);
+  }, [ensureAudioCtx, stopSpeaking]);
 
   const isFirstVisit = (() => {
     try { return typeof window !== "undefined" && !localStorage.getItem("mdcran_tutorial_done"); } catch { return false; }
   })();
 
-  const welcomeText = (() => {
-    if (isFirstVisit) {
-      return `Hey, I'm ${agentName} — welcome to my portfolio! I can walk you through my work, show off my most renowned projects, tell you about the clients and teams I've worked with, dig into my resume and experience, and even take you to any page you want to see. Want a quick tour, or is there something specific you're looking for?`;
-    }
-    // Already greeted earlier in THIS browser session → don't say "welcome back" again.
-    // Just pick the chat back up naturally.
-    const greetedThisSession = (() => { try { return typeof window !== "undefined" && sessionStorage.getItem("mdcran_greeted_session") === "1"; } catch { return false; } })();
-    if (greetedThisSession) {
-      const conts = [
-        "What else can I help you with?",
-        "What would you like to look at next?",
-        "Back to it — what can I show you?",
-        "Ask me anything else about my work.",
-      ];
-      return conts[agentName.length % conts.length];
-    }
-    // Returning visitors get a warmer, memory-aware welcome.
-    const mem = readVisitorMemory();
-    const part = getDaypart();
-    const timeHi = part === "morning" ? "Good morning" : part === "evening" ? "Good evening" : part === "night" ? "Hey, up late" : "Hey there";
-    if (mem.returning) {
-      const backGreetings = mem.daysSinceLast >= 1
-        ? [
-            `${timeHi}! Welcome back — good to see you again. What can I help you with this time?`,
-            `Hey, you're back! Want to pick up where you left off, or check out something new?`,
-            `Welcome back! It's been a little while. Anything new you'd like to see in my work?`,
-          ]
-        : [
-            `${timeHi} again! What else can I show you?`,
-            `Back for more? Happy to keep going — what would you like to dig into?`,
-            `Hey again! Ask me anything else about my work or the portfolio.`,
-          ];
-      const idx = (mem.visits + agentName.length) % backGreetings.length;
-      return backGreetings[idx];
-    }
-    const greetings = [
-      `Hey! I'm ${agentName} — ask me anything about my work, skills, or services.`,
-      `Hi there! What would you like to know about my work?`,
-      `Hey, I'm ${agentName}! Happy to show you around my portfolio.`,
-      `Welcome! Feel free to ask me anything — or I can give you a quick tour.`,
-      `Hi! Ready to chat. What can I help you with?`,
-    ];
-    // Pick based on agent name hash so same agent = same greeting
-    const hash = agentName.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-    return greetings[hash % greetings.length];
-  })();
+  const welcomeText = readVisitorMemory().returning
+    ? "Welcome back. I’m Michael’s AI portfolio guide. What would you like to explore?"
+    : "Hi, I’m Michael’s AI portfolio guide. Ask about his projects, experience, or skills, and I’ll point you to the supporting work.";
 
   /* Multi-step welcome sequence — restarts if closed mid-sequence, skips if completed */
   useEffect(() => {
@@ -534,13 +510,13 @@ export default function ChatPanel() {
     const push = (t: ReturnType<typeof setTimeout>) => { timers.push(t); };
 
     // Connecting takes 1-4 seconds randomly
-    const connectDelay = 1000 + Math.random() * 3000;
+    const connectDelay = 100;
     push(setTimeout(() => { if (!cancelled) setWelcomeStep(2); }, connectDelay));
     // Show typing indicator after connecting
-    const typingDelay = connectDelay + 800;
+    const typingDelay = connectDelay + 100;
     push(setTimeout(() => { if (!cancelled) setWelcomeStep(3); }, typingDelay));
     // Then deliver the message after typing shows for a bit
-    const messageDelay = typingDelay + 1500 + Math.random() * 1000;
+    const messageDelay = typingDelay + 150;
     push(setTimeout(() => {
       if (cancelled) return;
       setMessages([{ role: "assistant", content: "__WELCOME__" }]);
@@ -628,6 +604,8 @@ export default function ChatPanel() {
   /* Reset chat state when panel closes — each open is a fresh session */
   useEffect(() => {
     if (open) return;
+    chatRequestGenerationRef.current += 1;
+    abortRef.current?.abort();
     // Small delay so exit animation finishes before state resets
     const t = setTimeout(() => {
       setMessages([]);
@@ -666,17 +644,20 @@ export default function ChatPanel() {
      history intact rather than ending the session. */
   useEffect(() => {
     const onToggle = () => { if (minimizedRef.current) { setMinimized(false); return; } setOpen((prev) => !prev); };
-    const onOpen = () => { setMinimized(false); setOpen(true); };
-    const onClose = () => setOpen(false);
+    const onOpen = () => { const prior = takeConversation(); if(prior.length) { setMessages(prior); welcomeCompletedRef.current=true; setWelcomeStep(4); setWelcomeTyped(true); } setMinimized(false); setOpen(true); };
+    const onClose = () => { abortRef.current?.abort(); stopSpeaking(); setOpen(false); };
+    const clear = () => { chatRequestGenerationRef.current += 1; abortRef.current?.abort(); stopSpeaking(); setMessages([]); setInput(""); setStreaming(false); chatSessionIdRef.current = crypto.randomUUID(); };
+    window.addEventListener("mdcran:conversation-clear", clear);
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:chat-open", onOpen);
     window.addEventListener("mdcran:chat-close", onClose);
     return () => {
+      window.removeEventListener("mdcran:conversation-clear", clear);
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:chat-open", onOpen);
       window.removeEventListener("mdcran:chat-close", onClose);
     };
-  }, []);
+  }, [stopSpeaking]);
 
   /* ESC asks to end the chat (same confirmation as the X) */
   useEffect(() => {
@@ -713,6 +694,7 @@ export default function ChatPanel() {
   const handleSend = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim();
     if (!text || streaming || reconnectStep > 0) return;
+    const requestGeneration = ++chatRequestGenerationRef.current;
 
     // If disconnected, go through reconnection flow first
     if (disconnected) {
@@ -727,6 +709,7 @@ export default function ChatPanel() {
       setMessages((prev) => [...prev, { role: "assistant", content: `__RECONNECT__:${newName}` }]);
       lastAgentMessageRef.current = Date.now();
       await new Promise((r) => setTimeout(r, 400));
+      if (requestGeneration !== chatRequestGenerationRef.current) return;
       // Now proceed with the message using the new agent name below
     }
 
@@ -773,7 +756,7 @@ export default function ChatPanel() {
               const baseContext = (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })();
               const body: Record<string, unknown> = {
                 messages: nextMessages.map(({ role, content }) => ({ role, content })),
-                currentPage: pathname,
+                currentPage: pathname, preferences: readAssistantPreferences(), memoryConsent: readAssistantPreferences().memory,
                 agentName,
                 speak: voiceOnRef.current,
                 sessionId: chatSessionIdRef.current,
@@ -781,10 +764,10 @@ export default function ChatPanel() {
                 memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(),
                 tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(),
                 language: (() => { try { const code = localStorage.getItem("mdcran_language"); return code && code !== "en-US" ? code : undefined; } catch { return undefined; } })(),
-                visitorName: recycledIdentity?.name && recycledIdentity.name !== "Guest"
+                visitorName: readAssistantPreferences().memory && recycledIdentity?.name && recycledIdentity.name !== "Guest"
                   ? recycledIdentity.name
                   : undefined,
-                domContext: (recycledIdentity && recycledIdentity.name !== "Guest" && !recycledIdentity.isNew)
+                domContext: (readAssistantPreferences().memory && recycledIdentity && recycledIdentity.name !== "Guest" && !recycledIdentity.isNew)
                   ? [
                       baseContext,
                       `[Returning visitor: ${recycledIdentity.name}${recycledIdentity.company ? ", " + recycledIdentity.company : ""}${recycledIdentity.source && recycledIdentity.source !== "direct" ? ", via " + recycledIdentity.source : ""}. Returning after ${Math.floor((recycledIdentity.recycledAt - recycledIdentity.capturedAt) / 86400000)} days. Greet them warmly by name.]`
@@ -841,14 +824,13 @@ export default function ChatPanel() {
           const reader = res.body?.getReader();
           if (!reader) return;
 
-          const decoder = new TextDecoder();
+          const decodeLines = createStreamLines();
 
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
+            if (controller.signal.aborted || requestGeneration !== chatRequestGenerationRef.current) return;
+            const lines = decodeLines(done ? undefined : value);
+            if (done && lines.length === 0) break;
 
             for (const line of lines) {
               if (line.startsWith("data: ")) {
@@ -934,6 +916,7 @@ export default function ChatPanel() {
           return;
         }
 
+        if (controller.signal.aborted || requestGeneration !== chatRequestGenerationRef.current) return;
         /* Process action markers + auto-navigation from markdown links */
         {
           let cleaned = accumulated;
@@ -1476,10 +1459,12 @@ export default function ChatPanel() {
         }
       }
     } finally {
-      abortRef.current = null;
-      setStreaming(false);
-      setThinking(false);
-      lastAgentMessageRef.current = Date.now();
+      if (requestGeneration === chatRequestGenerationRef.current) {
+        abortRef.current = null;
+        setStreaming(false);
+        setThinking(false);
+        lastAgentMessageRef.current = Date.now();
+      }
     }
   }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak]);
 
@@ -1829,6 +1814,7 @@ export default function ChatPanel() {
                 <button
                   type="button"
                   onClick={() => {
+                    offerConversation(messages);
                     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // close the text panel
                     window.dispatchEvent(new CustomEvent("mdcran:voice-open")); // open voice chat
                   }}
@@ -1880,6 +1866,8 @@ export default function ChatPanel() {
                 </button>
               )}
             </div>
+
+            <AssistantControls />
 
             {/* Messages */}
             <div
@@ -2103,7 +2091,7 @@ export default function ChatPanel() {
               {/* Suggestion chips — right-aligned, shown after welcome typewriter finishes */}
               {isWelcome && welcomeTyped && !streaming && !disconnected && (
                 <div className="flex flex-wrap gap-1.5 mt-1 justify-end">
-                  {SUGGESTIONS.map((s) => (
+                  {pageQuestions(pathname).map((s) => (
                     <button
                       key={s}
                       onClick={() => handleSend(s)}

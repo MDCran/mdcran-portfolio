@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Voice rate limit reached" }), { status: 429 });
   }
 
-  let body: { text?: string; language?: string };
+  let body: { text?: string; language?: string; pace?: number };
   try {
     body = await req.json();
   } catch {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const elevenlabsBody: Record<string, unknown> = {
     text: clipped,
     model_id: MODEL,
-    voice_settings: VOICE_SETTINGS,
+    voice_settings: { ...VOICE_SETTINGS, speed: typeof body.pace === "number" ? Math.max(0.7, Math.min(1.2, body.pace)) : 1 },
   };
   if (langCode && !langCode.startsWith("en")) {
     // ElevenLabs expects BCP-47 (e.g. "es", "fr", "ja") — strip region suffix.

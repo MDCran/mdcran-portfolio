@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import RecruiterShortcuts from "./RecruiterShortcuts";
 import { Search, X, Menu, ChevronDown } from "lucide-react";
 import { assetUrl, cn, projectUrl, imageAssetSrc } from "@/lib/utils";
 import { useTheme } from "@/lib/ThemeContext";
@@ -212,6 +213,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
       <div className="fixed top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--cranberry)] to-transparent z-[70] opacity-60" />
 
       <motion.nav
+        aria-label="Primary navigation"
         initial={{ y: -80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -229,7 +231,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
         )}
       >
         {/* Single row — logo left · nav absolute-center · actions right */}
-        <div className="relative content-container h-[4.5rem] flex items-center justify-between gap-4">
+        <div className={`relative content-container flex items-center justify-between gap-4 transition-[height] ${scrolled ? "h-14" : "h-[4.5rem]"}`}>
 
           {/* ── Logo ── */}
           <Link
@@ -306,6 +308,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                           <Link
                             key={child.href}
                             href={child.href}
+                            aria-current={isChildNavActive(child.href) ? "page" : undefined}
                             data-highlight-id={`nav-link-${child.href.split("/").filter(Boolean).pop()}`}
                             className={cn(
                               "block px-5 py-3 text-[11px] tracking-widest uppercase transition-all duration-150 border-b last:border-0",
@@ -330,6 +333,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isNavActive(link.href) ? "page" : undefined}
                   className={cn(
                     "px-4 py-2 text-[11px] tracking-widest uppercase whitespace-nowrap transition-colors duration-200 rounded-sm",
                     isNavActive(link.href)
@@ -444,6 +448,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                   <React.Fragment key={link.href}>
                     <Link
                       href={link.href}
+                  aria-current={isNavActive(link.href) ? "page" : undefined}
                       onClick={() => setMobileOpen(false)}
                       className={cn(
                         "px-4 py-3 text-[11px] tracking-widest uppercase rounded-sm transition-all",
@@ -458,6 +463,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                       <Link
                         key={child.href}
                         href={child.href}
+                            aria-current={isChildNavActive(child.href) ? "page" : undefined}
                         onClick={() => setMobileOpen(false)}
                         className={cn(
                           "pl-8 pr-4 py-2.5 text-[10px] tracking-widest uppercase rounded-sm transition-all",
@@ -484,6 +490,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
             </motion.div>
           )}
         </AnimatePresence>
+      <RecruiterShortcuts />
       </motion.nav>
 
       {/* ── Search overlay ── */}

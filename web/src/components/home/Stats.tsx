@@ -13,12 +13,19 @@ import AIUsageTracker from "@/components/home/AIUsageTracker";
 
 // Below the live metrics — defer it so its JS + GitHub fetch don't block the
 // initial render. Placeholder reserves height to avoid layout shift.
-const GitHubContributions = dynamic(() => import("@/components/home/GitHubContributions"), {
-  ssr: false,
-  loading: () => <div className="min-h-[150px]" aria-hidden />,
-});
+const GitHubContributions = dynamic(
+  () => import("@/components/home/GitHubContributions"),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[150px]" aria-hidden />,
+  },
+);
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error("Metrics unavailable");
+    return r.json();
+  });
 
 type MetricsResponse = {
   totalFollowers: number;
@@ -60,7 +67,7 @@ const METRICS: Metric[] = [
     label: "Public Projects",
     description: "Maps, designs, events & more",
     fallback: 0,
-    suffix: "+",
+    suffix: "",
   },
   {
     key: "yearsActive",
@@ -77,7 +84,10 @@ const METRICS: Metric[] = [
   },
 ];
 
-const GITHUB_YEARS = [2024, 2025, 2026];
+const GITHUB_YEARS = Array.from(
+  { length: Math.max(1, new Date().getFullYear() - 2023) },
+  (_, i) => 2024 + i,
+);
 
 /** Fetch all-time GitHub contributions (2024–2026) + a monthly cumulative series for the background graph. */
 function useGithubContributions() {
@@ -85,56 +95,47 @@ function useGithubContributions() {
     "github-contrib-summary",
     async () => {
       const results = await Promise.all(
-        GITHUB_YEARS.map((y) => fetch(`/api/github/contributions?year=${y}`).then((r) => (r.ok ? r.json() : null)))
+        GITHUB_YEARS.map((y) =>
+          fetch(`/api/github/contributions?year=${y}`).then((r) =>
+            r.ok ? r.json() : null,
+          ),
+        ),
       );
+      if (!results.some((r) => r?.weeks))
+        throw new Error("GitHub activity unavailable");
       let total = 0;
       const daily = new Map<string, number>();
       for (const res of results) {
         if (!res?.weeks) continue;
         total += res.total ?? 0;
-        for (const week of res.weeks as { date: string; contributionCount: number }[][]) {
+        for (const week of res.weeks as {
+          date: string;
+          contributionCount: number;
+        }[][]) {
           for (const day of week) {
-            daily.set(day.date, (daily.get(day.date) ?? 0) + (day.contributionCount ?? 0));
+            daily.set(
+              day.date,
+              (daily.get(day.date) ?? 0) + (day.contributionCount ?? 0),
+            );
           }
         }
       }
       // Cumulative running total from Jan 1 2024 → today: an upward line that's
       // flat on 0-contribution days and jumps more on busy days.
       const today = new Date().toISOString().slice(0, 10);
-      const dates = Array.from(daily.keys()).filter((d) => d <= today).sort();
+      const dates = Array.from(daily.keys())
+        .filter((d) => d <= today)
+        .sort();
       let running = 0;
-      const trend = dates.map((d, i) => { running += daily.get(d) ?? 0; return { slot: i, views: running }; });
-      return { total, trend: trend.length ? trend : Array.from({ length: 12 }, (_, i) => ({ slot: i, views: i })) };
+      const trend = dates.map((d, i) => {
+        running += daily.get(d) ?? 0;
+        return { slot: i, views: running };
+      });
+      return { total, trend };
     },
-    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+    { revalidateOnFocus: false, dedupingInterval: 60_000 },
   );
 }
-
-const CREATOR_FOLLOWERS_LIVE_START = 189_232_941;
-const FOLLOWERS_STORAGE_KEY = "mdcran_live_followers_floor_v1";
-const FOLLOWERS_STATE_STORAGE_KEY = "mdcran_live_followers_state_v1";
-const PROJECT_VIEWS_STATE_STORAGE_KEY = "mdcran_live_project_views_state_v1";
-const PROJECT_VIEW_ESTIMATE_FLOOR = 2.4;
-const PROJECT_VIEW_ESTIMATE_CAP = 18;
-const PROJECT_VIEW_CORRECTION_MS = 10 * 60 * 1000;
-const FOLLOWER_ESTIMATE_FLOOR = 3.2;
-const FOLLOWER_ESTIMATE_CAP = 24;
-const FOLLOWER_DRIFT_HOLD_MIN = 2;
-const FOLLOWER_DRIFT_HOLD_MAX = 6;
-const PROJECT_DRIFT_HOLD_MIN = 2;
-const PROJECT_DRIFT_HOLD_MAX = 7;
-
-function appendTrendPoint(points: Array<{ slot: number; views: number }>, value: number) {
-  const next = [...points, { slot: points.length, views: value }];
-  return next.slice(-18).map((point, index) => ({ ...point, slot: index }));
-}
-
-type StoredMetricState = {
-  display: number;
-  floor?: number;
-  rate?: number;
-  savedAt: number;
-};
 
 function LiveMetricBackground({
   data,
@@ -150,7 +151,8 @@ function LiveMetricBackground({
   const chartData = React.useMemo(() => {
     const smoothed = data.map((point, index) => {
       const prev = data[Math.max(0, index - 1)]?.views ?? point.views;
-      const next = data[Math.min(data.length - 1, index + 1)]?.views ?? point.views;
+      const next =
+        data[Math.min(data.length - 1, index + 1)]?.views ?? point.views;
       return {
         slot: point.slot,
         views: prev * 0.2 + point.views * 0.6 + next * 0.2,
@@ -162,24 +164,38 @@ function LiveMetricBackground({
     }
 
     const start = smoothed[0]?.views ?? 0;
-    const endBase = Math.max(smoothed[smoothed.length - 1]?.views ?? start, start + 1);
+    const endBase = Math.max(
+      smoothed[smoothed.length - 1]?.views ?? start,
+      start + 1,
+    );
     const span = Math.max(endBase - start, 1);
 
-    return smoothed.reduce<Array<{ slot: number; views: number }>>((acc, point, index) => {
-      const target = start + ((endBase - start) * index) / Math.max(smoothed.length - 1, 1);
-      const previous = acc[index - 1]?.views ?? start;
-      const wiggleSource = point.views - target;
-      const wiggle = Math.max(-span * 0.012, Math.min(span * 0.006, wiggleSource * 0.08));
-      const candidate = target + wiggle;
-      acc.push({
-        slot: point.slot,
-        views:
-          index === 0
-            ? start
-            : Math.max(previous - span * 0.008, Math.min(previous + span * 0.12, candidate)),
-      });
-      return acc;
-    }, []);
+    return smoothed.reduce<Array<{ slot: number; views: number }>>(
+      (acc, point, index) => {
+        const target =
+          start +
+          ((endBase - start) * index) / Math.max(smoothed.length - 1, 1);
+        const previous = acc[index - 1]?.views ?? start;
+        const wiggleSource = point.views - target;
+        const wiggle = Math.max(
+          -span * 0.012,
+          Math.min(span * 0.006, wiggleSource * 0.08),
+        );
+        const candidate = target + wiggle;
+        acc.push({
+          slot: point.slot,
+          views:
+            index === 0
+              ? start
+              : Math.max(
+                  previous - span * 0.008,
+                  Math.min(previous + span * 0.12, candidate),
+                ),
+        });
+        return acc;
+      },
+      [],
+    );
   }, [data, forceUpward]);
 
   const chartStats = React.useMemo(() => {
@@ -187,8 +203,12 @@ function LiveMetricBackground({
     const max = Math.max(...chartData.map((point) => point.views));
     const rawRange = Math.max(max - min, 1);
     const effectiveRange = forceUpward ? Math.max(rawRange, 8) : rawRange;
-    const lowerPadding = forceUpward ? effectiveRange * 0.08 : effectiveRange * 0.35;
-    const upperPadding = forceUpward ? effectiveRange * 0.12 : effectiveRange * 0.35;
+    const lowerPadding = forceUpward
+      ? effectiveRange * 0.08
+      : effectiveRange * 0.35;
+    const upperPadding = forceUpward
+      ? effectiveRange * 0.12
+      : effectiveRange * 0.35;
 
     return {
       min,
@@ -204,13 +224,13 @@ function LiveMetricBackground({
         config={{ views: { label: "Views", color } }}
         className="h-full w-full [&_.recharts-surface]:overflow-visible"
       >
-        <AreaChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+        <AreaChart
+          data={chartData}
+          margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+        >
           <YAxis
             hide
-            domain={[
-              () => chartStats.lowerBound,
-              () => chartStats.upperBound,
-            ]}
+            domain={[() => chartStats.lowerBound, () => chartStats.upperBound]}
           />
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -269,7 +289,10 @@ function AnimatedNumber({
   }, [inView, value, format]);
 
   return (
-    <span ref={ref} className="stat-value text-white tracking-tight leading-none">
+    <span
+      ref={ref}
+      className="stat-value text-white tracking-tight leading-none"
+    >
       {render ? render(display) : display}
       {!format && <span className="text-[var(--cranberry)]">{suffix}</span>}
     </span>
@@ -283,246 +306,21 @@ export default function Stats({
   content?: SiteContentStats;
   aiUsageTracker?: SiteContentAiUsage;
 }) {
-  const metricOverrides = new Map((content?.metrics ?? []).map((m) => [m.key, m]));
-  const [followersDisplayValue, setFollowersDisplayValue] = useState(CREATOR_FOLLOWERS_LIVE_START);
-  const [followersTrend, setFollowersTrend] = useState(() =>
-    Array.from({ length: 18 }, (_, index) => ({ slot: index, views: CREATOR_FOLLOWERS_LIVE_START }))
+  const metricOverrides = new Map(
+    (content?.metrics ?? []).map((m) => [m.key, m]),
   );
-  // Project views must never show an invented fallback. The card reserves space
-  // until /api/metrics has refreshed and returned the authoritative aggregate.
-  const [projectDisplayValue, setProjectDisplayValue] = useState<number | null>(null);
-  const [projectTrend, setProjectTrend] = useState(() =>
-    Array.from({ length: 18 }, (_, index) => ({ slot: index, views: 0 }))
-  );
-  const followersDisplayRef = useRef(CREATOR_FOLLOWERS_LIVE_START);
-  const followersFloorRef = useRef(CREATOR_FOLLOWERS_LIVE_START);
-  const followersRateRef = useRef(FOLLOWER_ESTIMATE_FLOOR);
-  const followerDriftHoldRef = useRef(0);
-  const followerDriftDirectionRef = useRef<"up" | "dip">("up");
-  const projectDisplayRef = useRef(0);
-  const projectActualRef = useRef(0);
-  const projectRateRef = useRef(PROJECT_VIEW_ESTIMATE_FLOOR);
-  const projectDriftHoldRef = useRef(0);
-  const projectDriftModeRef = useRef<"cruise" | "crawl">("cruise");
-  const lastActualSyncRef = useRef(0);
-  const lastCorrectionRef = useRef(0);
-
-  useEffect(() => {
-    followersDisplayRef.current = followersDisplayValue;
-  }, [followersDisplayValue]);
-
-  useEffect(() => {
-    if (projectDisplayValue !== null) projectDisplayRef.current = projectDisplayValue;
-  }, [projectDisplayValue]);
-
-  useEffect(() => {
-    let frameId = 0;
-
-    try {
-      const now = Date.now();
-      const storedValue = window.localStorage.getItem(FOLLOWERS_STORAGE_KEY);
-      const parsed = storedValue ? Number(storedValue) : NaN;
-      const storedFollowerState = window.localStorage.getItem(FOLLOWERS_STATE_STORAGE_KEY);
-      const parsedFollowerState = storedFollowerState
-        ? (JSON.parse(storedFollowerState) as StoredMetricState)
-        : null;
-
-      if (Number.isFinite(parsed) && parsed > CREATOR_FOLLOWERS_LIVE_START) {
-        const restored = Math.floor(parsed);
-        followersFloorRef.current = restored;
-        followersDisplayRef.current = restored;
-        frameId = window.requestAnimationFrame(() => {
-          setFollowersDisplayValue(restored);
-          setFollowersTrend(
-            Array.from({ length: 18 }, (_, index) => ({ slot: index, views: restored }))
-          );
-        });
-      }
-
-      if (
-        parsedFollowerState &&
-        Number.isFinite(parsedFollowerState.display) &&
-        Number.isFinite(parsedFollowerState.savedAt)
-      ) {
-        const elapsedSeconds = Math.max(0, Math.min((now - parsedFollowerState.savedAt) / 1000, 300));
-        const restoredRate = Math.min(
-          Math.max(parsedFollowerState.rate ?? FOLLOWER_ESTIMATE_FLOOR, FOLLOWER_ESTIMATE_FLOOR),
-          FOLLOWER_ESTIMATE_CAP
-        );
-        const restoredFloor = Math.max(
-          followersFloorRef.current,
-          Math.floor((parsedFollowerState.floor ?? parsedFollowerState.display) + elapsedSeconds * restoredRate * 0.45)
-        );
-        const restoredDisplay = Math.max(
-          restoredFloor - restoredRate * 1.2,
-          parsedFollowerState.display + elapsedSeconds * restoredRate * 0.18
-        );
-
-        followersFloorRef.current = restoredFloor;
-        followersRateRef.current = restoredRate;
-        followersDisplayRef.current = restoredDisplay;
-        frameId = window.requestAnimationFrame(() => {
-          setFollowersDisplayValue(restoredDisplay);
-          setFollowersTrend(
-            Array.from({ length: 18 }, (_, index) => ({
-              slot: index,
-              views: Math.round(restoredDisplay - (17 - index) * restoredRate * 0.25),
-            }))
-          );
-        });
-      }
-
-    } catch {
-      // Ignore localStorage access issues and fall back to the built-in baseline.
-    }
-
-    return () => {
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-      }
-    };
-  }, []);
-
-  const { data: github } = useGithubContributions();
-
-  const { data } = useSWR<MetricsResponse>("/api/metrics", fetcher, {
-    revalidateOnFocus: false,
-    refreshInterval: 5_000,
-    dedupingInterval: 4_000,
-    keepPreviousData: true,
-    onSuccess: (nextData) => {
-      const actual = nextData.totalProjectViews;
-      const now = Date.now();
-      const previousActual = projectActualRef.current;
-      const elapsedSeconds =
-        lastActualSyncRef.current > 0 ? Math.max((now - lastActualSyncRef.current) / 1000, 5) : 5;
-      const delta = actual - previousActual;
-      const measuredRate = delta > 0 ? delta / elapsedSeconds : 0;
-      const baselineRate = Math.min(
-        Math.max(actual / 1_000_000_000, PROJECT_VIEW_ESTIMATE_FLOOR),
-        PROJECT_VIEW_ESTIMATE_CAP
-      );
-
-      projectRateRef.current =
-        measuredRate > 0
-          ? Math.max(measuredRate, baselineRate)
-          : Math.max(projectRateRef.current * 0.9, baselineRate);
-      projectActualRef.current = actual;
-      lastActualSyncRef.current = now;
-
-      if (lastCorrectionRef.current === 0) {
-        lastCorrectionRef.current = now;
-        projectDisplayRef.current = actual;
-        setProjectDisplayValue(actual);
-        setProjectTrend((prev) => appendTrendPoint(prev, actual));
-      }
+  const { data: github, error: githubError } = useGithubContributions();
+  const { data, error: metricsError } = useSWR<MetricsResponse>(
+    "/api/metrics",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      refreshInterval: 60_000,
+      dedupingInterval: 30_000,
+      keepPreviousData: true,
     },
-  });
-
-  const projectViewsReady = typeof data?.totalProjectViews === "number" && projectDisplayValue !== null;
-
-  useEffect(() => {
-    if (!projectViewsReady) return;
-    const timer = window.setInterval(() => {
-      const now = Date.now();
-      if (followerDriftHoldRef.current <= 0) {
-        followerDriftDirectionRef.current = Math.random() < 0.16 ? "dip" : "up";
-        followerDriftHoldRef.current =
-          FOLLOWER_DRIFT_HOLD_MIN +
-          Math.floor(Math.random() * (FOLLOWER_DRIFT_HOLD_MAX - FOLLOWER_DRIFT_HOLD_MIN + 1));
-      }
-
-      const followerShouldDip = followerDriftDirectionRef.current === "dip";
-      const followerVariance = followerShouldDip
-        ? 0.88 + Math.random() * 0.16
-        : 0.72 + Math.random() * 0.58;
-      const nextFollowerFloor = followersFloorRef.current + followersRateRef.current * (0.55 + Math.random() * 0.45);
-      const roundedFollowerFloor = Math.floor(nextFollowerFloor);
-      const previousRoundedFollowerFloor = Math.floor(followersFloorRef.current);
-
-      followersFloorRef.current = nextFollowerFloor;
-
-      if (roundedFollowerFloor > previousRoundedFollowerFloor) {
-        try {
-          window.localStorage.setItem(FOLLOWERS_STORAGE_KEY, String(roundedFollowerFloor));
-        } catch {
-          // Ignore localStorage write issues during live metric animation.
-        }
-      }
-
-      const followerDrift = followerShouldDip
-        ? -(followersRateRef.current * (0.018 + Math.random() * 0.04))
-        : followersRateRef.current * followerVariance;
-      const nextFollowers = Math.max(
-        followersFloorRef.current - followersRateRef.current * 1.5,
-        followersDisplayRef.current + followerDrift
-      );
-      followersRateRef.current = Math.min(
-        Math.max(
-          followerShouldDip
-            ? followersRateRef.current * (0.997 + Math.random() * 0.001)
-            : followersRateRef.current * (1.0004 + Math.random() * 0.0028),
-          FOLLOWER_ESTIMATE_FLOOR
-        ),
-        FOLLOWER_ESTIMATE_CAP
-      );
-      followerDriftHoldRef.current = Math.max(0, followerDriftHoldRef.current - 1);
-      followersDisplayRef.current = nextFollowers;
-      try {
-        window.localStorage.setItem(
-          FOLLOWERS_STATE_STORAGE_KEY,
-          JSON.stringify({
-            display: Math.round(nextFollowers),
-            floor: Math.round(followersFloorRef.current),
-            rate: followersRateRef.current,
-            savedAt: now,
-          } satisfies StoredMetricState)
-        );
-      } catch {
-        // Ignore localStorage write issues during live metric animation.
-      }
-      setFollowersDisplayValue(nextFollowers);
-      setFollowersTrend((prev) => appendTrendPoint(prev, Math.round(nextFollowers)));
-
-      if (projectDriftHoldRef.current <= 0) {
-        projectDriftModeRef.current = Math.random() < 0.28 ? "crawl" : "cruise";
-        projectDriftHoldRef.current =
-          PROJECT_DRIFT_HOLD_MIN +
-          Math.floor(Math.random() * (PROJECT_DRIFT_HOLD_MAX - PROJECT_DRIFT_HOLD_MIN + 1));
-      }
-
-      const baseRate = projectRateRef.current;
-      const drift =
-        projectDriftModeRef.current === "crawl"
-          ? baseRate * (0.06 + Math.random() * 0.12)
-          : baseRate * (0.52 + Math.random() * 0.58);
-      let nextValue = Math.max(projectActualRef.current, projectDisplayRef.current, projectDisplayRef.current + drift);
-
-      if (lastCorrectionRef.current > 0 && now - lastCorrectionRef.current >= PROJECT_VIEW_CORRECTION_MS) {
-        nextValue = Math.max(nextValue, projectActualRef.current);
-        lastCorrectionRef.current = now;
-      }
-
-      projectDriftHoldRef.current = Math.max(0, projectDriftHoldRef.current - 1);
-      projectDisplayRef.current = nextValue;
-      try {
-        window.localStorage.setItem(
-          PROJECT_VIEWS_STATE_STORAGE_KEY,
-          JSON.stringify({
-            display: Math.round(nextValue),
-            rate: projectRateRef.current,
-            savedAt: now,
-          } satisfies StoredMetricState)
-        );
-      } catch {
-        // Ignore localStorage write issues during live metric animation.
-      }
-      setProjectDisplayValue(nextValue);
-      setProjectTrend((prev) => appendTrendPoint(prev, Math.round(nextValue)));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [projectViewsReady]);
+  );
+  const projectViewsReady = typeof data?.totalProjectViews === "number";
 
   return (
     <section className="py-24 border-y border-white/6 overflow-hidden">
@@ -534,48 +332,56 @@ export default function Stats({
           className="flex items-center gap-3 mb-14"
         >
           <div className="h-px w-8 bg-[var(--cranberry)]" />
-          <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">{content?.eyebrow || "By the Numbers"}</span>
+          <span className="text-[var(--cranberry)] text-[11px] tracking-[0.25em] uppercase">
+            {content?.eyebrow || "By the Numbers"}
+          </span>
         </motion.div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {METRICS.map((metric, i) => {
-            const isFollowers = metric.key === "totalFollowers";
             const isProjectViews = metric.key === "totalProjectViews";
             const isGithub = metric.key === "githubContributions";
-            const isLiveMetric = isFollowers || isProjectViews || isGithub;
+            const isLiveMetric = isGithub;
             // Show a skeleton until real data arrives — never a fabricated fallback.
             // ("Creating" is computed locally from 2018, so it's always accurate.)
-            const cardLoading = isGithub ? !github : isProjectViews ? !projectViewsReady : metric.key === "yearsActive" ? false : !data;
-            const value = data?.[metric.key as keyof MetricsResponse] ?? metric.fallback;
-            const displayedProjectViews = Math.max(Math.round(projectDisplayValue ?? 0), typeof value === "number" ? value : 0);
-            const displayedFollowers = Math.round(followersDisplayValue);
+            const unavailable = isGithub
+              ? Boolean(githubError && !github)
+              : metric.key === "yearsActive"
+                ? false
+                : Boolean(metricsError && !data);
+            const cardLoading =
+              !unavailable &&
+              (isGithub
+                ? !github
+                : isProjectViews
+                  ? !projectViewsReady
+                  : metric.key === "yearsActive"
+                    ? false
+                    : !data);
+            const value =
+              data?.[metric.key as keyof MetricsResponse] ?? metric.fallback;
+            const displayedProjectViews = Math.round(
+              data?.totalProjectViews ?? 0,
+            );
 
             return (
               <motion.div
                 key={metric.key}
-                data-highlight-id={`stat-${metric.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`}
+                data-highlight-id={`stat-${metric.label
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-+|-+$/g, "")}`}
                 initial={{ opacity: 0, y: 32 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0 }}
-                transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                transition={{
+                  duration: 0.6,
+                  delay: i * 0.1,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
                 className="group h-full"
               >
                 <div className="relative h-full min-h-[138px] md:min-h-[148px] p-5 md:p-6 rounded-sm border border-white/7 bg-white/2 overflow-hidden transition-all duration-500 hover:border-[color-mix(in_srgb,var(--theme-primary,#ef4242)_25%,transparent)] hover:bg-white/4 hover:-translate-y-1 hover:shadow-[0_20px_60px_color-mix(in_srgb,var(--theme-primary,#ef4242)_8%,transparent)]">
-                  {isFollowers && (
-                    <LiveMetricBackground
-                      data={followersTrend}
-                      color="rgba(34,197,94,0.9)"
-                      gradientId="followers-live-fill"
-                    />
-                  )}
-                  {isProjectViews && !cardLoading && (
-                    <LiveMetricBackground
-                      data={projectTrend}
-                      color="rgba(34,197,94,0.9)"
-                      gradientId="project-views-fill"
-                      forceUpward
-                    />
-                  )}
                   {isGithub && github?.trend && (
                     <LiveMetricBackground
                       data={github.trend}
@@ -585,7 +391,7 @@ export default function Stats({
                   )}
                   <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full bg-[var(--cranberry)] opacity-0 group-hover:opacity-[0.08] blur-xl transition-opacity duration-500" />
                   <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[var(--cranberry)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  {isLiveMetric && !cardLoading && (
+                  {isLiveMetric && !cardLoading && !unavailable && (
                     <span className="absolute right-5 top-5 z-10 flex h-3 w-3">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                       <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.45)]" />
@@ -594,12 +400,15 @@ export default function Stats({
 
                   <div className="relative z-10 flex h-full flex-col justify-center text-left">
                     <div className="mb-2">
-                      {cardLoading ? (
-                        <span className="block h-9 w-28 rounded-sm bg-white/10 animate-pulse" aria-hidden />
-                      ) : isFollowers ? (
-                        <span className="stat-value text-white tracking-tight leading-none">
-                          {displayedFollowers.toLocaleString("en-US")}
+                      {unavailable ? (
+                        <span className="text-sm text-white/60">
+                          Currently unavailable
                         </span>
+                      ) : cardLoading ? (
+                        <span
+                          className="block h-9 w-28 rounded-sm bg-white/10 animate-pulse"
+                          aria-hidden
+                        />
                       ) : isProjectViews ? (
                         <span className="stat-value text-white tracking-tight leading-none">
                           {displayedProjectViews.toLocaleString("en-US")}
@@ -619,7 +428,16 @@ export default function Stats({
                         />
                       )}
                     </div>
-                    <div className="text-xs text-white/75 font-jb tracking-wider uppercase">{metricOverrides.get(metric.key)?.label || metric.label}</div>
+                    <div className="text-xs text-white/75 font-jb tracking-wider uppercase">
+                      {metricOverrides.get(metric.key)?.label || metric.label}
+                    </div>
+                    <p className="mt-2 text-[11px] text-white/50">
+                      {isProjectViews
+                        ? "Reported views across listed project videos"
+                        : isGithub
+                          ? "GitHub public contribution data since 2024"
+                          : metric.description}
+                    </p>
                   </div>
                 </div>
               </motion.div>

@@ -7,6 +7,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { X, Mic, Loader2 } from "lucide-react";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart } from "@/lib/visitor-memory";
+import { createStreamLines, isNoisyTranscript } from "@/lib/stream-lines";
+import { readAssistantPreferences, pageQuestions } from "@/lib/assistant-preferences";
+import { offerConversation, takeConversation } from "@/lib/conversation-handoff";
+import VoiceConversationControls from "./VoiceConversationControls";
 import { extractPageContext } from "@/lib/page-context";
 import { useLanguage } from "@/lib/i18n";
 import { computeFingerprint } from "@/lib/device-fingerprint";
@@ -18,13 +22,6 @@ const TOGGLE_EVENT = "mdcran:toggle-voice";
 const AGENT_NAME = "Michael";
 
 /* Example prompts the tutorial nudges first-time users to try. */
-const TUTORIAL_PROMPTS = [
-  "Show me your best project",
-  "Walk me through Army Reserve Mercury",
-  "Show me your AI engineering work",
-  "Take me to your resume",
-];
-
 /* In-memory TTS cache — avoids re-billing ElevenLabs for identical phrases (intro, farewell, tour). */
 const ttsAudioCache = new Map<string, ArrayBuffer>();
 
@@ -68,12 +65,6 @@ function stripAudioTags(text: string): string {
 
 /** Strip markdown, action markers, and any stray audio tags so only clean natural
    speech is sent to TTS (the v2 model would otherwise read a bracket literally). */
-const NOISE_RE = /^(mm+[-\s]*hmm+|uh+|um+|ah+|oh+|hmm+|huh|yeah|yep|nope|ok|okay|hi|hey|yo|sup|thanks?)\.?$/i;
-function isNoisyTranscript(text: string): boolean {
-  const c = text.trim().toLowerCase();
-  return c.length < 3 || NOISE_RE.test(c);
-}
-
 function stripForSpeech(text: string): string {
   return text
     // Underscore-tolerant: matches multi-word marker NAMES (IDENTITY_DENY,
@@ -95,6 +86,10 @@ export default function VoiceMode() {
   const { currentLang } = useLanguage();
 
   const [open, setOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [editedTranscript, setEditedTranscript] = useState("");
+  const speechAbortRef = useRef<AbortController | null>(null);
+  const generationRef = useRef(0);
   const [supported, setSupported] = useState(true);
   const [micError, setMicError] = useState("");
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
@@ -142,6 +137,7 @@ export default function VoiceMode() {
   turnsRef.current = turns;
   const pendingFinalRef = useRef("");
   const sendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false); // guard against overlapping replies (no double-answer)
   // Stable per-open voice session id + device serial for conversation logging + stitching.
   const voiceSessionIdRef = useRef<string>(
@@ -164,16 +160,19 @@ export default function VoiceMode() {
   useEffect(() => {
     const onToggle = () => setOpen((o) => !o);
     const onOpen = () => setOpen(true);
-    const onClose = () => setOpen(false);
+    const onClose = () => { requestAbortRef.current?.abort(); setOpen(false); };
+    const clear = () => { generationRef.current += 1; speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); sendingRef.current=false; setEditedTranscript(""); setUserSaid(""); setCaptionWords([]); setCaptionIdx(-1); setPhaseSafe("listening"); if (sendTimerRef.current) clearTimeout(sendTimerRef.current); pendingFinalRef.current=""; setTurns([]); turnsRef.current = []; voiceSessionIdRef.current = crypto.randomUUID(); };
+    window.addEventListener("mdcran:conversation-clear", clear);
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:voice-open", onOpen);
     window.addEventListener("mdcran:voice-close", onClose);
     return () => {
+      window.removeEventListener("mdcran:conversation-clear", clear);
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:voice-open", onOpen);
       window.removeEventListener("mdcran:voice-close", onClose);
     };
-  }, []);
+  }, [setPhaseSafe]);
 
   /* Broadcast open/close so the chat bubble can track which mode is active. */
   useEffect(() => {
@@ -182,8 +181,13 @@ export default function VoiceMode() {
 
   /* Start a fresh transcript only when the visitor opens a new voice session. */
   useEffect(() => {
-    if (!open) return;
-    setTurns([]);
+    generationRef.current += 1;
+    speechAbortRef.current?.abort();
+    if (!open) { requestAbortRef.current?.abort(); sendingRef.current = false; return; }
+    setPaused(false);
+    const prior = takeConversation().map(t => ({ role: t.role, text: t.content }));
+    turnsRef.current = prior;
+    setTurns(prior);
     setInterim("");
   }, [open]);
 
@@ -330,6 +334,12 @@ export default function VoiceMode() {
   /* ── Speak a reply via ElevenLabs. Plays through Web Audio (decoded buffer) so it
      isn't blocked by mobile autoplay the way a plain <audio>.play() is. ── */
   const speak = useCallback(async (text: string, onStart?: () => void): Promise<void> => {
+    const generation = generationRef.current;
+    const active = () => openRef.current && generation === generationRef.current;
+    if (!active()) return;
+    const controller = new AbortController();
+    speechAbortRef.current?.abort();
+    speechAbortRef.current = controller;
     const clean = stripForSpeech(text);
     if (!clean) { onStart?.(); return; }
     setVoiceUnavailable(false);
@@ -340,24 +350,26 @@ export default function VoiceMode() {
     // Fire the deferred on-page motions exactly once, the moment the voice starts (or, if
     // synthesis fails, right away so the page still responds).
     let started = false;
-    const fireStart = () => { if (!started) { started = true; try { onStart?.(); } catch { /* */ } } };
+    const fireStart = () => { if (active() && !started) { started = true; try { onStart?.(); } catch { /* */ } } };
     // Voice couldn't be synthesized — tell the user instead of silently hanging.
-    const unavailable = () => { setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
+    const unavailable = () => { if (!active()) return; setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
     try {
       let arr: ArrayBuffer;
-      const ttsCacheKey = `${currentLang}:${clean}`;
+      const ttsCacheKey = `${currentLang}:${readAssistantPreferences().pace}:${clean}`;
       if (ttsAudioCache.has(ttsCacheKey)) {
         arr = ttsAudioCache.get(ttsCacheKey)!.slice(0);
       } else {
         const res = await fetch("/api/voice/tts", {
+          signal: controller.signal,
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: clean, language: currentLang }),
+          body: JSON.stringify({ text: clean, language: currentLang, pace: readAssistantPreferences().pace }),
         });
         if (!res.ok) { unavailable(); return; }
         arr = await res.arrayBuffer();
         if (clean.length < 400) ttsAudioCache.set(ttsCacheKey, arr.slice(0)); // cache short phrases only
       }
+      if (!active() || controller.signal.aborted) return;
       const ctx = audioCtxRef.current;
       if (!ctx) { unavailable(); return; }
       try { await ctx.resume(); } catch { /* */ }
@@ -366,6 +378,7 @@ export default function VoiceMode() {
         // Safari can reject a valid streaming response in decodeAudioData even though
         // its media element can play it. Keep a native audio fallback for Safari,
         // Firefox, and any device with a restricted Web Audio implementation.
+        if (!active() || controller.signal.aborted) return;
         const url = URL.createObjectURL(new Blob([arr], { type: "audio/mpeg" }));
         const audio = new Audio();
         audioElRef.current = audio;
@@ -392,6 +405,7 @@ export default function VoiceMode() {
         });
         return;
       }
+      if (!active() || controller.signal.aborted) return;
       const analyser = ttsAnalyserRef.current;
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
@@ -708,6 +722,7 @@ export default function VoiceMode() {
     setCaptionWords([]);
     setCaptionIdx(-1);
     setPhaseSafe("thinking");
+    setEditedTranscript(clean);
     setUserSaid(clean); // show what they asked at the top (esp. on the STT fallback path)
     setTurns((prev) => [...prev, { role: "user", text: clean }]);
 
@@ -715,13 +730,17 @@ export default function VoiceMode() {
       .slice(-12)
       .map((t) => ({ role: t.role, content: t.text }));
 
+    const controller = new AbortController();
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = controller;
     let accumulated = "";
     let friendly = "Sorry, I had trouble responding just now.";
     try {
       const res = await fetch("/api/chat", {
+        signal: controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, currentPage: pathname, agentName: AGENT_NAME, speak: true, sessionId: voiceSessionIdRef.current, deviceSerial: deviceSerialRef.current || undefined, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })(), visitorName: visitorName ?? undefined, visitorGeo: visitorGeo ?? undefined, language: currentLang !== "en-US" ? currentLang : undefined, identityContext: (() => { const ic = getStoredIdentityContext(); if (!ic) return undefined; return { state: ic.state, suggestedName: ic.suggestedIdentityName, suggestedIdentityId: ic.suggestedIdentityId, confirmedName: ic.confirmedName, autoNamed: ic.autoNamed, suggestedCertainty: ic.suggestedCertainty, linkCandidate: ic.linkCandidate }; })() }),
+        body: JSON.stringify({ messages: history, currentPage: pathname, preferences: readAssistantPreferences(), memoryConsent: readAssistantPreferences().memory, agentName: AGENT_NAME, speak: true, sessionId: voiceSessionIdRef.current, deviceSerial: deviceSerialRef.current || undefined, memory: (() => { try { const m = readVisitorMemory(); return { visits: m.visits, returning: m.returning, daysSinceLast: m.daysSinceLast, daypart: getDaypart(), topics: m.topics }; } catch { return undefined; } })(), tone: (() => { try { return localStorage.getItem("mdcran_ai_tone") || undefined; } catch { return undefined; } })(), domContext: (() => { try { return extractPageContext() || undefined; } catch { return undefined; } })(), visitorName: visitorName ?? undefined, visitorGeo: visitorGeo ?? undefined, language: currentLang !== "en-US" ? currentLang : undefined, identityContext: (() => { const ic = getStoredIdentityContext(); if (!ic) return undefined; return { state: ic.state, suggestedName: ic.suggestedIdentityName, suggestedIdentityId: ic.suggestedIdentityId, confirmedName: ic.confirmedName, autoNamed: ic.autoNamed, suggestedCertainty: ic.suggestedCertainty, linkCandidate: ic.linkCandidate }; })() }),
       });
       if (res.status === 429) {
         friendly = "You've hit the message limit for now — give it a little while and try again.";
@@ -731,13 +750,15 @@ export default function VoiceMode() {
       }
       if (!res.ok || !res.body) throw new Error("chat failed");
       const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+      const decodeLines = createStreamLines();
       // Show a placeholder assistant turn we update as text streams in.
       setTurns((prev) => [...prev, { role: "assistant", text: "" }]);
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of decoder.decode(value, { stream: true }).split("\n")) {
+        if (controller.signal.aborted || requestAbortRef.current !== controller || !openRef.current) return;
+        const lines = decodeLines(done ? undefined : value);
+        if (done && lines.length === 0) break;
+        for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const payload = line.slice(6).trim();
           if (payload === "[DONE]") continue;
@@ -756,10 +777,18 @@ export default function VoiceMode() {
         }
       }
     } catch {
+      if (controller.signal.aborted || requestAbortRef.current !== controller || !openRef.current) {
+        if (requestAbortRef.current === controller) sendingRef.current = false;
+        return;
+      }
       accumulated = friendly;
       setTurns((prev) => [...prev, { role: "assistant", text: accumulated }]);
     }
 
+    if (controller.signal.aborted || requestAbortRef.current !== controller || !openRef.current) {
+        if (requestAbortRef.current === controller) sendingRef.current = false;
+        return;
+      }
     // Behavior guard → end politely
     if (accumulated.trim().startsWith("__BEHAVIOR__")) {
       const msg = "Let's keep this about Michael's work. What would you like to know?";
@@ -775,6 +804,7 @@ export default function VoiceMode() {
       await speak(cleaned, onSpeechStart); // tags pass through to TTS; on-page motions fire when the voice starts
     }
 
+    if (controller.signal.aborted || !openRef.current || requestAbortRef.current !== controller) return;
     // Tear down the TTS audio graph node so the next utterance can rebuild it.
     if (ttsSourceRef.current) { try { ttsSourceRef.current.disconnect(); } catch { /* */ } ttsSourceRef.current = null; }
     audioElRef.current = null;
@@ -795,7 +825,7 @@ export default function VoiceMode() {
   /* ── Open: set up mic, analyser, and either SpeechRecognition or the
      MediaRecorder+STT fallback (so it works in Safari, Firefox, Brave, Chrome). ── */
   useEffect(() => {
-    if (!open) return;
+    if (!open || paused) return;
     let cancelled = false;
 
     const SR = getSpeechRecognition();
@@ -1003,7 +1033,7 @@ export default function VoiceMode() {
       analyserRef.current = null;
       ttsAnalyserRef.current = null;
     };
-  }, [open, selectedMicId, micRetryKey, startMeter, setPhaseSafe]);
+  }, [open, paused, selectedMicId, micRetryKey, startMeter, setPhaseSafe]);
 
   /* ── Teardown on close ── */
   useEffect(() => {
@@ -1037,7 +1067,7 @@ export default function VoiceMode() {
     if (captionRafRef.current) { cancelAnimationFrame(captionRafRef.current); captionRafRef.current = null; }
   }, [open]);
 
-  const close = () => setOpen(false);
+  const close = () => { generationRef.current += 1; speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); setOpen(false); };
 
   if (typeof document === "undefined") return null;
 
@@ -1173,7 +1203,7 @@ export default function VoiceMode() {
                 </div>
                 <p className="mb-3 text-[12px] leading-relaxed text-white/50">Speak naturally — or tap one to try it. I&apos;ll answer out loud and guide you around the site.</p>
                 <div className="flex flex-wrap gap-2">
-                  {TUTORIAL_PROMPTS.map((p) => (
+                  {pageQuestions(pathname).map((p) => (
                     <button key={p} onClick={() => { setShowTips(false); void sendToAgent(p); }} disabled={phase === "thinking"}
                       className="rounded-sm border border-white/12 bg-white/[0.03] px-3 py-1.5 text-[12px] text-white/70 transition-colors hover:border-[#ef4242]/40 hover:text-white disabled:opacity-40">
                       {p}
@@ -1230,9 +1260,30 @@ export default function VoiceMode() {
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
+            <VoiceConversationControls
+              paused={paused}
+              onPause={() => {
+                requestAbortRef.current?.abort();
+                speechAbortRef.current?.abort();
+                interruptTtsRef.current?.();
+                generationRef.current += 1;
+                sendingRef.current = false;
+                setPaused(value => !value);
+              }}
+              onTextHandoff={() => {
+                offerConversation(turnsRef.current.map(turn => ({ role: turn.role, content: turn.text })));
+                close();
+                window.dispatchEvent(new Event("mdcran:chat-open"));
+              }}
+              turns={turns}
+              text={editedTranscript}
+              onTextChange={setEditedTranscript}
+              onSend={() => { void sendToAgentRef.current(editedTranscript); }}
+              thinking={phase === "thinking"}
+            />
             {/* Status label + session timer */}
             <div className="flex items-center gap-2">
-              <span className="rounded-sm border border-[#ef4242]/40 bg-black/75 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#ef4242] backdrop-blur-sm font-medium">{shortLabel}</span>
+              <span className="rounded-sm border border-[#ef4242]/40 bg-black/75 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#ef4242] backdrop-blur-sm font-medium">{paused ? "Microphone paused" : shortLabel}</span>
               <span className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-[10px] tabular-nums text-white/65 backdrop-blur-sm">{elapsedStr}</span>
               {selectableAudioInputs.length > 1 && (
                 <label className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-white/70 backdrop-blur-sm">
