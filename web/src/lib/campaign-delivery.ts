@@ -17,7 +17,8 @@ async function getTwilio() {
   const { default: twilio } = await import("twilio");
   twilioClient = twilio(
     process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN
+    process.env.TWILIO_AUTH_TOKEN,
+    { timeout: 20_000 }
   ) as unknown as NonNullable<typeof twilioClient>;
   return twilioClient;
 }
@@ -94,9 +95,11 @@ async function sendWithResend(campaign: Campaign, recipients: ContactSubmission[
     recipients.map(async (recipient) => {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
+        signal: AbortSignal.timeout(20_000),
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
+          "Idempotency-Key": `campaign-${campaign.id}-${recipient.id}`,
         },
         body: JSON.stringify({
           from,
@@ -190,7 +193,7 @@ export async function sendCampaign(
           deliveredAt,
         })),
       ],
-      remainingCount: 0,
+      remainingCount: Math.max(0, remainingRecipients.length - smsBatchRecipients.length),
       totalCount,
     };
   }

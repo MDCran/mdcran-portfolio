@@ -41,10 +41,16 @@ export async function getDb(): Promise<Db> {
   return client.db(DB_NAME);
 }
 
+export async function getMongoClient(): Promise<MongoClient> {
+  return clientPromise;
+}
+
 /** Replace the shared client with a fresh one. Call after topology errors so
  *  the next getDb() starts clean rather than re-using a broken connection. */
 export function resetMongoClient(): void {
+  const previous = clientPromise;
   clientPromise = createClientPromise();
+  void previous.then((client) => client.close()).catch(() => undefined);
   if (process.env.NODE_ENV === "development") {
     global._mongoClientPromise = clientPromise;
   }

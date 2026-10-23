@@ -1,4 +1,8 @@
 "use client";
+import { subscribeMemoryScopeChanges } from "@/lib/assistant-preferences";
+import { playStreamingSpeech } from "@/lib/assistant-audio";
+import type { EvidenceSource } from "@/lib/assistant-evidence";
+import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -28,6 +32,7 @@ const ttsAudioCache = new Map<string, ArrayBuffer>();
 type Phase = "connecting" | "listening" | "thinking" | "speaking" | "error";
 
 interface Turn {
+  sources?: EvidenceSource[];
   role: "user" | "assistant";
   text: string;
 }
@@ -162,11 +167,13 @@ export default function VoiceMode() {
     const onOpen = () => setOpen(true);
     const onClose = () => { requestAbortRef.current?.abort(); setOpen(false); };
     const clear = () => { generationRef.current += 1; speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); sendingRef.current=false; setEditedTranscript(""); setUserSaid(""); setCaptionWords([]); setCaptionIdx(-1); setPhaseSafe("listening"); if (sendTimerRef.current) clearTimeout(sendTimerRef.current); pendingFinalRef.current=""; setTurns([]); turnsRef.current = []; voiceSessionIdRef.current = crypto.randomUUID(); };
+    const unsubscribeSharedMemory = subscribeMemoryScopeChanges(clear);
     window.addEventListener("mdcran:conversation-clear", clear);
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:voice-open", onOpen);
     window.addEventListener("mdcran:voice-close", onClose);
     return () => {
+      unsubscribeSharedMemory();
       window.removeEventListener("mdcran:conversation-clear", clear);
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:voice-open", onOpen);
@@ -340,6 +347,7 @@ export default function VoiceMode() {
     const controller = new AbortController();
     speechAbortRef.current?.abort();
     speechAbortRef.current = controller;
+    const synthesisStartedAt = performance.now();
     const clean = stripForSpeech(text);
     if (!clean) { onStart?.(); return; }
     setVoiceUnavailable(false);
@@ -366,6 +374,18 @@ export default function VoiceMode() {
           body: JSON.stringify({ text: clean, language: currentLang, pace: readAssistantPreferences().pace }),
         });
         if (!res.ok) { unavailable(); return; }
+        const ctx = audioCtxRef.current;
+        if (ctx) {
+          await ctx.resume();
+          interruptTtsRef.current = () => { controller.abort(); setPhaseSafe("listening"); setTtsPreparing(false); setCaptionWords([]); setCaptionIdx(-1); };
+          const streamed = await playStreamingSpeech(res, { signal: controller.signal, context: ctx, analyser: ttsAnalyserRef.current,
+            onAudio: audio => { audioElRef.current = audio; },
+            onStart: () => { if (!active()) return; setTtsPreparing(false); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); window.dispatchEvent(new CustomEvent("mdcran:voice-latency", { detail: { firstAudioMs: Math.round(performance.now() - synthesisStartedAt) } })); },
+            onProgress: seconds => { if (active()) setCaptionIdx(Math.min(capWords.length - 1, Math.floor(seconds * 2.8))); },
+          });
+          if (streamed) { interruptTtsRef.current = null; setCaptionWords([]); setCaptionIdx(-1); return; }
+          interruptTtsRef.current = null;
+        }
         arr = await res.arrayBuffer();
         if (clean.length < 400) ttsAudioCache.set(ttsCacheKey, arr.slice(0)); // cache short phrases only
       }
@@ -468,7 +488,10 @@ export default function VoiceMode() {
      they fire the instant Michael actually starts talking. That way the page visibly
      scrolls/spotlights "as he's saying it", instead of jumping before the voice plays. ── */
   const runDirectives = useCallback((full: string): { cleaned: string; onSpeechStart: () => void } => {
-    let cleaned = full;
+    let cleaned = sanitizeLegacyActions(full);
+    const request = requestAbortRef.current; const epoch = generationRef.current;
+    const stillActive = () => openRef.current && epoch === generationRef.current && (!request || (!request.signal.aborted && requestAbortRef.current === request));
+    const scheduleAction = (callback: () => void, delay: number) => setTimeout(() => { if (stillActive()) callback(); }, delay);
     const deferred: Array<() => void> = [];
 
     const theme = cleaned.match(/__THEME:([\w-]+)__/);
@@ -504,7 +527,7 @@ export default function VoiceMode() {
     if (nav) {
       const path = nav[1];
       cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
-      setTimeout(() => router.push(path.split("#")[0] || "/"), 200); // navigate early
+      scheduleAction(() => router.push(path.split("#")[0] || "/"), 200); // navigate early
     }
     const gotoItemMatches = [...cleaned.matchAll(/__GOTOITEM:(\/[^|_\s]+)\|([^_]+?)__/g)];
     if (gotoItemMatches.length) {
@@ -513,9 +536,9 @@ export default function VoiceMode() {
         const path = match[1].trim();
         const text = match[2].trim();
         try { router.prefetch(path); } catch { /* route may not be prefetchable */ }
-        deferred.push(() => setTimeout(() => {
+        deferred.push(() => scheduleAction(() => {
           router.push(path);
-          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text } })), 1400);
+          scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text } })), 1400);
         }, index * 350));
       });
     }
@@ -541,14 +564,14 @@ export default function VoiceMode() {
       cleaned = cleaned.replace(/\s*__TOUR__\s*/g, " ");
       deferred.push(() => {
         setOpen(false);
-        setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
+        scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
       });
     }
     const hl = cleaned.match(/__HIGHLIGHT:(.+?)__/);
     if (hl) {
       cleaned = cleaned.replace(/\s*__HIGHLIGHT:.+?__\s*/g, " ");
       // Give a freshly-navigated page a beat to mount before scrolling to the target.
-      deferred.push(() => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: hl[1] })), nav ? 500 : 0));
+      deferred.push(() => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: hl[1] })), nav ? 500 : 0));
     }
     // __CLICK:element-label__ — AI cursor moves to and clicks an element.
     const clickMatches = [...cleaned.matchAll(/__CLICK:(.+?)__/g)];
@@ -556,7 +579,7 @@ export default function VoiceMode() {
       cleaned = cleaned.replace(/\s*__CLICK:.+?__\s*/g, " ");
       deferred.push(() => {
         for (const m of clickMatches) {
-          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: m[1] } })), nav ? 500 : 0);
+          scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: m[1] } })), nav ? 500 : 0);
         }
       });
     }
@@ -566,9 +589,9 @@ export default function VoiceMode() {
       cleaned = cleaned.replace(/__CLICKID:[\w-]+__/g, " ");
       deferred.push(() => clickIdMatches.forEach((m, i) => {
         const selector = `[data-highlight-id="${m[1]}"]`;
-        setTimeout(() => {
+        scheduleAction(() => {
           window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { selector } }));
-          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector } })), 220);
+          scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector } })), 220);
         }, (nav ? 500 : 0) + i * 500);
       }));
     }
@@ -580,13 +603,13 @@ export default function VoiceMode() {
     const pointMatches = [...cleaned.matchAll(/__POINT:([^_]+?)__/g)];
     if (pointMatches.length) {
       cleaned = cleaned.replace(/__POINT:[^_]+?__/g, " ");
-      deferred.push(() => pointMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { text: m[1].trim() } })), (nav ? 500 : 0) + i * 400)));
+      deferred.push(() => pointMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { text: m[1].trim() } })), (nav ? 500 : 0) + i * 400)));
     }
     // __IMAGESHOW:N__ — open image N in the project/article lightbox.
     const imageShowMatches = [...cleaned.matchAll(/__IMAGESHOW:(\d+)__/g)];
     if (imageShowMatches.length) {
       cleaned = cleaned.replace(/__IMAGESHOW:\d+__/g, " ");
-      deferred.push(() => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:open-image", { detail: { index: parseInt(imageShowMatches[0][1], 10) } })), nav ? 500 : 0));
+      deferred.push(() => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:open-image", { detail: { index: parseInt(imageShowMatches[0][1], 10) } })), nav ? 500 : 0));
     }
     // __TYPE:field-label|text to type__ — AI cursor focuses a field and types.
     const typeMatches = [...cleaned.matchAll(/__TYPE:(.+?)\|(.+?)__/g)];
@@ -594,7 +617,7 @@ export default function VoiceMode() {
       cleaned = cleaned.replace(/\s*__TYPE:.+?__\s*/g, " ");
       deferred.push(() => {
         typeMatches.forEach((m, idx) => {
-          setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { text: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800);
+          scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { text: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800);
         });
       });
     }
@@ -602,7 +625,7 @@ export default function VoiceMode() {
     const typeIdMatches = [...cleaned.matchAll(/__TYPEID:([\w-]+)\|([^|]*?)__/g)];
     if (typeIdMatches.length) {
       cleaned = cleaned.replace(/__TYPEID:[\w-]+\|[^|]*?__/g, " ");
-      deferred.push(() => typeIdMatches.forEach((m, idx) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800)));
+      deferred.push(() => typeIdMatches.forEach((m, idx) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (nav ? 500 : 0) + idx * 1800)));
     }
     // __SEARCH:query__ — open the navbar search and type the requested query.
     const searchMatches = [...cleaned.matchAll(/__SEARCH:([^_]+?)__/g)];
@@ -611,32 +634,32 @@ export default function VoiceMode() {
       deferred.push(() => searchMatches.forEach((match) => {
         const query = match[1].trim();
         window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector: '[aria-label="Search"]' } }));
-        setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: "nav-search", typeText: query } })), 800);
+        scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: "nav-search", typeText: query } })), 800);
       }));
     }
     // __SCROLL:dir[:target]__ — directional / container scroll.
     const scrollMatches = [...cleaned.matchAll(/__SCROLL:(up|down|left|right|top|bottom)(?::([\w-]+))?__/gi)];
     if (scrollMatches.length) {
       cleaned = cleaned.replace(/\s*__SCROLL:(?:up|down|left|right|top|bottom)(?::[\w-]+)?__\s*/gi, " ");
-      deferred.push(() => scrollMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:scroll", { detail: { direction: m[1].toLowerCase(), target: m[2] } })), i * 500)));
+      deferred.push(() => scrollMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:scroll", { detail: { direction: m[1].toLowerCase(), target: m[2] } })), i * 500)));
     }
     // __SLIDER:target|value__ — set a slider (percent 0-100).
     const sliderMatches = [...cleaned.matchAll(/__SLIDER:([\w-]+)\|(\d{1,3})__/g)];
     if (sliderMatches.length) {
       cleaned = cleaned.replace(/__SLIDER:[\w-]+\|\d{1,3}__/g, " ");
-      deferred.push(() => sliderMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-slider", { detail: { target: m[1], value: parseInt(m[2], 10) } })), i * 500)));
+      deferred.push(() => sliderMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-slider", { detail: { target: m[1], value: parseInt(m[2], 10) } })), i * 500)));
     }
     // __CHECK:target|on|off__ — toggle a checkbox/radio.
     const checkMatches = [...cleaned.matchAll(/__CHECK:([\w-]+)(?:\|(on|off))?__/g)];
     if (checkMatches.length) {
       cleaned = cleaned.replace(/__CHECK:[\w-]+(?:\|(?:on|off))?__/g, " ");
-      deferred.push(() => checkMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-check", { detail: { target: m[1], checked: m[2] ? m[2] === "on" : undefined } })), i * 500)));
+      deferred.push(() => checkMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-check", { detail: { target: m[1], checked: m[2] ? m[2] === "on" : undefined } })), i * 500)));
     }
     // __SELECT:target|value__ — choose a select/dropdown option.
     const selectMatches = [...cleaned.matchAll(/__SELECT:([\w-]+)\|([^|]*?)__/g)];
     if (selectMatches.length) {
       cleaned = cleaned.replace(/__SELECT:[\w-]+\|[^|]*?__/g, " ");
-      deferred.push(() => selectMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-select", { detail: { target: m[1], value: m[2], optionText: m[2] } })), i * 500)));
+      deferred.push(() => selectMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-select", { detail: { target: m[1], value: m[2], optionText: m[2] } })), i * 500)));
     }
     // __COPYLINK[:text]__ — copy a link/text to the clipboard.
     const copyMatch = cleaned.match(/__COPYLINK(?::(.+?))?__/);
@@ -703,7 +726,7 @@ export default function VoiceMode() {
     }
     return {
       cleaned: cleaned.replace(/\s+/g, " ").trim(),
-      onSpeechStart: () => { for (const fn of deferred) fn(); },
+      onSpeechStart: () => { if (stillActive()) for (const fn of deferred) fn(); },
     };
   }, [router, setTheme]);
 
@@ -734,6 +757,8 @@ export default function VoiceMode() {
     requestAbortRef.current?.abort();
     requestAbortRef.current = controller;
     let accumulated = "";
+    let sources: EvidenceSource[] = [];
+    let structuredActions: SiteAction[] = [];
     let friendly = "Sorry, I had trouble responding just now.";
     try {
       const res = await fetch("/api/chat", {
@@ -764,6 +789,9 @@ export default function VoiceMode() {
           if (payload === "[DONE]") continue;
           try {
             const parsed = JSON.parse(payload);
+            if (parsed.error && !accumulated.trim()) accumulated = typeof parsed.error === "string" ? parsed.error : "The assistant could not complete this response. Please try again.";
+            if (Array.isArray(parsed.sources)) sources = parsed.sources;
+            if (parsed.actions) structuredActions = [...structuredActions, ...validateSiteActions(parsed)].slice(0, 4);
             if (parsed.text) {
               accumulated += parsed.text;
               const shown = stripAudioTags(accumulated.replace(/__[A-Z_]+:.+?__/g, "").replace(/__[A-Z_]+__/g, ""));
@@ -797,8 +825,13 @@ export default function VoiceMode() {
       setPhaseSafe("speaking");
       await speak(msg);
     } else {
+      for (const action of structuredActions) {
+        if (action.type === "highlight") setTimeout(() => { if (!controller.signal.aborted && requestAbortRef.current === controller && openRef.current) dispatchSiteAction(action, () => {}, () => {}); }, structuredActions.some(a => a.type === "navigate") ? 700 : 0);
+        else dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName));
+      }
+      if (structuredActions.length) accumulated = accumulated.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE):[^_]+__/g, "");
       const { cleaned, onSpeechStart } = runDirectives(accumulated);
-      setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(cleaned) }; return n; });
+      setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(cleaned), sources }; return n; });
       setShowSilenceTip(false);
       setPhaseSafe("speaking");
       await speak(cleaned, onSpeechStart); // tags pass through to TTS; on-page motions fire when the voice starts
@@ -815,7 +848,7 @@ export default function VoiceMode() {
       setPhaseSafe("listening");
       try { recRef.current?.start(); } catch { /* already running */ }
     }
-  }, [currentLang, pathname, runDirectives, speak, setPhaseSafe, visitorGeo, visitorName]);
+  }, [currentLang, pathname, runDirectives, speak, setPhaseSafe, visitorGeo, visitorName, router, setTheme]);
 
   // Keep microphone callbacks pointed at the latest handler without restarting
   // capture or clearing the transcript when visitor identity/page data changes.
@@ -1261,6 +1294,7 @@ export default function VoiceMode() {
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
             <VoiceConversationControls
+              onMicrophoneTest={() => { setPaused(true); speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); }}
               paused={paused}
               onPause={() => {
                 requestAbortRef.current?.abort();

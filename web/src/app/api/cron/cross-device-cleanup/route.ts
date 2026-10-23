@@ -1,8 +1,5 @@
+import { runRegisteredJob } from "@/lib/operations";
 import { NextRequest } from "next/server";
-import { expireHandshakes } from "@/lib/handshake";
-import { pruneCrossDevice } from "@/lib/cross-device";
-import { sweepCandidates } from "@/lib/cross-device-link";
-import { pruneAiConversations } from "@/lib/ai-conversations";
 import { isAdminAuthenticated } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -28,25 +25,7 @@ async function handleCleanup(req: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Self-manage the candidate queue FIRST (auto-confirm high-confidence,
-  // auto-reject stale), then prune old/rejected rows.
-  const swept = await sweepCandidates().catch(() => ({ confirmed: 0, rejected: 0 }));
-  const [handshakes, cd, ai] = await Promise.all([
-    expireHandshakes(),
-    pruneCrossDevice(90),
-    pruneAiConversations(90),
-  ]);
-
-  return Response.json({
-    ok: true,
-    autoConfirmed: swept.confirmed,
-    autoRejected: swept.rejected,
-    expiredHandshakes: handshakes,
-    prunedDevices: cd.devices,
-    prunedCandidates: cd.candidates,
-    prunedConversations: ai.conversations,
-    prunedMessages: ai.messages,
-  });
+  return Response.json(await runRegisteredJob("cleanup"));
 }
 
 export { handleCleanup as GET, handleCleanup as POST };

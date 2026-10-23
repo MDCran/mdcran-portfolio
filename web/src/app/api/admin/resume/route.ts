@@ -1,3 +1,4 @@
+import { adminError, synchronizeContent, type ContentGroup } from "@/lib/admin-content";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getExperiences,
@@ -8,14 +9,6 @@ import {
   getClubs,
   getResumeProfile,
   getSkillCategories,
-  saveExperiences,
-  saveEducations,
-  saveSkills,
-  saveCertifications,
-  saveAwards,
-  saveClubs,
-  saveResumeProfile,
-  saveSkillCategories,
 } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 
@@ -69,17 +62,11 @@ export async function PUT(req: NextRequest) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { experiences, educations, skills, certifications, awards, clubs, profile, skillCategories } =
-    await req.json();
-  await Promise.all([
-    experiences !== undefined ? saveExperiences(experiences) : Promise.resolve(),
-    educations !== undefined ? saveEducations(educations) : Promise.resolve(),
-    skills !== undefined ? saveSkills(skills) : Promise.resolve(),
-    certifications !== undefined ? saveCertifications(certifications) : Promise.resolve(),
-    awards !== undefined ? saveAwards(awards) : Promise.resolve(),
-    clubs !== undefined ? saveClubs(clubs) : Promise.resolve(),
-    profile !== undefined ? saveResumeProfile(profile) : Promise.resolve(),
-    skillCategories !== undefined ? saveSkillCategories(skillCategories) : Promise.resolve(),
-  ]);
-  return NextResponse.json({ ok: true });
+  try {
+    const body = await req.json();
+    const collections = ["experiences", "educations", "skills", "certifications", "awards", "clubs", "skillCategories"] as const;
+    const groups: ContentGroup[] = collections.filter((name) => body[name] !== undefined).map((collection) => ({ collection, records: body[collection] }));
+    if (body.profile !== undefined) groups.push({ collection: "resumeProfile", records: [body.profile] });
+    return NextResponse.json({ ok: true, ...await synchronizeContent(groups) });
+  } catch (error) { return adminError(error); }
 }

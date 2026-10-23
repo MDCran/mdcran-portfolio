@@ -1,12 +1,16 @@
 "use client";
 
+import EvidenceSources from "./EvidenceSources";
+import type { EvidenceSource } from "@/lib/assistant-evidence";
+import MicrophoneTest from "./MicrophoneTest";
 import AssistantControls from "./AssistantControls";
 
 interface Props {
+  onMicrophoneTest: () => void;
   paused: boolean;
   onPause: () => void;
   onTextHandoff: () => void;
-  turns: { role: "user" | "assistant"; text: string }[];
+  turns: { role: "user" | "assistant"; text: string; sources?: EvidenceSource[] }[];
   text: string;
   onTextChange: (text: string) => void;
   onSend: () => void;
@@ -14,6 +18,7 @@ interface Props {
 }
 
 export default function VoiceConversationControls({
+  onMicrophoneTest,
   paused,
   onPause,
   onTextHandoff,
@@ -46,10 +51,11 @@ export default function VoiceConversationControls({
         <summary className="cursor-pointer">Transcript & text input</summary>
         <div className="my-2 max-h-40 space-y-2 overflow-y-auto">
           {turns.map((turn, index) => (
-            <p key={index}>
+            <div key={index}>
               <strong>{turn.role === "user" ? "You" : "AI guide"}:</strong>{" "}
               {turn.text}
-            </p>
+              <EvidenceSources sources={turn.sources} />
+            </div>
           ))}
         </div>
         <label className="block">
@@ -69,6 +75,7 @@ export default function VoiceConversationControls({
           Send text
         </button>
       </details>
+      <MicrophoneTest onStart={onMicrophoneTest} />
       <AssistantControls />
     </div>
   );

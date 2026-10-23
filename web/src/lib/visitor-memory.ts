@@ -1,4 +1,5 @@
-import { readAssistantPreferences } from "./assistant-preferences";
+import { clearConversationHandoff } from "./conversation-handoff";
+import { readAssistantPreferences, saveAssistantPreferences } from "./assistant-preferences";
 /* ──────────────────────────────────────────────────────────────────────────
    Lightweight, client-side visitor memory.
 
@@ -24,6 +25,20 @@ export interface VisitorMemory {
 }
 
 const MAX_TOPICS = 6;
+
+/** Editing remembered topics starts a new recall epoch so removed topics cannot
+ * reappear through the previous server conversation history. */
+export function editRememberedTopics(topics: string[]): void {
+  const prefs = readAssistantPreferences();
+  if (!prefs.memory) return;
+  const memory = readVisitorMemory();
+  clearConversationHandoff();
+  saveAssistantPreferences({ ...prefs, memoryEpoch: crypto.randomUUID(), memorySince: Date.now() });
+  const clean = [...new Set(topics.map(t => t.trim().replace(/\s+/g, " ").slice(0, 80)).filter(Boolean))].slice(-MAX_TOPICS);
+  try { localStorage.setItem(KEY, JSON.stringify({ ...memory, topics: clean })); } catch { /* unavailable storage */ }
+  window.dispatchEvent(new Event("mdcran:conversation-clear"));
+  window.dispatchEvent(new Event("mdcran:memory-changed"));
+}
 
 function blank(now: number): VisitorMemory {
   return {
@@ -100,6 +115,7 @@ export function rememberTopic(text: string): void {
       clean,
     ].slice(-MAX_TOPICS);
     localStorage.setItem(KEY, JSON.stringify({ ...mem, topics }));
+    window.dispatchEvent(new Event("mdcran:memory-changed"));
   } catch {
     /* */
   }

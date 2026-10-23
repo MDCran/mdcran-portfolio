@@ -1,3 +1,4 @@
+import { adminError } from "@/lib/admin-content";
 import { NextRequest, NextResponse } from "next/server";
 import { getSiteContent, saveSiteContent } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
@@ -15,6 +16,8 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await saveSiteContent(await req.json());
-  return NextResponse.json({ ok: true });
+  try {
+    await saveSiteContent(await req.json());
+    return NextResponse.json({ ok: true, record: await getSiteContent() });
+  } catch (error) { return adminError(error); }
 }

@@ -1,6 +1,8 @@
 import { formatPublishDate } from "@/lib/read-time";
 import EngineeringExplorer from "@/components/work/EngineeringExplorer";
 import ArchitectureDiagram from "@/components/work/ArchitectureDiagram";
+import ProjectWalkthrough from "@/components/work/ProjectWalkthrough";
+import PublicVitals from "@/components/shared/PublicVitals";
 import SectionActions from "@/components/shared/SectionActions";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,7 +17,7 @@ import {
   engineeringProjectOrder,
   engineeringProjects,
 } from "@/lib/engineering";
-import { getProjects, getArticles } from "@/lib/db";
+import { getProjects, getArticles } from "@/lib/public-content-cache";
 import type { ArticleSection, ImageAsset, Project } from "@/lib/types";
 import { buildSeoMetadata, CONTACT_EMAIL } from "@/lib/seo";
 import {
@@ -442,6 +444,7 @@ function ProjectCard({ project }: { project: Project }) {
       ) : null}
 
       <ArchitectureDiagram slug={project.slug} />
+      <ProjectWalkthrough slug={project.slug} />
       {skills.length > 0 && (
         <ul
           aria-label={`${project.title} technologies and skills`}
@@ -667,7 +670,7 @@ function CoreAiContractsCard() {
 
 export default async function EngineeringPage() {
   const [allProjects, articles] = await Promise.all([
-    getProjects({ refreshVideoViews: false }),
+    getProjects(),
     getArticles(),
   ]);
   const engineeringWork = allProjects.filter(
@@ -695,7 +698,7 @@ export default async function EngineeringPage() {
   return (
     <>
       <Navbar />
-      <main className="content-container pb-20 pt-36 sm:pt-40">
+      <main className="public-portfolio content-container pb-20 pt-36 sm:pt-40">
         <section aria-labelledby="engineering-heading" className="max-w-3xl">
           <p className="mb-4 text-xs uppercase tracking-[0.2em] text-[var(--cranberry)]">
             Michael Cran · Open for engineering roles
@@ -712,7 +715,7 @@ export default async function EngineeringPage() {
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
               href="/resume"
-              className="inline-flex items-center gap-2 rounded-sm bg-[var(--cranberry)] px-5 py-3 text-sm font-medium text-white"
+              className="inline-flex items-center gap-2 rounded-sm bg-[var(--cranberry)] px-5 py-3 text-sm font-medium text-black"
             >
               View resume <ArrowRight size={16} aria-hidden="true" />
             </Link>
@@ -805,6 +808,7 @@ export default async function EngineeringPage() {
               entries={[
                 ...orderedProjects.map((p) => ({
                   slug: p.slug,
+                  title: p.title,
                   text: [
                     p.title,
                     p.description,
@@ -815,6 +819,7 @@ export default async function EngineeringPage() {
                 })),
                 {
                   slug: coreAiContracts.id,
+                  title: coreAiContracts.title,
                   text: `${coreAiContracts.title} ${coreAiContracts.skills.join(" ")}`,
                 },
               ]}
@@ -925,6 +930,7 @@ export default async function EngineeringPage() {
             <ArrowRight size={15} aria-hidden="true" />
           </Link>
         </section>
+        <PublicVitals />
       </main>
       <Footer />
     </>

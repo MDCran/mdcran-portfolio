@@ -7,7 +7,7 @@ import {
   getSkills,
   getCertifications,
   getAwards,
-} from "@/lib/db";
+} from "@/lib/public-content-cache";
 import { buildSeoMetadata } from "@/lib/seo";
 import SectionActions from "@/components/shared/SectionActions";
 export const dynamic = "force-dynamic";

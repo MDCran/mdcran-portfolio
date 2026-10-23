@@ -1,26 +1,13 @@
 import type { Metadata } from "next";
 import GitHubProfilePage from "@/components/github/GitHubProfilePage";
-import { getSiteContent } from "@/lib/db";
+import { getProfilePublication } from "@/lib/profile-publication";
 
-export const metadata: Metadata = {
-  title: "Software & AI Engineer",
-  description: "Michael Cran's skills span Python, Java, TypeScript, React, AWS, AI/ML, APIs, data systems, and cloud delivery. Explore engineering work and experience.",
-  keywords: [
-    "Michael Cran",
-    "software engineer",
-    "AI engineer",
-    "Python",
-    "Java",
-    "TypeScript",
-    "React",
-    "AWS",
-    "machine learning",
-    "cloud engineering",
-    "full-stack development",
-  ],
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const publication = await getProfilePublication();
+  return { title: `${publication.profile.fullName} | ${publication.profile.title}`, description: publication.summary };
+}
 
-export default async function Page() {
-  const siteContent = await getSiteContent();
-  return <GitHubProfilePage aiUsage={siteContent.aiUsageTracker} />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ capture?: string }> }) {
+  const [publication, params] = await Promise.all([getProfilePublication(), searchParams]);
+  return <GitHubProfilePage publication={publication} capture={params.capture === "1"} />;
 }

@@ -1,0 +1,22 @@
+name: Scheduled campaign worker
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: campaign-worker
+  cancel-in-progress: false
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Process campaigns already scheduled by the administrator
+        env:
+          CAMPAIGN_CRON_SECRET: ${{ secrets.CAMPAIGN_CRON_SECRET }}
+        run: |
+          test -n "$CAMPAIGN_CRON_SECRET" || { echo 'Campaign worker secret is missing.'; exit 1; }
+          curl --fail --silent --show-error --max-time 90 \
+            --header "Authorization: Bearer $CAMPAIGN_CRON_SECRET" \
+            --request POST https://www.mdcran.com/api/cron/campaigns

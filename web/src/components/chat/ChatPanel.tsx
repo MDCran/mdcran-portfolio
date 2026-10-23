@@ -1,4 +1,9 @@
 "use client";
+import { subscribeMemoryScopeChanges } from "@/lib/assistant-preferences";
+import EvidenceSources from "./EvidenceSources";
+import { safePublicPath } from "@/lib/assistant-evidence";
+import type { EvidenceSource } from "@/lib/assistant-evidence";
+import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -136,6 +141,7 @@ interface SpeechRecognitionLike {
 }
 
 interface Message {
+  sources?: EvidenceSource[];
   role: "user" | "assistant";
   content: string;
   autoNavigated?: boolean;
@@ -223,22 +229,21 @@ function ConnectingTimer({ label }: { label?: string }) {
 }
 
 function TypewriterText({ text, speed = 18, onComplete }: { text: string; speed?: number; onComplete?: () => void }) {
-  const [displayed, setDisplayed] = useState("");
-  const indexRef = useRef(0);
+  const [typed, setTyped] = useState({ source: text, value: "" });
+  const displayed = typed.source === text ? typed.value : "";
   const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
 
   useEffect(() => {
-    setDisplayed("");
-    indexRef.current = 0;
+    let index = 0;
     const iv = setInterval(() => {
-      indexRef.current++;
-      if (indexRef.current >= text.length) {
-        setDisplayed(text);
+      index++;
+      if (index >= text.length) {
+        setTyped({ source: text, value: text });
         clearInterval(iv);
         onCompleteRef.current?.();
       } else {
-        setDisplayed(text.slice(0, indexRef.current));
+        setTyped({ source: text, value: text.slice(0, index) });
       }
     }, speed);
     return () => clearInterval(iv);
@@ -647,11 +652,13 @@ export default function ChatPanel() {
     const onOpen = () => { const prior = takeConversation(); if(prior.length) { setMessages(prior); welcomeCompletedRef.current=true; setWelcomeStep(4); setWelcomeTyped(true); } setMinimized(false); setOpen(true); };
     const onClose = () => { abortRef.current?.abort(); stopSpeaking(); setOpen(false); };
     const clear = () => { chatRequestGenerationRef.current += 1; abortRef.current?.abort(); stopSpeaking(); setMessages([]); setInput(""); setStreaming(false); chatSessionIdRef.current = crypto.randomUUID(); };
+    const unsubscribeSharedMemory = subscribeMemoryScopeChanges(clear);
     window.addEventListener("mdcran:conversation-clear", clear);
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener("mdcran:chat-open", onOpen);
     window.addEventListener("mdcran:chat-close", onClose);
     return () => {
+      unsubscribeSharedMemory();
       window.removeEventListener("mdcran:conversation-clear", clear);
       window.removeEventListener(TOGGLE_EVENT, onToggle);
       window.removeEventListener("mdcran:chat-open", onOpen);
@@ -745,6 +752,8 @@ export default function ChatPanel() {
         abortRef.current = controller;
 
         let accumulated = "";
+        let sources: EvidenceSource[] = [];
+        let structuredActions: SiteAction[] = [];
         let streamErrorDetail = "";
         const streamStartTime = Date.now();
 
@@ -842,6 +851,8 @@ export default function ChatPanel() {
 
                 try {
                   const parsed = JSON.parse(payload);
+                  if (Array.isArray(parsed.sources)) sources = parsed.sources;
+                  if (parsed.actions) structuredActions = [...structuredActions, ...validateSiteActions(parsed)].slice(0, 4);
                   if (parsed.error) {
                     streamErrorDetail = parsed.detail || parsed.error;
                     if (parsed.detail) console.warn("[chat] stream error:", parsed.detail);
@@ -919,13 +930,24 @@ export default function ChatPanel() {
         if (controller.signal.aborted || requestGeneration !== chatRequestGenerationRef.current) return;
         /* Process action markers + auto-navigation from markdown links */
         {
-          let cleaned = accumulated;
-          let hasMarkers = false;
+          let cleaned = sanitizeLegacyActions(accumulated);
+          const scheduleAction = (callback: () => void, delay: number) => setTimeout(() => { if (!controller.signal.aborted && requestGeneration === chatRequestGenerationRef.current) callback(); }, delay);
+          let hasMarkers = sources.length > 0 || structuredActions.length > 0;
           let didNavigate = false;
           let pendingHighlightTarget: string | undefined;
           let projectCards: string[] | undefined;
           let contactCard: ContactData | undefined;
           let bookingCard: BookingData | undefined;
+          for (const action of structuredActions) {
+            if (action.type === "project") projectCards = [...(projectCards || []), action.value].slice(0, 2);
+            else if (action.type === "highlight") pendingHighlightTarget = action.value;
+            else { dispatchSiteAction(action, href => { didNavigate = true; router.push(href); }, value => setTheme(value as ThemeName)); }
+          }
+          if (structuredActions.length) cleaned = cleaned.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE):[^_]+__/g, "");
+          if (pendingHighlightTarget) {
+            const target = pendingHighlightTarget;
+            scheduleAction(() => { if (!controller.signal.aborted && requestGeneration === chatRequestGenerationRef.current) dispatchSiteAction({ type: "highlight", value: target }, () => {}, () => {}); }, didNavigate ? 700 : 0);
+          }
 
           // Project card markers
           const cardMatches = [...cleaned.matchAll(/__PROJECTCARD:([\w-]+)__/g)].map((m) => m[1]);
@@ -1007,11 +1029,11 @@ export default function ChatPanel() {
               detail: { href: navBase, label: navBase === "/" ? "Going home…" : `Opening ${navBase.replace(/^\//, "").replace(/-/g, " ")}…` }
             }));
             // Push after cursor animation settles (~1.4s in)
-            setTimeout(() => {
+            scheduleAction(() => {
               router.push(navBase);
               if (navPath.includes("#")) {
                 const hash = navPath.split("#")[1];
-                setTimeout(() => {
+                scheduleAction(() => {
                   const el = document.getElementById(hash) || document.querySelector(`[data-highlight-id="${hash}"]`);
                   el?.scrollIntoView({ behavior: "smooth", block: "center" });
                 }, 800);
@@ -1032,15 +1054,15 @@ export default function ChatPanel() {
               // Prefetch immediately — page loads while TTS is still speaking
               try { router.prefetch(path); } catch { /* */ }
               // Cursor sweeps to nav link
-              setTimeout(() => {
+              scheduleAction(() => {
                 window.dispatchEvent(new CustomEvent("mdcran:cursor-nav", {
                   detail: { href: path, label: `Opening ${path.replace(/^\//, "").replace(/-/g, " ") || "home"}…` }
                 }));
               }, 400);
               // Navigate after cursor animation (~1.4s from dispatch)
-              setTimeout(() => { router.push(path); }, 1800);
+              scheduleAction(() => { router.push(path); }, 1800);
               // After page has rendered (prefetched = near-instant), scroll to item and click it
-              setTimeout(() => {
+              scheduleAction(() => {
                 window.dispatchEvent(new CustomEvent("mdcran:cursor-click", {
                   detail: { text: search, label: `Opening "${search}"…` }
                 }));
@@ -1056,7 +1078,7 @@ export default function ChatPanel() {
             hasMarkers = true;
             const zoomTarget = zoomMatch[1];
             cleaned = cleaned.replace(/\s*__ZOOM:.+?__\s*/g, " ");
-            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:zoom", { detail: zoomTarget })), 300);
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:zoom", { detail: zoomTarget })), 300);
           }
 
           // Emphasize (glassmorphism pop) marker
@@ -1065,7 +1087,7 @@ export default function ChatPanel() {
             hasMarkers = true;
             const emphTarget = emphMatch[1];
             cleaned = cleaned.replace(/\s*__EMPHASIZE:.+?__\s*/g, " ");
-            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:emphasize", { detail: emphTarget })), 300);
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:emphasize", { detail: emphTarget })), 300);
           }
 
           // Reset zoom / emphasis marker (no argument)
@@ -1079,16 +1101,16 @@ export default function ChatPanel() {
           if (/__PROJECTTOUR__/.test(cleaned)) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__PROJECTTOUR__\s*/g, " ");
-            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:run-projects-tour")), 500);
           }
 
           // Full portfolio UI tour — triggers AssistantTutorial walkthrough
           if (/__TOUR__/.test(cleaned)) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__TOUR__\s*/g, " ");
-            setTimeout(() => {
+            scheduleAction(() => {
               window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
-              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
+              scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
             }, 600);
           }
 
@@ -1099,7 +1121,7 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/__IMAGESHOW:\d+__/g, "");
             const m = imageShowMatches[0];
             const idx = parseInt(m[1], 10);
-            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:open-image", { detail: { index: idx } })), 500);
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:open-image", { detail: { index: idx } })), 500);
           }
 
           // AI cursor: point at element by visible text
@@ -1109,7 +1131,7 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/__POINT:[^_]+?__/g, "");
             pointMatches.forEach((m, i) => {
               const text = m[1].trim();
-              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { text } })), i * 400);
+              scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { text } })), i * 400);
             });
           }
 
@@ -1120,7 +1142,7 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/__CLICK:[^_]+?__/g, "");
             clickMatches.forEach((m, i) => {
               const text = m[1].trim();
-              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text } })), i * 500);
+              scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text } })), i * 500);
             });
           }
 
@@ -1131,9 +1153,9 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/__CLICKID:[\w-]+__/g, "");
             clickIdMatches.forEach((m, i) => {
               const selector = `[data-highlight-id="${m[1]}"]`;
-              setTimeout(() => {
+              scheduleAction(() => {
                 window.dispatchEvent(new CustomEvent("mdcran:cursor-move", { detail: { selector } }));
-                setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector } })), 220);
+                scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector } })), 220);
               }, i * 500);
             });
           }
@@ -1150,7 +1172,7 @@ export default function ChatPanel() {
           if (scrollMatches.length) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__SCROLL:(?:up|down|left|right|top|bottom)(?::[\w-]+)?__\s*/gi, " ");
-            scrollMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:scroll", { detail: { direction: m[1].toLowerCase(), target: m[2] } })), i * 500));
+            scrollMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:scroll", { detail: { direction: m[1].toLowerCase(), target: m[2] } })), i * 500));
           }
 
           // Type into an anchored field by data-highlight-id: __TYPEID:fieldId|text__
@@ -1159,7 +1181,7 @@ export default function ChatPanel() {
           if (typeIdMatches.length) {
             hasMarkers = true;
             cleaned = cleaned.replace(/__TYPEID:[\w-]+\|[^|]*?__/g, "");
-            typeIdMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (i * 1800)));
+            typeIdMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", { detail: { target: m[1], typeText: m[2] } })), (i * 1800)));
           }
 
           // Open the navbar search overlay and type a query: __SEARCH:query__
@@ -1174,7 +1196,7 @@ export default function ChatPanel() {
                 detail: { selector: '[aria-label="Search"]', label: "Opening search…" },
               }));
               // After overlay opens and input is mounted, type the query
-              setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", {
+              scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", {
                 detail: { target: "nav-search", typeText: query, label: `Searching for "${query}"…` },
               })), 2000);
             });
@@ -1185,7 +1207,7 @@ export default function ChatPanel() {
           if (sliderMatches.length) {
             hasMarkers = true;
             cleaned = cleaned.replace(/__SLIDER:[\w-]+\|\d{1,3}__/g, "");
-            sliderMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-slider", { detail: { target: m[1], value: parseInt(m[2], 10) } })), i * 500));
+            sliderMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-slider", { detail: { target: m[1], value: parseInt(m[2], 10) } })), i * 500));
           }
 
           // Toggle a checkbox/radio: __CHECK:target|on__ / __CHECK:target|off__ / __CHECK:target__
@@ -1193,7 +1215,7 @@ export default function ChatPanel() {
           if (checkMatches.length) {
             hasMarkers = true;
             cleaned = cleaned.replace(/__CHECK:[\w-]+(?:\|(?:on|off))?__/g, "");
-            checkMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-check", { detail: { target: m[1], checked: m[2] ? m[2] === "on" : undefined } })), i * 500));
+            checkMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-check", { detail: { target: m[1], checked: m[2] ? m[2] === "on" : undefined } })), i * 500));
           }
 
           // Choose a select / dropdown option: __SELECT:target|value__
@@ -1201,7 +1223,7 @@ export default function ChatPanel() {
           if (selectMatches.length) {
             hasMarkers = true;
             cleaned = cleaned.replace(/__SELECT:[\w-]+\|[^|]*?__/g, "");
-            selectMatches.forEach((m, i) => setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-select", { detail: { target: m[1], value: m[2], optionText: m[2] } })), i * 500));
+            selectMatches.forEach((m, i) => scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-select", { detail: { target: m[1], value: m[2], optionText: m[2] } })), i * 500));
           }
 
           // Preload/prefetch a route WITHOUT navigating: __PREFETCH:/path__
@@ -1255,7 +1277,7 @@ export default function ChatPanel() {
             }
             // Consent denied at the identity gate (anonymous user) — close chat after farewell plays
             if (wasAnonymousGate) {
-              setTimeout(() => setOpen(false), 4500);
+              scheduleAction(() => setOpen(false), 4500);
             }
           }
 
@@ -1301,7 +1323,7 @@ export default function ChatPanel() {
           if (/__SCANTOMOBILE__/.test(cleaned)) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__SCANTOMOBILE__\s*/g, " ");
-            setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:scan-to-mobile")), 300);
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:scan-to-mobile")), 300);
           }
 
           // Reject a probabilistic cross-device candidate (user denied the pairing)
@@ -1341,19 +1363,19 @@ export default function ChatPanel() {
             const internalLinks: string[] = [];
             let linkExec: RegExpExecArray | null;
             while ((linkExec = linkRegex.exec(cleaned)) !== null) {
-              internalLinks.push(linkExec[2]);
+              if (safePublicPath(linkExec[2])) internalLinks.push(linkExec[2]);
             }
             // Auto-navigate if there's exactly one internal link
             if (internalLinks.length === 1) {
               const linkPath = internalLinks[0];
               didNavigate = true;
               try { router.prefetch(linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath); } catch { /* */ }
-              setTimeout(() => {
+              scheduleAction(() => {
                 const base = linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath;
                 router.push(base);
                 if (linkPath.includes("#")) {
                   const hash = linkPath.split("#")[1];
-                  setTimeout(() => {
+                  scheduleAction(() => {
                     const el = document.getElementById(hash) || document.querySelector(`[data-highlight-id="${hash}"]`);
                     el?.scrollIntoView({ behavior: "smooth", block: "center" });
                   }, 800);
@@ -1367,7 +1389,7 @@ export default function ChatPanel() {
             announceAiAction(`AI is highlighting ${highlightTarget.replace(/[-_]/g, " ")}`);
             if (didNavigate) {
               // Auto-navigating: fire highlight after page loads
-              setTimeout(() => {
+              scheduleAction(() => {
                 window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: highlightTarget }));
               }, 1600);
             } else {
@@ -1378,7 +1400,7 @@ export default function ChatPanel() {
                 pendingHighlightTarget = highlightTarget;
               } else {
                 // Current page: fire highlight immediately
-                setTimeout(() => {
+                scheduleAction(() => {
                   window.dispatchEvent(new CustomEvent("mdcran:highlight", { detail: highlightTarget }));
                 }, 300);
               }
@@ -1400,6 +1422,7 @@ export default function ChatPanel() {
                 projectCards,
                 contactCard,
                 bookingCard,
+                sources,
               };
               return updated;
             });
@@ -2049,6 +2072,7 @@ export default function ChatPanel() {
                             },
                             !msg.autoNavigated,
                           )}
+                          <EvidenceSources sources={msg.sources} />
                           {msg.projectCards?.map((pid) => (
                             <ChatProjectCard key={pid} projectId={pid} onNavigate={(href) => router.push(href)} />
                           ))}

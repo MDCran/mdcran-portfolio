@@ -9,14 +9,12 @@ import ScrollProgress from "@/components/shared/ScrollProgress";
 import PageTranslator from "@/components/shared/PageTranslator";
 import CookieConsent from "@/components/shared/CookieConsent";
 import ExternalLinkGuard from "@/components/shared/ExternalLinkGuard";
-import MoodEngine from "@/components/shared/MoodEngine";
 import IdentityTracker from "@/components/shared/IdentityTracker";
 import KeyboardShortcuts from "@/components/shared/KeyboardShortcuts";
 import ChatBubble from "@/components/chat/ChatBubble";
 import ThemeOverlay from "@/components/shared/ThemeOverlay";
-import ThemeEffectsOverlay from "@/components/shared/ThemeEffectsOverlay";
 import StatusBanner from "@/components/status/StatusBanner";
-import SectionWheel from "@/components/shared/SectionWheel";
+import CalmEffects from "@/components/shared/CalmEffects";
 import { findTarget } from "@/lib/find-target";
 
 const TerminalExperience = dynamic(
@@ -311,11 +309,9 @@ export default function GlobalChrome() {
       <GhostCursor />
       <AIBrowserCursor />
       <ThemeOverlay />
-      <ThemeEffectsOverlay />
-      <SectionWheel />
+      {!hideFunChrome && <CalmEffects />}
       <CookieConsent />
       <ExternalLinkGuard />
-      <MoodEngine />
       <IdentityTracker />
       <LanguageWarning />
     </LanguageProvider>

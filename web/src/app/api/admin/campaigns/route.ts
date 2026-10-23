@@ -1,206 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
 import { isAdminAuthenticated } from "@/lib/auth";
-import { getCampaignRecipientSnapshot, sendCampaign } from "@/lib/campaign-delivery";
+import { getCampaignRecipientSnapshot } from "@/lib/campaign-delivery";
+import { processCampaignJobs } from "@/lib/campaign-jobs";
+import { recordOperation } from "@/lib/operations";
+import { adminError, mutateContent, saveContentBatch } from "@/lib/admin-content";
+import { AdminDataError } from "@/lib/content-validation";
+import { paginateCollection } from "@/lib/admin-pagination";
 import type { Campaign, ContactSubmission } from "@/lib/types";
 
-function stripUndefined<T extends Record<string, unknown>>(value: T): T {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, entry]) => entry !== undefined)
-  ) as T;
+export const maxDuration = 60;
+export async function GET(req: NextRequest) {
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (req.nextUrl.searchParams.has("limit")) return NextResponse.json(await paginateCollection("campaigns", req.nextUrl.searchParams, ["subject", "message"]));
+  // Reading the dashboard never sends messages.
+  return NextResponse.json(await (await getDb()).collection("campaigns").find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray());
 }
-
-async function processDueCampaigns(db: Awaited<ReturnType<typeof getDb>>) {
-  const now = new Date().toISOString();
-  const dueCampaigns = await db
-    .collection("campaigns")
-    .find<Campaign>({
-      status: "scheduled",
-      scheduledFor: { $lte: now },
-    })
-    .toArray();
-
-  if (dueCampaigns.length === 0) {
-    return;
-  }
-
-  const contacts = await db.collection("contacts").find<ContactSubmission>({}).toArray();
-
-  for (const campaign of dueCampaigns) {
-    try {
-      const result = await sendCampaign(campaign, contacts);
-      const fullyDelivered = result.remainingCount === 0;
-      await db.collection("campaigns").updateOne(
-        { id: campaign.id },
-        {
-          $set: stripUndefined({
-            status: fullyDelivered ? "sent" : "draft",
-            sentAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            recipients: result.totalCount,
-            deliveredContactIds: result.deliveredIds,
-            deliveryLog: result.deliveryLog,
-            scheduledFor: undefined,
-            lastError: undefined,
-          }),
-        }
-      );
-    } catch (error) {
-      await db.collection("campaigns").updateOne(
-        { id: campaign.id },
-        {
-          $set: stripUndefined({
-            status: "draft",
-            updatedAt: new Date().toISOString(),
-            lastError: error instanceof Error ? error.message : "Failed to send scheduled campaign.",
-          }),
-        }
-      );
-    }
-  }
-}
-
-export async function GET() {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const db = await getDb();
-  await processDueCampaigns(db);
-  const data = await db
-    .collection("campaigns")
-    .find<Campaign>({})
-    .sort({ createdAt: -1 })
-    .toArray();
-  return NextResponse.json(data);
-}
-
 export async function PUT(req: NextRequest) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const data = (await req.json()) as Campaign[];
-  const db = await getDb();
-  await db.collection("campaigns").deleteMany({});
-  if (data.length) {
-    await db.collection("campaigns").insertMany(data as unknown as Record<string, unknown>[]);
-  }
-  return NextResponse.json({ ok: true });
-}
-
-export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json().catch(() => null);
-  if (!body) {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  }
-
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    await saveContentBatch("campaigns", await req.json());
+    return NextResponse.json({ ok: true, records: await (await getDb()).collection("campaigns").find({}, { projection: { _id: 0 } }).toArray() });
+  } catch (error) { return adminError(error); }
+}
+export async function POST(req: NextRequest) {
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const body = await req.json();
     const db = await getDb();
-
     if (body.action === "process-due") {
-      await processDueCampaigns(db);
-      const data = await db
-        .collection("campaigns")
-        .find<Campaign>({})
-        .sort({ createdAt: -1 })
-        .toArray();
-      return NextResponse.json(data);
+      await recordOperation("campaigns", () => processCampaignJobs());
+      return NextResponse.json(await db.collection("campaigns").find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray());
     }
-
-    const campaign = body.campaign as Campaign | undefined;
-    const action = body.action as "draft" | "schedule" | "send" | undefined;
-    const batchSize =
-      typeof body.batchSize === "number" && Number.isFinite(body.batchSize)
-        ? Math.max(1, Math.floor(body.batchSize))
-        : undefined;
-
-    if (!campaign || !action) {
-      return NextResponse.json({ error: "Campaign and action are required" }, { status: 400 });
-    }
-
-    const now = new Date().toISOString();
-    const contacts = await db.collection("contacts").find<ContactSubmission>({}).toArray();
-    const contactIds =
-      campaign.contactIds && campaign.contactIds.length > 0
-        ? campaign.contactIds
-        : getCampaignRecipientSnapshot(campaign, contacts).map((contact) => contact.id);
-
-    const normalizedCampaign: Campaign = {
-      ...campaign,
-      contactIds,
-      recipients: contactIds.length,
-      updatedAt: now,
-      status:
-        action === "send"
-          ? "sent"
-          : action === "schedule"
-            ? "scheduled"
-            : "draft",
-    };
-
-    if (action === "send") {
-      try {
-        const result = await sendCampaign(normalizedCampaign, contacts, batchSize);
-        normalizedCampaign.recipients = result.totalCount;
-        normalizedCampaign.deliveredContactIds = result.deliveredIds;
-        normalizedCampaign.deliveryLog = result.deliveryLog;
-        normalizedCampaign.sentAt = now;
-        normalizedCampaign.scheduledFor = undefined;
-        normalizedCampaign.status = result.remainingCount === 0 ? "sent" : "draft";
-        normalizedCampaign.lastError = undefined;
-      } catch (error) {
-        normalizedCampaign.status = "draft";
-        normalizedCampaign.lastError =
-          error instanceof Error ? error.message : "Failed to send campaign.";
-        await db.collection("campaigns").updateOne(
-          { id: normalizedCampaign.id },
-          { $set: stripUndefined(normalizedCampaign as unknown as Record<string, unknown>) },
-          { upsert: true }
-        );
-        return NextResponse.json(
-          { error: normalizedCampaign.lastError, campaign: normalizedCampaign },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (action === "schedule" && !normalizedCampaign.scheduledFor) {
-      return NextResponse.json({ error: "Scheduled time is required." }, { status: 400 });
-    }
-
-    const { createdAt, ...campaignUpdate } = normalizedCampaign;
-    const cleanCampaignUpdate = stripUndefined(campaignUpdate as Record<string, unknown>);
-    await db.collection("campaigns").updateOne(
-      { id: normalizedCampaign.id },
-      {
-        $setOnInsert: {
-          createdAt: createdAt || now,
-        },
-        $set: cleanCampaignUpdate,
-      },
-      { upsert: true }
-    );
-
-    return NextResponse.json({
-      ok: true,
-      campaign: {
-        ...cleanCampaignUpdate,
-        createdAt: createdAt || now,
-      },
-    });
-  } catch (error) {
-    console.error("Admin campaign save error:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to save campaign.",
-      },
-      { status: 500 }
-    );
-  }
+    if (!["draft", "schedule", "send"].includes(body.action) || !body.campaign) throw new AdminDataError("Campaign and action are required");
+    const campaign = body.campaign as Campaign & { _version?: number };
+    if (!["email", "sms"].includes(campaign.type) || (!campaign.message?.trim() && !campaign.htmlBody?.trim())) throw new AdminDataError("A valid channel and message are required");
+    if (campaign.type === "email" && !campaign.subject?.trim()) throw new AdminDataError("Email campaigns require a subject");
+    if (body.action === "schedule" && (!campaign.scheduledFor || !Number.isFinite(Date.parse(campaign.scheduledFor)))) throw new AdminDataError("A valid scheduled time is required");
+    const current = await db.collection("campaigns").findOne<Campaign>({ id: campaign.id });
+    const busy = await db.collection("campaignJobs").findOne({ campaignId: campaign.id, leaseUntil: { $gt: new Date() } });
+    if (busy) throw new AdminDataError("This campaign is delivering. Try again after the job finishes.", 409);
+    if (current?.deliveredContactIds?.length && (current.message !== campaign.message || current.htmlBody !== campaign.htmlBody || current.subject !== campaign.subject || current.type !== campaign.type)) throw new AdminDataError("Duplicate this campaign to change content after delivery has started.", 409);
+    const contacts = await db.collection("contacts").find<ContactSubmission>({ subscribed: true }).toArray();
+    const contactIds = campaign.contactIds?.length ? campaign.contactIds : getCampaignRecipientSnapshot(campaign, contacts).map((contact) => contact.id);
+    const record = { ...campaign, contactIds, recipientMode: "specific", recipients: contactIds.length, deliveredContactIds: current?.deliveredContactIds ?? [], deliveryLog: current?.deliveryLog ?? [], createdAt: current?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), status: body.action === "draft" ? "draft" : "scheduled", scheduledFor: body.action === "send" ? new Date().toISOString() : campaign.scheduledFor };
+    await mutateContent({ collection: "campaigns", id: campaign.id, expectedVersion: campaign._version ?? 0, action: "save", record });
+    if (body.action === "send") await recordOperation("campaigns", () => processCampaignJobs({ campaignId: campaign.id, batchSize: body.batchSize }));
+    return NextResponse.json({ ok: true, campaign: await db.collection("campaigns").findOne({ id: campaign.id }, { projection: { _id: 0 } }) });
+  } catch (error) { return adminError(error); }
 }

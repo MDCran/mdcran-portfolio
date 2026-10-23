@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Trash2, Link2, GitMerge, Check, X, Pencil, Loader2, Fingerprint, UserPlus,
@@ -30,19 +30,56 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
   const [newName, setNewName] = useState("");
   const [search, setSearch] = useState("");
 
-  const load = () => fetch("/api/admin/identities").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.identities) setIdentities(d.identities); }).catch(() => {});
-  useEffect(() => { load(); }, []);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const requestRef = useRef<AbortController | null>(null);
+  const load = useCallback(async (cursor?: string) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setLoadError("");
+    try {
+      const params = new URLSearchParams({ collection: "identities", limit: "30", q: search });
+      if (cursor) params.set("cursor", cursor);
+      const response = await fetch(`/api/admin/records?${params}`, { signal: controller.signal });
+      if (!response.ok) throw new Error("Could not load identities.");
+      const page = await response.json() as { records: Identity[]; nextCursor: string | null };
+      if (controller.signal.aborted) return;
+      setIdentities((current) => cursor ? [...(current ?? []), ...page.records] : page.records);
+      setNextCursor(page.nextCursor);
+    } catch {
+      if (!controller.signal.aborted) setLoadError("Could not load identities. Try again.");
+    } finally {
+      if (requestRef.current === controller) setLoading(false);
+    }
+  }, [search]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setSelected(new Set()); void load(); }, 250);
+    return () => { window.clearTimeout(timer); requestRef.current?.abort(); };
+  }, [load]);
 
-  const rename = async (id: string) => {
+  const performMutation = async (method: string, body: Record<string, unknown>) => {
     setBusy(true);
-    await fetch("/api/admin/identities", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, name: editName }) });
-    setEditing(null); await load(); setBusy(false);
+    setLoadError("");
+    try {
+      const response = await fetch("/api/admin/identities", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "The identity change could not be saved.");
+      await load();
+      return result;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "The identity change could not be saved.");
+      return null;
+    } finally { setBusy(false); }
+  };
+  const rename = async (id: string) => {
+    if (await performMutation("PUT", { id, name: editName })) setEditing(null);
   };
   const del = async (id: string, name: string) => {
     if (!(await confirm({ title: `Delete "${name}"?`, body: "This permanently removes the identity record.", confirmLabel: "Delete", danger: true }))) return;
-    setBusy(true);
-    await fetch("/api/admin/identities", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    await load(); setBusy(false);
+    await performMutation("DELETE", { id });
   };
   const merge = async () => {
     const ids = Array.from(selected);
@@ -50,17 +87,13 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
     const targetId = ids[0];
     const targetName = identities?.find((i) => i.id === targetId)?.name ?? "the first one";
     if (!(await confirm({ title: `Merge ${ids.length} identities?`, body: `They all combine into "${targetName}"; the others are deleted and their devices + activity move over.`, confirmLabel: "Merge", danger: true }))) return;
-    setBusy(true);
-    await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "merge", targetId, sourceIds: ids.slice(1) }) });
-    setSelected(new Set()); await load(); setBusy(false);
+    if (await performMutation("POST", { action: "merge", targetId, sourceIds: ids.slice(1) })) setSelected(new Set());
   };
   const mergeInto = async (sourceId: string, targetId: string) => {
     const src = identities?.find((i) => i.id === sourceId);
     const tgt = identities?.find((i) => i.id === targetId);
     if (!(await confirm({ title: `Merge "${src?.name}" into "${tgt?.name}"?`, body: `All of its devices and activity move over, and "${src?.name}" is deleted.`, confirmLabel: "Merge", danger: true }))) return;
-    setBusy(true);
-    await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "merge", targetId, sourceIds: [sourceId] }) });
-    setSelected(new Set()); await load(); setBusy(false);
+    if (await performMutation("POST", { action: "merge", targetId, sourceIds: [sourceId] })) setSelected(new Set());
   };
   const copyLink = (id: string) => {
     const url = `${SITE}${linkPath.startsWith("/") ? linkPath : `/${linkPath}`}?identity=${id}`;
@@ -69,20 +102,15 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
   const create = async () => {
     const name = newName.trim();
     if (!name) return;
-    setBusy(true);
-    const r = await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", name }) })
-      .then((x) => (x.ok ? x.json() : null)).catch(() => null);
-    setNewName("");
-    await load();
-    setBusy(false);
-    if (r?.identity?.id) copyLink(r.identity.id);
+    const result = await performMutation("POST", { action: "create", name });
+    if (result?.identity?.id) { setNewName(""); copyLink(result.identity.id); }
   };
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  if (!identities) return <p className="text-xs text-white/30">Loading identities…</p>;
+  if (!identities) return <div className="text-xs text-white/50"><p role="status">{loadError || "Loading identities…"}</p>{loadError && <button onClick={() => void load()} className="mt-2 underline">Retry</button>}</div>;
 
   const q = search.trim().toLowerCase();
-  const shown = q ? identities.filter((i) => i.name.toLowerCase().includes(q) || i.devices.some((d) => (d.ip ?? "").includes(q) || d.serial.includes(q))) : identities;
+  const shown = identities;
   const identified = shown.filter((i) => !i.anonymous);
   const anonymous = shown.filter((i) => i.anonymous);
 
@@ -187,6 +215,11 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
         </div>
       )}
 
+      {loadError && <p role="alert" className="text-xs text-red-300">{loadError} <button className="underline" onClick={() => void load()}>Retry</button></p>}
+      <div className="flex items-center gap-3 text-xs text-white/45" aria-live="polite">
+        <span>{identities.length} loaded{loading ? " · Loading…" : ""}</span>
+        {nextCursor && <button disabled={loading} onClick={() => void load(nextCursor)} className="rounded-sm border border-white/15 px-3 py-2 text-white/70 disabled:opacity-40">Load more identities</button>}
+      </div>
       {busy && <div className="flex items-center gap-2 text-xs text-white/40"><Loader2 size={12} className="animate-spin" /> Working…</div>}
       {modal}
     </div>

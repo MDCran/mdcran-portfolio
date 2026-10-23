@@ -19,6 +19,17 @@ export const defaultAssistantPreferences: AssistantPreferences = {
   pronunciation: "",
 };
 const KEY = "mdcran_assistant_preferences";
+export function memoryScopeChanged(event: Pick<StorageEvent, "key" | "oldValue" | "newValue">): boolean {
+  if (event.key === null) return true;
+  if (event.key !== KEY) return false;
+  try { const before = JSON.parse(event.oldValue || "{}"); const after = JSON.parse(event.newValue || "{}"); return before.memoryEpoch !== after.memoryEpoch || (before.memory === true && after.memory !== true); } catch { return true; }
+}
+/** Clear stale in-memory history in other tabs after a preference edit/delete. */
+export function subscribeMemoryScopeChanges(clear: () => void) {
+  const handler = (event: StorageEvent) => { if (memoryScopeChanged(event)) { clearConversationHandoff(); clear(); } };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
+}
 export function readAssistantPreferences(): AssistantPreferences {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) || "{}");
@@ -79,6 +90,7 @@ export function clearAssistantConversation() {
     /* */
   }
   window.dispatchEvent(new Event("mdcran:conversation-clear"));
+  window.dispatchEvent(new Event("mdcran:memory-changed"));
 }
 export function pageQuestions(path: string): string[] {
   if (path.startsWith("/resume"))

@@ -1,3 +1,4 @@
+import { adminError } from "@/lib/admin-content";
 import { NextRequest, NextResponse } from "next/server";
 import { getProjects, saveProjects, invalidateProjectVideoCache } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
@@ -14,9 +15,11 @@ export async function PUT(req: NextRequest) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  try {
   const data = await req.json();
   await saveProjects(data);
   // Clear video view cache so new videos get their counts on next page load
   await invalidateProjectVideoCache();
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, records: await getProjects({ includeHidden: true }) });
+  } catch (error) { return adminError(error); }
 }

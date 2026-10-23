@@ -12,7 +12,12 @@
     "seed:content": "tsx scripts/seed-content.ts",
     "migrate:cdn-urls": "tsx scripts/migrate-cdn-asset-urls.ts",
     "sync:cdn-to-r2": "tsx scripts/sync-cdn-to-r2.ts",
-    "gen:tour-audio": "node scripts/generate-tour-audio.mjs"
+    "gen:tour-audio": "node scripts/generate-tour-audio.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "tsx --test scripts/portfolio-experience.test.tsx scripts/rizz.test.ts scripts/public-modernization.test.tsx scripts/profile-publication.test.tsx scripts/assistant-modernization.test.ts scripts/content-health.test.ts scripts/admin-client.test.ts",
+    "test:backend": "tsx --test scripts/backend-modernization.test.ts",
+    "test:smoke": "node scripts/smoke-modernization.mjs",
+    "publish:profile": "node scripts/publish-profile.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",

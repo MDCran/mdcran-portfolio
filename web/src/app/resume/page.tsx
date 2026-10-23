@@ -16,7 +16,7 @@ import {
   getSkillCategories,
   getProjects,
   getArticles,
-} from "@/lib/db";
+} from "@/lib/public-content-cache";
 import { buildSeoMetadata, SITE_URL } from "@/lib/seo";
 import { ENGINEERING_SUMMARY } from "@/lib/engineering";
 
@@ -47,7 +47,7 @@ export default async function ResumePage() {
       getSkillCategories(),
     ]);
   const [allProjects, allArticles] = await Promise.all([
-    getProjects({ refreshVideoViews: false }).catch(() => []),
+    getProjects().catch(() => []),
     getArticles().catch(() => []),
   ]);
   const siteContent = await getSiteContent();

@@ -1,36 +1,30 @@
 import Link from "next/link";
-import { ArrowRight, Github } from "lucide-react";
-import { engineeringFocus } from "@/lib/engineering";
+import { ArrowRight } from "lucide-react";
+import { ENGINEERING_SUMMARY, engineeringProjects } from "@/lib/engineering";
+import type { Project } from "@/lib/types";
+import { portfolioRoles, roleLabels } from "@/lib/public-portfolio";
 
-export default function EngineeringHighlights() {
-  return (
-    <section aria-labelledby="engineering-title" className="border-y border-white/10 py-14 sm:py-20">
-      <div className="content-container">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
-          <div className="max-w-2xl">
-            <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-[var(--cranberry)]">Engineering portfolio</p>
-            <h2 id="engineering-title" className="font-nord text-2xl sm:text-3xl text-white">Software, AI & the systems behind them</h2>
-            <p className="mt-4 text-sm leading-relaxed text-white/65">Selected projects with public source, architecture notes, and a clear view of what I built.</p>
-          </div>
-          <Link href="/engineering" className="inline-flex items-center gap-2 text-sm text-[var(--cranberry)] hover:underline underline-offset-4">
-            Explore engineering work <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {engineeringFocus.map((focus) => (
-            <Link key={focus.id} href={`/engineering#${focus.id}`} className="rounded-sm border border-white/10 bg-white/3 p-6 transition-colors hover:border-[var(--cranberry)]/50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--cranberry)]">
-              <h3 className="text-base font-semibold text-white">{focus.title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-white/65">{focus.description}</p>
-              <p className="mt-4 text-xs leading-relaxed text-white/55">{focus.skills.join(" · ")}</p>
-              <span className="mt-5 inline-flex items-center gap-2 text-xs text-[var(--cranberry)]">See project evidence <ArrowRight size={13} aria-hidden="true" /></span>
-            </Link>
-          ))}
-        </div>
-        <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-          <Link href="/resume" className="text-white/70 hover:text-white hover:underline underline-offset-4">Experience & resume</Link>
-          <a href="https://github.com/MDCran" className="inline-flex items-center gap-2 text-white/70 hover:text-white hover:underline underline-offset-4"><Github size={15} aria-hidden="true" />Public repositories</a>
-        </div>
-      </div>
-    </section>
-  );
+export default function EngineeringHighlights({ projects = [] }: { projects?: Project[] }) {
+  const selected = ["coretex", "health-tracker", "webdesign-portfolio"].map((slug) => projects.find((p) => p.slug === slug)).filter((p): p is Project => !!p);
+  return <section aria-labelledby="engineering-title" className="border-b border-white/10 py-12 sm:py-16">
+    <div className="content-container">
+      <p className="mb-3 text-sm font-semibold text-[var(--cranberry)]">For recruiters · about one minute</p>
+      <h2 id="engineering-title" className="text-2xl font-semibold sm:text-3xl">Three projects. Reviewable engineering evidence.</h2>
+      <p className="mt-4 max-w-3xl text-base text-white/80">{ENGINEERING_SUMMARY}</p>
+      <nav aria-label="Portfolio by role" className="my-6 flex flex-wrap gap-3">{portfolioRoles.filter((r) => r !== "all").map((role) => <Link key={role} href={`/engineering?role=${role}#projects`} className="rounded-sm border border-white/20 px-4 py-2 text-sm">{roleLabels[role]} view</Link>)}</nav>
+      <div className="grid gap-4 md:grid-cols-3">{selected.map((project) => {
+        const detail = engineeringProjects[project.slug];
+        const source = detail.sourceUrl ?? project.githubUrl ?? project.repositories?.[0]?.url;
+        return <article key={project.slug} className="rounded-sm border border-white/20 bg-white/3 p-6">
+          <p className="text-xs text-white/70">{detail.category}</p>
+          <h3 className="mt-3 text-xl font-semibold">{project.title}</h3>
+          <p className="mt-3 text-sm leading-relaxed text-white/80">{detail.summary}</p>
+          <p className="mt-4 text-sm leading-relaxed text-white/70">{detail.skills.slice(0, 4).join(" · ")}</p>
+          <div className="mt-5 flex flex-wrap gap-4 text-sm"><Link href={`/engineering#project-${project.slug}`} className="inline-flex items-center gap-2 text-[var(--cranberry)] underline underline-offset-4">Contribution & case study <ArrowRight size={14} aria-hidden="true" /></Link>{source && <a href={source} className="underline underline-offset-4">Public source</a>}</div>
+        </article>;
+      })}</div>
+      {!selected.length && <p className="mt-4 text-white/75">Published project records are currently unavailable. Browse the engineering overview and resume below.</p>}
+      <div className="mt-6 flex flex-wrap gap-5 text-sm"><Link href="/engineering" className="underline underline-offset-4">All engineering work</Link><Link href="/resume/print" className="underline underline-offset-4">Printable resume</Link><Link href="/articles" className="underline underline-offset-4">Articles</Link><Link href="/contact" className="underline underline-offset-4">Discuss a role</Link></div>
+    </div>
+  </section>;
 }

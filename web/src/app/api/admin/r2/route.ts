@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { createR2Folder, deleteR2Asset, listR2Assets, publicUrlForKey, renameR2Asset, uploadR2Asset } from "@/lib/r2";
 import { updateR2AssetReferences } from "@/lib/db";
+import { getAssetUsage } from "@/lib/asset-usage";
 
 // Allow up to 50MB uploads
 export const config = {
@@ -65,6 +66,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Key is required." }, { status: 400 });
     }
 
+    const usage = await getAssetUsage(body.key);
+    if (!usage.canDelete) return NextResponse.json({ error: "This asset is used by content. Replace its references before deleting.", ...usage }, { status: 409 });
     await deleteR2Asset(body.key);
     return NextResponse.json({ ok: true });
   } catch (error) {

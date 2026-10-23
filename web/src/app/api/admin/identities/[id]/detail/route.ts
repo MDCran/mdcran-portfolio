@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { findIdentityById } from "@/lib/identity";
 import { getDeviceGraph } from "@/lib/cross-device";
-import { getConversationsForIdentity } from "@/lib/ai-conversations";
+import { getIdentityMessagePage } from "@/lib/admin-message-history";
 import { getContactMessagesForIdentity, getRizzSubmissionsForIdentity, getChatRateLimitsForIps } from "@/lib/db";
 import { getBookingsForIdentity } from "@/lib/booking";
 import { getSessionsForIdentity } from "@/lib/analytics";
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const [graph, convo, contactMessages, bookings, rizz, sessions, chatLimits, formLimits] = await Promise.all([
     getDeviceGraph(serials),
-    getConversationsForIdentity(id, serials),
+    getIdentityMessagePage(id, serials),
     getContactMessagesForIdentity(id, serials).catch(() => []),
     getBookingsForIdentity(id, serials).catch(() => []),
     getRizzSubmissionsForIdentity(id, serials).catch(() => []),
@@ -39,8 +39,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     identity,
     registry: graph.devices,
     candidates: graph.candidates,
-    conversations: convo.conversations,
     messages: convo.messages,
+    messagesNextCursor: convo.nextCursor,
     contactMessages,
     bookings,
     rizz,

@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import ClientPageTitle from "@/components/shared/ClientPageTitle";
 import { ArrowRight } from "lucide-react";
 import { buildSeoMetadata } from "@/lib/seo";
-import { getSiteContent, getProjects, getArticles, getClients } from "@/lib/db";
+import { getSiteContent, getProjects, getArticles, getClients } from "@/lib/public-content-cache";
 import { projectUrl, imageAssetSrc } from "@/lib/utils";
 import { effectiveProjectDate, validPublishDate } from "@/lib/project-date";
 import WorkTable, { type WorkRow } from "@/components/work/WorkTable";
@@ -92,7 +92,7 @@ export function generateMetadata() {
 export default async function WorkPage() {
   const [siteContent, projects, articles, clients] = await Promise.all([
     getSiteContent(),
-    getProjects({ refreshVideoViews: false }),
+    getProjects(),
     getArticles(),
     getClients(),
   ]);

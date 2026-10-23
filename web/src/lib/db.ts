@@ -1,3 +1,4 @@
+import { saveContentBatch } from "./admin-content";
 import { getDb, resetMongoClient } from "./mongodb";
 import bcrypt from "bcryptjs";
 import type {
@@ -71,7 +72,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 async function readCollection<T>(collName: string): Promise<T[]> {
   return withRetry(async () => {
     const db = await getDb();
-    const rows = await db.collection(collName).find({}, { projection: { _id: 0 } }).toArray();
+    const rows = await db.collection(collName).find({}, { projection: { _id: 0 } }).sort({ _position: 1, position: 1, _id: 1 }).toArray();
     return rows.map((row) => normalizeAssetPaths(row) as T);
   });
 }
@@ -281,7 +282,6 @@ export async function getSiteContent(): Promise<SiteContent> {
 }
 
 export async function saveSiteContent(content: SiteContent): Promise<void> {
-  const db = await getDb();
   const rizz = getRizzConfig(content);
   const sanitizedContent: SiteContent = {
     ...content,
@@ -343,11 +343,7 @@ export async function saveSiteContent(content: SiteContent): Promise<void> {
       webDevDesign: content.pageHeaders.webDevDesign,
     },
   };
-  await db.collection("siteContent").updateOne(
-    { id: defaultSiteContent.id },
-    { $set: sanitizedContent },
-    { upsert: true }
-  );
+  await saveContentBatch("siteContent", [sanitizedContent]);
 }
 
 type ClientSocialRefreshReport = {
@@ -1250,7 +1246,7 @@ export async function getSkills(): Promise<Skill[]> {
 export async function getCertifications(): Promise<Certification[]> {
   return withRetry(async () => {
     const db = await getDb();
-    const rows = await db.collection("certifications").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+    const rows = await db.collection("certifications").find({}, { projection: { _id: 0 } }).sort({ _position: 1, position: 1 }).toArray();
     return rows.map((row) => normalizeAssetPaths(row as unknown as Certification) as Certification);
   });
 }
@@ -1258,7 +1254,7 @@ export async function getCertifications(): Promise<Certification[]> {
 export async function getAwards(): Promise<Award[]> {
   return withRetry(async () => {
     const db = await getDb();
-    const rows = await db.collection("awards").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+    const rows = await db.collection("awards").find({}, { projection: { _id: 0 } }).sort({ _position: 1, position: 1 }).toArray();
     return rows.map((row) => normalizeAssetPaths(row as unknown as Award) as Award);
   });
 }
@@ -1266,7 +1262,7 @@ export async function getAwards(): Promise<Award[]> {
 export async function getClubs(): Promise<ClubMembership[]> {
   return withRetry(async () => {
     const db = await getDb();
-    const rows = await db.collection("clubs").find({}, { projection: { _id: 0 } }).sort({ position: 1 }).toArray();
+    const rows = await db.collection("clubs").find({}, { projection: { _id: 0 } }).sort({ _position: 1, position: 1 }).toArray();
     return rows.map((row) => normalizeAssetPaths(row as unknown as ClubMembership) as ClubMembership);
   });
 }
@@ -1350,113 +1346,53 @@ export async function enableAdminTotp(): Promise<void> {
   await db.collection("settings").updateOne({ key: "admin_totp" }, { $set: { enabled: true } });
 }
 
-// Save helpers (replace entire collection)
+// Versioned transactional saves; omitted records are retained. Deletions are explicit.
 export async function saveProjects(data: Project[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("projects").deleteMany({});
-  if (data.length) {
-    await db.collection("projects").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("projects", data);
 }
 
 export async function saveArticles(data: Article[]): Promise<void> {
-  const db = await getDb();
-  const featuredIds = data.filter((article) => article.featured).map((article) => article.id);
-  const keepFeaturedId = featuredIds[0];
-  const normalized =
-    featuredIds.length <= 1
-      ? data
-      : data.map((article) => ({
-          ...article,
-          featured: article.id === keepFeaturedId,
-        }));
-  await db.collection("articles").deleteMany({});
-  if (normalized.length) {
-    await db.collection("articles").insertMany(normalized as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("articles", data);
 }
 
 export async function saveClients(data: Client[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("clients").deleteMany({});
-  if (data.length) {
-    await db.collection("clients").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("clients", data);
 }
 
 export async function saveExperiences(data: Experience[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("experiences").deleteMany({});
-  if (data.length) {
-    await db.collection("experiences").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("experiences", data);
 }
 
 export async function saveEducations(data: Education[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("educations").deleteMany({});
-  if (data.length) {
-    await db.collection("educations").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("educations", data);
 }
 
 export async function saveSkills(data: Skill[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("skills").deleteMany({});
-  if (data.length) {
-    await db.collection("skills").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("skills", data);
 }
 
 export async function saveCertifications(data: Certification[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("certifications").deleteMany({});
-  if (data.length) {
-    const withPosition = data.map((item, i) => ({ ...item, position: i }));
-    await db.collection("certifications").insertMany(withPosition as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("certifications", data.map((item, position) => ({ ...item, position })));
 }
 
 export async function saveAwards(data: Award[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("awards").deleteMany({});
-  if (data.length) {
-    const withPosition = data.map((item, i) => ({ ...item, position: i }));
-    await db.collection("awards").insertMany(withPosition as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("awards", data.map((item, position) => ({ ...item, position })));
 }
 
 export async function saveClubs(data: ClubMembership[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("clubs").deleteMany({});
-  if (data.length) {
-    const withPosition = data.map((item, i) => ({ ...item, position: i }));
-    await db.collection("clubs").insertMany(withPosition as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("clubs", data.map((item, position) => ({ ...item, position })));
 }
 
 export async function saveContactSubmissions(data: ContactSubmission[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("contacts").deleteMany({});
-  if (data.length) {
-    await db.collection("contacts").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("contacts", data);
 }
 
 export async function saveCampaigns(data: Campaign[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("campaigns").deleteMany({});
-  if (data.length) {
-    await db.collection("campaigns").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("campaigns", data);
 }
 
 export async function saveRizzSubmissions(data: RizzSubmission[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("rizz").deleteMany({});
-  if (data.length) {
-    await db.collection("rizz").insertMany(data as unknown as Record<string, unknown>[]);
-  }
+  await saveContentBatch("rizz", data);
 }
 
 // ─── Visitor tracking ───────────────────────────────────────────────────────
@@ -1893,6 +1829,7 @@ export async function updateR2AssetReferences(oldUrl: string, newUrl: string): P
 // ─── Chat Config ──────────────────────────────────────────────────────────────
 
 export interface ChatConfig {
+  _version?: number;
   rateLimit: number;
   rateWindowHours: number;
   /** Extra admin-authored context injected into the assistant's system prompt. */
@@ -1948,6 +1885,7 @@ export async function getChatConfig(): Promise<ChatConfig> {
   const doc = await db.collection("chatConfig").findOne({});
   if (!doc) return DEFAULT_CHAT_CONFIG;
   return {
+    _version: Number(doc._version ?? 0),
     rateLimit: typeof doc.rateLimit === "number" ? doc.rateLimit : DEFAULT_CHAT_CONFIG.rateLimit,
     rateWindowHours: typeof doc.rateWindowHours === "number" ? doc.rateWindowHours : DEFAULT_CHAT_CONFIG.rateWindowHours,
     extraContext: typeof doc.extraContext === "string" ? doc.extraContext : "",
@@ -1955,12 +1893,7 @@ export async function getChatConfig(): Promise<ChatConfig> {
 }
 
 export async function saveChatConfig(config: ChatConfig): Promise<void> {
-  const db = await getDb();
-  await db.collection("chatConfig").updateOne(
-    {},
-    { $set: config },
-    { upsert: true }
-  );
+  await saveContentBatch("chatConfig", [config]);
 }
 
 /* ── Resume profile (editable personal/contact info) ── */
@@ -1984,9 +1917,7 @@ export async function getResumeProfile(): Promise<ResumeProfile> {
 }
 
 export async function saveResumeProfile(profile: Partial<ResumeProfile>): Promise<void> {
-  const db = await getDb();
-  const merged = { ...DEFAULT_RESUME_PROFILE, ...profile };
-  await db.collection("resumeProfile").updateOne({}, { $set: merged }, { upsert: true });
+  await saveContentBatch("resumeProfile", [{ ...DEFAULT_RESUME_PROFILE, ...profile }]);
 }
 
 /* ── Skill categories (ordered metadata: label + icon) ── */
@@ -1995,19 +1926,13 @@ export async function getSkillCategories(): Promise<SkillCategoryMeta[]> {
   const rows = await db
     .collection("skillCategories")
     .find<SkillCategoryMeta & { position?: number }>({}, { projection: { _id: 0 } })
-    .sort({ position: 1 })
+    .sort({ _position: 1, position: 1 })
     .toArray();
   return rows.map(({ position: _position, ...rest }) => rest);
 }
 
 export async function saveSkillCategories(categories: SkillCategoryMeta[]): Promise<void> {
-  const db = await getDb();
-  await db.collection("skillCategories").deleteMany({});
-  if (categories.length) {
-    await db.collection("skillCategories").insertMany(
-      categories.map((c, i) => ({ ...c, position: i })) as unknown as Record<string, unknown>[]
-    );
-  }
+  await saveContentBatch("skillCategories", categories.map((item, position) => ({ ...item, position })));
 }
 
 // ─── AI Routing Conditions ────────────────────────────────────────────────────

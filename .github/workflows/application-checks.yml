@@ -1,0 +1,46 @@
+name: Application checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    env:
+      MONGODB_URI: mongodb://127.0.0.1:27028/?directConnection=true&replicaSet=mdcranReview
+      MONGODB_DB: mdcran_ci
+      TEST_MONGODB_URI: mongodb://127.0.0.1:27028/?directConnection=true&replicaSet=mdcranReview
+      JWT_SECRET: isolated-ci-only-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Start isolated transaction-capable database
+        run: |
+          docker run -d --name mdcran-ci -p 127.0.0.1:27028:27017 mongo:8 --replSet mdcranReview --bind_ip_all
+          for attempt in $(seq 1 30); do docker exec mdcran-ci mongosh --quiet --eval 'db.runCommand({ping:1})' && break; sleep 1; done
+          docker exec mdcran-ci mongosh --quiet --eval 'rs.initiate({_id:"mdcranReview",members:[{_id:0,host:"localhost:27017"}]})'
+          for attempt in $(seq 1 30); do docker exec mdcran-ci mongosh --quiet --eval 'if(!db.hello().isWritablePrimary)quit(1)' && break; sleep 1; done
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:backend
+      - run: npx tsx scripts/seed.ts
+      - run: npm run build -- --webpack
+      - name: Verify public and protected HTTP flows
+        run: |
+          npm run start -- -p 4000 > /tmp/mdcran-app.log 2>&1 &
+          for attempt in $(seq 1 30); do curl --silent --fail http://localhost:4000/robots.txt > /dev/null && break; sleep 1; done
+          npm run test:smoke
+      - run: git diff --check
+      - name: Stop isolated database
+        if: always()
+        run: docker rm -f mdcran-ci || true

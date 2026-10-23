@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { limitVoiceLike } from "@/lib/api-rate-limit";
+import { reserveVoiceCharacters } from "@/lib/assistant-operations";
+import { providerCancellation, relayProviderBody } from "@/lib/assistant-lifecycle";
 
 // Michael's actual voice — the ONLY voice the assistant uses. No fallback to any other
 // voice: if this voice can't synthesize, we report "voice unavailable" rather than
@@ -30,6 +32,7 @@ export async function GET() {
 
 /* POST — synthesize speech for a short assistant reply and stream the audio back. */
 export async function POST(req: NextRequest) {
+  const upstream = providerCancellation(req.signal);
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "Voice not configured" }), { status: 503 });
@@ -47,32 +50,31 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
   }
 
-  const text = (body.text ?? "").trim();
+  const text = typeof body.text === "string" ? body.text.trim() : "";
   if (!text) {
     return new Response(JSON.stringify({ error: "No text" }), { status: 400 });
   }
   // Cap length to keep latency + cost sane.
   const clipped = text.length > 1200 ? text.slice(0, 1200) : text;
+  if (!(await reserveVoiceCharacters(clipped.length))) return Response.json({ error: "Voice daily capacity reached" }, { status: 429 });
 
-  // Language override: pass BCP-47 code to ElevenLabs for multilingual_v2 so Michael's
-  // voice speaks the visitor's selected language. Only set if not English.
-  const langCode = typeof body.language === "string" && body.language.trim() ? body.language.trim() : null;
+  // The assistant translates the text before synthesis in the pinned multilingual voice.
   const elevenlabsBody: Record<string, unknown> = {
     text: clipped,
     model_id: MODEL,
     voice_settings: { ...VOICE_SETTINGS, speed: typeof body.pace === "number" ? Math.max(0.7, Math.min(1.2, body.pace)) : 1 },
   };
-  if (langCode && !langCode.startsWith("en")) {
-    // ElevenLabs expects BCP-47 (e.g. "es", "fr", "ja") — strip region suffix.
-    elevenlabsBody.language_code = langCode.split("-")[0];
-  }
+  // multilingual_v2 detects language from the translated text; the streaming API
+  // does not support language_code overrides for this pinned model.
 
   // Synthesize with Michael's voice only. If it fails, we DON'T substitute another
   // voice — we report that voice is unavailable so the client can say so.
+  upstream.signal.throwIfAborted();
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId()}?output_format=mp3_44100_128`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId()}/stream?output_format=mp3_44100_128`,
     {
       method: "POST",
+      signal: upstream.signal,
       headers: {
         "xi-api-key": apiKey,
         "Content-Type": "application/json",
@@ -83,10 +85,11 @@ export async function POST(req: NextRequest) {
   );
 
   if (res.ok && res.body) {
-    return new Response(res.body, {
+    return new Response(relayProviderBody(res.body, upstream.cancel), {
       headers: {
         "Content-Type": "audio/mpeg",
         "Cache-Control": "no-store",
+        "X-Accel-Buffering": "no",
       },
     });
   }

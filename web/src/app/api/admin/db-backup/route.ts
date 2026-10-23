@@ -1,101 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { NextRequest } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
-
-// Collections included in backup — excludes large ephemeral ones (visitors, translationCache, chatRateLimits)
-const BACKUP_COLLECTIONS = [
-  "projects",
-  "articles",
-  "clients",
-  "experiences",
-  "educations",
-  "skills",
-  "skillCategories",
-  "certifications",
-  "awards",
-  "clubs",
-  "contacts",
-  "campaigns",
-  "rizz",
-  "siteContent",
-  "resumeProfile",
-  "settings",
-  "chatConfig",
-  "statusServices",
-  "statusIncidents",
-  "visitorAdjustments",
-];
-
-export async function GET() {
-  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const db = await getDb();
-  const backup: Record<string, unknown[]> = {};
-
-  await Promise.all(
-    BACKUP_COLLECTIONS.map(async (col) => {
-      try {
-        const docs = await db.collection(col).find({}, { projection: { _id: 0 } }).toArray();
-        backup[col] = docs;
-      } catch {
-        backup[col] = [];
-      }
-    })
-  );
-
-  const meta = {
-    exportedAt: new Date().toISOString(),
-    collections: Object.fromEntries(
-      Object.entries(backup).map(([k, v]) => [k, v.length])
-    ),
-  };
-
-  const payload = JSON.stringify({ __meta: meta, ...backup }, null, 2);
-  const filename = `mdcran-db-backup-${new Date().toISOString().slice(0, 10)}.json`;
-
-  return new Response(payload, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
-}
-
-export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  let body: Record<string, unknown>;
+import { adminError } from "@/lib/admin-content";
+import { AdminDataError } from "@/lib/content-validation";
+import { executeRestore, exportBackup, prepareRestore } from "@/lib/admin-backup";
+import { getDb } from "@/lib/mongodb";
+export async function GET(req: NextRequest) {
+  if (!(await isAdminAuthenticated())) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  // Strip meta key, only process known collection names
-  const { __meta: _meta, ...rawCollections } = body;
-  const db = await getDb();
-  const results: Record<string, { restored: number; error?: string }> = {};
-
-  for (const [col, docs] of Object.entries(rawCollections)) {
-    if (!BACKUP_COLLECTIONS.includes(col)) {
-      results[col] = { restored: 0, error: "unknown collection — skipped" };
-      continue;
-    }
-    if (!Array.isArray(docs)) {
-      results[col] = { restored: 0, error: "not an array — skipped" };
-      continue;
-    }
-    try {
-      await db.collection(col).deleteMany({});
-      if (docs.length > 0) {
-        await db.collection(col).insertMany(docs as Record<string, unknown>[]);
-      }
-      results[col] = { restored: docs.length };
-    } catch (err) {
-      results[col] = { restored: 0, error: (err as Error).message };
-    }
-  }
-
-  return NextResponse.json({ success: true, results });
+    if (req.nextUrl.searchParams.get("snapshots") === "true") return Response.json({ snapshots: await (await getDb()).collection("backupSnapshots").find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(50).toArray() }, { headers: { "Cache-Control": "no-store" } });
+    const payload = await exportBackup(req.nextUrl.searchParams.get("snapshotId") ?? undefined);
+    return new Response(JSON.stringify(payload, null, 2), { headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="mdcran-backup-${new Date().toISOString().slice(0, 10)}.json"`, "Cache-Control": "no-store" } });
+  } catch (error) { return adminError(error); }
+}
+export async function POST(req: NextRequest) {
+  if (!(await isAdminAuthenticated())) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const body = await req.json();
+    if (body.action === "dry-run") return Response.json(await prepareRestore(body.backup));
+    if (body.action === "restore" && typeof body.planId === "string") return Response.json(await executeRestore(body.planId));
+    throw new AdminDataError("Run a dry-run and confirm its planId before restoring", 409);
+  } catch (error) { return adminError(error); }
 }

@@ -16,6 +16,8 @@ export default function IdentityPicker({ identities, excludeId, onPick, label, i
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [matches, setMatches] = useState<Identity[] | null>(null);
+  const [searchError, setSearchError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,7 +29,22 @@ export default function IdentityPicker({ identities, excludeId, onPick, label, i
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const list = identities
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ collection: "identities", limit: "50", q });
+        const response = await fetch(`/api/admin/records?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error();
+        const page = await response.json() as { records: Identity[] };
+        if (!controller.signal.aborted) { setMatches(page.records); setSearchError(""); }
+      } catch { if (!controller.signal.aborted) setSearchError("Search unavailable. Showing loaded identities."); }
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [open, q]);
+
+  const list = (matches ?? identities)
     .filter((o) => o.id !== excludeId)
     .filter((o) => {
       const s = q.trim().toLowerCase();
@@ -57,6 +74,7 @@ export default function IdentityPicker({ identities, excludeId, onPick, label, i
             />
           </div>
           <div className="max-h-60 overflow-y-auto py-1">
+            {searchError && <p role="status" className="px-2.5 py-2 text-[10px] text-amber-300">{searchError}</p>}
             {list.length === 0 ? (
               <p className="px-2.5 py-2 text-[11px] text-white/30">No matching identities.</p>
             ) : list.map((o) => (

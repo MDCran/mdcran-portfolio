@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import HomeAmbient from "@/components/home/HomeAmbient";
-import HomeLoader from "@/components/home/HomeLoader";
+import HomeExtras from "@/components/home/HomeExtras";
+import PublicVitals from "@/components/shared/PublicVitals";
 import Hero from "@/components/home/Hero";
 import EngineeringHighlights from "@/components/home/EngineeringHighlights";
 import Stats from "@/components/home/Stats";
@@ -12,8 +12,6 @@ import FeaturedProjects from "@/components/home/FeaturedProjects";
 import Clients from "@/components/home/Clients";
 import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
-import MercuryPrompt from "@/components/home/MercuryPrompt";
-import RecruiterPrompt from "@/components/home/RecruiterPrompt";
 import VisitorMap from "@/components/home/VisitorMap";
 import Timeline from "@/components/home/Timeline";
 import { getArticles, getClients, getExperiences, getProjects, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
@@ -129,7 +127,7 @@ export default async function HomePage() {
   };
 
   const sectionMap: Record<string, ReactNode> = {
-    hero: <><Hero content={siteContent.homeHero} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights /></div></>,
+    hero: <><Hero content={siteContent.homeHero} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights projects={allProjects} /></div></>,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
         <Stats content={siteContent.homeStats} aiUsageTracker={siteContent.aiUsageTracker} />
@@ -188,7 +186,6 @@ export default async function HomePage() {
 
   return (
     <>
-      <HomeLoader />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageJsonLd) }}
@@ -203,13 +200,12 @@ export default async function HomePage() {
       />
 
       <Navbar />
-      <main className="relative overflow-hidden">
-        <HomeAmbient />
+      <main className="public-portfolio relative overflow-hidden">
         {sectionsToRender.map((section) => (
           <div key={section.id} id={section.id} data-highlight-id={section.id} style={{ scrollMarginTop: "5rem" }}>{section.node}</div>
         ))}
-        <MercuryPrompt />
-        <RecruiterPrompt />
+        <HomeExtras />
+        <PublicVitals />
       </main>
       <Footer />
     </>

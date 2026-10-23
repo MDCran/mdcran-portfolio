@@ -170,6 +170,27 @@ body {
   min-height: 100vh;
 }
 
+/* Public editorial surfaces use system fonts for immediate, readable body copy.
+   Decorative display and terminal components keep their explicit font classes. */
+.public-portfolio {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.7;
+}
+.public-portfolio p { text-wrap: pretty; }
+.public-portfolio :is(button, a, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--cranberry);
+  outline-offset: 4px;
+}
+.public-portfolio :is(input, textarea) { font: inherit; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .public-portfolio *, .public-portfolio *::before, .public-portfolio *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 main {
   position: relative;
 }

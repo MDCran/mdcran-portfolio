@@ -9,36 +9,13 @@ import {
   MapPin,
   Sparkles,
 } from "lucide-react";
-import type { SiteContentAiUsage } from "@/lib/types";
+import type { ProfilePublication } from "@/lib/profile-publication";
 
 type ProfileSection = {
   title: string;
   icon: LucideIcon;
   tags: string[];
 };
-
-const PROFILE_SECTIONS: ProfileSection[] = [
-  {
-    title: "Languages & Fundamentals",
-    icon: Code2,
-    tags: ["Java", "Python", "C / C++", "C#", "JavaScript", "TypeScript", "HTML / CSS", "Algorithm Design"],
-  },
-  {
-    title: "Frameworks & APIs",
-    icon: Cpu,
-    tags: ["React", "Next.js", "Angular", "Node.js", "Expo", "Tailwind CSS", "FastAPI", "RESTful APIs", "Server Architecture"],
-  },
-  {
-    title: "AI & Data",
-    icon: Sparkles,
-    tags: ["CUDA", "Triton", "LLM Integration", "AI Automation", "PostgreSQL", "MongoDB / NoSQL", "pgvector", "pandas", "NumPy", "Matplotlib", "OpenCV"],
-  },
-  {
-    title: "Cloud, Delivery & Tools",
-    icon: Cloud,
-    tags: ["AWS EC2", "S3", "RDS", "IAM", "SAM CLI", "Lambda", "Git", "Docker", "Nginx", "Ubuntu / Linux", "GitHub Actions", "CI / CD", "Cloudflare", "Vercel / Netlify", "n8n / Zapier", "Jira / Confluence", "Agile / Scrum", "Cursor", "RenderDoc"],
-  },
-];
 
 function SkillTag({ value }: { value: string }) {
   return (
@@ -86,11 +63,12 @@ function formatTokenCount(totalTokens: number): string {
       : totalTokens.toLocaleString("en-US");
 }
 
-export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiUsage }) {
-  const totalTokens = aiUsage.totalTokens ?? aiUsage.claude.totalTokens + aiUsage.openai.totalTokens;
+export default function GitHubProfilePage({ publication, capture = false }: { publication: ProfilePublication; capture?: boolean }) {
+  const { profile, skillGroups, summary, reportedAiTokens: totalTokens } = publication;
+  const icons = [Code2, Cpu, Sparkles, Cloud];
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 pt-6 pb-10 sm:px-6 sm:pt-8 sm:pb-12 lg:pt-10 lg:pb-16">
+    <main data-force-dark className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070707] px-4 pt-6 pb-10 sm:px-6 sm:pt-8 sm:pb-12 lg:pt-10 lg:pb-16">
       <div className="pointer-events-none absolute inset-0">
         <div
           className="absolute left-1/2 top-0 h-[34rem] w-[min(100%,72rem)] -translate-x-1/2"
@@ -113,7 +91,7 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
         />
       </div>
 
-      <section className="relative z-[1] w-full max-w-[1200px]">
+      <section data-profile-capture data-publication-hash={publication.hash} className="relative z-[1] w-full max-w-[1200px]">
         <div className="relative overflow-hidden border border-white/8 bg-[#070707]/94 shadow-[0_28px_90px_rgba(0,0,0,0.55)] lg:min-h-[930px]">
           <div
             className="pointer-events-none absolute inset-0 opacity-65"
@@ -147,26 +125,26 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-[#ef4242] animate-pulse" />
                     <span className="text-[11px] uppercase tracking-[0.3em] text-[#ef4242]">
-                      Software &amp; AI Engineer
+                      {profile.title}
                     </span>
                   </div>
                 </div>
 
                 <h1 className="font-nord text-[clamp(2.45rem,5vw,4rem)] leading-[0.98] tracking-[0.05em] text-white">
-                  Hi, I&apos;m <span className="text-[#ef4242] text-glow">Michael Cran</span>
+                  Hi, I&apos;m <span className="text-[#ef4242] text-glow">{profile.fullName}</span>
                 </h1>
 
                 <p className="mt-5 max-w-3xl text-sm leading-relaxed text-white/55 sm:text-base lg:text-lg">
-                  I build full-stack and backend software that connects web products with AI, data, and cloud systems. My focus is reliable applications, APIs, and automation using TypeScript, Python, and modern cloud tools.
+                  {summary}
                 </p>
 
                 <div className="mt-7 flex flex-wrap gap-3">
                   <div className="inline-flex items-center gap-2 rounded-sm border border-white/10 bg-white/[0.03] px-4 py-3 text-[13px] uppercase tracking-[0.14em] text-white/72 sm:text-[14px]">
                     <MapPin size={14} className="text-[#ef4242]" />
-                    Based in Orlando, FL
+                    {profile.location || "Location available on request"}
                   </div>
                   <div className="inline-flex items-center rounded-sm border border-[#ef4242]/35 bg-[#ef4242]/8 px-4 py-3 text-[12px] uppercase tracking-[0.12em] text-[#ef4242] sm:text-[13px]">
-                    Open to software, AI &amp; cloud roles
+                    Public engineering portfolio
                   </div>
                 </div>
               </div>
@@ -188,22 +166,22 @@ export default function GitHubProfilePage({ aiUsage }: { aiUsage: SiteContentAiU
                 <div className="pointer-events-none absolute left-1/2 top-full z-0 w-56 -translate-x-1/2 -translate-y-[4%] sm:w-64 md:w-78">
                   <div className="absolute inset-x-8 top-4 h-12 bg-[#ef4242]/22 blur-2xl" />
                   <div className="relative">
-                    <ChromaKeyVideo src="/cropped.mp4" className="w-full opacity-95" />
+                    {!capture && <ChromaKeyVideo src="/cropped.mp4" className="w-full opacity-95" />}
                   </div>
                 </div>
               </aside>
             </div>
 
             <div className="mt-6 grid auto-rows-fr gap-4 md:grid-cols-2">
-              {PROFILE_SECTIONS.map((section) => (
-                <SectionCard key={section.title} section={section} />
+              {skillGroups.map((section, index) => (
+                <SectionCard key={section.id} section={{ ...section, icon: icons[index % icons.length] }} />
               ))}
             </div>
 
             <div className="mt-auto pt-4 pb-4 sm:pb-5 lg:pt-6 lg:pb-6">
               <div className="flex min-h-[78px] flex-wrap items-center justify-between gap-4 border border-white/6 bg-black/24 px-4 py-3 sm:px-5 sm:py-4 lg:px-6">
                 <div className="max-w-[40rem] text-[11px] leading-relaxed uppercase tracking-[0.16em] text-white/50 sm:text-[12px]">
-                  CoreTV founder &amp; lead engineer · ICE software intern
+                  Public code · Case studies · Current resume
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">

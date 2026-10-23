@@ -39,7 +39,7 @@ type RateLimits = {
   forms: { id?: string; scope?: string; ip?: string; count?: number; blockedCount?: number }[];
 };
 type DetailData = {
-  identity: Identity; registry: RegDevice[]; candidates: CandidateEdge[]; messages: FeedMsg[];
+  identity: Identity; registry: RegDevice[]; candidates: CandidateEdge[]; messages: FeedMsg[]; messagesNextCursor?: string | null;
   contactMessages: ContactMsg[]; bookings: BookingRow[]; rizz: RizzRow[]; sessions: SessionRow[]; rateLimits: RateLimits;
 };
 
@@ -162,6 +162,21 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
   const [data, setData] = useState<DetailData | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+
+  const loadOlderMessages = async () => {
+    if (!data?.messagesNextCursor || historyLoading) return;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const response = await fetch(`/api/admin/identities/${encodeURIComponent(id)}/messages?cursor=${encodeURIComponent(data.messagesNextCursor)}`);
+      if (!response.ok) throw new Error("Could not load older messages.");
+      const page = await response.json() as { messages: FeedMsg[]; nextCursor: string | null };
+      setData((current) => current?.identity.id === id ? { ...current, messages: [...page.messages, ...current.messages], messagesNextCursor: page.nextCursor } : current);
+    } catch { setHistoryError("Could not load older messages. Try again."); }
+    finally { setHistoryLoading(false); }
+  };
 
   const reload = useCallback(() => {
     // No synchronous setState here — all state updates happen in the async callbacks
@@ -222,7 +237,6 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
       <div className="space-y-1.5">
         {(() => {
           const activeSessions = data.sessions.filter((s) => isActiveSession(s.lastSeen));
-          const allSessions = [...data.sessions].sort((a, b) => (isActiveSession(b.lastSeen) ? 1 : 0) - (isActiveSession(a.lastSeen) ? 1 : 0));
           return (
             <HubHeader
               icon={
@@ -323,13 +337,15 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
       {/* AI conversations (text + voice) */}
       <div className="space-y-1.5">
         <HubHeader icon={<MessageSquare size={11} />} label="AI conversations" count={data.messages.length} href={SECTION.crossdevice} />
+        {data.messagesNextCursor && <button onClick={() => void loadOlderMessages()} disabled={historyLoading} className="rounded-sm border border-white/15 px-3 py-1.5 text-xs text-white/70 disabled:opacity-40">{historyLoading ? "Loading…" : "Load older messages"}</button>}
+        {historyError && <p role="alert" className="text-xs text-red-300">{historyError}</p>}
         {data.messages.length === 0 ? <p className="text-[11px] text-white/30">No AI conversations recorded yet.</p> : (
           <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
             {data.messages.map((m) => (
               <div key={m.id} className={`rounded-sm px-2.5 py-1.5 text-[11px] ${m.role === "user" ? "bg-white/[0.03] text-white/70" : "bg-[var(--cranberry)]/8 text-white/80"}`}>
                 <div className="mb-0.5 flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-white/35">
                   {m.channel === "voice" ? <Mic size={9} /> : <MessageSquare size={9} />}
-                  <span>{m.role === "user" ? "Visitor" : "Michael (AI)"}</span>
+                  <span>{m.role === "user" ? "Visitor" : "Portfolio AI guide"}</span>
                   <span className="ml-auto normal-case tracking-normal text-white/25">{fmtDate(m.createdAt)}</span>
                 </div>
                 <p className="whitespace-pre-wrap break-words leading-snug">{m.content}</p>

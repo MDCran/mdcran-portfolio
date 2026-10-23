@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { adminRequest } from "@/lib/admin-client";
 import {
   Plus,
   Pencil,
@@ -281,6 +282,7 @@ function TagInput({
 /* ─── Modal ──────────────────────────────────────────────────────────────── */
 
 function Modal({
+  error,
   title,
   onClose,
   onSave,
@@ -289,6 +291,7 @@ function Modal({
   setForm,
   utmLinks,
 }: {
+  error?: string;
   title: string;
   onClose: () => void;
   onSave: () => void;
@@ -342,6 +345,7 @@ function Modal({
 
         {/* Body */}
         <div className="space-y-4 px-5 py-5 max-h-[75vh] overflow-y-auto">
+          {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
           {/* Name */}
           <Field label="Name">
             <TextInput
@@ -428,7 +432,7 @@ function Modal({
             {guardrailOpen && (
               <div className="border-t border-white/8 px-3 pb-3 pt-3 space-y-3">
                 <p className="text-[11px] text-white/35">
-                  Only fire this suggestion when the visitor's current page
+                  Only fire this suggestion when the visitor&apos;s current page
                   satisfies the condition below.
                 </p>
                 <div className="grid grid-cols-3 gap-2">
@@ -517,6 +521,7 @@ function Modal({
 /* ─── Main component ─────────────────────────────────────────────────────── */
 
 export default function AiRoutingConditions() {
+  const [error, setError] = useState("");
   const [conditions, setConditions] = useState<AiRoutingCondition[] | null>(null);
   const [utmLinks, setUtmLinks] = useState<UtmLink[]>([]);
   const [busy, setBusy] = useState(false);
@@ -524,13 +529,10 @@ export default function AiRoutingConditions() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(BLANK);
 
-  const load = () =>
-    fetch("/api/admin/ai-routing")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.conditions) setConditions(d.conditions);
-      })
-      .catch(() => {});
+  const load = async () => {
+    try { const data = await adminRequest<{ conditions: AiRoutingCondition[] }>("/api/admin/ai-routing"); setConditions(data.conditions); setError(""); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not load routing conditions."); }
+  };
 
   useEffect(() => {
     load();
@@ -543,12 +545,14 @@ export default function AiRoutingConditions() {
   }, []);
 
   const openAdd = () => {
+    setError("");
     setEditingId(null);
     setForm(BLANK);
     setModalOpen(true);
   };
 
   const openEdit = (c: AiRoutingCondition) => {
+    setError("");
     setEditingId(c.id);
     setForm(conditionToForm(c));
     setModalOpen(true);
@@ -560,13 +564,14 @@ export default function AiRoutingConditions() {
   };
 
   const save = async () => {
-    setBusy(true);
+    if (busy) return;
+    setBusy(true); setError("");
     const isMulti = form.triggerOperator === "is_any_of";
     const cleanedValues = form.triggerValues
       .map((v) => v.trim())
       .filter(Boolean);
     const payload = {
-      ...(editingId ? { id: editingId } : {}),
+      ...(editingId ? { id: editingId, createdAt: conditions?.find(condition => condition.id === editingId)?.createdAt } : {}),
       name: form.name.trim(),
       triggerField: form.triggerField,
       triggerOperator: form.triggerOperator,
@@ -587,40 +592,33 @@ export default function AiRoutingConditions() {
       suggestionText: form.suggestionText.trim(),
       active: form.active,
     };
-    await fetch("/api/admin/ai-routing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    closeModal();
-    await load();
-    setBusy(false);
+    try {
+      const result = await adminRequest<{ condition: AiRoutingCondition }>("/api/admin/ai-routing", { method: "POST", body: JSON.stringify(payload) });
+      setConditions(previous => { const entries = previous || []; return entries.some(c => c.id === result.condition.id) ? entries.map(c => c.id === result.condition.id ? result.condition : c) : [...entries, result.condition]; });
+      closeModal();
+    } catch (e) { setError(e instanceof Error ? e.message : "Save failed. Your edits are still here."); }
+    finally { setBusy(false); }
   };
 
   const del = async (id: string) => {
-    if (!confirm("Delete this routing condition?")) return;
-    setBusy(true);
-    await fetch("/api/admin/ai-routing", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    await load();
-    setBusy(false);
+    if (busy || !confirm("Delete this routing condition?")) return;
+    setBusy(true); setError("");
+    try { await adminRequest("/api/admin/ai-routing", { method: "DELETE", body: JSON.stringify({ id }) }); setConditions(previous => (previous || []).filter(c => c.id !== id)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Delete failed. The condition is still here."); }
+    finally { setBusy(false); }
   };
 
   const activeCount = conditions?.filter((c) => c.active).length ?? 0;
 
   if (!conditions) {
     return (
-      <p className="text-xs text-white/30 flex items-center gap-1.5">
-        <Loader2 size={12} className="animate-spin" /> Loading routing conditions…
-      </p>
+      <div className="text-xs text-white/60">{error ? <><p role="alert">{error}</p><button className="mt-2 underline" onClick={() => void load()}>Retry loading conditions</button></> : <p className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading routing conditions…</p>}</div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {error && !modalOpen && <p role="alert" className="text-sm text-red-400">{error}</p>}
       {/* Title bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -774,6 +772,7 @@ export default function AiRoutingConditions() {
       {/* Modal */}
       {modalOpen && (
         <Modal
+          error={error}
           title={editingId ? "Edit Routing Condition" : "New Routing Condition"}
           onClose={closeModal}
           onSave={save}
