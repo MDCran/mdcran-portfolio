@@ -26,11 +26,11 @@ function SkillTag({ value }: { value: string }) {
   );
 }
 
-function SectionCard({ section }: { section: ProfileSection }) {
+function SectionCard({ section, wide = false }: { section: ProfileSection; wide?: boolean }) {
   const Icon = section.icon;
 
   return (
-    <article className="relative overflow-hidden border border-white/8 bg-black/34 p-4 backdrop-blur-sm">
+    <article className={`relative overflow-hidden border border-white/8 bg-black/34 p-4 backdrop-blur-sm ${wide ? "md:col-span-2" : ""}`}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(239,66,66,0.07),transparent_38%)]" />
       <div className="relative z-[1]">
         <div className="mb-4 flex items-center gap-3">
@@ -172,9 +172,9 @@ export default function GitHubProfilePage({ publication, capture = false }: { pu
               </aside>
             </div>
 
-            <div className="mt-6 grid auto-rows-fr gap-4 md:grid-cols-2">
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
               {skillGroups.map((section, index) => (
-                <SectionCard key={section.id} section={{ ...section, icon: icons[index % icons.length] }} />
+                <SectionCard key={section.id} wide={skillGroups.length % 2 === 1 && index === skillGroups.length - 1} section={{ ...section, icon: icons[index % icons.length] }} />
               ))}
             </div>
 
