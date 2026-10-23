@@ -14,7 +14,7 @@ import CTA from "@/components/home/CTA";
 import PhotoReel from "@/components/home/PhotoReel";
 import VisitorMap from "@/components/home/VisitorMap";
 import Timeline from "@/components/home/Timeline";
-import { getArticles, getClients, getExperiences, getProjects, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
+import { getArticles, getClients, getExperiences, getProjects, getResumeProfile, getSiteContent, getVisitorCountsByCountry } from "@/lib/db";
 import {
   PERSON_ALIASES,
   PERSON_FULL_NAME,
@@ -37,18 +37,19 @@ export const metadata: Metadata = buildSeoMetadata({
     "Minecraft Map Maker", "Minecraft Maps", "Level Designer",
     "Thumbnail Designer", "Video Editor", "Content Creator",
     "Software Engineer", "AI Engineer", "AI Automation", "MCP Integration", "Full-Stack Engineer", "Software Developer", "Web Developer", "UCF Computer Science",
-    "Orlando Freelancer", "Independent Contractor",
+    "Independent Contractor",
   ],
 });
 
 export default async function HomePage() {
-  const [allProjects, allClients, allArticles, siteContent, visitorCountries, experiences] = await Promise.all([
+  const [allProjects, allClients, allArticles, siteContent, visitorCountries, experiences, profile] = await Promise.all([
     getProjects(),
     getClients(),
     getArticles(),
     getSiteContent(),
     getVisitorCountsByCountry().catch(() => []),
     getExperiences().catch(() => []),
+    getResumeProfile(),
   ]);
 
   // Build unified featured work list (projects + articles interleaved per admin order)
@@ -127,7 +128,7 @@ export default async function HomePage() {
   };
 
   const sectionMap: Record<string, ReactNode> = {
-    hero: <><Hero content={siteContent.homeHero} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights projects={allProjects} /></div></>,
+    hero: <><Hero location={profile.location} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights projects={allProjects} /></div></>,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
         <Stats content={siteContent.homeStats} aiUsageTracker={siteContent.aiUsageTracker} />
@@ -135,7 +136,7 @@ export default async function HomePage() {
     ),
     about: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "900px" }}>
-        <PhotoReel content={siteContent.homeAbout} />
+        <PhotoReel content={siteContent.homeAbout} location={profile.location} />
       </div>
     ),
     timeline: (
@@ -204,7 +205,7 @@ export default async function HomePage() {
         {sectionsToRender.map((section) => (
           <div key={section.id} id={section.id} data-highlight-id={section.id} style={{ scrollMarginTop: "5rem" }}>{section.node}</div>
         ))}
-        <HomeExtras />
+        <HomeExtras location={profile.location} />
         <PublicVitals />
       </main>
       <Footer />

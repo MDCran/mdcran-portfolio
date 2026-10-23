@@ -20,7 +20,7 @@ const gradients = [
   "from-transparent to-black/80",
 ];
 
-export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
+export default function PhotoReel({ content, location }: { content?: SiteContentAbout; location?: string }) {
   const ref = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const { themeInfo } = useTheme();
@@ -66,9 +66,9 @@ export default function PhotoReel({ content }: { content?: SiteContentAbout }) {
                 {content?.description ??
                   "I am a graduate of the University of Central Florida, where I earned a Bachelor of Science in Computer Science. I am a developer focused on building one-of-a-kind digital experiences that put a smile on people's faces."}
               </p>
-              <p className="text-sm text-white/35 leading-relaxed mb-8">
-                {content?.supportingText ?? "Based in Orlando, FL - OPEN FOR WORK"}
-              </p>
+              {location?.trim() && <p className="text-sm text-white/60 leading-relaxed mb-8">
+                Based in {location.trim()}
+              </p>}
               <div className="flex flex-wrap gap-3">
                 {(content?.tags?.length ? content.tags : ["Builder", "Designer", "Developer", "Creator"]).map((tag) => (
                   <span

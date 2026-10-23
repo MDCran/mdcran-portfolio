@@ -98,15 +98,14 @@ export function buildPersonJsonLd() {
     url: SITE_URL,
     image: absoluteUrl(DEFAULT_SITE_ICON),
     description:
-      "Software and AI engineer building full-stack applications, APIs, AI integrations, and business automation, based in Orlando, Florida.",
+      "Software and AI engineer building full-stack applications, APIs, AI integrations, and business automation, based in Florida.",
     email: CONTACT_EMAIL,
     sameAs: [...SAME_AS_URLS],
     homeLocation: {
       "@type": "Place",
-      name: "Orlando, Florida, United States",
+      name: "Florida, United States",
       address: {
         "@type": "PostalAddress",
-        addressLocality: "Orlando",
         addressRegion: "FL",
         addressCountry: "US",
       },
@@ -164,7 +163,6 @@ export function buildProfessionalServiceJsonLd(reviewCount = 0) {
     email: CONTACT_EMAIL,
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Orlando",
       addressRegion: "FL",
       addressCountry: "US",
     },
