@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 
 
@@ -250,7 +251,7 @@ export default function R2ImagePickerModal({
                   <div key={file.key} className="border-b border-white/6 px-4 py-3 last:border-b-0">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex min-w-0 items-start gap-3">
-                        <img
+                        <Image unoptimized width={80} height={56}
                           src={file.publicUrl}
                           alt={file.name}
                           className="h-14 w-20 shrink-0 rounded-sm border border-white/8 bg-black/20 object-cover"

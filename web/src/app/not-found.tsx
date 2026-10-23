@@ -79,10 +79,6 @@ export default function NotFound() {
   const [quipIndex, setQuipIndex] = useState(0);
   const [clicks, setClicks] = useState(0);
 
-  useEffect(() => {
-    setQuipIndex(Math.floor(Math.random() * quips.length));
-  }, []);
-
   const cycleQuip = () => {
     setQuipIndex((i) => (i + 1) % quips.length);
     setClicks((c) => c + 1);

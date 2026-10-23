@@ -164,7 +164,7 @@ function nthWeekdayOfMonth(year: number, month: number, weekday: number, n: numb
   // month 1-12, weekday 0=Sun
   const first = new Date(Date.UTC(year, month - 1, 1));
   const firstWd = first.getUTCDay();
-  let day = 1 + ((7 + weekday - firstWd) % 7) + (n - 1) * 7;
+  const day = 1 + ((7 + weekday - firstWd) % 7) + (n - 1) * 7;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 function lastWeekdayOfMonth(year: number, month: number, weekday: number): string {

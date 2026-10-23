@@ -5,19 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Star } from "lucide-react";
-import type { Article, ArticleCategory } from "@/lib/types";
+import type { Article } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, shouldBypassImageOptimization } from "@/lib/utils";
 import AuthorByline from "@/components/shared/AuthorByline";
 import { articleReadMinutes } from "@/lib/read-time";
-
-const ARTICLE_CATEGORY_COLORS: Record<ArticleCategory, string> = {
-  press: "text-sky-400 border-sky-400/30 bg-sky-400/8",
-  recipe: "text-amber-400 border-amber-400/30 bg-amber-400/8",
-  tech: "text-emerald-400 border-emerald-400/30 bg-emerald-400/8",
-  personal: "text-purple-400 border-purple-400/30 bg-purple-400/8",
-  tutorial: "text-[#ef4242] border-[#ef4242]/30 bg-[#ef4242]/8",
-  announcement: "text-orange-400 border-orange-400/30 bg-orange-400/8",
-};
 
 export default function ArticleCard({ article, index = 0, featured = false }: { article: Article; index?: number; featured?: boolean }) {
   const coverImage = article.coverImage;
@@ -66,17 +57,13 @@ export default function ArticleCard({ article, index = 0, featured = false }: { 
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-          <div className="absolute top-3 right-3 z-[2]">
-            {featured ? (
+          {featured && (
+            <div className="absolute top-3 right-3 z-[2]">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-[var(--cranberry)]/90 shadow-[0_0_8px_rgba(239,66,66,0.5)] backdrop-blur-sm">
                 <Star size={10} className="text-white fill-white" />
               </span>
-            ) : (
-              <div className={`inline-flex items-center px-2 py-0.5 rounded-sm border text-[9px] tracking-widest uppercase backdrop-blur-sm ${ARTICLE_CATEGORY_COLORS[article.category]}`}>
-                {article.category}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="px-4 pt-4 min-w-0 flex flex-col flex-1 relative z-0">

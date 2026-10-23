@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,6 +14,7 @@ import CountryFlag from "./CountryFlag";
 import PersonalIdentity from "@/components/shared/PersonalIdentity";
 import LanguageSelector from "@/components/shared/LanguageSelector";
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
+import { useStoredPreference } from "@/lib/useStoredPreference";
 
 
 type Colorblind = "none" | "deuteranopia" | "protanopia" | "tritanopia";
@@ -32,6 +33,10 @@ interface A11yPrefs {
 const DEFAULTS: A11yPrefs = {
   textScale: 1, motion: "allow", colorblind: "none", cursor: "default", language: "en", speakAloud: true, aiTone: "friendly",
 };
+function parsePrefs(value: string): A11yPrefs {
+  try { return { ...DEFAULTS, ...JSON.parse(value), language: "en" }; }
+  catch { return DEFAULTS; }
+}
 const KEY = "mdcran_a11y";
 
 // Real cursor CSS (mirrors globals.css) so dropdown options can preview the actual cursor.
@@ -49,11 +54,10 @@ function applyPrefs(p: A11yPrefs) {
   html.setAttribute("data-colorblind", p.colorblind === "none" ? "" : p.colorblind);
   html.setAttribute("data-cursor", p.cursor === "default" ? "" : p.cursor);
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
     localStorage.setItem("mdcran_voice_on", p.speakAloud ? "1" : "0");
     localStorage.setItem("mdcran_ai_tone", p.aiTone);
-    setTimeout(() => window.dispatchEvent(new CustomEvent("mdcran:a11y", { detail: p })), 0);
   } catch { /* */ }
+  window.dispatchEvent(new CustomEvent("mdcran:a11y", { detail: p }));
 }
 
 const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -103,7 +107,11 @@ export default function AccessibilityMenu() {
   const [open, setOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
-  const [prefs, setPrefs] = useState<A11yPrefs>(DEFAULTS);
+  const [savedPrefs, savePrefs, prefsReady] = useStoredPreference(KEY, JSON.stringify(DEFAULTS));
+  const prefs = useMemo(() => parsePrefs(savedPrefs), [savedPrefs]);
+  const setPrefs = useCallback((next: A11yPrefs | ((previous: A11yPrefs) => A11yPrefs)) => {
+    savePrefs(previous => JSON.stringify(typeof next === "function" ? next(parsePrefs(previous)) : next));
+  }, [savePrefs]);
   const [showLangHint, setShowLangHint] = useState(false);
   const [country, setCountry] = useState<string>("United States");
   const [countryCode, setCountryCode] = useState<string>("US");
@@ -133,15 +141,7 @@ export default function AccessibilityMenu() {
     window.dispatchEvent(new CustomEvent("mdcran:a11y-panel", { detail: { open } }));
   }, [open]);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(KEY);
-      const p = saved ? { ...DEFAULTS, ...JSON.parse(saved) } : DEFAULTS;
-      p.language = "en"; // Spanish not supported yet — always English
-      setPrefs(p);
-      applyPrefs(p);
-    } catch { applyPrefs(DEFAULTS); }
-  }, []);
+  useEffect(() => { if (prefsReady) applyPrefs(prefs); }, [prefs, prefsReady]);
 
   useEffect(() => {
     if (!open || countryCode !== "US") return;
@@ -167,8 +167,8 @@ export default function AccessibilityMenu() {
   }, []);
 
   const update = useCallback((patch: Partial<A11yPrefs>) => {
-    setPrefs((prev) => { const next = { ...prev, ...patch }; applyPrefs(next); return next; });
-  }, []);
+    setPrefs(previous => ({ ...previous, ...patch }));
+  }, [setPrefs]);
 
   /* Let the AI assistant drive accessibility settings (text size, motion, colorblind,
      cursor, read-aloud, tone) by dispatching `mdcran:a11y-set` with a partial-prefs patch.
@@ -177,7 +177,7 @@ export default function AccessibilityMenu() {
     const onSet = (e: Event) => {
       const detail = (e as CustomEvent).detail as (Partial<A11yPrefs> & { reset?: boolean }) | undefined;
       if (!detail) return;
-      if (detail.reset) { setPrefs(DEFAULTS); applyPrefs(DEFAULTS); return; }
+      if (detail.reset) { setPrefs(DEFAULTS); return; }
       const patch: Partial<A11yPrefs> = {};
       if (typeof detail.textScale === "number") patch.textScale = Math.min(1.6, Math.max(0.85, detail.textScale));
       if (detail.motion === "reduce" || detail.motion === "allow") patch.motion = detail.motion;
@@ -189,7 +189,7 @@ export default function AccessibilityMenu() {
     };
     window.addEventListener("mdcran:a11y-set", onSet);
     return () => window.removeEventListener("mdcran:a11y-set", onSet);
-  }, [update]);
+  }, [update, setPrefs]);
 
   const highContrastOn = themeInfo.id === "high-contrast";
   const isLightTheme = themeInfo.id === "light";
@@ -200,7 +200,6 @@ export default function AccessibilityMenu() {
 
   const reset = () => {
     setPrefs(DEFAULTS);
-    applyPrefs(DEFAULTS);
     if (highContrastOn) setTheme("dark");
     if (screenReader.enabled) screenReader.toggle();
   };

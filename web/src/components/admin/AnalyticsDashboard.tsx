@@ -43,8 +43,8 @@ const RECRUITER_LABELS: Record<string, string> = {
 };
 
 function fmt(n: number) { return n.toLocaleString("en-US"); }
-function timeAgo(iso: string) {
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+function timeAgo(iso: string, now: number) {
+  const s = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
@@ -79,7 +79,8 @@ function BarList({ items, max }: { items: { name: string; count: number; code?: 
 /* ── Heatmap overlay ── */
 function Heatmap() {
   const { data: pagesData } = useSWR<{ pages: string[] }>("/api/admin/analytics/heatmap", fetcher);
-  const [path, setPath] = useState<string | null>(null);
+  const [selectedPath, setPath] = useState<string | null>(null);
+  const path = selectedPath ?? pagesData?.pages[0] ?? null;
   const [filter, setFilter] = useState<"all" | "click" | "rage" | "move">("all");
   const { data, isLoading } = useSWR<{ path: string; points: { type: string; x: number; y: number }[] }>(
     path ? `/api/admin/analytics/heatmap?path=${encodeURIComponent(path)}` : null,
@@ -89,7 +90,6 @@ function Heatmap() {
   const [frameHeight, setFrameHeight] = useState(1200);
 
   const pages = pagesData?.pages ?? [];
-  useEffect(() => { if (!path && pages.length) setPath(pages[0]); }, [pages, path]);
 
   const syncHeight = () => {
     const measure = () => {
@@ -186,6 +186,11 @@ function Heatmap() {
 }
 
 export default function AnalyticsDashboard() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const { data, error } = useSWR<Overview>("/api/admin/analytics/overview", fetcher, {
     refreshInterval: 15_000,
     revalidateOnFocus: true,
@@ -361,7 +366,7 @@ export default function AnalyticsDashboard() {
             <thead><tr className="text-white/30 text-[10px] uppercase tracking-wider"><th className="text-left font-normal py-1.5">Visitor</th><th className="text-left font-normal">IP</th><th className="text-left font-normal">Country</th><th className="text-left font-normal">Browser / OS</th><th className="text-right font-normal">Pages</th><th className="text-right font-normal">Read</th><th className="text-left font-normal pl-3">Last Page</th><th className="text-right font-normal">Last Seen</th></tr></thead>
             <tbody>
               {data.recentSessions.map((s) => {
-                const active = Date.now() - new Date(s.lastSeen).getTime() < 90_000;
+                const active = now - new Date(s.lastSeen).getTime() < 90_000;
                 const expanded = expandedSessions.has(s.sessionId);
                 return (
                   <React.Fragment key={s.sessionId}>
@@ -380,7 +385,7 @@ export default function AnalyticsDashboard() {
                       <span className={s.readPaths.length ? "text-emerald-400" : "text-white/30"}>{s.readPaths.length}</span>
                     </td>
                     <td className="text-white/40 pl-3 truncate max-w-[180px]">{s.lastPath ?? "—"}</td>
-                    <td className="text-right text-white/40">{timeAgo(s.lastSeen)}</td>
+                    <td className="text-right text-white/40">{timeAgo(s.lastSeen, now)}</td>
                   </tr>
                   {expanded && (
                     <tr className="border-t border-white/5 bg-white/2">

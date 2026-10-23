@@ -8,7 +8,7 @@
 
 import fs from "fs";
 import path from "path";
-import { MongoClient } from "mongodb";
+import { MongoClient, type Document } from "mongodb";
 
 // ─── Load .env.local ──────────────────────────────────────────────────────────
 const envPath = path.resolve(process.cwd(), ".env.local");
@@ -53,7 +53,7 @@ async function seedCollection(db: ReturnType<MongoClient["db"]>, name: string, d
     console.log(`⏭   ${name}: already has ${existing} documents — skipped`);
     return;
   }
-  await col.insertMany(data as any[]);
+  await col.insertMany(data as Document[]);
   console.log(`✅  ${name}: inserted ${data.length} documents`);
 }
 

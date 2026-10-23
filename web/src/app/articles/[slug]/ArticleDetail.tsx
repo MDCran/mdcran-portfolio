@@ -470,7 +470,7 @@ function TapsButton({ articleId }: { articleId: string }) {
           {burst &&
             Array.from({ length: 8 }, (_, i) => {
               const angle = (i / 8) * 360;
-              const dist = 20 + Math.random() * 12;
+              const dist = 20 + (i * 7) % 13;
               return (
                 <motion.div
                   key={`star-${i}`}

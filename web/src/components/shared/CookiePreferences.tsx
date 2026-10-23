@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { getConsent, setConsent } from "@/components/shared/CookieConsent";
 
-export default function CookiePreferences() {
-  const [optedOut, setOptedOut] = useState(false);
+function subscribeConsent(notify: () => void) {
+  window.addEventListener("mdcran:consent", notify);
+  return () => window.removeEventListener("mdcran:consent", notify);
+}
+const readOptedOut = () => getConsent() === "opted_out";
+const serverOptedOut = () => false;
 
-  useEffect(() => { setOptedOut(getConsent() === "opted_out"); }, []);
+export default function CookiePreferences() {
+  const optedOut = useSyncExternalStore(subscribeConsent, readOptedOut, serverOptedOut);
 
   const toggle = (out: boolean) => {
     setConsent(out ? "opted_out" : "accepted");
-    setOptedOut(out);
   };
 
   return (

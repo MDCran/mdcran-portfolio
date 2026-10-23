@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useStoredPreference } from "./useStoredPreference";
 
 const DEFAULT_COLS = 3;
 const MIN_COLS = 2;
@@ -12,25 +12,14 @@ const MAX_COLS = 5;
  * @param defaultCols - default column count when no stored preference (default: 3)
  */
 export function useGridCols(storageKey: string, defaultCols: number = DEFAULT_COLS) {
-  const [cols, setCols] = useState(defaultCols);
-
-  // Load from localStorage on mount (client-only)
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const n = parseInt(stored, 10);
-        if (n >= MIN_COLS && n <= MAX_COLS) setCols(n);
-      }
-    } catch {}
-  }, [storageKey]);
+  const [stored, setStored] = useStoredPreference(storageKey, String(defaultCols));
+  const parsed = Number(stored);
+  const cols = Number.isInteger(parsed) && parsed >= MIN_COLS && parsed <= MAX_COLS ? parsed : defaultCols;
 
   const setColsAndStore = (n: number) => {
-    const clamped = Math.max(MIN_COLS, Math.min(MAX_COLS, n));
-    setCols(clamped);
-    try {
-      localStorage.setItem(storageKey, String(clamped));
-    } catch {}
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.max(MIN_COLS, Math.min(MAX_COLS, Math.round(n)));
+    setStored(String(clamped));
   };
 
   return [cols, setColsAndStore] as const;

@@ -7,7 +7,6 @@ import { assetUrl } from "@/lib/utils";
 import { Mail, Github } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import FooterLoadTime from "@/components/layout/FooterLoadTime";
-import { EffectsToggle } from "@/components/shared/CalmEffects";
 import type { SiteContent } from "@/lib/types";
 import { defaultSiteContent } from "@/lib/site-content";
 
@@ -138,7 +137,6 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs text-white/25">
           <span>© {new Date().getFullYear()} {footer.copyrightText}</span>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <EffectsToggle />
             {bottomLinks.map((link) => (
               <Link
                 key={`${link.href}-${link.label}`}

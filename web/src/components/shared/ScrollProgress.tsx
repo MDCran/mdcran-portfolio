@@ -26,20 +26,18 @@ function markPathRead(path: string) {
 
 export default function ScrollProgress() {
   const pathname = usePathname();
+  return <PageScrollProgress key={pathname} pathname={pathname} />;
+}
+
+function PageScrollProgress({ pathname }: { pathname: string }) {
   const [pct, setPct] = useState(0);
   const [read, setRead] = useState(false); // showing the "read" checkmark
   const markedRef = useRef(false);
 
-  // Reset when the route changes. If this path was already read this session,
-  // pre-mark it so we don't replay the checkmark or re-fire the event.
   useEffect(() => {
-    setPct(0);
-    setRead(false);
     markedRef.current = getReadSet().has(pathname);
-  }, [pathname]);
-
-  useEffect(() => {
     let raf = 0;
+    let readTimer = 0;
     const update = () => {
       raf = 0;
       const doc = document.documentElement;
@@ -52,7 +50,7 @@ export default function ScrollProgress() {
         markPathRead(path);
         setRead(true); // flash the green checkmark, then revert to the arrow
         try { window.mdcranTrack?.("page_read", { path }); } catch { /* */ }
-        window.setTimeout(() => setRead(false), 1800);
+        readTimer = window.setTimeout(() => setRead(false), 1800);
       }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
@@ -75,6 +73,7 @@ export default function ScrollProgress() {
       if (ro) ro.disconnect();
       window.clearTimeout(t1);
       window.clearTimeout(t2);
+      window.clearTimeout(readTimer);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [pathname]);

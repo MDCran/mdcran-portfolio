@@ -69,12 +69,6 @@ function formatDateTime(iso: string): string {
   });
 }
 
-function worstSeverity(incidents: StatusIncident[]): IncidentSeverity {
-  if (incidents.some((i) => i.severity === "critical")) return "critical";
-  if (incidents.some((i) => i.severity === "major")) return "major";
-  return "minor";
-}
-
 function formatDuration(startIso: string, endIso: string): string {
   const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
   if (ms < 0) return "0m";

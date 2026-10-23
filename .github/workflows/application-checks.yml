@@ -30,6 +30,7 @@ jobs:
           for attempt in $(seq 1 30); do docker exec mdcran-ci mongosh --quiet --eval 'db.runCommand({ping:1})' && break; sleep 1; done
           docker exec mdcran-ci mongosh --quiet --eval 'rs.initiate({_id:"mdcranReview",members:[{_id:0,host:"localhost:27017"}]})'
           for attempt in $(seq 1 30); do docker exec mdcran-ci mongosh --quiet --eval 'if(!db.hello().isWritablePrimary)quit(1)' && break; sleep 1; done
+      - run: npm run lint -- --max-warnings 0
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run test:backend

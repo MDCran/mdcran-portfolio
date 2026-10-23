@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Link2,
   Loader2,
@@ -91,17 +91,22 @@ export default function DeviceCandidates() {
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [cfg, setCfg] = useState<CrossDeviceAutoConfig | null>(null);
   const [savingCfg, setSavingCfg] = useState(false);
+  const requestRef = useRef<AbortController | null>(null);
 
   const load = useCallback((state: State) => {
-    setCandidates(null);
-    fetch(`/api/admin/device-candidates?state=${state}`)
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const { signal } = controller;
+    fetch(`/api/admin/device-candidates?state=${state}`, { signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { setCandidates(d?.candidates ?? []); if (d?.autoConfig) setCfg(d.autoConfig); })
-      .catch(() => setCandidates([]));
+      .then((d) => { if (signal?.aborted) return; setCandidates(d?.candidates ?? []); if (d?.autoConfig) setCfg(d.autoConfig); })
+      .catch(() => { if (!signal?.aborted) setCandidates([]); });
   }, []);
 
   useEffect(() => {
     load(filter);
+    return () => requestRef.current?.abort();
   }, [filter, load]);
 
   const saveCfg = async (patch: Partial<CrossDeviceAutoConfig>) => {
@@ -148,7 +153,8 @@ export default function DeviceCandidates() {
           {STATES.map((s) => (
             <button
               key={s}
-              onClick={() => setFilter(s)}
+              disabled={Boolean(workingId)}
+              onClick={() => { if (s !== filter) { requestRef.current?.abort(); setCandidates(null); setFilter(s); } }}
               className={`h-8 px-3 text-[11px] font-medium transition-colors ${
                 filter === s
                   ? "bg-[var(--cranberry)] text-white"

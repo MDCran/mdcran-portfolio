@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,12 +45,23 @@ interface Portal { x: number; y: number; r: number }
 interface FieldOrb { x: number; y: number; r: number; type: Orb }
 type Side = "top" | "bottom";
 
+function subscribeDevice(onChange: () => void) {
+  const pointer = window.matchMedia("(pointer: coarse)");
+  pointer.addEventListener("change", onChange);
+  window.addEventListener("resize", onChange);
+  return () => { pointer.removeEventListener("change", onChange); window.removeEventListener("resize", onChange); };
+}
+function desktopBlocked() {
+  return !(window.matchMedia("(pointer: coarse)").matches && Math.min(window.innerWidth, window.innerHeight) <= 640);
+}
+const unknownDevice = () => null;
+
 export default function PongClient() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   // null = checking, true = desktop (blocked), false = phone (allowed)
-  const [blocked, setBlocked] = useState<boolean | null>(null);
+  const blocked = useSyncExternalStore<boolean | null>(subscribeDevice, desktopBlocked, unknownDevice);
 
   const [scoreP1, setScoreP1] = useState(0);
   const [scoreP2, setScoreP2] = useState(0);
@@ -132,13 +143,10 @@ export default function PongClient() {
 
   // Phone-only: a coarse pointer on a small screen. Anything else → bounce home.
   useEffect(() => {
-    const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-    const small = Math.min(window.innerWidth, window.innerHeight) <= 640;
-    if (coarse && small) { setBlocked(false); return; }
-    setBlocked(true);
+    if (blocked !== true) return;
     const t = window.setTimeout(() => router.push("/"), 2800);
     return () => window.clearTimeout(t);
-  }, [router]);
+  }, [blocked, router]);
 
   useEffect(() => {
     const onResize = () => {

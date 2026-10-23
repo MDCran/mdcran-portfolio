@@ -64,7 +64,6 @@ export default function DatePicker({ value, onChange, withTime = false, classNam
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   const selected = useMemo(() => parse(value, withTime), [value, withTime]);
   // The month currently shown in the grid.
@@ -73,12 +72,12 @@ export default function DatePicker({ value, onChange, withTime = false, classNam
     return { y: d.getFullYear(), m: d.getMonth() };
   });
 
-  useEffect(() => setMounted(true), []);
-
-  // Re-sync the viewed month when the value changes externally.
-  useEffect(() => {
+  const [previousValue, setPreviousValue] = useState(value);
+  // Adjust the viewed month before rendering children when a caller changes the date.
+  if (value !== previousValue) {
+    setPreviousValue(value);
     if (selected) setView({ y: selected.getFullYear(), m: selected.getMonth() });
-  }, [selected]);
+  }
 
   // Position the popover under the trigger.
   const place = () => {
@@ -92,7 +91,6 @@ export default function DatePicker({ value, onChange, withTime = false, classNam
 
   useEffect(() => {
     if (!open) return;
-    place();
     const onResize = () => place();
     const onDown = (e: MouseEvent) => {
       if (popRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
@@ -109,7 +107,6 @@ export default function DatePicker({ value, onChange, withTime = false, classNam
       document.removeEventListener("mousedown", onDown, true);
       window.removeEventListener("keydown", onKey);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const minD = useMemo(() => parse(min ?? "", false), [min]);
@@ -169,7 +166,7 @@ export default function DatePicker({ value, onChange, withTime = false, classNam
         ref={btnRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { if (!open) place(); setOpen((o) => !o); }}
         className={className || "flex h-9 w-full items-center gap-2 rounded-sm border border-white/10 bg-white/[0.04] px-2.5 text-xs text-white outline-none transition-colors hover:border-white/20 focus:border-[var(--cranberry,#ef4242)] disabled:opacity-50"}
       >
         <CalendarIcon size={13} className="shrink-0 text-white/40" />
@@ -178,7 +175,7 @@ export default function DatePicker({ value, onChange, withTime = false, classNam
         </span>
       </button>
 
-      {mounted && createPortal(
+      {coords && createPortal(
         <AnimatePresence>
           {open && coords && (
             <motion.div

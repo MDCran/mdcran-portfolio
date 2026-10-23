@@ -279,7 +279,6 @@ export default function ChatPanel() {
   const [agentName, setAgentName] = useState(() => pickAgentName());
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [thinking, setThinking] = useState(false);
   const [activeAiAction, setActiveAiAction] = useState<string | null>(null);
   const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const announceAiAction = useCallback((label: string, duration = 2800) => {
@@ -563,7 +562,7 @@ export default function ChatPanel() {
       timers.forEach(clearTimeout);
       timers.length = 0;
     };
-  }, [open]);
+  }, [open, isFirstVisit]);
 
   /* Inactivity timeout — sends farewell then disconnects */
   useEffect(() => {
@@ -604,7 +603,7 @@ export default function ChatPanel() {
       }
     }, INACTIVITY_CHECK_MS);
     return () => clearInterval(check);
-  }, [open, disconnected, streaming, welcomeStep, agentName]);
+  }, [open, disconnected, streaming, welcomeStep, agentName, ensureAudioCtx]);
 
   /* Reset chat state when panel closes — each open is a fresh session */
   useEffect(() => {
@@ -735,7 +734,6 @@ export default function ChatPanel() {
     setMessages((prev) => [...prev.filter((m) => m.content !== "__INACTIVITY__"), userMsg]);
     setInput("");
     setStreaming(true);
-    setThinking(true);
 
     // Read-aloud: unlock the audio context on this user gesture so TTS can play later.
     if (voiceOnRef.current) ensureAudioCtx();
@@ -860,7 +858,6 @@ export default function ChatPanel() {
                   if (parsed.text) {
                     /* Ensure typing dots show for at least 1s before text starts */
                     if (accumulated.length === 0) {
-                      setThinking(false);
                       const elapsed = Date.now() - streamStartTime;
                       if (elapsed < 1000) {
                         await new Promise((r) => setTimeout(r, 1000 - elapsed));
@@ -1485,11 +1482,10 @@ export default function ChatPanel() {
       if (requestGeneration === chatRequestGenerationRef.current) {
         abortRef.current = null;
         setStreaming(false);
-        setThinking(false);
         lastAgentMessageRef.current = Date.now();
       }
     }
-  }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak]);
+  }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak, announceAiAction, ensureAudioCtx, identityState, recycledIdentity, router, setTheme]);
 
   // Project pages can open the chat with a focused, high-quality question without
   // exposing their internal data to the browser event payload.

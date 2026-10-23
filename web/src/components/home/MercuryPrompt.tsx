@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Star, X } from "lucide-react";
@@ -9,13 +9,9 @@ const COUNTDOWN_SECONDS = 15;
 const COLLAPSE_DELAY_MS = 220;
 const REDACTION_TRIGGER_SECONDS = 1;
 const REDACTION_DURATION_MS = 900;
-const STORAGE_KEY = "mdcran_mercury_prompt_seen_v1";
 
 export default function MercuryPrompt() {
-  const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showCollapsedTrigger, setShowCollapsedTrigger] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isRedacting, setIsRedacting] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(COUNTDOWN_SECONDS);
@@ -34,28 +30,9 @@ export default function MercuryPrompt() {
     setSecondsLeft(COUNTDOWN_SECONDS);
     setIsClosing(false);
     setIsRedacting(false);
-    setIsCollapsed(false);
-    setShowCollapsedTrigger(false);
+
     setIsVisible(true);
   }, []);
-
-  const startCollapse = useCallback(() => {
-    if (isClosing || isRedacting) return;
-
-    setIsClosing(true);
-
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-    }
-
-    closeTimerRef.current = window.setTimeout(() => {
-      setIsVisible(false);
-      setIsCollapsed(true);
-      setIsClosing(false);
-      setIsRedacting(false);
-      closeTimerRef.current = null;
-    }, COLLAPSE_DELAY_MS);
-  }, [isClosing, isRedacting]);
 
   const doCollapse = useCallback(() => {
     setIsRedacting(false);
@@ -65,7 +42,6 @@ export default function MercuryPrompt() {
     }
     closeTimerRef.current = window.setTimeout(() => {
       setIsVisible(false);
-      setIsCollapsed(true);
       setIsClosing(false);
       closeTimerRef.current = null;
     }, COLLAPSE_DELAY_MS);
@@ -87,90 +63,37 @@ export default function MercuryPrompt() {
     }, REDACTION_DURATION_MS);
   }, [isClosing, isRedacting, doCollapse]);
 
-  // Stable refs so the mercury:expand listener never re-registers and never kills timers
-  const startExpandRef = useRef(startExpand);
-  startExpandRef.current = startExpand;
-  const startRedactionRef = useRef(startRedaction);
-  startRedactionRef.current = startRedaction;
-  const isVisibleRef = useRef(isVisible);
-  isVisibleRef.current = isVisible;
-  const isRedactingRef = useRef(isRedacting);
-  isRedactingRef.current = isRedacting;
-  const isClosingRef = useRef(isClosing);
-  isClosingRef.current = isClosing;
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-    const syncScreenSize = () => {
-      setIsSmallScreen(mediaQuery.matches);
-    };
-
-    syncScreenSize();
-    mediaQuery.addEventListener("change", syncScreenSize);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncScreenSize);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isVisible || isCollapsed) return;
-    // Never auto-pop on visit — start collapsed. The user can open it from the Resume button.
-    const seenTimer = window.setTimeout(() => {
-      setIsCollapsed(true);
-      setShowCollapsedTrigger(true);
-      try { window.localStorage.setItem(STORAGE_KEY, "true"); } catch { /* */ }
-    }, 0);
-    return () => window.clearTimeout(seenTimer);
-  }, [isVisible, isCollapsed]);
-
   useEffect(() => {
     if (!isVisible || isClosing || isRedacting) return;
 
+    let remaining = COUNTDOWN_SECONDS;
     const interval = window.setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= REDACTION_TRIGGER_SECONDS) {
-          window.clearInterval(interval);
-          startRedaction();
-          return 0;
-        }
-
-        return current - 1;
-      });
+      if (remaining <= REDACTION_TRIGGER_SECONDS) {
+        window.clearInterval(interval);
+        startRedaction();
+      } else {
+        remaining -= 1;
+        setSecondsLeft(remaining);
+      }
     }, 1000);
 
     return () => window.clearInterval(interval);
   }, [isVisible, isClosing, isRedacting, startRedaction]);
 
-  // mercury:expand event — uses refs so effect never re-runs and never kills pending timers
+  // The effect event reads current state without render-time ref writes.
+  const handleExpandEvent = useEffectEvent(() => {
+    if (isVisible) {
+      if (isRedacting || isClosing) {
+        if (redactTimerRef.current !== null) { window.clearTimeout(redactTimerRef.current); redactTimerRef.current = null; }
+        if (closeTimerRef.current !== null) { window.clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+        setIsVisible(false); setIsClosing(false); setIsRedacting(false);
+      } else startRedaction();
+    } else startExpand();
+  });
   useEffect(() => {
-    const handleExpandEvent = () => {
-      if (isVisibleRef.current) {
-        // If already redacting or closing, force immediate close
-        if (isRedactingRef.current || isClosingRef.current) {
-          if (redactTimerRef.current !== null) {
-            window.clearTimeout(redactTimerRef.current);
-            redactTimerRef.current = null;
-          }
-          if (closeTimerRef.current !== null) {
-            window.clearTimeout(closeTimerRef.current);
-            closeTimerRef.current = null;
-          }
-          setIsVisible(false);
-          setIsCollapsed(true);
-          setIsClosing(false);
-          setIsRedacting(false);
-        } else {
-          startRedactionRef.current();
-        }
-      } else {
-        startExpandRef.current();
-      }
-    };
-    window.addEventListener("mercury:expand", handleExpandEvent);
-    return () => {
-      window.removeEventListener("mercury:expand", handleExpandEvent);
-    };
+    const listener = () => handleExpandEvent();
+    window.addEventListener("mercury:expand", listener);
+    return () => window.removeEventListener("mercury:expand", listener);
   }, []);
 
   // Cleanup timers on unmount only
@@ -183,13 +106,7 @@ export default function MercuryPrompt() {
 
   return (
     <>
-      <AnimatePresence
-        onExitComplete={() => {
-          if (isCollapsed) {
-            setShowCollapsedTrigger(true);
-          }
-        }}
-      >
+      <AnimatePresence>
         {isVisible && (
         <motion.aside
           initial={{ opacity: 0, y: 34, x: 18, scale: 0.92, filter: "blur(10px)" }}

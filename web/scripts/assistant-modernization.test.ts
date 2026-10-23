@@ -276,3 +276,93 @@ test("system-default track ending stops capture and cannot revive an unmounted s
     f.session.dispose(); const updates = f.updates(); input.end(); assert.equal(f.updates(), updates);
   } finally { f.restore(); }
 });
+
+import { startBrowserRecognition, startVoiceRecording, transcribeVoiceClip, watchMicrophoneEnd, type BrowserRecognition } from "../src/lib/voice-input";
+function fakeRecognition() {
+  const counts = { starts: 0, aborts: 0, fallbacks: 0, results: 0 };
+  const recognition: BrowserRecognition = { continuous: false, interimResults: false, lang: "", start: () => { counts.starts++; }, stop() {}, abort: () => { counts.aborts++; }, onresult: null, onerror: null, onend: null };
+  return { counts, recognition };
+}
+
+test("browser speech service failures switch to recording once and discard late transcripts", () => {
+  for (const error of ["network", "not-allowed", "service-not-allowed", "audio-capture", "language-not-supported"]) {
+    const { counts, recognition } = fakeRecognition(); const signal = new AbortController();
+    startBrowserRecognition(recognition, { signal: signal.signal, language: "es-ES", onResult: () => counts.results++, onFallback: () => counts.fallbacks++ });
+    const oldError = recognition.onerror; const oldResult = recognition.onresult;
+    oldError?.({ error }); oldError?.({ error }); oldResult?.({ resultIndex: 0, results: { length: 0 } });
+    assert.equal(counts.starts, 1); assert.equal(counts.fallbacks, 1); assert.equal(counts.aborts, 1); assert.equal(counts.results, 0); assert.equal(recognition.lang, "es-ES");
+    signal.abort(); assert.equal(counts.aborts, 1);
+  }
+});
+
+test("silent browser speech restarts with backoff but pause cancels queued restarts", () => {
+  const originalSet = globalThis.setTimeout; const originalClear = globalThis.clearTimeout; let callback: (() => void) | undefined; let clears = 0;
+  globalThis.setTimeout = ((fn: () => void, delay: number) => { assert.equal(delay, 250); callback = fn; return 1; }) as unknown as typeof setTimeout;
+  globalThis.clearTimeout = (() => { clears++; }) as unknown as typeof clearTimeout;
+  try {
+    const { counts, recognition } = fakeRecognition(); const controller = new AbortController();
+    startBrowserRecognition(recognition, { signal: controller.signal, language: "en-US", onResult() {}, onFallback: () => counts.fallbacks++ });
+    recognition.onerror?.({ error: "no-speech" }); recognition.onend?.(); assert.equal(counts.fallbacks, 0); callback?.(); assert.equal(counts.starts, 2);
+    recognition.onend?.(); const queued = callback; controller.abort(); queued?.(); assert.equal(counts.starts, 2); assert.ok(clears > 0); assert.equal(recognition.onend, null);
+  } finally { globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear; }
+});
+
+test("recognition startup failure falls back without advertising a working speech service", () => {
+  const { counts, recognition } = fakeRecognition(); recognition.start = () => { throw new Error("service unavailable"); };
+  startBrowserRecognition(recognition, { signal: new AbortController().signal, language: "en-US", onResult() {}, onFallback: () => counts.fallbacks++ });
+  assert.equal(counts.fallbacks, 1); assert.equal(recognition.onresult, null);
+});
+
+test("voice transcription uses local silence without billing and checks the server fallback response", async () => {
+  let calls = 0; const controller = new AbortController(); const blob = new Blob(["short yes"], { type: "audio/mp4" });
+  const request = (async (_url, init) => { calls++; assert.equal(init?.signal, controller.signal); assert.equal((init?.body as FormData).get("file") instanceof File, true); assert.equal(((init?.body as FormData).get("file") as File).name, "voice.mp4"); return Response.json({ text: " yes " }); }) as typeof fetch;
+  assert.equal(await transcribeVoiceClip(blob, { signal: controller.signal, localSupported: true, localTranscribe: async () => "", request }), ""); assert.equal(calls, 0);
+  assert.equal(await transcribeVoiceClip(blob, { signal: controller.signal, localSupported: true, localTranscribe: async () => { throw new Error("unsupported codec"); }, request }), "yes"); assert.equal(calls, 1);
+  await assert.rejects(transcribeVoiceClip(blob, { signal: controller.signal, localSupported: false, localTranscribe: async () => "", request: (async () => new Response("", { status: 429 })) as typeof fetch }), /limit reached/);
+  await assert.rejects(transcribeVoiceClip(blob, { signal: controller.signal, localSupported: false, localTranscribe: async () => "", request: (async () => Response.json({ unexpected: true })) as typeof fetch }), /invalid response/);
+});
+
+test("input cancellation discards local recognition and never starts a server fallback", async () => {
+  const controller = new AbortController(); const local = deferred<string>(); let calls = 0;
+  const result = transcribeVoiceClip(new Blob(["audio"]), { signal: controller.signal, localSupported: true, localTranscribe: () => local.promise, request: (async () => { calls++; return Response.json({ text: "stale" }); }) as typeof fetch });
+  controller.abort(); local.reject(new Error("local failure")); await assert.rejects(result, { name: "AbortError" }); assert.equal(calls, 0);
+});
+
+test("main voice capture notices ended input once and detaches on cleanup", () => {
+  const track = Object.assign(new EventTarget(), { readyState: "live" }); const stream = { getAudioTracks: () => [track] } as unknown as MediaStream; const controller = new AbortController(); let ended = 0;
+  watchMicrophoneEnd(stream, controller.signal, () => ended++); track.dispatchEvent(new Event("ended")); track.dispatchEvent(new Event("ended")); assert.equal(ended, 1);
+  const second = new AbortController(); watchMicrophoneEnd(stream, second.signal, () => ended++); second.abort(); track.dispatchEvent(new Event("ended")); assert.equal(ended, 1);
+});
+
+test("voice recorder bounds clips, preserves short audio and cannot deliver old input after abort", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "MediaRecorder"); const originalSet = globalThis.setTimeout; const originalClear = globalThis.clearTimeout;
+  let timeout: (() => void) | undefined; let recorder!: Recorder; let clips = 0; let errors = 0; let shouldThrow = false;
+  class Recorder {
+    state = "inactive"; mimeType = "audio/webm"; ondataavailable: ((event: { data: Blob }) => void) | null = null; onstop: (() => void) | null = null; onerror: (() => void) | null = null;
+    start() { if (shouldThrow) throw new Error("cannot start"); this.state = "recording"; }
+    stop() { this.state = "inactive"; this.ondataavailable?.({ data: new Blob(["yes"]) }); this.onstop?.(); }
+  }
+  Object.defineProperty(globalThis, "MediaRecorder", { configurable: true, value: Recorder });
+  globalThis.setTimeout = ((fn: () => void, ms: number) => { assert.equal(ms, 30_000); timeout = fn; return 1; }) as unknown as typeof setTimeout;
+  globalThis.clearTimeout = (() => {}) as unknown as typeof clearTimeout;
+  try {
+    const controller = new AbortController(); const options = { signal: controller.signal, onRecorder: (value: MediaRecorder) => { recorder = value as unknown as Recorder; }, onClip: (blob: Blob) => { clips++; assert.equal(blob.size, 3); }, onError: () => errors++ };
+    startVoiceRecording({} as MediaStream, options); timeout?.(); assert.equal(clips, 1);
+    startVoiceRecording({} as MediaStream, options); const lateData = recorder.ondataavailable; const lateStop = recorder.onstop; controller.abort(); lateData?.({ data: new Blob(["old"]) }); lateStop?.(); assert.equal(clips, 1); assert.equal(recorder.state, "inactive");
+    shouldThrow = true; assert.equal(startVoiceRecording({} as MediaStream, { ...options, signal: new AbortController().signal }), null); assert.equal(errors, 1);
+  } finally { globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear; if (original) Object.defineProperty(globalThis, "MediaRecorder", original); else Reflect.deleteProperty(globalThis, "MediaRecorder"); }
+});
+
+test("pending microphone permission stays visible until resolution or cancel and stale grants cannot clear a retry", async () => {
+  const f = microphoneFixture();
+  try {
+    const first = f.session.start(); await flushMicrotasks();
+    assert.equal(f.state().pending, true); assert.equal(f.state().active, false); assert.equal(f.state().error, ""); assert.equal(f.timers.size, 0);
+    f.session.stop(); assert.equal(f.state().pending, false);
+    const retry = f.session.start(); assert.equal(f.state().pending, true);
+    const stale = f.stream(); f.requests[0].result.resolve(stale.input); await first;
+    assert.equal(stale.stops(), 1); assert.equal(f.state().pending, true); assert.equal(f.state().active, false);
+    f.requests[1].result.resolve(f.stream().input); await retry;
+    assert.equal(f.state().pending, false); assert.equal(f.state().active, true);
+  } finally { f.restore(); }
+});

@@ -45,18 +45,14 @@ function KeyBadge({ label, active, editing, onClick }: { label: string; active?:
 }
 
 export default function ShortcutsOverlay({ open, onClose }: Props) {
-  const [disabled, setDisabled] = useState<Set<string>>(new Set());
-  const [custom, setCustom] = useState<Record<string, string>>({});
+  return <AnimatePresence>{open && <ShortcutsEditor onClose={onClose} />}</AnimatePresence>;
+}
+
+function ShortcutsEditor({ onClose }: Pick<Props, "onClose">) {
+  const [disabled, setDisabled] = useState<Set<string>>(loadDisabled);
+  const [custom, setCustom] = useState<Record<string, string>>(loadCustom);
   const [editing, setEditing] = useState<string | null>(null);
   const captureRef = useRef<((e: KeyboardEvent) => void) | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setDisabled(loadDisabled());
-      setCustom(loadCustom());
-      setEditing(null);
-    }
-  }, [open]);
 
   useEffect(() => {
     if (!editing) {
@@ -73,34 +69,28 @@ export default function ShortcutsOverlay({ open, onClose }: Props) {
         return;
       }
       const newKey = k.length === 1 ? k.toLowerCase() : k.toLowerCase().replace(/^arrow/, "");
-      setCustom((prev) => {
-        const next = { ...prev, [editing!]: newKey };
-        saveCustom(next);
-        return next;
-      });
+      const next = { ...custom, [editing]: newKey };
+      saveCustom(next);
+      setCustom(next);
       setEditing(null);
     };
     captureRef.current = capture;
     window.addEventListener("keydown", capture, true);
     return () => { if (captureRef.current) window.removeEventListener("keydown", captureRef.current, true); };
-  }, [editing]);
+  }, [editing, custom]);
 
   function toggleDisabled(id: string) {
-    setDisabled((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      saveDisabled(next);
-      return next;
-    });
+    const next = new Set(disabled);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    saveDisabled(next);
+    setDisabled(next);
   }
 
   function clearCustomKey(id: string) {
-    setCustom((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      saveCustom(next);
-      return next;
-    });
+    const next = { ...custom };
+    delete next[id];
+    saveCustom(next);
+    setCustom(next);
   }
 
   function handleReset() {
@@ -111,9 +101,7 @@ export default function ShortcutsOverlay({ open, onClose }: Props) {
   }
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
+    <>
           <motion.div
             key="kb-backdrop"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -275,8 +263,6 @@ export default function ShortcutsOverlay({ open, onClose }: Props) {
               })}
             </div>
           </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </>
   );
 }

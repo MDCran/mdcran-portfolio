@@ -75,7 +75,6 @@ export default function ExternalLinkGuard() {
       const t = setTimeout(() => proceed(target.href), 150);
       return () => clearTimeout(t);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, target]);
 
   const cancel = () => setTarget(null);

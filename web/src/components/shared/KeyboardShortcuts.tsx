@@ -24,16 +24,6 @@ const DISPLAY_SHORTCUTS: ShortcutItem[] = [
   { keys: ["C"], label: "Contact" },
 ];
 
-const SEQUENCE_ROUTES: Record<string, string> = {
-  h: "/",
-  e: "/arts-and-entertainment",
-  m: "/motion-and-graphics",
-  g: "/motion-and-graphics",
-  c: "/engineering",
-  a: "/articles",
-  r: "/resume",
-};
-
 const SEQUENCE_TIMEOUT_MS = 1400;
 
 function isTypingTarget(target: EventTarget | null) {
@@ -227,7 +217,7 @@ export default function KeyboardShortcuts() {
       document.documentElement.removeEventListener("pointerleave", onPointerLeaveDocument);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [pathname, router]);
+  }, [pathname, router, getKey]);
 
   if (pathname.startsWith("/admin")) return null;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -116,11 +116,28 @@ const POWERUP_META: Record<PowerupKind, { color: string; icon: string; label: st
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+function readStoredHighScore() {
+  try {
+    const score = Number(localStorage.getItem(HIGH_SCORE_KEY));
+    return Number.isFinite(score) && score > 0 ? score : 0;
+  } catch { return 0; }
+}
+function subscribeHighScore(onChange: () => void) {
+  const listener = (event: StorageEvent) => {
+    if (event.key === HIGH_SCORE_KEY || event.key === null) onChange();
+  };
+  window.addEventListener("storage", listener);
+  return () => window.removeEventListener("storage", listener);
+}
+const serverHighScore = () => 0;
+
 export default function SnakeGame({ onExit }: SnakeGameProps) {
   const [started, setStarted] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
+  const [activeEffects, setActiveEffects] = useState<ActiveEffect[]>([]);
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
+  const [sessionHighScore, setHighScore] = useState(0);
+  const storedHighScore = useSyncExternalStore(subscribeHighScore, readStoredHighScore, serverHighScore);
+  const highScore = Math.max(sessionHighScore, storedHighScore);
 
   // Refs for game state (canvas render loop reads these directly)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -147,21 +164,10 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
 
   const highScoreRef = useRef(0);
 
-  // Load high score on mount
+  // The simulation keeps a mutable copy; the HUD reads the subscribed snapshot.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(HIGH_SCORE_KEY);
-      if (stored) {
-        const n = parseInt(stored, 10);
-        if (!isNaN(n)) {
-          highScoreRef.current = n;
-          setHighScore(n);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+    highScoreRef.current = Math.max(highScoreRef.current, highScore);
+  }, [highScore]);
 
   // -----------------------------------------------------------------------
   // Game logic helpers (all ref-based, no state)
@@ -225,12 +231,12 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
     startedRef.current = true;
     powerupRef.current = null;
     activeEffectsRef.current = [];
+    setActiveEffects([]);
     particlesRef.current = [];
     scorePopupsRef.current = [];
     screenFlashRef.current = 0;
     lastTickRef.current = performance.now();
     setScore(0);
-    setGameOver(false);
     setStarted(true);
     scheduleNextPowerup();
   }, [scheduleNextPowerup]);
@@ -344,7 +350,6 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
               head.y = ((head.y % GRID_SIZE) + GRID_SIZE) % GRID_SIZE;
             } else {
               gameOverRef.current = true;
-              setGameOver(true);
               // Save high score
               if (scoreRef.current > highScoreRef.current) {
                 highScoreRef.current = scoreRef.current;
@@ -359,7 +364,6 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
           // Self collision
           if (posInList(head, currentSnake)) {
             gameOverRef.current = true;
-            setGameOver(true);
             if (scoreRef.current > highScoreRef.current) {
               highScoreRef.current = scoreRef.current;
               setHighScore(scoreRef.current);
@@ -462,6 +466,8 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
             if (e.kind === "multifood" && now >= e.expiresAt) { extraFoodRef.current = []; return false; }
             return now < e.expiresAt;
           });
+
+          setActiveEffects(activeEffectsRef.current.map(effect => ({ ...effect })));
 
           // Spawn powerup
           if (!powerupRef.current && now >= nextPowerupTimeRef.current) {
@@ -737,8 +743,6 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
   // Render
   // -----------------------------------------------------------------------
 
-  // Compute active effects for HUD (read from refs each React render)
-  const activeEffects = activeEffectsRef.current;
   const currentSpeed = Math.max(
     MIN_SPEED,
     INITIAL_SPEED - Math.floor(score / SPEED_INCREMENT_INTERVAL) * 10
@@ -819,16 +823,14 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
 // Sub-component: active effect indicators in HUD
 // ---------------------------------------------------------------------------
 function ActiveEffectIndicators({ effects }: { effects: ActiveEffect[] }) {
-  // Force re-render every 100ms so timers update
-  const [, setTick] = useState(0);
+  // Publish clock snapshots so the HUD stays pure and timed effects count down.
+  const [now, setNow] = useState(() => performance.now());
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 100);
+    const id = setInterval(() => setNow(performance.now()), 100);
     return () => clearInterval(id);
   }, []);
 
   if (effects.length === 0) return null;
-
-  const now = performance.now();
 
   return (
     <>

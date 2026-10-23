@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 
 // Pre-rendered farewell message — synthesized once and returned with a long
 // cache header so browsers serve it locally on repeat plays (no token usage).
@@ -13,7 +12,7 @@ const VOICE_SETTINGS = { stability: 0.45, similarity_boost: 0.9, style: 0.6, use
 // instantly. The client also caches via Cache-Control: public, max-age.
 let cachedBuffer: ArrayBuffer | null = null;
 
-export async function GET(_req: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "Voice not configured" }), { status: 503 });

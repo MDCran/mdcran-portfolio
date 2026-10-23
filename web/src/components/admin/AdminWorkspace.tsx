@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import Image, { type ImageProps } from "next/image";
 import { adminRequest, AdminRequestError, recordVersion, recordId, removedRecords, contentSignature } from "@/lib/admin-client";
 import { useSWRConfig } from "swr";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell } from "recharts";
@@ -33,6 +34,10 @@ const CampaignViewModal = dynamic(() => import('./CampaignViewModal'));
 const ContactEditorModal = dynamic(() => import('./ContactEditorModal'));
 const R2ImagePickerModal = dynamic(() => import('./R2ImagePickerModal'));
 const AssetUsage = dynamic(() => import("./AssetUsage"));
+function AdminImage({ src, alt, ...props }: Omit<ImageProps, "src"> & { src: string | undefined }) {
+  return src ? <Image src={src} alt={alt} {...props} /> : null;
+}
+
 export default function AdminDashboard({ initialSection = "dashboard" }: { initialSection?: string }) {
   const router = useRouter();
   const { mutate } = useSWRConfig();
@@ -1125,23 +1130,6 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
     if (!deleteConfirm) return;
     const actions = {project:deleteProject,article:deleteArticle,client:deleteClient,contact:deleteContact,campaign:deleteCampaign,rizz:deleteRizzSubmission,r2:deleteR2FileConfirmed};
     await actions[deleteConfirm.type](deleteConfirm.id);
-  }
-
-  /* ── Export JSON ── */
-  function exportData() {
-    const data = { projects, articles, clients, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `mdcran-data-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  /* ── Reset to defaults ── */
-  async function resetToDefaults() {
-    return;
   }
 
   /* ── Filtered lists ── */
@@ -2394,7 +2382,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                       <tr key={p.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2">
                           {p.coverImage ? (
-                            <img
+                            <AdminImage unoptimized width={40} height={30}
                               src={assetUrl(toEditableImageAsset(p.coverImage).src)}
                               alt={toEditableImageAsset(p.coverImage).alt ?? ""}
                               className="w-10 h-[30px] object-cover rounded-sm opacity-80"
@@ -2517,7 +2505,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                       <tr key={a.id} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
                         <td className="px-3 py-2">
                           {a.coverImage ? (
-                            <img
+                            <AdminImage unoptimized width={40} height={30}
                               src={assetUrl(toEditableImageAsset(a.coverImage).src)}
                               alt={toEditableImageAsset(a.coverImage).alt ?? ""}
                               className="w-10 h-[30px] object-cover rounded-sm opacity-80"
@@ -2609,7 +2597,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
                       {c.avatarUrl ? (
-                        <img src={assetUrl(c.avatarUrl)} alt={c.name} className="w-9 h-9 rounded-full object-cover opacity-90" />
+                        <AdminImage unoptimized width={36} height={36} src={assetUrl(c.avatarUrl)} alt={c.name} className="w-9 h-9 rounded-full object-cover opacity-90" />
                       ) : (
                         <div className="w-9 h-9 rounded-full bg-white/8 flex items-center justify-center text-white/30 text-xs">
                           {c.name.charAt(0)}
@@ -3310,7 +3298,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                                   onClick={() => setR2PreviewFile(file)}
                                   className="block shrink-0 transition-opacity hover:opacity-90"
                                 >
-                                  <img
+                                  <AdminImage unoptimized width={80} height={56}
                                     src={file.publicUrl}
                                     alt={file.name}
                                     className="h-14 w-20 rounded-sm border border-white/8 bg-black/20 object-cover"
@@ -3432,7 +3420,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   <div className="flex items-end">
                     <div className="flex h-16 w-full items-center gap-3 rounded-sm border border-white/8 bg-black/20 px-3">
                       {siteContent.brandLogoUrl ? (
-                        <img
+                        <AdminImage unoptimized width={160} height={40}
                           src={assetUrl(siteContent.brandLogoUrl)}
                           alt="Shared brand logo preview"
                           className="max-h-10 w-auto rounded-sm object-contain"
@@ -3446,7 +3434,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   <div className="flex items-end">
                     <div className="flex h-16 w-full items-center gap-3 rounded-sm border border-white/8 bg-black/20 px-3">
                       {siteContent.faviconUrl ? (
-                        <img
+                        <AdminImage unoptimized width={32} height={32}
                           src={assetUrl(siteContent.faviconUrl)}
                           alt="Favicon preview"
                           className="h-8 w-8 rounded-sm object-contain"
@@ -4897,7 +4885,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                               <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "experiences", index: idx })}>
                                 {exp.companyLogo ? "Change Logo" : "+ Logo"}
                               </button>
-                              {exp.companyLogo && <img src={assetUrl(exp.companyLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              {exp.companyLogo && <AdminImage unoptimized width={24} height={24} src={assetUrl(exp.companyLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
                               <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setExperiences((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
                             </div>
                           </div>
@@ -4981,7 +4969,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                               <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "educations", index: idx })}>
                                 {education.institutionLogo ? "Change Logo" : "+ Logo"}
                               </button>
-                              {education.institutionLogo && <img src={assetUrl(education.institutionLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              {education.institutionLogo && <AdminImage unoptimized width={24} height={24} src={assetUrl(education.institutionLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
                               <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setEducations((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
                             </div>
                           </div>
@@ -5029,7 +5017,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                                     <button type="button" className="text-white/30 hover:text-white/70 text-xs px-1 disabled:opacity-30" disabled={pIdx === 0} onClick={() => moveProgram(idx, pIdx, -1)}>↑</button>
                                     <button type="button" className="text-white/30 hover:text-white/70 text-xs px-1 disabled:opacity-30" disabled={pIdx === (education.programs?.length ?? 0) - 1} onClick={() => moveProgram(idx, pIdx, 1)}>↓</button>
                                     <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "program", index: idx, programIndex: pIdx })}>{prog.logo ? "Logo ✓" : "+ Logo"}</button>
-                                    {prog.logo && <img src={assetUrl(prog.logo)} alt="" className="h-5 w-5 rounded-sm object-cover border border-white/10" />}
+                                    {prog.logo && <AdminImage unoptimized width={20} height={20} src={assetUrl(prog.logo)} alt="" className="h-5 w-5 rounded-sm object-cover border border-white/10" />}
                                     <button type="button" className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => removeProgram(idx, pIdx)}>Remove</button>
                                   </div>
                                 </div>
@@ -5189,7 +5177,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           <div className="col-span-2 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "certifications", index: idx })}>{cert.issuerLogo ? "Change Logo" : "+ Logo"}</button>
-                              {cert.issuerLogo && <img src={assetUrl(cert.issuerLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              {cert.issuerLogo && <AdminImage unoptimized width={24} height={24} src={assetUrl(cert.issuerLogo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
                             </div>
                             <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setCertifications((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
                           </div>
@@ -5225,7 +5213,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           <div className="col-span-2 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "awards", index: idx })}>{award.logo ? "Change Logo" : "+ Logo / Badge"}</button>
-                              {award.logo && <img src={assetUrl(award.logo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              {award.logo && <AdminImage unoptimized width={24} height={24} src={assetUrl(award.logo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
                             </div>
                             <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setAwards((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
                           </div>
@@ -5261,7 +5249,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           <div className="col-span-2 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <button type="button" className={`${btnOutline} cursor-pointer`} onClick={() => setResumeLogoTarget({ list: "clubs", index: idx })}>{club.logo ? "Change Logo" : "+ Logo"}</button>
-                              {club.logo && <img src={assetUrl(club.logo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
+                              {club.logo && <AdminImage unoptimized width={24} height={24} src={assetUrl(club.logo)} alt="" className="h-6 w-6 rounded-sm object-cover border border-white/10" />}
                             </div>
                             <button className="text-[#ef4242]/60 hover:text-[#ef4242] text-xs" onClick={() => setClubs((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
                           </div>

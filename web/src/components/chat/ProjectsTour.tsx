@@ -34,6 +34,7 @@ export default function ProjectsTour() {
   const [wordIdx, setWordIdx] = useState(-1);
 
   const runIdRef = useRef(0);
+  const invalidateRun = useCallback(() => { runIdRef.current += 1; }, []);
   const runningRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const langRef = useRef<string>("en-US");
@@ -182,13 +183,13 @@ export default function ProjectsTour() {
     window.addEventListener("mdcran:run-projects-tour", onRun);
     return () => {
       window.removeEventListener("mdcran:run-projects-tour", onRun);
-      runIdRef.current++;
+      invalidateRun();
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router, tourScrollTo, waitForPath]);
+  }, [narrate, router, tourScrollTo, waitForPath, invalidateRun]);
 
   const stop = () => {
-    runIdRef.current++;
+    invalidateRun();
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
     setCaption(null); setWordIdx(-1); setRunning(false); runningRef.current = false;
     window.dispatchEvent(new CustomEvent("mdcran:chat-open"));

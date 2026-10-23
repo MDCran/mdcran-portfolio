@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect } from "react";
+import { useStoredPreference } from "./useStoredPreference";
 
 export interface LanguageDefinition {
   code: string;
@@ -70,25 +71,19 @@ export function useLanguage() {
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [currentLang, setCurrentLang] = useState<string>("en-US");
+  const [storedLanguage, setStoredLanguage, languageReady] = useStoredPreference(LANG_STORAGE_KEY, "en-US");
+  const currentLang = SUPPORTED_LANGUAGES.find((language) => language.code === storedLanguage)?.code ?? "en-US";
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LANG_STORAGE_KEY);
-      if (stored && SUPPORTED_LANGUAGES.some((l) => l.code === stored)) {
-        setCurrentLang(stored);
-        document.documentElement.lang = getLanguageCode(stored);
-      }
-    } catch { /* localStorage unavailable */ }
-  }, []);
+    if (!languageReady) return;
+    document.documentElement.lang = getLanguageCode(currentLang);
+    window.dispatchEvent(new CustomEvent("mdcran:language-change", { detail: { code: currentLang } }));
+  }, [currentLang, languageReady]);
 
   const setLanguage = useCallback((code: string) => {
     if (!SUPPORTED_LANGUAGES.some((l) => l.code === code)) return;
-    setCurrentLang(code);
-    document.documentElement.lang = getLanguageCode(code);
-    try { localStorage.setItem(LANG_STORAGE_KEY, code); } catch { /* */ }
-    window.dispatchEvent(new CustomEvent("mdcran:language-change", { detail: { code } }));
-  }, []);
+    setStoredLanguage(code);
+  }, [setStoredLanguage]);
 
   const translateFn = useCallback((text: string) => translate(text, currentLang, "en-US"), [currentLang]);
 

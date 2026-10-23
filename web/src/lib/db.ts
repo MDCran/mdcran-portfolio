@@ -1,4 +1,5 @@
 import { saveContentBatch } from "./admin-content";
+import { reconcileClientSocialLinks } from "./client-social-links";
 import { getDb, resetMongoClient } from "./mongodb";
 import bcrypt from "bcryptjs";
 import type {
@@ -154,7 +155,7 @@ export async function getSiteContent(): Promise<SiteContent> {
       const order = content?.homeSectionOrder?.length
         ? content.homeSectionOrder
         : defaultSiteContent.homeSectionOrder;
-      let result = [...order];
+      const result = [...order];
       // Ensure timeline is present (may be missing from older saved configs)
       if (!result.includes("timeline")) {
         const servicesIdx = result.indexOf("services");
@@ -1223,7 +1224,8 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
 }
 
 export async function getClients(): Promise<Client[]> {
-  return readCollection<Client>("clients");
+  const clients = await readCollection<Client>("clients");
+  return clients.map(reconcileClientSocialLinks);
 }
 
 export async function getClientById(id: string): Promise<Client | undefined> {
@@ -1928,7 +1930,11 @@ export async function getSkillCategories(): Promise<SkillCategoryMeta[]> {
     .find<SkillCategoryMeta & { position?: number }>({}, { projection: { _id: 0 } })
     .sort({ _position: 1, position: 1 })
     .toArray();
-  return rows.map(({ position: _position, ...rest }) => rest);
+  return rows.map((row) => {
+    const category = { ...row };
+    delete category.position;
+    return category;
+  });
 }
 
 export async function saveSkillCategories(categories: SkillCategoryMeta[]): Promise<void> {

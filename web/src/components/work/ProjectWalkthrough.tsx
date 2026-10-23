@@ -40,6 +40,6 @@ export default function ProjectWalkthrough({ slug }: { slug: string }) {
         <a download="sample-health-export.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`} className="inline-block rounded-sm border border-white/25 px-4 py-2 text-sm">Download sample CSV</a>
       </>}
     </div>}
-    {slug === "webdesign-portfolio" && <p className="mt-4 text-sm text-white/80">Try the live workflow above: choose a role, search a technology, then save two projects to compare. No account is needed; the shortlist stays on this device.</p>}
+    {slug === "webdesign-portfolio" && <p className="mt-4 text-sm text-white/80">Use the project filters to browse by area, choose a role, or search for a technology. Open a card to explore its implementation and demos.</p>}
   </details>;
 }

@@ -395,7 +395,7 @@ export function useScreenReader() {
     };
     utteranceRef.current = utterance;
     speechSynthesis.speak(utterance);
-  }, [getVoice, volume, clearHighlight]);
+  }, [getVoice, clearHighlight]);
 
   return { enabled, reading, volume, toggle, speak, stop, volumeUp, volumeDown };
 }
@@ -411,7 +411,11 @@ interface ScreenReaderPopupsProps {
   onVolumeDown: () => void;
 }
 
-export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, onStop, onVolumeUp, onVolumeDown }: ScreenReaderPopupsProps) {
+export default function ScreenReaderPopups(props: ScreenReaderPopupsProps) {
+  return <ScreenReaderPopupSession key={props.enabled ? "enabled" : "disabled"} {...props} />;
+}
+
+function ScreenReaderPopupSession({ enabled, reading, volume, onSpeak, onStop, onVolumeUp, onVolumeDown }: ScreenReaderPopupsProps) {
   const [selectedText, setSelectedText] = useState("");
   const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string; imageSrc?: string } | null>(null);
@@ -474,12 +478,7 @@ export default function ScreenReaderPopups({ enabled, reading, volume, onSpeak, 
   }, []);
 
   useEffect(() => {
-    if (!enabled) {
-      setPopupPos(null);
-      setSelectedText("");
-      savedRangeRef.current = null;
-      return;
-    }
+    if (!enabled) return;
 
     function handleSelectionChange() {
       const sel = window.getSelection();

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import HomeExtras from "@/components/home/HomeExtras";
-import PublicVitals from "@/components/shared/PublicVitals";
 import Hero from "@/components/home/Hero";
 import EngineeringHighlights from "@/components/home/EngineeringHighlights";
 import Stats from "@/components/home/Stats";
@@ -128,7 +127,7 @@ export default async function HomePage() {
   };
 
   const sectionMap: Record<string, ReactNode> = {
-    hero: <><Hero location={profile.location} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights projects={allProjects} /></div></>,
+    hero: <><Hero content={siteContent.homeHero} location={profile.location} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights projects={allProjects} /></div></>,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
         <Stats content={siteContent.homeStats} aiUsageTracker={siteContent.aiUsageTracker} />
@@ -202,11 +201,10 @@ export default async function HomePage() {
 
       <Navbar />
       <main className="public-portfolio relative overflow-hidden">
+        <HomeExtras />
         {sectionsToRender.map((section) => (
           <div key={section.id} id={section.id} data-highlight-id={section.id} style={{ scrollMarginTop: "5rem" }}>{section.node}</div>
         ))}
-        <HomeExtras location={profile.location} />
-        <PublicVitals />
       </main>
       <Footer />
     </>

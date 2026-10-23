@@ -87,6 +87,7 @@ export default function AssistantTutorial() {
   const [paused, setPaused] = useState(false);
 
   const runIdRef = useRef(0);
+  const invalidateRun = useCallback(() => { runIdRef.current += 1; }, []);
   const runningRef = useRef(false);
   const pausedRef = useRef(false);
 
@@ -562,13 +563,13 @@ export default function AssistantTutorial() {
     window.addEventListener("mdcran:run-tutorial", onRun);
     return () => {
       window.removeEventListener("mdcran:run-tutorial", onRun);
-      runIdRef.current++;
+      invalidateRun();
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } }
     };
-  }, [narrate, router, spotTarget, tourScrollTo, waitForResume]);
+  }, [narrate, router, spotTarget, tourScrollTo, waitForResume, invalidateRun]);
 
   const endTour = (reopenChat = true) => {
-    runIdRef.current++;
+    invalidateRun();
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* */ } audioRef.current = null; }
     targetElRef.current = null;
     setSpot(null);

@@ -120,13 +120,11 @@ function isWall(maze: number[][], x: number, y: number): boolean {
 export default function PacmanGame({ onExit }: PacmanGameProps) {
   // ── React state (for overlays / HUD that need re-render) ──
   const [started, setStarted] = useState(false);
-  const [moving, setMoving] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
-  const [won, setWon] = useState(false);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [level, setLevel] = useState(1);
   const [powerActive, setPowerActive] = useState(false);
+  const [powerRatio, setPowerRatio] = useState(0);
 
   // ── Refs for game state (mutated in tick, read in render) ──
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -225,10 +223,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     setScore(0);
     setLives(3);
     setLevel(1);
-    setGameOver(false);
-    setWon(false);
     setStarted(true);
-    setMoving(false);
     setPowerActive(false);
   }, []);
 
@@ -284,7 +279,6 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       }
       if (moved && !movingRef.current) {
         movingRef.current = true;
-        setMoving(true);
         lastTickTimeRef.current = performance.now();
       }
     },
@@ -361,14 +355,13 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     // Win check
     if (countCollectibles(maze) === 0) {
       wonRef.current = true;
-      setWon(true);
       scoreRef.current += 1000;
       setScore(scoreRef.current);
       return;
     }
 
     // Move ghosts (every other tick)
-    const ghosts = ghostsRef.current;
+    const ghosts = ghostsRef.current.map(ghost => ({ ...ghost, pos: { ...ghost.pos }, prevPos: { ...ghost.prevPos } }));
     if (tickRef.current % 2 === 0) {
       for (const ghost of ghosts) {
         const neighbors = getNeighbors(maze, ghost.pos);
@@ -412,13 +405,14 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       }
     }
 
+    ghostsRef.current = ghosts;
+
     if (lostLife) {
       livesRef.current -= 1;
       shakeRef.current = 400;
       shakeStartRef.current = performance.now();
       if (livesRef.current <= 0) {
         gameOverRef.current = true;
-        setGameOver(true);
         setScore(scoreRef.current);
         setLives(0);
         return;
@@ -426,7 +420,6 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       setLives(livesRef.current);
       resetPositions();
       movingRef.current = false;
-      setMoving(false);
     }
 
     setScore(scoreRef.current);
@@ -589,8 +582,8 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       }
 
       // ── Pacman trail ──
+      trailRef.current = trailRef.current.map(trail => ({ ...trail, alpha: trail.alpha - 0.008 }));
       for (const trail of trailRef.current) {
-        trail.alpha -= 0.008;
         if (trail.alpha > 0) {
           const tx = trail.x * cs + cs / 2;
           const ty = trail.y * cs + cs / 2;
@@ -903,18 +896,15 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
 
   // ── Animation loop ──
 
-  const animate = useCallback(
-    (now: number) => {
-      renderFrame(now);
-      rafRef.current = requestAnimationFrame(animate);
-    },
-    [renderFrame]
-  );
-
   // ── Start / stop game loop + render loop ──
 
   useEffect(() => {
     if (!started) return;
+
+    function animate(now: number) {
+      renderFrame(now);
+      rafRef.current = requestAnimationFrame(animate);
+    }
 
     // Start animation loop
     lastTickTimeRef.current = performance.now();
@@ -923,13 +913,14 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     // Start game tick interval
     intervalRef.current = setInterval(() => {
       gameTick();
+      setPowerRatio(powerRef.current ? Math.max(0, 1 - (performance.now() - powerStartRef.current) / POWER_DURATION) : 0);
     }, TICK_MS);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [started, animate, gameTick]);
+  }, [started, renderFrame, gameTick]);
 
   // ── Keyboard listener ──
 
@@ -1011,13 +1002,6 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         <div className="text-[11px] text-[#4b5563] mt-4">ESC to exit</div>
       </div>
     );
-  }
-
-  // ── Power timer bar calculation ──
-  let powerRatio = 0;
-  if (powerActive && powerStartRef.current > 0) {
-    const elapsed = performance.now() - powerStartRef.current;
-    powerRatio = Math.max(0, 1 - elapsed / POWER_DURATION);
   }
 
   // ── Main game UI ──

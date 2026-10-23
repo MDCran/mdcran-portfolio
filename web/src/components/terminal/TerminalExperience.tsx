@@ -871,12 +871,6 @@ function PreviewPanel({
 
   // ── Article rich view ─────────────────────────────────────────────────────
   if (a) {
-    const sectionImages = a.sections.flatMap((sec) => {
-      if (sec.type === "image" && sec.src) return [{ url: imageAssetSrc(sec.src) ?? "", alt: sec.alt ?? sec.caption ?? a.title }];
-      if (sec.type === "gallery" && sec.images?.length) return sec.images.slice(0, 3).map((img) => ({ url: imageAssetSrc(img) ?? "", alt: sec.caption ?? a.title }));
-      return [];
-    }).filter((img) => Boolean(img.url));
-
     return (
       <div className="flex h-full flex-col">
         {header}
@@ -1074,7 +1068,6 @@ function BrowserPanel({
   url,
   onClose,
   onNavigate,
-  onMinimize,
   onTitleBarDragStart,
   minimized,
 }: {
@@ -1570,20 +1563,6 @@ export default function TerminalExperience() {
       .sort((a, b) => a.localeCompare(b));
   }, [data]);
 
-  const pathAutocomplete = React.useMemo(() => {
-    const all = new Set<string>();
-    all.add("/");
-    all.add("..");
-    for (const dir of VALID_DIRS) all.add(dir);
-    for (const root of ROOTS) all.add(root);
-    for (const alias of Object.keys(ROUTES)) all.add(alias);
-    for (const dir of VALID_DIRS) {
-      const seg = dir.split("/").pop();
-      if (seg) all.add(seg);
-    }
-    return [...all].sort((a, b) => a.localeCompare(b));
-  }, []);
-
   // Context-aware cd completions: mirrors exactly what `ls` shows at the current path.
   const cdContextCompletions = React.useMemo(() => {
     const all = new Set<string>();
@@ -1708,7 +1687,7 @@ export default function TerminalExperience() {
     }
 
     return "";
-  }, [cdContextCompletions, entityAutocomplete, input, pathAutocomplete, results, searchAutocomplete]);
+  }, [cdContextCompletions, entityAutocomplete, input, results, searchAutocomplete]);
 
   const commandUsageHint = React.useMemo(() => {
     const raw = input.trimStart();

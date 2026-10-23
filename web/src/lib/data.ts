@@ -3,8 +3,10 @@ import type {
   Certification, Award, ClubMembership, Article, ArticleCategory,
 } from "./types";
 
+import { reconcileClientSocialLinks } from "./client-social-links";
+
 // ─── Clients ──────────────────────────────────────────────
-export const clients: Client[] = [
+export const clients: Client[] = ([
   // ─ Established Partners ──────────────────────────────────
   {
     id: "popularmmos",
@@ -353,8 +355,8 @@ export const clients: Client[] = [
     id: "100media",
     name: "100 Media",
     avatarUrl: "/cdn/WEB_ASSETS/CLIENTS/100MEDIAHQ.jpg",
-    roles: ["Esports Organization", "Content Network"],
-    bio: "100 Media is a premier esports organization, lifestyle brand, and content house with a roster of top gaming creators and competitive teams.",
+    roles: ["Development Team", "Content Network"],
+    bio: "100 Media is a development team focused on creating content for Moose & Shark.",
     socialLinks: [
       { platform: "youtube", url: "https://www.youtube.com/@100Thieves", handle: "@100Thieves" },
       { platform: "twitch", url: "https://www.twitch.tv/100thieves", handle: "100thieves" },
@@ -405,7 +407,7 @@ export const clients: Client[] = [
     ],
     featured: true,
   },
-];
+] satisfies Client[]).map(reconcileClientSocialLinks);
 
 // ─── Projects ─────────────────────────────────────────────
 export const projects: Project[] = [

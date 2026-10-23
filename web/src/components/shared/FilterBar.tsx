@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search, LayoutGrid, SlidersHorizontal, X } from "lucide-react";
 import { cn, imageAssetSrc } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
@@ -108,9 +108,9 @@ export default function FilterBar({
   }, [draggingGrid]);
 
   // Hide Free / For Sale toggles when there's nothing in them — only keep "All" plus non-empty buckets.
-  const visibleStatusOptions = statusOptions.filter(
+  const visibleStatusOptions = useMemo(() => statusOptions.filter(
     (opt) => opt.value === "all" || !counts || (counts[opt.value] ?? 0) > 0
-  );
+  ), [counts]);
 
   useEffect(() => {
     const updateStatusHighlight = () => {
@@ -137,7 +137,7 @@ export default function FilterBar({
       clearTimeout(resizeTimer);
       window.removeEventListener("resize", debouncedUpdate);
     };
-  }, [active, counts]);
+  }, [active, visibleStatusOptions]);
 
   const getColFromPointerTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {

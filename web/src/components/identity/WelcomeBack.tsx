@@ -6,16 +6,15 @@ import { useIdentity } from "@/context/IdentityContext";
 
 export default function WelcomeBack() {
   const { identity } = useIdentity();
-  const [visible, setVisible] = useState(false);
+  const [expiredIdentity, setExpiredIdentity] = useState<string | null>(null);
+  const returningIdentity = identity && !identity.isNew && identity.name && identity.name !== "Guest" ? `${identity.id}:${identity.name}` : null;
+  const visible = returningIdentity !== null && returningIdentity !== expiredIdentity;
 
   useEffect(() => {
-    // Only show for recycled (returning) visitors with a real name
-    if (identity && !identity.isNew && identity.name && identity.name !== "Guest") {
-      setVisible(true);
-      const t = setTimeout(() => setVisible(false), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [identity]);
+    if (!returningIdentity) return;
+    const timer = setTimeout(() => setExpiredIdentity(returningIdentity), 4000);
+    return () => clearTimeout(timer);
+  }, [returningIdentity]);
 
   return (
     <AnimatePresence>

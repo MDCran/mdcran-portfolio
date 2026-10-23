@@ -1,35 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { resolveSkillIcon } from "@/lib/skill-icons";
+import { SkillIcon } from "@/lib/skill-icons";
 import type { SiteContentBanner } from "@/lib/types";
 
 export default function AnnouncementBanner({ banner }: { banner?: SiteContentBanner | null }) {
-  const [dismissed, setDismissed] = useState(true); // start hidden to avoid flash; enable after checks
-  const [now, setNow] = useState<number | null>(null);
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
   // Dismissal is keyed to the message so a new announcement re-appears.
   const dismissKey = banner?.message ? `mdcran_banner_${banner.message.slice(0, 40)}` : "";
 
-  useEffect(() => {
-    if (!banner?.enabled || !banner.message.trim()) { setDismissed(true); return; }
-    setNow(Date.now());
-    try {
-      setDismissed(dismissKey ? localStorage.getItem(dismissKey) === "1" : false);
-    } catch {
-      setDismissed(false);
-    }
-  }, [banner?.enabled, banner?.message, dismissKey]);
+  const startsAt = banner?.startsAt;
+  const endsAt = banner?.endsAt;
+  const subscribe = useCallback((notify: () => void) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      const now = Date.now();
+      const next = [startsAt, endsAt].filter(Boolean).map(value => new Date(value!).getTime() + 1).filter(value => value > now).sort((a, b) => a - b)[0];
+      if (next !== undefined) timer = setTimeout(() => { notify(); schedule(); }, Math.min(next - now, 2_147_483_647));
+    };
+    schedule();
+    window.addEventListener("storage", notify);
+    document.addEventListener("visibilitychange", notify);
+    return () => { clearTimeout(timer); window.removeEventListener("storage", notify); document.removeEventListener("visibilitychange", notify); };
+  }, [startsAt, endsAt]);
+  const snapshot = useCallback(() => {
+    const now = Date.now();
+    if (startsAt && new Date(startsAt).getTime() > now) return false;
+    if (endsAt && new Date(endsAt).getTime() < now) return false;
+    try { return !dismissKey || localStorage.getItem(dismissKey) !== "1"; } catch { return true; }
+  }, [dismissKey, startsAt, endsAt]);
+  const available = useSyncExternalStore(subscribe, snapshot, () => false);
 
-  if (!banner?.enabled || !banner.message.trim() || dismissed || now == null) return null;
-
-  // Date window
-  if (banner.startsAt && new Date(banner.startsAt).getTime() > now) return null;
-  if (banner.endsAt && new Date(banner.endsAt).getTime() < now) return null;
-
-  const Icon = banner.icon ? resolveSkillIcon(banner.icon) : null;
+  if (!banner?.enabled || !banner.message.trim() || dismissedKey === dismissKey || !available) return null;
   const justify = banner.align === "left" ? "justify-start" : banner.align === "right" ? "justify-end" : "justify-center";
 
   return (
@@ -39,7 +44,7 @@ export default function AnnouncementBanner({ banner }: { banner?: SiteContentBan
     >
       <div className="content-container py-2 flex items-center gap-3">
         <div className={`flex-1 flex items-center gap-2 ${justify}`}>
-          {Icon && <Icon size={15} style={{ color: banner.textColor }} className="shrink-0" />}
+          {banner.icon && <SkillIcon name={banner.icon} size={15} style={{ color: banner.textColor }} className="shrink-0" />}
           <span className="leading-snug">{banner.message}</span>
           {banner.ctaLabel && banner.ctaHref && (
             <Link
@@ -54,7 +59,7 @@ export default function AnnouncementBanner({ banner }: { banner?: SiteContentBan
         <button
           type="button"
           onClick={() => {
-            setDismissed(true);
+            setDismissedKey(dismissKey);
             try { if (dismissKey) localStorage.setItem(dismissKey, "1"); } catch { /* */ }
           }}
           aria-label="Dismiss announcement"

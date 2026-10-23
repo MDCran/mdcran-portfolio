@@ -1,0 +1,1473 @@
+{
+  "reviewedOn": "2026-10-23",
+  "policy": "Only source-backed profiles are published. Unconfirmed platforms are omitted. Corrections apply only to unchanged legacy social-link snapshots, preserving later admin edits.",
+  "clients": [
+    {
+      "id": "army-reserve",
+      "name": "Army Reserve",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "website",
+          "url": "https://www.usar.army.mil/"
+        }
+      ],
+      "sources": [
+        "https://www.usar.army.mil/"
+      ],
+      "note": "Official organization website; no guessed social handles.",
+      "legacyLinkSets": [
+        []
+      ]
+    },
+    {
+      "id": "ice",
+      "name": "International Computer Exchange",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "website",
+          "url": "https://www.icesales.com/"
+        }
+      ],
+      "sources": [
+        "https://www.icesales.com/faq"
+      ],
+      "note": "Boca Raton IBM business partner; do not confuse with Intcomex.",
+      "legacyLinkSets": [
+        []
+      ]
+    },
+    {
+      "id": "popularmmos",
+      "name": "PopularMMOs",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@PopularMMOs",
+          "handle": "@PopularMMOs",
+          "channelId": "UCpGdL9Sn3Q5YWUH2DVUW1Ug"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/PopularmmoPat",
+          "handle": "@PopularmmoPat"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/popularmmospat/",
+          "handle": "@popularmmospat"
+        },
+        {
+          "platform": "tiktok",
+          "url": "https://www.tiktok.com/@popularmmopat",
+          "handle": "@popularmmopat"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/user/PopularMMOs/about",
+        "https://www.instagram.com/popularmmospat/"
+      ],
+      "note": "Current channel About search identifies Pat's accounts. Removed guessed Twitch/Facebook links and corrected channel ID.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@PopularMMOs",
+            "handle": "@PopularMMOs",
+            "channelId": "UCKQEqfzw1BnkgVWKvy2P3CA"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/popularmmos",
+            "handle": "popularmmos"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/popularmmos",
+            "handle": "@popularmmos"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/popularmmos/",
+            "handle": "@popularmmos"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/popularmmos",
+            "handle": "popularmmos"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@popularmmos",
+            "handle": "@popularmmos"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "mrbeast",
+      "name": "MrBeast",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@MrBeast",
+          "handle": "@MrBeast",
+          "channelId": "UCX6OQ3DkcsbYNE6H8uQQuVA"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/MrBeast",
+          "handle": "@MrBeast"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/mrbeast/",
+          "handle": "@mrbeast"
+        },
+        {
+          "platform": "facebook",
+          "url": "https://www.facebook.com/MrBeast/",
+          "handle": "MrBeast"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA"
+      ],
+      "note": "Social links published in the official channel description.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@MrBeast",
+            "handle": "@MrBeast",
+            "channelId": "UCX6OQ3DkcsbYNE6H8uQQuVA"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "lubcubs",
+      "name": "LubCubs Gaming",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/channel/UCgiz5akRFYpqhxIImKoYR2Q",
+          "handle": "Lubcubs",
+          "channelId": "UCgiz5akRFYpqhxIImKoYR2Q"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/LubcubsYT",
+          "handle": "@LubcubsYT"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/lubcubs_gaming/",
+          "handle": "@lubcubs_gaming"
+        },
+        {
+          "platform": "facebook",
+          "url": "https://www.facebook.com/LubcubsGaming/",
+          "handle": "LubcubsGaming"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/channel/UCgiz5akRFYpqhxIImKoYR2Q/about",
+        "https://www.facebook.com/LubcubsGaming/"
+      ],
+      "note": "Use confirmed channel ID rather than an unrelated @Lubcubs handle; Facebook points to Twitter and Instagram.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Lubcubs",
+            "handle": "@Lubcubs"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "beckjack",
+      "name": "BeckBroJack",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@beckbrojack",
+          "handle": "@beckbrojack"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/BeckBroJack",
+          "handle": "@BeckBroJack"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/realbeckbrojack/",
+          "handle": "@realbeckbrojack"
+        },
+        {
+          "platform": "facebook",
+          "url": "https://www.facebook.com/realbeckbro/",
+          "handle": "realbeckbro"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@beckbrojack/about",
+        "https://www.facebook.com/realbeckbro/"
+      ],
+      "note": "Replaces incorrect @BeckJack. Official channel publishes Twitter and Instagram.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@BeckJack",
+            "handle": "@BeckJack"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "jelly",
+      "name": "Jelly",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@Jelly",
+          "handle": "@Jelly",
+          "channelId": "UC0DZmkupLYwc0yDsfocLh0A"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/JeIIy",
+          "handle": "@JeIIy"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/jelly/",
+          "handle": "@jelly"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/channel/UC0DZmkupLYwc0yDsfocLh0A",
+        "https://x.com/JeIIy",
+        "https://www.instagram.com/jelly/"
+      ],
+      "note": "Exact X spelling uses capital I characters. Other platforms lacked ownership evidence.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Jelly",
+            "handle": "@Jelly"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/jelly",
+            "handle": "jelly"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/JeIIy",
+            "handle": "@JeIIy"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/jelly/",
+            "handle": "@jelly"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/JellyYoutuber/",
+            "handle": "JellyYoutuber"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@jelly",
+            "handle": "@jelly"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "crainer",
+      "name": "Crainer",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@MisterCrainer",
+          "handle": "@MisterCrainer",
+          "channelId": "UCEaReYkPVfExkfXptk0bSPw"
+        },
+        {
+          "platform": "twitch",
+          "url": "https://www.twitch.tv/crainer",
+          "handle": "crainer"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/Crainer",
+          "handle": "@Crainer"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/crainer/",
+          "handle": "@crainer"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/channel/UCEaReYkPVfExkfXptk0bSPw",
+        "https://x.com/Crainer",
+        "https://www.instagram.com/crainer/"
+      ],
+      "note": "Official current Minecraft channel and X handle differ from seeded values.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Crainer",
+            "handle": "@Crainer"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/crainer",
+            "handle": "crainer"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Crainer_YT",
+            "handle": "@Crainer_YT"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/crainer/",
+            "handle": "@crainer"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/Crainer/",
+            "handle": "Crainer"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@crainer",
+            "handle": "@crainer"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "slogo",
+      "name": "Slogo",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@Slogo",
+          "handle": "@Slogo",
+          "channelId": "UCHdMK5Ef2El8KbD3L_WgANg"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/Slogo",
+          "handle": "@Slogo"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/slogoman/",
+          "handle": "@slogoman"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/c/slogo/about",
+        "https://www.youtube.com/watch?v=YasZIEH3lhU",
+        "https://x.com/Slogo/with_replies"
+      ],
+      "note": "Instagram is @slogoman; current X is @Slogo. Sponsor accounts in video descriptions excluded.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Slogo",
+            "handle": "@Slogo"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/slogo",
+            "handle": "slogo"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Slogo",
+            "handle": "@Slogo"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/slogo/",
+            "handle": "@slogo"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/Slogo",
+            "handle": "Slogo"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@slogo",
+            "handle": "@slogo"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "ssundee",
+      "name": "SSundee",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@SSundee",
+          "handle": "@SSundee"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/SSundee",
+          "handle": "@SSundee"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/ssundeeyt/",
+          "handle": "@ssundeeyt"
+        },
+        {
+          "platform": "discord",
+          "url": "https://discord.gg/ssundee",
+          "handle": "SSundee"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@SSundee/about",
+        "https://www.instagram.com/ssundeeyt/",
+        "https://www.instagram.com/ssundee/"
+      ],
+      "note": "@ssundee on Instagram explicitly identifies itself as NOT THE REAL SSUNDEE.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@SSundee",
+            "handle": "@SSundee"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/ssundee",
+            "handle": "ssundee"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/SSundee",
+            "handle": "@SSundee"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/ssundee/",
+            "handle": "@ssundee"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/ssundee",
+            "handle": "ssundee"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@ssundee",
+            "handle": "@ssundee"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "tommyinnit",
+      "name": "TommyInnit",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@TommyInnit",
+          "handle": "@TommyInnit",
+          "channelId": "UC5p_l5ZeB_wGjO_yDXwiqvw"
+        },
+        {
+          "platform": "twitch",
+          "url": "https://www.twitch.tv/tommyinnit",
+          "handle": "tommyinnit"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/tommyinnit/",
+          "handle": "@tommyinnit"
+        },
+        {
+          "platform": "tiktok",
+          "url": "https://www.tiktok.com/@tommyinnit",
+          "handle": "@tommyinnit"
+        },
+        {
+          "platform": "website",
+          "url": "https://tommyinnit.com/"
+        }
+      ],
+      "sources": [
+        "https://tommyinnit.com/",
+        "https://www.instagram.com/tommyinnit/",
+        "https://www.tiktok.com/@tommyinnit"
+      ],
+      "note": "Official site links channel and Twitch; confirmed Instagram and TikTok.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@TommyInnit",
+            "handle": "@TommyInnit"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/tommyinnit",
+            "handle": "tommyinnit"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/tommyinnit",
+            "handle": "@tommyinnit"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/tommyinnit/",
+            "handle": "@tommyinnit"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/tommyinnit",
+            "handle": "tommyinnit"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@tommyinnit",
+            "handle": "@tommyinnit"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "unspeakable",
+      "name": "Unspeakable Gaming",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@Unspeakable",
+          "handle": "@Unspeakable"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/UnspeakableGame",
+          "handle": "@UnspeakableGame"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/unspeakable/",
+          "handle": "@unspeakable"
+        },
+        {
+          "platform": "tiktok",
+          "url": "https://www.tiktok.com/@unspeakable",
+          "handle": "@unspeakable"
+        },
+        {
+          "platform": "website",
+          "url": "https://www.unspeakable.com/"
+        }
+      ],
+      "sources": [
+        "https://www.unspeakable.com/",
+        "https://chartmetric.com/fr/artist/6395410",
+        "https://en.wikipedia.org/wiki/Unspeakable_%28YouTuber%29"
+      ],
+      "note": "Removed unconfirmed Twitch and Facebook handles.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Unspeakable",
+            "handle": "@Unspeakable"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/unspeakable",
+            "handle": "unspeakable"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/UnspeakableGame",
+            "handle": "@UnspeakableGame"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/unspeakable/",
+            "handle": "@unspeakable"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/unspeakablegaming",
+            "handle": "unspeakablegaming"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@unspeakable",
+            "handle": "@unspeakable"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "moosecraft",
+      "name": "Moose",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/channel/UCV7lBBz6G20d87WoKFPjsPw",
+          "handle": "Moose",
+          "channelId": "UCV7lBBz6G20d87WoKFPjsPw"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/itsmoosecraft/",
+          "handle": "@itsmoosecraft"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/channel/UCV7lBBz6G20d87WoKFPjsPw",
+        "https://www.instagram.com/itsmoosecraft/"
+      ],
+      "note": "Use the confirmed main channel ID and creator's actual Instagram; @Moose is an unrelated dog channel.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@MooseCraft",
+            "handle": "@MooseCraft"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/moosecraft",
+            "handle": "moosecraft"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/MooseCraft",
+            "handle": "@MooseCraft"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/moosecraft/",
+            "handle": "@moosecraft"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/MooseCraft",
+            "handle": "MooseCraft"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@moosecraft",
+            "handle": "@moosecraft"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "gamingwithjen",
+      "name": "GamingWithJen",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@GamingWithJen",
+          "handle": "@GamingWithJen"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/GamingWithJen",
+          "handle": "@GamingWithJen"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/gamingwithjen/",
+          "handle": "@gamingwithjen"
+        }
+      ],
+      "sources": [
+        "https://livecounts.org/live-sub-count/GamingWithJen",
+        "https://www.youtube.com/@GamingWithJen"
+      ],
+      "note": "Channel description publishes Instagram and Twitter. No verified Facebook/TikTok ownership found.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@GamingWithJen",
+            "handle": "@GamingWithJen"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/GamingWithJen",
+            "handle": "@GamingWithJen"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/gamingwithjen/",
+            "handle": "@gamingwithjen"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/GamingWithJen",
+            "handle": "GamingWithJen"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@gamingwithjen",
+            "handle": "@gamingwithjen"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "shark",
+      "name": "Shark",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@09sharkboy",
+          "handle": "@09sharkboy",
+          "channelId": "UCQVwQQvz8O_0aeFDBVcdhpg"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/09sharkboy",
+          "handle": "@09sharkboy"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/09sharkboy/",
+          "handle": "@09sharkboy"
+        },
+        {
+          "platform": "discord",
+          "url": "https://discord.gg/shark",
+          "handle": "Shark"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/user/09sharkboy/about"
+      ],
+      "note": "Official channel is @09sharkboy; @Shark is unavailable and other plain-name profiles are unverified.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Shark",
+            "handle": "@Shark"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/shark",
+            "handle": "shark"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Shark",
+            "handle": "@Shark"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@shark",
+            "handle": "@shark"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "stroie",
+      "name": "Stroie",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@stroie824",
+          "handle": "@stroie824"
+        },
+        {
+          "platform": "twitch",
+          "url": "https://www.twitch.tv/stroie",
+          "handle": "stroie"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/Stroie_tv",
+          "handle": "@Stroie_tv"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/watch?v=SkmixuXHm1M"
+      ],
+      "note": "Recovered channel and social links from a credited portfolio video.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Stroie",
+            "handle": "@Stroie"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/stroie",
+            "handle": "stroie"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Stroie",
+            "handle": "@Stroie"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/stroie/",
+            "handle": "@stroie"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@stroie",
+            "handle": "@stroie"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "theagaming",
+      "name": "TheaGaming",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/theanicka/",
+          "handle": "@theanicka"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/thea_nicka",
+          "handle": "@thea_nicka"
+        }
+      ],
+      "sources": [
+        "https://www.instagram.com/theanicka/",
+        "https://x.com/thea_nicka",
+        "https://www.famousbirthdays.com/people/thea-kornum.html"
+      ],
+      "note": "Thea Nicka/Kornum, former Thea & Crainer creator. Removed guessed @TheaGaming accounts.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@TheaGaming",
+            "handle": "@TheaGaming"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/theagaming",
+            "handle": "theagaming"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/TheaGaming",
+            "handle": "@TheaGaming"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/theagaming/",
+            "handle": "@theagaming"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@theagaming",
+            "handle": "@theagaming"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "ccrizzic",
+      "name": "CCrizzic",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@CCrizzic",
+          "handle": "@CCrizzic",
+          "channelId": "UCOnzwCcc8UskiYczS8Zu85Q"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/ccrizzic/",
+          "handle": "@ccrizzic"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@CCrizzic/about",
+        "https://www.famousbirthdays.com/people/ccrizzic.html"
+      ],
+      "note": "Confirmed channel and Instagram. Twitch cloud_pup in channel trailer belongs to a collaborator and was not added.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@CCrizzic",
+            "handle": "@CCrizzic"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/ccrizzic",
+            "handle": "ccrizzic"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/CCrizzic",
+            "handle": "@CCrizzic"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/ccrizzic/",
+            "handle": "@ccrizzic"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@ccrizzic",
+            "handle": "@ccrizzic"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "doctorbenx",
+      "name": "DoctorBenx",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@benx",
+          "handle": "@benx",
+          "channelId": "UC9CdzSPg2DuZ2YSaflng3Hw"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/doctorbenx/",
+          "handle": "@doctorbenx"
+        },
+        {
+          "platform": "tiktok",
+          "url": "https://www.tiktok.com/@doctorbenxecht",
+          "handle": "@doctorbenxecht"
+        },
+        {
+          "platform": "discord",
+          "url": "https://discord.gg/benx",
+          "handle": "Benx"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@benx/about"
+      ],
+      "note": "Renamed main channel and exact Instagram/TikTok/Discord links from official video description.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@DoctorBenx",
+            "handle": "@DoctorBenx"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/doctorbenx",
+            "handle": "doctorbenx"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/DoctorBenx",
+            "handle": "@DoctorBenx"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/doctorbenx/",
+            "handle": "@doctorbenx"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@doctorbenx",
+            "handle": "@doctorbenx"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "epicstun",
+      "name": "EpicStun",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@EpicStun",
+          "handle": "@EpicStun"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/epicstunlp/",
+          "handle": "@epicstunlp"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@EpicStun/videos",
+        "https://www.instagram.com/epicstunlp/reels/"
+      ],
+      "note": "Confirmed channel and linked brand Instagram.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@EpicStun",
+            "handle": "@EpicStun"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "lynixity",
+      "name": "Lynixity",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@Lynix",
+          "handle": "@Lynix"
+        },
+        {
+          "platform": "twitch",
+          "url": "https://www.twitch.tv/lynixity",
+          "handle": "lynixity"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/Lynixity",
+          "handle": "@Lynixity"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/lynixity/",
+          "handle": "@lynixity"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@Lynix/about",
+        "https://www.instagram.com/lynixity/"
+      ],
+      "note": "Channel About search lists Instagram, Twitch and Twitter; YouTube is @Lynix.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Lynixity",
+            "handle": "@Lynixity"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/lynixity",
+            "handle": "lynixity"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Lynixity",
+            "handle": "@Lynixity"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/lynixity/",
+            "handle": "@lynixity"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@lynixity",
+            "handle": "@lynixity"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "gav1n",
+      "name": "Gav1n",
+      "status": "unresolved",
+      "links": [],
+      "sources": [
+        "https://legacy.mdcran.com/"
+      ],
+      "note": "Unresolved identity. Multiple unrelated namesakes; user has no known profile URL. Do not guess.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Gav1n",
+            "handle": "@Gav1n"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/gav1n",
+            "handle": "gav1n"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Gav1n",
+            "handle": "@Gav1n"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/gav1n/",
+            "handle": "@gav1n"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@gav1n",
+            "handle": "@gav1n"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "nico",
+      "name": "Nico",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@Nico",
+          "handle": "@Nico"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/notnico.ig/",
+          "handle": "@notnico.ig"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@Nico/about",
+        "https://www.instagram.com/notnico.ig/",
+        "https://www.instagram.com/reel/DXj5Cjsuj4R/"
+      ],
+      "note": "Cash collaborator Nico Polo; generic @nico social handles were not ownership-verified.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Nico",
+            "handle": "@Nico"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/nico",
+            "handle": "nico"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Nico",
+            "handle": "@Nico"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/nico/",
+            "handle": "@nico"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@nico",
+            "handle": "@nico"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "cash",
+      "name": "Cash",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@Cash",
+          "handle": "@Cash",
+          "channelId": "UC0eLBYhxW9HC0P9PXQ73mpQ"
+        },
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/cashmarcoyt/",
+          "handle": "@cashmarcoyt"
+        },
+        {
+          "platform": "website",
+          "url": "https://cashandnico.com/"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/watch?v=n2p64a8PDEg"
+      ],
+      "note": "Official upload description identifies Instagram and store; generic @cash social accounts excluded.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Cash",
+            "handle": "@Cash"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/cash",
+            "handle": "cash"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Cash",
+            "handle": "@Cash"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/cash/",
+            "handle": "@cash"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@cash",
+            "handle": "@cash"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "bendie",
+      "name": "Bendie",
+      "status": "unresolved",
+      "links": [],
+      "sources": [
+        "https://legacy.mdcran.com/"
+      ],
+      "note": "Unresolved identity. No primary source connected the portfolio image to a social profile; user has no known URL.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Bendie",
+            "handle": "@Bendie"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/bendie",
+            "handle": "bendie"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/Bendie",
+            "handle": "@Bendie"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/bendie/",
+            "handle": "@bendie"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@bendie",
+            "handle": "@bendie"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "100media",
+      "name": "100 Media",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "instagram",
+          "url": "https://www.instagram.com/100mediainc/",
+          "handle": "@100mediainc"
+        }
+      ],
+      "sources": [
+        "https://www.instagram.com/itsmoosecraft/",
+        "https://www.instagram.com/100mediainc/"
+      ],
+      "note": "Moose's profile identifies @100mediainc as his company. 100 Thieves is unrelated.",
+      "legacyLinkSets": [
+        [],
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@100Thieves",
+            "handle": "@100Thieves"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/100thieves",
+            "handle": "100thieves"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/100Thieves",
+            "handle": "@100Thieves"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/100thieves/",
+            "handle": "@100thieves"
+          },
+          {
+            "platform": "facebook",
+            "url": "https://www.facebook.com/100Thieves/",
+            "handle": "100Thieves"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@100thieves",
+            "handle": "@100thieves"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "plixel",
+      "name": "Plixel",
+      "status": "unresolved",
+      "links": [],
+      "sources": [
+        "https://legacy.mdcran.com/",
+        "https://www.boecker.dev/"
+      ],
+      "note": "Historical TommyInnit community events server confirmed, but no official social profile established. Removed guessed PlixelNetwork accounts.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@Plixel",
+            "handle": "@Plixel"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/PlixelNetwork",
+            "handle": "@PlixelNetwork"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/plixelnetwork/",
+            "handle": "@plixelnetwork"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "pokefind",
+      "name": "PokeFind",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "website",
+          "url": "https://www.pokefind.co/"
+        },
+        {
+          "platform": "discord",
+          "url": "https://discord.gg/pokefind",
+          "handle": "PokeFind"
+        }
+      ],
+      "sources": [
+        "https://www.pokefind.co/",
+        "https://www.pokefind.co/terms-of-service"
+      ],
+      "note": "Official server site confirms Discord. Avoid pokefind.io, an unrelated Pokémon GO site.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@PokeFind",
+            "handle": "@PokeFind"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/PokeFind",
+            "handle": "@PokeFind"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "tubnet",
+      "name": "TubNet",
+      "status": "confirmed-links",
+      "links": [
+        {
+          "platform": "youtube",
+          "url": "https://www.youtube.com/@TubNet",
+          "handle": "@TubNet"
+        },
+        {
+          "platform": "x",
+          "url": "https://x.com/TubNet",
+          "handle": "@TubNet"
+        }
+      ],
+      "sources": [
+        "https://www.youtube.com/@TubNet",
+        "https://en.wikipedia.org/wiki/Tubbo"
+      ],
+      "note": "Official server channel and announcement account; other platform handles unconfirmed.",
+      "legacyLinkSets": [
+        [
+          {
+            "platform": "youtube",
+            "url": "https://www.youtube.com/@TubNet",
+            "handle": "@TubNet"
+          },
+          {
+            "platform": "twitch",
+            "url": "https://www.twitch.tv/tubnet",
+            "handle": "tubnet"
+          },
+          {
+            "platform": "x",
+            "url": "https://x.com/TubNet",
+            "handle": "@TubNet"
+          },
+          {
+            "platform": "instagram",
+            "url": "https://www.instagram.com/tubnet/",
+            "handle": "@tubnet"
+          },
+          {
+            "platform": "tiktok",
+            "url": "https://www.tiktok.com/@tubnet",
+            "handle": "@tubnet"
+          }
+        ]
+      ]
+    }
+  ]
+}

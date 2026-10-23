@@ -20,12 +20,6 @@ export function normalizeRole(value: string | null | undefined): PortfolioRole {
 export function matchesRole(slug: string, role: PortfolioRole) {
   return role === "all" || roleProjects[role].includes(slug);
 }
-export function readShortlist(raw: string | null, available: readonly string[]): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw ?? "[]");
-    return Array.isArray(parsed) ? [...new Set(parsed.filter((v): v is string => typeof v === "string" && available.includes(v)))].slice(0, 4) : [];
-  } catch { return []; }
-}
 export function comparisonEvidence(slug: string) {
   const detail = slug === coreAiContracts.id ? coreAiContracts : engineeringProjects[slug];
   return detail ? { skills: detail.skills, responsibility: detail.contribution, outcome: detail.status } : null;
@@ -48,7 +42,7 @@ export const flagshipReviews: Record<string, { problem: string; tradeoff: string
   "webdesign-portfolio": {
     problem: "Recruiters need a fast path to evidence while a broader portfolio also serves creative clients and interactive visitors.",
     tradeoff: "Server-rendered content stays readable before interaction. Optional browser features add capability and JavaScript, so personal widgets are loaded only on request.",
-    result: "This running site provides public project filtering, role views, local comparison, managed content, and server-backed integrations. The page performance panel reports this visit’s actual browser metrics.",
+    result: "This running site provides public project filtering, role views, expandable case studies, managed content, and server-backed integrations.",
     next: "Compare field measurements across mobile and desktop visits before setting a performance target; check task completion with keyboard and screen-reader users.",
   },
 };

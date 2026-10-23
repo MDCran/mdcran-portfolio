@@ -30,6 +30,7 @@ export default function BookMeeting() {
   const [duration, setDuration] = useState<number | null>(null);
   const [days, setDays] = useState<DaySlots[] | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [availabilityRevision, setAvailabilityRevision] = useState(0);
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<{ start: string; label: string } | null>(null);
   const [tz, setTz] = useState("America/New_York");
@@ -50,12 +51,12 @@ export default function BookMeeting() {
 
   // When a type+duration is chosen, fetch availability.
   useEffect(() => {
-    if (!type || duration == null) { setDays(null); return; }
-    setLoadingSlots(true);
-    setDays(null); setActiveDay(null); setSlot(null);
-    fetch(`/api/booking/availability?typeId=${encodeURIComponent(type.id)}&duration=${duration}`)
+    if (!type || duration == null) return;
+    const controller = new AbortController();
+    fetch(`/api/booking/availability?typeId=${encodeURIComponent(type.id)}&duration=${duration}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
+        if (controller.signal.aborted) return;
         if (d?.timezone) setTz(d.timezone);
         const ds: DaySlots[] = Array.isArray(d?.days) ? d.days : [];
         setDays(ds);
@@ -65,13 +66,24 @@ export default function BookMeeting() {
           setViewMonth({ y: yy, m: mm });
         }
       })
-      .catch(() => setDays([]))
-      .finally(() => setLoadingSlots(false));
-  }, [type, duration]);
+      .catch(() => { if (!controller.signal.aborted) setDays([]); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingSlots(false); });
+    return () => controller.abort();
+  }, [type, duration, availabilityRevision]);
+
+  const resetSlots = (loading: boolean) => {
+    setLoadingSlots(loading); setDays(null); setActiveDay(null); setSlot(null); setViewMonth(null);
+  };
 
   const chooseType = (t: PublicMeetingType) => {
     setType(t);
     setDuration(t.durations.length === 1 ? t.durations[0] : null);
+    resetSlots(t.durations.length === 1);
+    setAvailabilityRevision(value => value + 1);
+  };
+
+  const chooseDuration = (value: number) => {
+    setDuration(value); resetSlots(true); setAvailabilityRevision(revision => revision + 1);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -96,7 +108,7 @@ export default function BookMeeting() {
       } else {
         setStatus("error");
         setError(data?.error || "Couldn't book that time. Please try another.");
-        if (res.status === 409) { setSlot(null); /* refresh availability */ setDuration((d) => d); }
+        if (res.status === 409) { resetSlots(true); setAvailabilityRevision(revision => revision + 1); }
       }
     } catch {
       setStatus("error"); setError("Something went wrong. Please try again.");
@@ -175,7 +187,7 @@ export default function BookMeeting() {
           <p className="text-[11px] uppercase tracking-[0.18em] text-white/40 mb-3">2 · Duration</p>
           <div className="flex flex-wrap gap-2">
             {type.durations.map((d) => (
-              <button key={d} type="button" onClick={() => setDuration(d)}
+              <button key={d} type="button" onClick={() => chooseDuration(d)}
                 className={`px-4 py-2 rounded-sm border text-xs transition-colors ${duration === d ? "border-[#ef4242]/50 bg-[#ef4242]/10 text-[#ef4242]" : "border-white/10 text-white/55 hover:text-white"}`}>
                 {durationLabel(d)}
               </button>

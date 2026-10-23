@@ -2,7 +2,8 @@
 
 import EvidenceSources from "./EvidenceSources";
 import type { EvidenceSource } from "@/lib/assistant-evidence";
-import MicrophoneTest from "./MicrophoneTest";
+import MicrophoneTest, { type MicrophoneTestControl } from "./MicrophoneTest";
+import { useRef } from "react";
 import AssistantControls from "./AssistantControls";
 
 interface Props {
@@ -28,6 +29,7 @@ export default function VoiceConversationControls({
   onSend,
   thinking,
 }: Props) {
+  const microphoneTest = useRef<MicrophoneTestControl | null>(null);
   return (
     <div
       data-assistant-ui
@@ -36,7 +38,7 @@ export default function VoiceConversationControls({
       <div className="flex flex-wrap gap-2 p-3 text-xs">
         <button
           className="rounded border border-white/20 px-3 py-2"
-          onClick={onPause}
+          onClick={() => { microphoneTest.current?.stop(); onPause(); }}
         >
           {paused ? "Resume microphone" : "Pause microphone"}
         </button>
@@ -75,7 +77,7 @@ export default function VoiceConversationControls({
           Send text
         </button>
       </details>
-      <MicrophoneTest onStart={onMicrophoneTest} />
+      <MicrophoneTest ref={microphoneTest} onStart={onMicrophoneTest} />
       <AssistantControls />
     </div>
   );

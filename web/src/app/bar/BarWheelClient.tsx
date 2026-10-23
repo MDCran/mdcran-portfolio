@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { Settings2, Plus, Check, X } from "lucide-react";
@@ -58,28 +58,34 @@ function Bulbs({ className, durationMs, flash, vertical }: { className?: string;
   );
 }
 
-export default function BarWheelClient({ categories }: { categories: BarDrinkCategory[] }) {
-  const allIds = useMemo(() => categories.map((c) => c.id), [categories]);
-  const [prefs, setPrefs] = useState<Prefs>({ selected: allIds, disabled: [], custom: [] });
-  const [loaded, setLoaded] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [customInput, setCustomInput] = useState("");
+const subscribeClient = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
-  useEffect(() => {
+export default function BarWheelClient({ categories }: { categories: BarDrinkCategory[] }) {
+  const ready = useSyncExternalStore(subscribeClient, clientReady, serverReady);
+  return ready ? <BarWheelGame categories={categories} /> : <main className="min-h-screen bg-[#080608]"><p role="status" className="p-8 text-center text-white/60">Loading your drink preferences…</p></main>;
+}
+
+function BarWheelGame({ categories }: { categories: BarDrinkCategory[] }) {
+  const allIds = useMemo(() => categories.map((c) => c.id), [categories]);
+  const [prefs, setPrefs] = useState<Prefs>(() => {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
       if (raw) {
         const p = JSON.parse(raw) as Partial<Prefs>;
-        setPrefs({
+        return {
           selected: Array.isArray(p.selected) ? p.selected.filter((id) => allIds.includes(id) || id === CUSTOM_CAT.id) : allIds,
           disabled: Array.isArray(p.disabled) ? p.disabled : [],
           custom: Array.isArray(p.custom) ? p.custom : [],
-        });
+        };
       }
     } catch { /* */ }
-    setLoaded(true);
-  }, [allIds]);
-  useEffect(() => { if (loaded) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* */ } } }, [prefs, loaded]);
+    return { selected: allIds, disabled: [], custom: [] };
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const [customInput, setCustomInput] = useState("");
+  useEffect(() => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* */ } }, [prefs]);
 
   const catList = useMemo(() => {
     const base = [...categories];
@@ -101,7 +107,14 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
 
   // Drum
   const controls = useAnimationControls();
-  const [faces, setFaces] = useState<PoolItem[]>([]);
+  const faces = useMemo(() => {
+    if (!pool.length) return [];
+    // Keep a stable display order; the spin chooses its winner randomly on release.
+    // Repeat small pools so the 3D cylinder always has enough faces.
+    let expanded = [...pool];
+    while (expanded.length < 8) expanded = expanded.concat(pool);
+    return expanded;
+  }, [pool]);
   const rotRef = useRef(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<PoolItem | null>(null);
@@ -131,21 +144,6 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
   const audioRef = useRef<AudioContext | null>(null);
   const tickTimersRef = useRef<number[]>([]);
   const winnerTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!pool.length) { setFaces([]); return; }
-    let s = [...pool];
-    for (let i = s.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [s[i], s[j]] = [s[j], s[i]]; }
-    // The 3D drum needs enough faces to form a cylinder — with 1–2 drinks the geometry
-    // collapses (faceAngle ≥ 180° → radius 0/NaN) and shows nothing. Repeat the pool to
-    // a minimum so it always renders + spins (landing on a copy of the chosen drink).
-    const MIN_FACES = 8;
-    if (s.length < MIN_FACES) {
-      const base = [...s];
-      while (s.length < MIN_FACES) s = s.concat(base);
-    }
-    setFaces(s);
-  }, [pool]);
 
   const clearTicks = useCallback(() => { tickTimersRef.current.forEach((t) => clearTimeout(t)); tickTimersRef.current = []; }, []);
   const stopCharge = useCallback(() => { if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; if (cabinetRef.current) cabinetRef.current.style.transform = ""; }, []);
@@ -251,8 +249,6 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
   const addCustom = () => { const v = customInput.trim(); if (!v) return; setPrefs((p) => ({ ...p, custom: [...p.custom, v], selected: p.selected.includes(CUSTOM_CAT.id) ? p.selected : [...p.selected, CUSTOM_CAT.id] })); setCustomInput(""); };
   const removeCustom = (v: string) => setPrefs((p) => ({ ...p, custom: p.custom.filter((x) => x !== v) }));
 
-  if (!loaded) return <main className="min-h-screen bg-[#080608]" />;
-
   const bulbDur = ledFlash ? 80 : chargeTier === 3 ? 280 : chargeTier === 2 ? 460 : chargeTier === 1 ? 680 : spinning ? 320 : 1000;
 
   return (
@@ -334,7 +330,7 @@ export default function BarWheelClient({ categories }: { categories: BarDrinkCat
                     <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
                       {Array.from({ length: 16 }).map((_, i) => {
                         const ang = (i / 16) * Math.PI * 2;
-                        const dist = 60 + Math.random() * 90;
+                        const dist = 60 + (i * 37) % 91;
                         const col = ["#facc15", "#ef4242", "#38bdf8", "#22c55e", "#a855f7"][i % 5];
                         return (
                           <motion.span key={i} className="absolute left-1/2 top-1/2 h-2 w-1.5 rounded-sm" style={{ background: col }}

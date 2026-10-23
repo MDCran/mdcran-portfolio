@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { comparisonEvidence, matchesRole, normalizeRole, readShortlist, trackingCsv, flagshipReviews } from "../src/lib/public-portfolio";
+import { renderToPipeableStream, renderToStaticMarkup } from "react-dom/server";
+import { PassThrough } from "node:stream";
+import { comparisonEvidence, matchesRole, normalizeRole, trackingCsv, flagshipReviews } from "../src/lib/public-portfolio";
 import EngineeringHighlights from "../src/components/home/EngineeringHighlights";
 import Hero from "../src/components/home/Hero";
+import HomeExtras from "../src/components/home/HomeExtras";
+import MapWidget from "../src/components/home/MapWidget";
+import { defaultSiteContent } from "../src/lib/site-content";
 import ProjectWalkthrough from "../src/components/work/ProjectWalkthrough";
 import Stats from "../src/components/home/Stats";
 import AIUsageTracker from "../src/components/home/AIUsageTracker";
@@ -20,15 +24,6 @@ test("role views reject unknown roles and select relevant evidence", () => {
   assert.equal(matchesRole("unlisted-public-project", "all"), true);
   assert.equal(comparisonEvidence("lucky-block-creator"), null);
   assert.match(comparisonEvidence("core-ai-contracts")!.responsibility, /contracts/);
-});
-
-test("shortlists reject corrupt, removed, duplicate and oversized stored values", () => {
-  const available = ["one", "two", "three", "four", "five"];
-  assert.deepEqual(readShortlist("{broken", available), []);
-  assert.deepEqual(readShortlist('{"one":true}', available), []);
-  assert.deepEqual(readShortlist('["one",false,"one","removed","two"]', available), ["one", "two"]);
-  assert.deepEqual(readShortlist(JSON.stringify(available), available), available.slice(0, 4));
-  assert.deepEqual(readShortlist('["one"]', []), []);
 });
 
 test("sample export includes both date boundaries and supports empty ranges", () => {
@@ -50,11 +45,34 @@ test("recruiter overview only renders available public records with correct sour
   assert.match(markup, /\/articles/);
 });
 
-test("primary introduction is present in server HTML without an animation gate", () => {
-  const markup = renderToStaticMarkup(<Hero />);
-  assert.match(markup, /Michael Cran/);
-  assert.match(markup, /href="#engineering"/);
-  assert.doesNotMatch(markup, /opacity:0|transform:|iframe/);
+test("restored hero uses saved branding and canonical location with all personal widgets mounted", async () => {
+  const markup = await new Promise<string>((resolve, reject) => {
+    const output = new PassThrough(); let html = "";
+    output.on("data", chunk => { html += chunk.toString(); }); output.on("end", () => resolve(html)); output.on("error", reject);
+    const stream = renderToPipeableStream(<Hero content={{ ...defaultSiteContent.homeHero, titlePrimary: "Saved", titleAccent: "Brand", locationText: "Old location" }} location="Current profile location" />, { onAllReady() { stream.pipe(output); }, onError: reject });
+  });
+  assert.match(markup, /Saved/); assert.match(markup, /Brand/);
+  assert.match(markup, /min-h-screen/);
+  assert.match(markup, /Based in Current profile location/);
+  assert.match(markup, /Verse of the Day/);
+  assert.match(markup, /View area on map/);
+  assert.match(markup, /<div class="relative z-10 w-full content-container pt-32 sm:pt-36 pb-20">/);
+  assert.match(markup, /<div data-highlight-id="personal-widgets" class="grid grid-cols-1 sm:grid-cols-3 gap-4">/);
+  assert.match(markup, /spotify/i);
+  assert.match(markup, /href="\/engineering"/);
+  assert.doesNotMatch(markup, /Old location|Orlando|href="\/code|Show music/);
+  assert.doesNotMatch(renderToStaticMarkup(<HomeExtras />), /personal-widgets|Show music/);
+});
+
+test("location map embeds only the canonical location and keeps an accessible external fallback", () => {
+  const markup = renderToStaticMarkup(<MapWidget location=" Boca Raton, FL & nearby " />);
+  assert.match(markup, /title="Map of Boca Raton, FL &amp; nearby"/);
+  assert.match(markup, /src="https:\/\/maps\.google\.com\/maps\?q=Boca%20Raton%2C%20FL%20%26%20nearby&amp;z=11&amp;output=embed"/);
+  assert.match(markup, /loading="lazy"/);
+  assert.match(markup, /maps\/search\/\?api=1&amp;query=Boca%20Raton%2C%20FL%20%26%20nearby/);
+  assert.doesNotMatch(markup, /Orlando|orlando-map|key=/);
+  assert.equal(renderToStaticMarkup(<MapWidget location=" " />), "");
+  assert.equal(renderToStaticMarkup(<MapWidget />), "");
 });
 
 test("flagship walkthrough labels illustrative data and distinguishes next evaluations", () => {

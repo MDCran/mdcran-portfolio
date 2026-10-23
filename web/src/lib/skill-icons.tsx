@@ -37,6 +37,6 @@ export function SkillIcon({
   fallback,
   ...props
 }: { name?: string; fallback?: LucideIcon } & React.ComponentProps<LucideIcon>) {
-  const Icon = resolveSkillIcon(name, fallback);
+  const Icon = (name ? SKILL_ICON_REGISTRY[name] : undefined) ?? fallback ?? Code2;
   return <Icon {...props} />;
 }

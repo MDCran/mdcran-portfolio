@@ -9,7 +9,6 @@ import {
   Calendar,
   Check,
   Download,
-  Eye,
   ExternalLink,
   Globe,
   Heart,
@@ -667,7 +666,7 @@ function ProjectTapsButton({ projectId }: { projectId: string }) {
           {burst &&
             Array.from({ length: 8 }, (_, i) => {
               const angle = (i / 8) * 360;
-              const dist = 20 + Math.random() * 12;
+              const dist = 20 + ((i * 7) % 13);
               return (
                 <motion.div
                   key={`star-${i}`}
@@ -859,11 +858,6 @@ function formatProjectDate(date: string) {
     month: "short",
     day: "numeric",
   });
-}
-
-function formatViewCount(count?: number) {
-  if (count === undefined) return "—";
-  return count.toLocaleString("en-US");
 }
 
 function renderMarkdown(text: string) {

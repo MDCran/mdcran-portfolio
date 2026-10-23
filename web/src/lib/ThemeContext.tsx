@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useCallback } from "react";
+import { useStoredPreference } from "./useStoredPreference";
 
 export type ThemeName = "dark" | "hacker" | "cyberpunk" | "grayscale" | "high-contrast" | "light";
 
@@ -43,21 +44,16 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeName>("dark");
+  const [storedTheme, setStoredTheme] = useStoredPreference(STORAGE_KEY, "dark");
+  const theme = THEMES.find((item) => item.id === storedTheme)?.id ?? "dark";
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as ThemeName | null;
-    if (stored && THEMES.some((t) => t.id === stored)) {
-      setThemeState(stored);
-      document.documentElement.setAttribute("data-theme", stored);
-    }
-  }, []);
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   const setTheme = useCallback((t: ThemeName) => {
-    setThemeState(t);
-    localStorage.setItem(STORAGE_KEY, t);
-    document.documentElement.setAttribute("data-theme", t);
-  }, []);
+    if (THEMES.some((item) => item.id === t)) setStoredTheme(t);
+  }, [setStoredTheme]);
 
   const themeInfo = THEMES.find((t) => t.id === theme) || THEMES[0];
 

@@ -154,7 +154,7 @@ export default function Services({
                     </div>
 
                     {/* CTA */}
-                    <div className="pointer-events-none absolute bottom-7 right-7 flex items-center gap-2 text-[var(--cranberry)] text-xs tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="pointer-events-none relative mt-5 flex min-h-4 items-center gap-2 self-end text-[var(--cranberry)] text-xs tracking-wider uppercase opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-visible:opacity-100 transition-opacity duration-300">
                       <span>Explore</span>
                       <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform duration-200" />
                     </div>

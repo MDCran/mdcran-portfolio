@@ -54,7 +54,7 @@ export default function PageHeader({
             >
               <Home size={11} aria-label="Home" />
             </Link>
-            {breadcrumbs.map((crumb, i) => (
+            {breadcrumbs.map((crumb) => (
               <React.Fragment key={crumb.label}>
                 <ChevronRight size={10} style={{ color: crumbChevron }} />
                 {crumb.href ? (

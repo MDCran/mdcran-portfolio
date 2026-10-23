@@ -1,9 +1,9 @@
 export type MicrophoneTestState = {
   devices: MediaDeviceInfo[]; device: string; level: number;
-  active: boolean; recording: boolean; url: string; error: string;
+  active: boolean; pending: boolean; recording: boolean; url: string; error: string;
 };
 export const initialMicrophoneTestState: MicrophoneTestState = {
-  devices: [], device: "", level: 0, active: false, recording: false, url: "", error: "",
+  devices: [], device: "", level: 0, active: false, pending: false, recording: false, url: "", error: "",
 };
 
 /** Owns browser resources independently of React rendering. Every asynchronous
@@ -51,7 +51,7 @@ export class MicrophoneTestSession {
     this.stream?.getTracks().forEach(t => { if (this.trackEnded) t.removeEventListener("ended", this.trackEnded); t.stop(); }); this.stream = null; this.trackEnded = null;
     if (this.context) void this.context.close().catch(() => {}); this.context = null;
     cancelAnimationFrame(this.frame); this.frame = 0;
-    this.update({ active: false, recording: false, level: 0 });
+    this.update({ active: false, pending: false, recording: false, level: 0 });
   }
   selectDevice(device: string) { this.stop(); this.update({ device, error: "" }); }
   async start() {
@@ -65,8 +65,10 @@ export class MicrophoneTestSession {
         this.devices = navigator.mediaDevices;
         this.devices.addEventListener?.("devicechange", this.refreshDevices);
       }
+      this.update({ pending: true });
       const input = await this.devices.getUserMedia({ audio: this.state.device ? { deviceId: { exact: this.state.device } } : true });
       if (!this.current(epoch)) { input.getTracks().forEach(t => t.stop()); return; }
+      this.update({ pending: false });
       this.stream = input;
       this.trackEnded = () => {
         if (!this.current(epoch)) return;

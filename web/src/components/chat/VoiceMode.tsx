@@ -1,5 +1,6 @@
 "use client";
 import { subscribeMemoryScopeChanges } from "@/lib/assistant-preferences";
+import { MICROPHONE_PERMISSION_GUIDANCE, startBrowserRecognition, startVoiceRecording, transcribeVoiceClip, watchMicrophoneEnd, type BrowserRecognition } from "@/lib/voice-input";
 import { playStreamingSpeech } from "@/lib/assistant-audio";
 import type { EvidenceSource } from "@/lib/assistant-evidence";
 import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
@@ -37,25 +38,9 @@ interface Turn {
   text: string;
 }
 
-/* Minimal SpeechRecognition typing (not in standard DOM lib). */
-interface SRAlternative { transcript: string }
-interface SRResult { isFinal: boolean; 0: SRAlternative }
-interface SREvent { resultIndex: number; results: { length: number; [i: number]: SRResult } }
-interface SpeechRec {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-  onresult: ((e: SREvent) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-}
-
-function getSpeechRecognition(): (new () => SpeechRec) | null {
+function getSpeechRecognition(): (new () => BrowserRecognition) | null {
   if (typeof window === "undefined") return null;
-  const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+  const w = window as unknown as { SpeechRecognition?: new () => BrowserRecognition; webkitSpeechRecognition?: new () => BrowserRecognition };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
@@ -97,8 +82,10 @@ export default function VoiceMode() {
   const generationRef = useRef(0);
   const [supported, setSupported] = useState(true);
   const [micError, setMicError] = useState("");
+  const [micPermissionPending, setMicPermissionPending] = useState(false);
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedMicId, setSelectedMicId] = useState("");
+  const [recordedInput, setRecordedInput] = useState(false);
   const [micRetryKey, setMicRetryKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [interim, setInterim] = useState("");
@@ -130,7 +117,7 @@ export default function VoiceMode() {
   const micStreamRef = useRef<MediaStream | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const rafRef = useRef<number | null>(null);
-  const recRef = useRef<SpeechRec | null>(null);
+  const recRef = useRef<BrowserRecognition | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const ttsSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const bargeFramesRef = useRef(0);       // consecutive frames of user speech during TTS
@@ -152,7 +139,6 @@ export default function VoiceMode() {
   // Cross-browser fallback (Firefox / Brave / iOS where SpeechRecognition is missing or
   // unreliable): record with MediaRecorder + voice-activity detection, transcribe server-side.
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const vadChunksRef = useRef<Blob[]>([]);
   const vadRafRef = useRef<number | null>(null);
   const vadRecordingRef = useRef(false);
   const openRef = useRef(false);
@@ -854,7 +840,6 @@ export default function VoiceMode() {
     setUserSaid(""); // clear the shown question once the reply is done
     if (openRef.current) {
       setPhaseSafe("listening");
-      try { recRef.current?.start(); } catch { /* already running */ }
     }
   }, [currentLang, pathname, runDirectives, speak, setPhaseSafe, visitorGeo, visitorName, router, setTheme]);
 
@@ -878,7 +863,7 @@ export default function VoiceMode() {
     // SR on iOS/Brave is missing or unreliable → use the recorder fallback there.
     // Browser SpeechRecognition can't be told which physical input to use. If
     // the visitor chooses one, use the recorder path so that choice is honored.
-    const useVad = !SR || isBrave || isIOS || Boolean(selectedMicId);
+    const useVad = recordedInput || !SR || isBrave || isIOS || Boolean(selectedMicId);
     // Warm up the on-device Whisper model when it will be the STT engine (recorder path).
     if (useVad && isLocalSttSupported()) preloadLocalStt();
 
@@ -902,6 +887,7 @@ export default function VoiceMode() {
 
     (async () => {
       try {
+        setMicPermissionPending(true);
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             ...(selectedMicId ? { deviceId: { exact: selectedMicId } } : {}),
@@ -911,7 +897,15 @@ export default function VoiceMode() {
           },
         });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        setMicPermissionPending(false);
         micStreamRef.current = stream;
+        watchMicrophoneEnd(stream, captureAbort.signal, () => {
+          if (cancelled) return;
+          stopCapture();
+          setMicError("Microphone input ended. Check its connection and browser permission, then retry.");
+          setPhaseSafe("error");
+        });
+        if (cancelled) return;
         setMicError("");
         await refreshAudioInputs();
         if (cancelled) return;
@@ -920,7 +914,7 @@ export default function VoiceMode() {
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ctx = new Ctx();
         audioCtxRef.current = ctx;
-        try { await ctx.resume(); } catch { /* */ }
+        await ctx.resume();
         if (cancelled) return;
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
@@ -939,102 +933,83 @@ export default function VoiceMode() {
         if (!useVad && SR) {
           // ── Live SpeechRecognition (Chrome / Edge / Safari desktop) ──
           const rec = new SR();
-          rec.continuous = true;
-          rec.interimResults = true;
-          rec.lang = "en-US";
-          rec.onresult = (e: SREvent) => {
-            if (cancelled || phaseRef.current !== "listening") return;
-            let interimText = "";
-            for (let i = e.resultIndex; i < e.results.length; i++) {
-              const r = e.results[i];
-              const txt = r[0]?.transcript ?? "";
-              if (r.isFinal) pendingFinalRef.current = (pendingFinalRef.current + " " + txt).trim();
-              else interimText += txt;
-            }
-            setInterim(interimText);
-            if (pendingFinalRef.current) {
-              if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
-              sendTimerRef.current = setTimeout(() => {
-                if (cancelled) return;
-                const toSend = pendingFinalRef.current.trim();
-                pendingFinalRef.current = "";
-                if (toSend && !isNoisyTranscript(toSend)) void sendToAgentRef.current(toSend);
-              }, 700);
-            }
-          };
-          rec.onerror = () => { /* transient */ };
-          rec.onend = () => { if (!cancelled && openRef.current && phaseRef.current !== "connecting" && phaseRef.current !== "error") { try { rec.start(); } catch { /* */ } } };
           recRef.current = rec;
           setPhaseSafe("listening");
-          try { rec.start(); } catch { /* */ }
+          startBrowserRecognition(rec, {
+            signal: captureAbort.signal, language: currentLang,
+            onFallback: () => { if (!cancelled) setRecordedInput(true); },
+            onResult: e => {
+              if (cancelled || phaseRef.current !== "listening") return;
+              let interimText = "";
+              for (let i = e.resultIndex; i < e.results.length; i++) {
+                const r = e.results[i];
+                const txt = r[0]?.transcript ?? "";
+                if (r.isFinal) pendingFinalRef.current = (pendingFinalRef.current + " " + txt).trim();
+                else interimText += txt;
+              }
+              setInterim(interimText);
+              if (pendingFinalRef.current) {
+                if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+                sendTimerRef.current = setTimeout(() => {
+                  if (cancelled) return;
+                  const toSend = pendingFinalRef.current.trim();
+                  pendingFinalRef.current = "";
+                  if (toSend && !isNoisyTranscript(toSend)) void sendToAgentRef.current(toSend);
+                }, 700);
+              }
+            },
+          });
         } else {
           // ── MediaRecorder + voice-activity detection + server STT (works everywhere) ──
           const buf = new Uint8Array(analyser.fftSize);
           let silenceStart = 0;
-          let speechMs = 0;
-          let lastTs = performance.now();
+          let stopRecording: (() => void) | null = null;
           const startRec = () => {
-            const s = micStreamRef.current; if (!s) return;
-            vadChunksRef.current = [];
-            let mr: MediaRecorder;
-            try { mr = new MediaRecorder(s); } catch { return; }
-            mr.ondataavailable = (e) => { if (!cancelled && e.data.size) vadChunksRef.current.push(e.data); };
-            mr.onstop = async () => {
-              if (cancelled) return;
-              vadRecordingRef.current = false;
-              const blob = new Blob(vadChunksRef.current, { type: mr.mimeType || "audio/webm" });
-              if (blob.size < 2000 || sendingRef.current) { if (openRef.current && phaseRef.current === "thinking") setPhaseSafe("listening"); return; }
-              setInterim("");
-              setPhaseSafe("thinking");
-              try {
-                // Free, on-device Whisper first; fall back to the paid server STT
-                // ONLY if the local engine couldn't run — a successful-but-empty
-                // result means silence, so we must NOT bill ElevenLabs for it.
-                let t = "";
-                let localOk = false;
-                if (isLocalSttSupported()) {
-                  try { t = await transcribeBlobLocal(blob); localOk = true; } catch { localOk = false; }
-                }
-                if (cancelled) return;
-                if (!localOk) {
-                  // Safari often records MP4/AAC; preserve that extension so the
-                  // transcription service receives the right container metadata.
-                  const extension = mr.mimeType.includes("mp4") ? "mp4" : "webm";
-                  const fd = new FormData(); fd.set("file", blob, `voice.${extension}`);
-                  const res = await fetch("/api/voice/stt", { method: "POST", body: fd, signal: captureAbort.signal });
-                  const data = await res.json().catch(() => null);
-                  t = typeof data?.text === "string" ? data.text.trim() : "";
-                }
-                if (cancelled) return;
-                if (t && !isNoisyTranscript(t)) await sendToAgentRef.current(t);
-                else if (openRef.current) setPhaseSafe("listening");
-              } catch { if (!cancelled && openRef.current) setPhaseSafe("listening"); }
-            };
-            mediaRecorderRef.current = mr;
-            vadRecordingRef.current = true;
-            mr.start();
+            const stream = micStreamRef.current; if (!stream || cancelled) return;
+            stopRecording = startVoiceRecording(stream, {
+              signal: captureAbort.signal,
+              onRecorder: recorder => { mediaRecorderRef.current = recorder; vadRecordingRef.current = true; },
+              onError: () => {
+                stopCapture(); setMicError("Could not record this microphone. Choose another input or retry."); setPhaseSafe("error");
+              },
+              onClip: blob => {
+                vadRecordingRef.current = false;
+                if (cancelled || !blob.size || sendingRef.current) return;
+                setInterim(""); setPhaseSafe("thinking");
+                void transcribeVoiceClip(blob, { signal: captureAbort.signal, localSupported: isLocalSttSupported(), localTranscribe: transcribeBlobLocal })
+                  .then(async text => {
+                    if (cancelled) return;
+                    if (text && !isNoisyTranscript(text)) await sendToAgentRef.current(text);
+                    else setPhaseSafe("listening");
+                  })
+                  .catch(error => {
+                    if (cancelled) return;
+                    stopCapture();
+                    setMicError(error instanceof Error ? error.message : "Speech could not be transcribed. Retry or continue in text.");
+                    setPhaseSafe("error");
+                  });
+              },
+            });
           };
           const vad = () => {
             if (cancelled || !openRef.current) return;
-            const now = performance.now(); const dt = now - lastTs; lastTs = now;
+            const now = performance.now();
             analyser.getByteTimeDomainData(buf);
             let rms = 0; for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; rms += v * v; } rms = Math.sqrt(rms / buf.length);
             if (phaseRef.current === "listening") {
               if (rms > 0.05) {
                 silenceStart = 0;
-                speechMs += dt;
                 if (!vadRecordingRef.current) startRec();
               } else if (vadRecordingRef.current) {
                 if (!silenceStart) silenceStart = now;
                 // Stop after ~0.9s of silence, but only if we captured real speech.
                 else if (now - silenceStart > 900) {
-                  if (speechMs > 350) { try { mediaRecorderRef.current?.stop(); } catch { /* */ } }
-                  else { try { mediaRecorderRef.current?.stop(); } catch { /* */ } }
-                  speechMs = 0; silenceStart = 0;
+                  stopRecording?.();
+                  silenceStart = 0;
                 }
               }
             }
-            vadRafRef.current = requestAnimationFrame(vad);
+            if (!cancelled) vadRafRef.current = requestAnimationFrame(vad);
           };
           setPhaseSafe("listening");
           vadRafRef.current = requestAnimationFrame(vad);
@@ -1062,6 +1037,7 @@ export default function VoiceMode() {
 
     function stopCapture() {
       cancelled = true;
+      setMicPermissionPending(false);
       captureAbort.abort();
       if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
       pendingFinalRef.current = "";
@@ -1088,7 +1064,7 @@ export default function VoiceMode() {
       ttsAnalyserRef.current = null;
     }
     return stopCapture;
-  }, [open, paused, selectedMicId, micRetryKey, startMeter, setPhaseSafe]);
+  }, [open, paused, selectedMicId, recordedInput, currentLang, micRetryKey, startMeter, setPhaseSafe]);
 
   /* ── Teardown on close ── */
   useEffect(() => {
@@ -1122,13 +1098,14 @@ export default function VoiceMode() {
     if (captionRafRef.current) { cancelAnimationFrame(captionRafRef.current); captionRafRef.current = null; }
   }, [open]);
 
-  const close = () => { generationRef.current += 1; speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); setOpen(false); };
+  const close = () => { setMicPermissionPending(false); generationRef.current += 1; speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); setOpen(false); };
 
   if (typeof document === "undefined") return null;
 
   const scale = 1 + Math.min(amplitude * 1.4, 0.7);
   const orbColor = phase === "speaking" ? "#ff7a7a" : "var(--theme-primary, #ef4242)";
   const shortLabel =
+    micPermissionPending ? "Waiting for microphone permission" :
     phase === "connecting" ? "Connecting" :
     (phase === "thinking" && sttPrep !== null) ? `Preparing voice ${sttPrep}%` :
     ttsPreparing ? "Loading" :
@@ -1205,6 +1182,17 @@ export default function VoiceMode() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Permission guidance is not exit-animated: cancellation removes it immediately. */}
+          {micPermissionPending && !paused && (
+            <div className="fixed top-20 left-1/2 z-[72] w-[min(92vw,40rem)] -translate-x-1/2 px-4">
+              <div className="flex flex-col items-center gap-3 rounded-sm border border-white/25 bg-black/95 px-5 py-3 text-center text-sm text-white/80">
+                <p role="status">{MICROPHONE_PERMISSION_GUIDANCE}</p>
+                <button type="button" className="rounded-sm border border-white/30 px-3 py-1.5 text-xs" onClick={() => { setMicPermissionPending(false); setPaused(true); }}>Cancel microphone request</button>
+                <p className="text-xs text-white/60">You can resume the microphone to retry, or continue in text.</p>
+              </div>
+            </div>
+          )}
 
           {/* What the USER is saying (live transcription / transcribed question) / errors — top middle */}
           <AnimatePresence>
@@ -1316,9 +1304,10 @@ export default function VoiceMode() {
             className="fixed bottom-6 right-6 z-[73] flex flex-col items-end gap-2"
           >
             <VoiceConversationControls
-              onMicrophoneTest={() => { setPaused(true); speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); }}
+              onMicrophoneTest={() => { setMicPermissionPending(false); generationRef.current += 1; sendingRef.current = false; setPaused(true); speechAbortRef.current?.abort(); requestAbortRef.current?.abort(); interruptTtsRef.current?.(); }}
               paused={paused}
               onPause={() => {
+                setMicPermissionPending(false);
                 requestAbortRef.current?.abort();
                 speechAbortRef.current?.abort();
                 interruptTtsRef.current?.();
@@ -1341,7 +1330,7 @@ export default function VoiceMode() {
             <div className="flex items-center gap-2">
               <span className="rounded-sm border border-[#ef4242]/40 bg-black/75 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#ef4242] backdrop-blur-sm font-medium">{paused ? "Microphone paused" : shortLabel}</span>
               <span className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-[10px] tabular-nums text-white/65 backdrop-blur-sm">{elapsedStr}</span>
-              {selectableAudioInputs.length > 1 && (
+              {(selectableAudioInputs.length > 0 || Boolean(selectedMicId)) && (
                 <label className="rounded-sm border border-white/14 bg-black/75 px-2 py-1 text-white/70 backdrop-blur-sm">
                   <span className="sr-only">Select microphone</span>
                   <select

@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
+import Image from "next/image";
+import { adminRequest } from "@/lib/admin-client";
 
 const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)));
 
@@ -43,21 +45,35 @@ interface Detail {
 }
 
 export function R2AssetDetailPanel({ fileKey, onChanged }: { fileKey: string; onChanged?: () => void }) {
+  return <AssetDetailSession key={fileKey} fileKey={fileKey} onChanged={onChanged} />;
+}
+
+function AssetDetailSession({ fileKey, onChanged }: { fileKey: string; onChanged?: () => void }) {
   const { data, mutate } = useSWR<Detail>(`/api/admin/r2/detail?key=${encodeURIComponent(fileKey)}`, fetcher);
-  const [alt, setAlt] = useState("");
-  const [status, setStatus] = useState("live");
-  const [visibility, setVisibility] = useState("public");
+  const [edits, setEdits] = useState<{ key: string; values: Partial<Detail["meta"]> } | null>(null);
+  const values = edits?.key === fileKey ? edits.values : {};
+  const alt = values.alt ?? data?.meta.alt ?? "";
+  const status = values.status ?? data?.meta.status ?? "live";
+  const visibility = values.visibility ?? data?.meta.visibility ?? "public";
+  const editGeneration = useRef(0);
+  const saveRequest = useRef<AbortController | null>(null);
+  function edit(name: "alt" | "status" | "visibility", value: string) {
+    editGeneration.current += 1;
+    setEdits(previous => ({ key: fileKey, values: { ...(previous?.key === fileKey ? previous.values : {}), [name]: value } }));
+    setSaved(false);
+  }
   const [dims, setDims] = useState<string>("—");
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => () => saveRequest.current?.abort(), []);
 
   useEffect(() => {
-    if (data) {
-      setAlt(data.meta.alt ?? "");
-      setStatus(data.meta.status ?? "live");
-      setVisibility(data.meta.visibility ?? "public");
-    }
-  }, [data]);
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
 
   const ext = (fileKey.split(".").pop() || "").toLowerCase();
   const isImage = data?.kind === "image";
@@ -65,16 +81,35 @@ export function R2AssetDetailPanel({ fileKey, onChanged }: { fileKey: string; on
   const isText = ["txt", "md", "json", "csv"].includes(ext);
 
   const save = async () => {
+    if (!data || saveRequest.current) return;
+    const controller = new AbortController();
+    saveRequest.current = controller;
+    const submittedGeneration = editGeneration.current;
     setSaving(true);
-    await fetch("/api/admin/r2/detail", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: fileKey, alt, status, visibility }),
-    });
-    await mutate();
-    setSaving(false);
-    setSavedAt(Date.now());
-    onChanged?.();
+    setSaved(false);
+    setSaveError("");
+    let committed = false;
+    try {
+      await adminRequest("/api/admin/r2/detail", {
+        method: "PATCH",
+        signal: controller.signal,
+        body: JSON.stringify({ key: fileKey, alt, status, visibility }),
+      });
+      committed = true;
+      const refreshed = await adminRequest<Detail>(`/api/admin/r2/detail?key=${encodeURIComponent(fileKey)}`, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      await mutate(refreshed, { revalidate: false });
+      if (controller.signal.aborted) return;
+      if (editGeneration.current === submittedGeneration) setSaved(true);
+      onChanged?.();
+    } catch (error) {
+      if (!controller.signal.aborted) setSaveError(committed
+        ? "The changes were saved, but asset details could not refresh. Your current entries are still here."
+        : error instanceof Error ? error.message : "The changes could not be saved. Your entries are still here.");
+    } finally {
+      if (saveRequest.current === controller) saveRequest.current = null;
+      if (!controller.signal.aborted) setSaving(false);
+    }
   };
 
   const replace = async (file: File | null) => {
@@ -97,8 +132,7 @@ export function R2AssetDetailPanel({ fileKey, onChanged }: { fileKey: string; on
         {!data ? (
           <span className="text-xs text-white/25 py-10">Loading…</span>
         ) : isImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={data.url} alt={alt || fileKey} className="max-h-[60vh] w-full object-contain" onLoad={(e) => setDims(`${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}`)} />
+          <Image unoptimized width={1200} height={800} src={data.url} alt={alt || fileKey} className="max-h-[60vh] h-auto w-full object-contain" onLoad={(e) => setDims(`${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}`)} />
         ) : isPdf ? (
           <iframe src={data.url} title={fileKey} className="w-full" style={{ height: "60vh", border: 0 }} />
         ) : isText ? (
@@ -135,26 +169,26 @@ export function R2AssetDetailPanel({ fileKey, onChanged }: { fileKey: string; on
         </div>
         <div>
           <label className="text-[10px] uppercase tracking-wider text-white/35">Alt text</label>
-          <input className={input} value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Describe this asset" />
+          <input className={input} value={alt} onChange={(e) => edit("alt", e.target.value)} placeholder="Describe this asset" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[10px] uppercase tracking-wider text-white/35">Status</label>
-            <select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select className={input} value={status} onChange={(e) => edit("status", e.target.value)}>
               <option value="live">Live</option><option value="draft">Draft</option><option value="archived">Archived</option>
             </select>
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wider text-white/35">Visibility</label>
-            <select className={input} value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+            <select className={input} value={visibility} onChange={(e) => edit("visibility", e.target.value)}>
               <option value="public">Public (CDN)</option><option value="private">Private (presigned)</option>
             </select>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button onClick={save} disabled={saving} className="inline-flex items-center justify-center px-3 h-9 text-[11px] bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] disabled:opacity-50">
-            {saving ? "Saving…" : Date.now() - savedAt < 2000 ? "Saved ✓" : "Save changes"}
+          <button onClick={save} disabled={saving || !data} className="inline-flex items-center justify-center px-3 h-9 text-[11px] bg-[#ef4242] text-white rounded-sm hover:bg-[#dd3030] disabled:opacity-50">
+            {saving ? "Saving…" : saved ? "Saved ✓" : "Save changes"}
           </button>
           <label className="inline-flex items-center justify-center px-3 h-9 text-[11px] border border-white/15 text-white/55 rounded-sm hover:text-white hover:border-white/30 cursor-pointer">
             Replace file
@@ -162,6 +196,7 @@ export function R2AssetDetailPanel({ fileKey, onChanged }: { fileKey: string; on
           </label>
           <a href={data?.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-3 h-9 text-[11px] border border-white/15 text-white/55 rounded-sm hover:text-white hover:border-white/30">Open</a>
         </div>
+        {saveError && <p role="alert" className="text-xs text-red-300">{saveError}</p>}
         {visibility === "private" && <p className="text-[10px] text-white/30">Private assets are served via short-lived presigned URLs instead of the public CDN domain.</p>}
       </div>
     </div>

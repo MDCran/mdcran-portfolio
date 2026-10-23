@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, AudioLines, Bot, Compass, Loader2, Square, Lock } from "lucide-react";
@@ -13,6 +13,19 @@ const ChromaKeyVideo = dynamic(() => import("@/components/home/ChromaKeyVideo"),
 const TOGGLE_EVENT = "mdcran:toggle-chat";
 const GREETING_STORAGE_KEY = "mdcran_chat_greeting_seen_v1";
 const GREETING_DELAY_MS = 2500;
+let lastRateLimit = 0;
+function subscribeRateLimit(changed: () => void) {
+  const limited = () => { lastRateLimit = Date.now(); try { localStorage.setItem("mdcran_rate_limited", String(lastRateLimit)); } catch { /* Storage blocked. */ } changed(); };
+  const storage = (event: StorageEvent) => { if (event.key === "mdcran_rate_limited" || event.key === null) changed(); };
+  window.addEventListener("mdcran:rate-limited", limited); window.addEventListener("storage", storage);
+  return () => { window.removeEventListener("mdcran:rate-limited", limited); window.removeEventListener("storage", storage); };
+}
+function rateLimitSnapshot() { let timestamp = lastRateLimit; try { timestamp = Math.max(timestamp, Number(localStorage.getItem("mdcran_rate_limited")) || 0); } catch { /* Storage blocked. */ } return timestamp > 0 && Date.now() - timestamp < 86_400_000; }
+const subscribeCapabilities = () => () => {};
+function voiceCapabilitySnapshot() {
+  const browser = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown; MediaRecorder?: unknown };
+  return typeof navigator.mediaDevices?.getUserMedia === "function" && Boolean(browser.SpeechRecognition || browser.webkitSpeechRecognition || browser.MediaRecorder);
+}
 
 function hasToured(): boolean {
   try { return /(?:^|;\s*)mdcran_toured=1/.test(document.cookie); } catch { return false; }
@@ -32,26 +45,13 @@ export default function ChatBubble() {
   const [nudge, setNudge] = useState<null | "rage" | "hesitation">(null);
   const [calm, setCalm] = useState(false); // calmer presence in the evening/night
   const [voiceEnabled, setVoiceEnabled] = useState(false); // voice conversation configured server-side
-  const [voiceSupported, setVoiceSupported] = useState(true); // SpeechRecognition present in this browser
-  const [rateLimited, setRateLimited] = useState(false);
+  const voiceSupported = useSyncExternalStore(subscribeCapabilities, voiceCapabilitySnapshot, () => true);
+  const rateLimited = useSyncExternalStore(subscribeRateLimit, rateLimitSnapshot, () => false);
   const [showRateLimit, setShowRateLimit] = useState(false);
   const { themeInfo } = useTheme();
   const darkIconThemes = ["hacker", "high-contrast"];
   const iconColor = darkIconThemes.includes(themeInfo.id) ? "#000000" : "#ffffff";
 
-  /* Rate limit state — persisted in localStorage for 24h */
-  useEffect(() => {
-    try {
-      const ts = localStorage.getItem("mdcran_rate_limited");
-      if (ts && Date.now() - parseInt(ts, 10) < 24 * 60 * 60 * 1000) setRateLimited(true);
-    } catch { /* */ }
-    const onLimited = () => {
-      setRateLimited(true);
-      try { localStorage.setItem("mdcran_rate_limited", String(Date.now())); } catch { /* */ }
-    };
-    window.addEventListener("mdcran:rate-limited", onLimited);
-    return () => window.removeEventListener("mdcran:rate-limited", onLimited);
-  }, []);
 
   /* Time-of-day mood: ease off the idle pulse after hours */
   useEffect(() => {
@@ -63,11 +63,6 @@ export default function ChatBubble() {
 
   /* Probe whether voice (ElevenLabs) is configured + supported, to decide if the mic button shows. */
   useEffect(() => {
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown; MediaRecorder?: unknown };
-    // Voice works in every modern browser now: live SpeechRecognition where available,
-    // else MediaRecorder + server STT. Just need a mic + one of the two.
-    const canCapture = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
-    setVoiceSupported(canCapture && Boolean(w.SpeechRecognition || w.webkitSpeechRecognition || w.MediaRecorder));
     let active = true;
     fetch("/api/voice/tts")
       .then((r) => (r.ok ? r.json() : null))
