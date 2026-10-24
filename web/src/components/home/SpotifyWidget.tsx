@@ -440,7 +440,7 @@ export default function SpotifyWidget() {
   const lastHeard = !data?.isPlaying ? formatLastHeard(data?.playedAt, nowMs) : "";
   const historyTracks = data?.history ?? [];
   const isClickable = Boolean(data?.songUrl);
-  const cardClassName = `relative overflow-hidden rounded-sm px-4 pb-4 pt-4 backdrop-blur-xl group transition-all duration-300 h-full ${
+  const cardClassName = `relative flex h-full min-h-56 flex-col overflow-hidden rounded-sm p-5 backdrop-blur-xl group transition-all duration-300 ${
     isClickable ? "cursor-pointer" : ""
   }`;
   const cardStyle: CSSProperties = {
@@ -1208,9 +1208,9 @@ export default function SpotifyWidget() {
 
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-[#1db954] via-[#1db954]/50 to-transparent" />
 
-      <div className="relative z-10 flex items-center gap-2 mb-3">
-        <Music2 size={12} className="text-[#1db954]" />
-        <span className="text-[10px] tracking-widest uppercase" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>
+      <div className="relative z-10 mb-4 flex shrink-0 flex-wrap items-center gap-2">
+        <Music2 size={14} className="shrink-0 text-[#1db954]" />
+        <span className="text-[11px] font-medium tracking-wider uppercase" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }}>
           {isLoading ? "Loading..." : data?.isPlaying ? "Now Playing" : "Last Played"}
         </span>
         <div className="ml-auto relative">
@@ -1243,44 +1243,45 @@ export default function SpotifyWidget() {
       </div>
 
       {isLoading ? (
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-14 h-14 rounded-sm animate-pulse shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
+        <div className="relative z-10 flex flex-1 items-center gap-4 py-1">
+          <div className="h-24 w-24 shrink-0 rounded-sm animate-pulse" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
           <div className="flex-1 space-y-2">
-            <div className="h-4 rounded animate-pulse w-3/4" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
-            <div className="h-3 rounded animate-pulse w-1/2" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }} />
+            <div className="h-5 w-3/4 rounded animate-pulse" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }} />
+            <div className="h-4 w-1/2 rounded animate-pulse" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 6%, transparent)' }} />
+            <div className="h-3 w-1/3 rounded animate-pulse" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 5%, transparent)' }} />
           </div>
         </div>
       ) : data?.title ? (
-        <div className="relative z-10 flex items-center gap-3.5">
+        <div className="relative z-10 flex flex-1 items-center gap-4 py-1">
           {data.albumArt && (
-            <div className="relative w-14 h-14 rounded-sm overflow-hidden shrink-0" style={{ border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }}>
+            <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-sm" style={{ border: '1px solid color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }}>
               <Image src={data.albumArt} alt={data.albumName ?? ""} fill unoptimized className="object-cover" />
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 90%, transparent)' }}>{data.title}</div>
-            <div className="text-[13px] truncate" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 40%, transparent)' }}>{data.artist}</div>
+            <div className="line-clamp-2 break-words text-lg font-semibold leading-snug" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 95%, transparent)' }}>{data.title}</div>
+            <div className="mt-1 line-clamp-2 break-words text-[15px] leading-snug" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 60%, transparent)' }}>{data.artist}</div>
             {lastHeard && (
-              <div className="text-[10px] mt-1 uppercase tracking-[0.18em]" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}>
+              <div className="mt-2 text-xs uppercase tracking-[0.12em]" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }}>
                 {lastHeard}
               </div>
             )}
           </div>
           {data.songUrl && (
             <div className="shrink-0 group-hover:text-[#1db954] transition-colors" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 20%, transparent)' }}>
-              <ExternalLink size={14} />
+              <ExternalLink size={16} />
             </div>
           )}
         </div>
       ) : (
-        <div className="relative z-10 flex items-center gap-2 text-xs" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}>
+        <div className="relative z-10 flex flex-1 items-center gap-2 text-sm" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }}>
           <Pause size={12} />
           <span>Not playing</span>
         </div>
       )}
 
       {data?.isPlaying && data?.durationMs && (
-        <div className="relative z-10 mt-3 space-y-1.5">
+        <div className="relative z-10 mt-auto space-y-1.5 pt-4">
           <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-text, #fff) 8%, transparent)' }}>
             <motion.div
               className="h-full bg-[#1db954] rounded-full"
@@ -1289,7 +1290,7 @@ export default function SpotifyWidget() {
               transition={{ ease: "linear", duration: 0.2 }}
             />
           </div>
-          <div className="flex items-center justify-between text-[10px] tabular-nums" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 25%, transparent)' }}>
+          <div className="flex items-center justify-between text-xs tabular-nums" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 45%, transparent)' }}>
             <span>{formatMs(clampedProgressMs)}</span>
             <span>{formatMs(data.durationMs)}</span>
           </div>

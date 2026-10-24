@@ -214,12 +214,12 @@ export default function Hero({ content, location }: { content?: SiteContentHero;
 
         <div
           data-highlight-id="personal-widgets"
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+          className="grid grid-cols-1 gap-4 lg:grid-cols-3"
         >
-          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-[160px]" />}>
+          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-56" />}>
             <SpotifyWidget />
           </Suspense>
-          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-[160px]" />}>
+          <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-56" />}>
             <BibleWidget />
           </Suspense>
           <Suspense fallback={<div className="rounded-sm border border-white/8 bg-white/3 min-h-[160px]" />}>
