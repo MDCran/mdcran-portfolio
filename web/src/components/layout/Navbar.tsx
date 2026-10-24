@@ -8,6 +8,7 @@ import { Search, X, Menu, ChevronDown } from "lucide-react";
 import { assetUrl, cn, projectUrl, imageAssetSrc } from "@/lib/utils";
 import { useTheme } from "@/lib/ThemeContext";
 import type { Project, Client, Article, SiteContent } from "@/lib/types";
+import styles from "./Navbar.module.css";
 
 const navLinks = [
   { label: "Engineering", href: "/engineering" },
@@ -219,6 +220,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
         data-scrolled={scrolled || mobileOpen || opaque ? "" : undefined}
         {...(opaque ? { "data-force-dark": "" } : {})}
         className={cn(
+          styles.navigation,
           "fixed top-0 left-0 right-0 z-[60] transition-all duration-300 border-b",
           mobileOpen
             ? "bg-black/92 backdrop-blur-xl border-transparent"
@@ -272,11 +274,10 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                     }}
                     aria-haspopup="true"
                     aria-expanded={activeDropdown === link.href}
+                    aria-current={isNavActive(link.href) ? "true" : undefined}
                     className={cn(
+                      styles.link,
                       "flex items-center gap-1 px-4 py-2 text-[11px] tracking-widest uppercase whitespace-nowrap transition-colors duration-200 rounded-sm",
-                      isNavActive(link.href)
-                        ? "text-[var(--cranberry)]"
-                        : "text-white/55 hover:text-white"
                     )}
                   >
                     {link.label}
@@ -297,6 +298,7 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                         exit={{ opacity: 0, y: 6 }}
                         transition={{ duration: 0.15 }}
                         className={cn(
+                          isLight && styles.lightDropdown,
                           "absolute top-full left-0 mt-1 w-56 border backdrop-blur-xl rounded-sm overflow-hidden",
                           isLight
                             ? "bg-white/95 border-black/12 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
@@ -310,15 +312,16 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             aria-current={isChildNavActive(child.href) ? "page" : undefined}
                             data-highlight-id={`nav-link-${child.href.split("/").filter(Boolean).pop()}`}
                             className={cn(
+                              styles.link,
                               "block px-5 py-3 text-[11px] tracking-widest uppercase transition-all duration-150 border-b last:border-0",
                               isLight ? "border-black/6" : "border-white/7",
                               isChildNavActive(child.href)
                                 ? isLight
-                                  ? "text-[var(--cranberry)] bg-black/4"
-                                  : "text-[var(--cranberry)] bg-white/6"
+                                  ? "bg-black/4"
+                                  : "bg-white/6"
                                 : isLight
-                                  ? "text-black/50 hover:text-black hover:bg-black/4"
-                                  : "text-white/55 hover:text-white hover:bg-white/6"
+                                  ? "hover:bg-black/4"
+                                  : "hover:bg-white/6"
                             )}
                           >
                             {child.label}
@@ -334,10 +337,8 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                   href={link.href}
                   aria-current={isNavActive(link.href) ? "page" : undefined}
                   className={cn(
+                    styles.link,
                     "px-4 py-2 text-[11px] tracking-widest uppercase whitespace-nowrap transition-colors duration-200 rounded-sm",
-                    isNavActive(link.href)
-                      ? "text-[var(--cranberry)]"
-                      : "text-white/55 hover:text-white"
                   )}
                 >
                   {link.label}
@@ -450,10 +451,11 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                   aria-current={isNavActive(link.href) ? "page" : undefined}
                       onClick={() => setMobileOpen(false)}
                       className={cn(
+                        styles.link,
                         "px-4 py-3 text-[11px] tracking-widest uppercase rounded-sm transition-all",
                         isNavActive(link.href)
-                          ? "text-[var(--cranberry)] bg-white/5"
-                          : "text-white/65 hover:text-white hover:bg-white/5"
+                          ? "bg-white/5"
+                          : "hover:bg-white/5"
                       )}
                     >
                       {link.label}
@@ -465,10 +467,11 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
                             aria-current={isChildNavActive(child.href) ? "page" : undefined}
                         onClick={() => setMobileOpen(false)}
                         className={cn(
+                          styles.link,
                           "pl-8 pr-4 py-2.5 text-[10px] tracking-widest uppercase rounded-sm transition-all",
                           isChildNavActive(child.href)
-                            ? "text-[var(--cranberry)] bg-white/5"
-                            : "text-white/35 hover:text-white/65 hover:bg-white/5"
+                            ? "bg-white/5"
+                            : "hover:bg-white/5"
                         )}
                       >
                         {child.label}

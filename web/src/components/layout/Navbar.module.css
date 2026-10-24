@@ -1,0 +1,32 @@
+.navigation {
+  --navigation-text: var(--theme-text, #fff);
+}
+
+.navigation[data-force-dark] {
+  --navigation-text: #fff;
+}
+
+.lightDropdown {
+  --navigation-text: #1a1a1a;
+}
+
+.link {
+  color: color-mix(in srgb, var(--navigation-text) 55%, transparent);
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--navigation-text);
+}
+
+.link[aria-current] {
+  color: var(--cranberry);
+}
+
+:global(html[data-theme="high-contrast"]) .link {
+  color: var(--navigation-text);
+}
+
+:global(html[data-theme="high-contrast"]) .link[aria-current] {
+  color: var(--cranberry);
+}
