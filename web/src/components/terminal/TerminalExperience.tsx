@@ -942,6 +942,7 @@ export default function TerminalExperience() {
   const router = useRouter();
   const isTerminalRoute = pathname.startsWith("/terminal");
   const [floating, setFloating] = React.useState(false);
+  const [maximized, setMaximized] = React.useState(false);
   const isThreeStage = isTerminalRoute && !floating;
   const [windowSize, setWindowSize] = React.useState({width:1100,height:760});
   const [mode, setMode] = React.useState<TerminalMode>("shell");
@@ -3192,21 +3193,38 @@ export default function TerminalExperience() {
   function doWindow(args:string[]) {
     if(args[0]==="crt")setFloating(window.innerWidth < 900);
     else if(args[0]==="float" || args[0]==="reset") {setFloating(true);setWindowSize(terminalWindowSize(1100,760,window.innerWidth,window.innerHeight));}
-    else if(args[0]==="max") {setFloating(true);setWindowSize(terminalWindowSize(window.innerWidth,window.innerHeight,window.innerWidth,window.innerHeight));}
+    else if(args[0]==="max") setFloating(true);
     else if(args[0]==="size" && args.length===3 && args.slice(1).every(value=>/^\d{3,4}$/.test(value))) {setFloating(true);setWindowSize(terminalWindowSize(Number(args[1]),Number(args[2]),window.innerWidth,window.innerHeight));}
     else {append([logText("  window float | max | crt | reset | size <width> <height>","muted")]);return;}
+    setMaximized(args[0] === "max");
     if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
-    append([logText(args[0]==="crt" && window.innerWidth>=900 ? "  CRT view restored. Use the orange button to resize again." : "  Drag the bottom-right corner to resize. Use the orange button to restore the window.","success")]);
+    append([logText(args[0] === "max"
+      ? "  Terminal maximized. Use the green button to restore your window size."
+      : args[0]==="crt" && window.innerWidth>=900
+        ? "  CRT view restored. Use the orange button to resize again."
+        : "  Drag the bottom-right corner to resize. Use the green button for full screen or orange to restore the window.","success")]);
   }
 
   function toggleTerminalWindow() {
+    if (maximized) {
+      setMaximized(false);
+      if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
+      return;
+    }
     if (window.innerWidth < 900 && floating) {
-      const maximized = windowSize.width >= window.innerWidth - 25 && windowSize.height >= window.innerHeight - 25;
-      if (maximized) {
+      const fillsAvailableSpace = windowSize.width >= window.innerWidth - 25 && windowSize.height >= window.innerHeight - 25;
+      if (fillsAvailableSpace) {
         setWindowSize(terminalWindowSize(window.innerWidth * .86, window.innerHeight * .78, window.innerWidth, window.innerHeight));
         if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
       } else doWindow(["max"]);
     } else doWindow([floating ? "crt" : "float"]);
+  }
+
+  function toggleTerminalMaximize() {
+    setFloating(true);
+    setMaximized(value => !value);
+    if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
+    focusCommandInput();
   }
 
   function doTour(action:string) {
@@ -3734,23 +3752,24 @@ export default function TerminalExperience() {
         ref={shellCaptureRef}
         tabIndex={powerState === "on" ? 0 : -1}
         data-window={floating ? "floating" : "crt"}
+        data-maximized={maximized ? "true" : undefined}
         data-tour={tourStep !== null ? TOUR_STEPS[tourStep].target : undefined}
         data-animation={animation}
         className={`${workspaceStyles.workspace} crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[#6d6553]/30 bg-[#090a08] outline-none`}
         style={{
           // In Three.js mode: keep the terminal constrained to the CRT screen area.
-          width:       floating ? `${windowSize.width}px` : isThreeStage ? "67vw" : undefined,
-          height:      floating ? `${windowSize.height}px` : isThreeStage ? "93vh" : undefined,
-          maxWidth:    floating ? "calc(100vw - 24px)" : isThreeStage ? "67vw" : undefined,
-          maxHeight:   floating ? "calc(100dvh - 24px)" : isThreeStage ? "93vh" : undefined,
+          width:       maximized ? "100vw" : floating ? `${windowSize.width}px` : isThreeStage ? "67vw" : undefined,
+          height:      maximized ? "100dvh" : floating ? `${windowSize.height}px` : isThreeStage ? "93vh" : undefined,
+          maxWidth:    maximized ? "none" : floating ? "calc(100vw - 24px)" : isThreeStage ? "67vw" : undefined,
+          maxHeight:   maximized ? "none" : floating ? "calc(100dvh - 24px)" : isThreeStage ? "93vh" : undefined,
           borderColor: isThreeStage ? "transparent" : undefined,
-          boxShadow:   isThreeStage
+          boxShadow:   isThreeStage || maximized
             ? "none"
             : "0 0 0 2px rgba(31, 27, 21, 0.85), 0 0 0 8px rgba(74, 64, 49, 0.45), 0 24px 80px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -18px 40px rgba(0,0,0,0.55)",
           background:  isThreeStage
             ? "linear-gradient(180deg, rgba(4,10,7,0.62) 0%, rgba(4,10,7,0.55) 100%)"
             : "linear-gradient(180deg, rgba(49,44,36,0.18) 0%, rgba(10,10,8,0.86) 10%, rgba(3,8,5,0.98) 100%)",
-          borderRadius: isThreeStage ? 28 : undefined,
+          borderRadius: maximized ? 0 : isThreeStage ? 28 : undefined,
         }}
         onFocus={(e) => {
           if (e.target === e.currentTarget) {
@@ -3934,7 +3953,7 @@ export default function TerminalExperience() {
             : undefined
         }
       >
-        {/* Traffic lights: red closes, orange toggles window sizing, green indicates power. */}
+        {/* Traffic lights: red closes, orange toggles window sizing, green maximizes. */}
         <div className="flex items-center gap-[2px]">
           <button
             type="button"
@@ -3953,11 +3972,15 @@ export default function TerminalExperience() {
             title={floating ? "Restore window size" : "Resize terminal window"}
             style={{ "--window-dot":"#ffbd2e", "--window-glow":"#ffbd2e40" } as React.CSSProperties}
           ><span aria-hidden="true">{floating ? "−" : "+"}</span></button>
-          <span
-            aria-hidden="true"
-            className="mx-1 block h-2.5 w-2.5 rounded-full"
-            style={{ background: "#28c840", boxShadow: "0 0 8px rgba(40,200,64,0.35)" }}
-          />
+          <button
+            type="button"
+            onClick={event=>{event.stopPropagation();toggleTerminalMaximize();}}
+            className={workspaceStyles.windowControl}
+            aria-label={maximized ? "Restore terminal window" : "Maximize terminal window"}
+            aria-pressed={maximized}
+            title={maximized ? "Restore window size" : "Full screen"}
+            style={{ "--window-dot":"#28c840", "--window-glow":"#28c84059" } as React.CSSProperties}
+          ><span aria-hidden="true">{maximized ? "−" : "+"}</span></button>
         </div>
 
         <div
@@ -4359,7 +4382,7 @@ export default function TerminalExperience() {
       </div>
       </div>
       </div>
-      {floating && <TerminalResize shell={shellCaptureRef} onSize={resizeWindow}/>}
+      {floating && !maximized && <TerminalResize shell={shellCaptureRef} onSize={resizeWindow}/>}
       {cursorEnabled && <TerminalPointer shell={shellCaptureRef} target={pointerTarget}/>}
       </div>
       )}

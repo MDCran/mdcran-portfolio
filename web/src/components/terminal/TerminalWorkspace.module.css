@@ -49,6 +49,7 @@
 .workspace[data-animation="off"] pre { animation:none; }
 .workspace input { -webkit-text-fill-color:currentColor; }
 .workspace[data-window="floating"] { transform:none!important; }
+.workspace[data-maximized="true"] { position:fixed; inset:0; }
 .workspace[data-window="floating"] [data-terminal-target="transcript"] { font-size:12px; }
 .workspace[data-window="floating"] [data-terminal-line] > div { line-height:1.65; }
 .workspace[data-window="floating"] [data-terminal-target="results"] button { font-size:11px; padding-top:5px; padding-bottom:5px; }
