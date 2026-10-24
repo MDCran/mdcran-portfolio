@@ -9,6 +9,87 @@ import { offerConversation, takeConversation } from "../src/lib/conversation-han
 import { playStreamingSpeech } from "../src/lib/assistant-audio";
 import { providerCancellation, relayProviderBody } from "../src/lib/assistant-lifecycle";
 import { configuredTokenCap } from "../src/lib/assistant-budget-policy";
+import { createResponseActions } from "../src/lib/assistant-response";
+
+function responseClock() {
+  let time = 0;
+  let next = 0;
+  const timers = new Map<number, { at: number; callback: () => void }>();
+  const frames = new Map<number, () => void>();
+  const clock = {
+    timer(callback: () => void, delay: number) { const id = ++next; timers.set(id, { at: time + delay, callback }); return () => { timers.delete(id); }; },
+    frame(callback: () => void) { const id = ++next; frames.set(id, callback); return () => { frames.delete(id); }; },
+  };
+  return {
+    clock,
+    advance(ms: number) {
+      const end = time + ms;
+      for (;;) {
+        const task = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+        if (!task || task[1].at > end) break;
+        time = task[1].at; timers.delete(task[0]); task[1].callback();
+      }
+      time = end;
+    },
+    paint() { const batch = [...frames.values()]; frames.clear(); batch.forEach(callback => callback()); },
+    pending: () => timers.size + frames.size,
+  };
+}
+
+test("navigation waits through slow synthesis and its highlight delay begins with speech", () => {
+  const f = responseClock(); const events: string[] = [];
+  const actions = createResponseActions({ signal: new AbortController().signal, isCurrent: () => true, clock: f.clock });
+  actions.schedule(() => events.push("navigate"));
+  actions.schedule(() => events.push("highlight"), 700);
+  f.advance(30_000); assert.equal(events.length, 0); assert.equal(f.pending(), 0);
+  actions.startSpeech(); f.advance(0); assert.deepEqual(events, ["navigate"]);
+  f.advance(699); assert.deepEqual(events, ["navigate"]);
+  f.advance(1); assert.deepEqual(events, ["navigate", "highlight"]);
+});
+
+test("written replies and failed-audio fallbacks paint before navigation is released", () => {
+  const f = responseClock(); const events: string[] = [];
+  const actions = createResponseActions({ signal: new AbortController().signal, isCurrent: () => true, clock: f.clock });
+  actions.schedule(() => events.push("navigate"));
+  actions.startText(); f.advance(5000); assert.equal(events.length, 0);
+  f.paint(); events.push("reply painted"); f.advance(0); assert.deepEqual(events, ["reply painted"]);
+  f.paint(); f.advance(0); assert.deepEqual(events, ["reply painted", "navigate"]);
+});
+
+test("stopping during preparation discards actions even if a late audio callback arrives", () => {
+  const f = responseClock(); const controller = new AbortController(); let navigations = 0;
+  const actions = createResponseActions({ signal: controller.signal, isCurrent: () => true, clock: f.clock });
+  actions.schedule(() => navigations++); actions.startText(); controller.abort();
+  actions.startSpeech(); f.paint(); f.paint(); f.advance(30_000);
+  assert.equal(navigations, 0); assert.equal(f.pending(), 0);
+});
+
+test("interrupting speech cancels delayed and chained page motions", () => {
+  const f = responseClock(); const speech = new AbortController(); let navigations = 0;
+  const actions = createResponseActions({ signal: new AbortController().signal, isCurrent: () => true, clock: f.clock });
+  actions.cancelOn(speech.signal);
+  actions.schedule(() => actions.schedule(() => navigations++, 1400));
+  actions.startSpeech(); f.advance(0); speech.abort(); f.advance(5000);
+  assert.equal(navigations, 0); assert.equal(f.pending(), 0);
+});
+
+test("closed, replaced and failed replies cannot release stale navigation", () => {
+  for (const reason of ["closed", "replaced", "failed"]) {
+    const f = responseClock(); let current = true; let navigations = 0;
+    const actions = createResponseActions({ signal: new AbortController().signal, isCurrent: () => current, clock: f.clock });
+    actions.schedule(() => navigations++, 600); actions.startSpeech();
+    if (reason === "failed") actions.cancel(); else current = false;
+    f.advance(5000); actions.startText(); f.paint(); f.paint();
+    assert.equal(navigations, 0, reason);
+  }
+});
+
+test("duplicate playback and text-ready notifications never run an action twice", () => {
+  const f = responseClock(); let navigations = 0;
+  const actions = createResponseActions({ signal: new AbortController().signal, isCurrent: () => true, clock: f.clock });
+  actions.schedule(() => navigations++); actions.startText(); actions.startSpeech(); actions.startSpeech();
+  f.paint(); f.paint(); f.advance(0); assert.equal(navigations, 1);
+});
 
 test("retrieval maps visitor language to actual public technology evidence", () => {
   const records = ["Minecraft map events", "Coretex AI agents TypeScript", "Health Tracker React Native mobile", "Portfolio Next.js full-stack", "Cloud infrastructure Docker AWS"];

@@ -4,6 +4,7 @@ import { MICROPHONE_PERMISSION_GUIDANCE, startBrowserRecognition, startVoiceReco
 import { playStreamingSpeech } from "@/lib/assistant-audio";
 import type { EvidenceSource } from "@/lib/assistant-evidence";
 import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
+import { createResponseActions, type ResponseActions } from "@/lib/assistant-response";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -326,27 +327,28 @@ export default function VoiceMode() {
 
   /* ── Speak a reply via ElevenLabs. Plays through Web Audio (decoded buffer) so it
      isn't blocked by mobile autoplay the way a plain <audio>.play() is. ── */
-  const speak = useCallback(async (text: string, onStart?: () => void): Promise<void> => {
+  const speak = useCallback(async (text: string, responseActions?: ResponseActions): Promise<void> => {
     const generation = generationRef.current;
     const controller = new AbortController();
     const active = () => openRef.current && generation === generationRef.current && !controller.signal.aborted;
     if (!active()) return;
     speechAbortRef.current?.abort();
     speechAbortRef.current = controller;
+    responseActions?.cancelOn(controller.signal);
     const synthesisStartedAt = performance.now();
     const clean = stripForSpeech(text);
-    if (!clean) { onStart?.(); return; }
+    if (!clean) return;
     setVoiceUnavailable(false);
     setTtsPreparing(true); // ElevenLabs can take a beat — show a loading state on the orb
     // The caption words (audio tags already removed by stripForSpeech). We do NOT show
     // the caption yet — it only appears once the audio is actually ready to play.
     const capWords = clean.split(/\s+/).filter(Boolean);
-    // Fire the deferred on-page motions exactly once, the moment the voice starts (or, if
-    // synthesis fails, right away so the page still responds).
+    // Navigation and page gestures are released only by actual playback. If voice
+    // fails, the written fallback must paint before it can release those actions.
     let started = false;
-    const fireStart = () => { if (active() && !started) { started = true; try { onStart?.(); } catch { /* */ } } };
+    const fireStart = () => { if (active() && !started) { started = true; setPhaseSafe("speaking"); responseActions?.startSpeech(); } };
     // Voice couldn't be synthesized — tell the user instead of silently hanging.
-    const unavailable = () => { if (!active()) return; setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); fireStart(); };
+    const unavailable = () => { if (!active()) return; setTtsPreparing(false); setVoiceUnavailable(true); setCaptionWords([]); setCaptionIdx(-1); responseActions?.startText(); };
     try {
       let arr: ArrayBuffer;
       const ttsCacheKey = `${currentLang}:${readAssistantPreferences().pace}:${clean}`;
@@ -364,6 +366,7 @@ export default function VoiceMode() {
         if (ctx) {
           await ctx.resume();
           if (!active()) return;
+          if (ctx.state === "suspended") { unavailable(); return; }
           interruptTtsRef.current = () => { controller.abort(); setPhaseSafe("listening"); setTtsPreparing(false); setCaptionWords([]); setCaptionIdx(-1); };
           const streamed = await playStreamingSpeech(res, { signal: controller.signal, context: ctx, analyser: ttsAnalyserRef.current,
             onAudio: audio => { audioElRef.current = audio; },
@@ -380,6 +383,7 @@ export default function VoiceMode() {
       const ctx = audioCtxRef.current;
       if (!ctx) { unavailable(); return; }
       try { await ctx.resume(); } catch { /* */ }
+      if (ctx.state === "suspended") { unavailable(); return; }
       let audioBuf: AudioBuffer;
       try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch {
         // Safari can reject a valid streaming response in decodeAudioData even though
@@ -463,7 +467,7 @@ export default function VoiceMode() {
         src.onended = () => { setCaptionIdx(capWords.length - 1); finish(); };
         // Reveal the bottom caption exactly when the voice starts — never before.
         try { src.start(); setTtsPreparing(false); setCaptionWords(capWords); setCaptionIdx(0); fireStart(); captionRafRef.current = requestAnimationFrame(karaoke); }
-        catch { setTtsPreparing(false); fireStart(); finish(); }
+        catch { unavailable(); finish(); }
       });
     } catch {
       unavailable();
@@ -476,22 +480,19 @@ export default function VoiceMode() {
     }
   }, [currentLang, setPhaseSafe]);
 
-  /* ── Parse action markers from a reply. Navigation + theme fire immediately (so the
-     destination page is mounting while the audio loads), but the on-page motions —
-     scroll/highlight/zoom/emphasize — are DEFERRED and returned as `onSpeechStart` so
-     they fire the instant Michael actually starts talking. That way the page visibly
-     scrolls/spotlights "as he's saying it", instead of jumping before the voice plays. ── */
-  const runDirectives = useCallback((full: string): { cleaned: string; onSpeechStart: () => void } => {
+  /* Parse directives without moving the page. The caller queues every visible
+     action until speech starts or the written fallback is visible. */
+  const runDirectives = useCallback((full: string, responseActions: ResponseActions): { cleaned: string; onResponseStart: () => void } => {
     let cleaned = sanitizeLegacyActions(full);
     const request = requestAbortRef.current; const epoch = generationRef.current;
     const stillActive = () => openRef.current && epoch === generationRef.current && (!request || (!request.signal.aborted && requestAbortRef.current === request));
-    const scheduleAction = (callback: () => void, delay: number) => setTimeout(() => { if (stillActive()) callback(); }, delay);
+    const scheduleAction = responseActions.schedule;
     const deferred: Array<() => void> = [];
 
     const theme = cleaned.match(/__THEME:([\w-]+)__/);
     if (theme) {
       const id = theme[1] as ThemeName;
-      if (THEMES.some((t) => t.id === id)) setTheme(id);
+      if (THEMES.some((t) => t.id === id)) deferred.push(() => setTheme(id));
       cleaned = cleaned.replace(/\s*__THEME:[\w-]+__\s*/g, " ");
     }
     const textSize = cleaned.match(/__TEXTSIZE:(normal|small|large|larger|largest)__/);
@@ -521,7 +522,8 @@ export default function VoiceMode() {
     if (nav) {
       const path = nav[1];
       cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
-      scheduleAction(() => router.push(path.split("#")[0] || "/"), 200); // navigate early
+      try { router.prefetch(path.split("#")[0] || "/"); } catch { /* */ }
+      deferred.push(() => scheduleAction(() => router.push(path.split("#")[0] || "/"), 200));
     }
     const gotoItemMatches = [...cleaned.matchAll(/__GOTOITEM:(\/[^|_\s]+)\|([^_]+?)__/g)];
     if (gotoItemMatches.length) {
@@ -557,8 +559,8 @@ export default function VoiceMode() {
     if (/__TOUR__/.test(cleaned)) {
       cleaned = cleaned.replace(/\s*__TOUR__\s*/g, " ");
       deferred.push(() => {
+        window.dispatchEvent(new CustomEvent("mdcran:run-tutorial"));
         setOpen(false);
-        scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
       });
     }
     const hl = cleaned.match(/__HIGHLIGHT:(.+?)__/);
@@ -720,7 +722,7 @@ export default function VoiceMode() {
     }
     return {
       cleaned: cleaned.replace(/\s+/g, " ").trim(),
-      onSpeechStart: () => { if (stillActive()) for (const fn of deferred) fn(); },
+      onResponseStart: () => { if (stillActive()) for (const fn of deferred) fn(); },
     };
   }, [router, setTheme]);
 
@@ -750,9 +752,12 @@ export default function VoiceMode() {
     const controller = new AbortController();
     requestAbortRef.current?.abort();
     requestAbortRef.current = controller;
+    const requestEpoch = generationRef.current;
+    const responseActions = createResponseActions({ signal: controller.signal, isCurrent: () => openRef.current && generationRef.current === requestEpoch && requestAbortRef.current === controller });
     let accumulated = "";
     let sources: EvidenceSource[] = [];
     let structuredActions: SiteAction[] = [];
+    let streamFailed = false;
     let friendly = "Sorry, I had trouble responding just now.";
     try {
       const res = await fetch("/api/chat", {
@@ -783,7 +788,10 @@ export default function VoiceMode() {
           if (payload === "[DONE]") continue;
           try {
             const parsed = JSON.parse(payload);
-            if (parsed.error && !accumulated.trim()) accumulated = typeof parsed.error === "string" ? parsed.error : "The assistant could not complete this response. Please try again.";
+            if (parsed.error) {
+              streamFailed = true;
+              if (!accumulated.trim()) accumulated = typeof parsed.error === "string" ? parsed.error : "The assistant could not complete this response. Please try again.";
+            }
             if (Array.isArray(parsed.sources)) sources = parsed.sources;
             if (parsed.actions) structuredActions = [...structuredActions, ...validateSiteActions(parsed)].slice(0, 4);
             if (parsed.text) {
@@ -804,6 +812,8 @@ export default function VoiceMode() {
         return;
       }
       accumulated = friendly;
+      streamFailed = true;
+      structuredActions = [];
       setTurns((prev) => [...prev, { role: "assistant", text: accumulated }]);
     }
 
@@ -811,24 +821,25 @@ export default function VoiceMode() {
         if (requestAbortRef.current === controller) sendingRef.current = false;
         return;
       }
+    if (streamFailed) responseActions.cancel();
     // Behavior guard → end politely
     if (accumulated.trim().startsWith("__BEHAVIOR__")) {
       const msg = "Let's keep this about Michael's work. What would you like to know?";
       setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: msg }; return n; });
       setShowSilenceTip(false);
-      setPhaseSafe("speaking");
       await speak(msg);
     } else {
       for (const action of structuredActions) {
-        if (action.type === "highlight") setTimeout(() => { if (!controller.signal.aborted && requestAbortRef.current === controller && openRef.current) dispatchSiteAction(action, () => {}, () => {}); }, structuredActions.some(a => a.type === "navigate") ? 700 : 0);
-        else dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName));
+        if (action.type === "navigate") { try { router.prefetch(action.value); } catch { /* */ } }
+        responseActions.schedule(() => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)), action.type === "highlight" && structuredActions.some(a => a.type === "navigate") ? 700 : 0);
       }
       if (structuredActions.length) accumulated = accumulated.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE):[^_]+__/g, "");
-      const { cleaned, onSpeechStart } = runDirectives(accumulated);
-      setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(cleaned), sources }; return n; });
+      const { cleaned, onResponseStart } = runDirectives(accumulated, responseActions);
+      const reply = cleaned || "Here’s what I found.";
+      setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(reply), sources }; return n; });
       setShowSilenceTip(false);
-      setPhaseSafe("speaking");
-      await speak(cleaned, onSpeechStart); // tags pass through to TTS; on-page motions fire when the voice starts
+      responseActions.schedule(onResponseStart);
+      await speak(reply, responseActions);
     }
 
     if (controller.signal.aborted || !openRef.current || requestAbortRef.current !== controller) return;

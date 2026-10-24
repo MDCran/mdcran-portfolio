@@ -4,6 +4,7 @@ import EvidenceSources from "./EvidenceSources";
 import { safePublicPath } from "@/lib/assistant-evidence";
 import type { EvidenceSource } from "@/lib/assistant-evidence";
 import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
+import { createResponseActions, type ResponseActions } from "@/lib/assistant-response";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -304,6 +305,7 @@ export default function ChatPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const chatRequestGenerationRef = useRef(0);
+  const responseActionsRef = useRef<ResponseActions | null>(null);
   // Stable per-open session id + device serial so chat turns can be logged + stitched.
   const chatSessionIdRef = useRef<string>(
     (() => { try { return crypto.randomUUID(); } catch { return `cs-${Date.now()}-${Math.random().toString(36).slice(2)}`; } })(),
@@ -382,7 +384,7 @@ export default function ChatPanel() {
     return () => window.removeEventListener("mdcran:a11y", onA11y);
   }, []);
 
-  const stopSpeaking = useCallback(() => {
+  const stopSpeechPlayback = useCallback(() => {
     speechGenerationRef.current += 1;
     speechAbortRef.current?.abort();
     speechAbortRef.current = null;
@@ -399,6 +401,13 @@ export default function ChatPanel() {
     setCapIdx(-1);
     setMinimized(false);
   }, []);
+
+  const stopSpeaking = useCallback(() => {
+    responseActionsRef.current?.cancel();
+    stopSpeechPlayback();
+  }, [stopSpeechPlayback]);
+
+  useEffect(() => () => responseActionsRef.current?.cancel(), []);
 
   useEffect(() => { if (!open || !voiceOn) stopSpeaking(); }, [open, voiceOn, stopSpeaking]);
 
@@ -421,12 +430,13 @@ export default function ChatPanel() {
      Drives a bottom-middle karaoke caption synced to the audio (same enthusiastic
      voice + word-highlighting as the guided tour). On mobile it minimizes the chat
      so the caption takes the stage, then restores it — WITHOUT clearing the log. */
-  const speak = useCallback(async (text: string) => {
+  const speak = useCallback(async (text: string, response?: { actions: ResponseActions; onStart: () => void }) => {
     if (!voiceOnRef.current || !chatOpenRef.current) return;
-    stopSpeaking();
+    stopSpeechPlayback();
     const generation = speechGenerationRef.current;
     const controller = new AbortController();
     speechAbortRef.current = controller;
+    response?.actions.cancelOn(controller.signal);
     const active = () => !controller.signal.aborted && generation === speechGenerationRef.current && chatOpenRef.current && voiceOnRef.current;
     const clean = stripForSpeech(text);
     if (!clean) return;
@@ -459,6 +469,7 @@ export default function ChatPanel() {
       const ctx = ensureAudioCtx();
       if (!ctx) { endCaption(); return; }
       try { await ctx.resume(); } catch { /* */ }
+      if (ctx.state === "suspended") { endCaption(); return; }
       let audioBuf: AudioBuffer;
       try { audioBuf = await ctx.decodeAudioData(arr.slice(0)); } catch { endCaption(); return; }
       if (!active()) return;
@@ -486,14 +497,14 @@ export default function ChatPanel() {
         if (el < dur) capRafRef.current = requestAnimationFrame(sync);
       };
       src.onended = () => { if (!active()) return; setSpeaking(false); endCaption(); };
-      try { src.start(); capRafRef.current = requestAnimationFrame(sync); }
+      try { src.start(); response?.onStart(); response?.actions.startSpeech(); capRafRef.current = requestAnimationFrame(sync); }
       catch { setSpeaking(false); endCaption(); }
     } catch {
       if (!active()) return;
       setSpeaking(false);
       endCaption();
     }
-  }, [ensureAudioCtx, stopSpeaking]);
+  }, [ensureAudioCtx, stopSpeechPlayback]);
 
   const isFirstVisit = (() => {
     try { return typeof window !== "undefined" && !localStorage.getItem("mdcran_tutorial_done"); } catch { return false; }
@@ -696,6 +707,7 @@ export default function ChatPanel() {
   const handleSend = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim();
     if (!text || streaming || reconnectStep > 0) return;
+    stopSpeaking();
     const requestGeneration = ++chatRequestGenerationRef.current;
 
     // If disconnected, go through reconnection flow first
@@ -744,6 +756,10 @@ export default function ChatPanel() {
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         const controller = new AbortController();
         abortRef.current = controller;
+        responseActionsRef.current?.cancel();
+        const responseActions = createResponseActions({ signal: controller.signal, isCurrent: () => chatOpenRef.current && requestGeneration === chatRequestGenerationRef.current });
+        responseActionsRef.current = responseActions;
+        let responseMessage: Message | undefined;
 
         let accumulated = "";
         let sources: EvidenceSource[] = [];
@@ -866,6 +882,7 @@ export default function ChatPanel() {
                       accumulated += parsed.text; // accumulate silently; dots stay up
                     } else {
                       for (const char of parsed.text) {
+                        if (controller.signal.aborted || requestGeneration !== chatRequestGenerationRef.current) return;
                         accumulated += char;
                         const display = accumulated
                           .replace(/\s*__[A-Z_]+:.+?__\s*/g, " ")
@@ -921,10 +938,11 @@ export default function ChatPanel() {
         }
 
         if (controller.signal.aborted || requestGeneration !== chatRequestGenerationRef.current) return;
+        if (streamErrorDetail) responseActions.cancel();
         /* Process action markers + auto-navigation from markdown links */
         {
           let cleaned = sanitizeLegacyActions(accumulated);
-          const scheduleAction = (callback: () => void, delay: number) => setTimeout(() => { if (!controller.signal.aborted && requestGeneration === chatRequestGenerationRef.current) callback(); }, delay);
+          const scheduleAction = responseActions.schedule;
           let hasMarkers = sources.length > 0 || structuredActions.length > 0;
           let didNavigate = false;
           let pendingHighlightTarget: string | undefined;
@@ -934,7 +952,13 @@ export default function ChatPanel() {
           for (const action of structuredActions) {
             if (action.type === "project") projectCards = [...(projectCards || []), action.value].slice(0, 2);
             else if (action.type === "highlight") pendingHighlightTarget = action.value;
-            else { dispatchSiteAction(action, href => { didNavigate = true; router.push(href); }, value => setTheme(value as ThemeName)); }
+            else {
+              if (action.type === "navigate") {
+                didNavigate = true;
+                try { router.prefetch(action.value); } catch { /* */ }
+              }
+              scheduleAction(() => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)));
+            }
           }
           if (structuredActions.length) cleaned = cleaned.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE):[^_]+__/g, "");
           if (pendingHighlightTarget) {
@@ -974,7 +998,7 @@ export default function ChatPanel() {
             hasMarkers = true;
             const themeId = themeMatch[1] as ThemeName;
             if (THEMES.some((t) => t.id === themeId)) {
-              setTheme(themeId);
+              scheduleAction(() => setTheme(themeId));
             }
             cleaned = cleaned.replace(/\s*__THEME:[\w-]+__\s*/g, " ");
           }
@@ -985,7 +1009,7 @@ export default function ChatPanel() {
             hasMarkers = true;
             const scale = { small: 0.9, normal: 1, large: 1.15, larger: 1.3, largest: 1.5 }[textSizeMatch[1]] ?? 1;
             cleaned = cleaned.replace(/\s*__TEXTSIZE:[a-z]+__\s*/g, " ");
-            window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { textScale: scale } }));
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { textScale: scale } })));
           }
 
           // Accessibility marker → constrained set of preference toggles
@@ -1002,7 +1026,7 @@ export default function ChatPanel() {
               else if (a === "readaloud-off") detail.speakAloud = false;
               else if (a.startsWith("cb-")) detail.colorblind = a.slice(3) === "none" ? "none" : a.slice(3);
               else if (a.startsWith("cursor-")) detail.cursor = a.slice(7);
-              if (Object.keys(detail).length) window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail }));
+              if (Object.keys(detail).length) scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail })));
             }
           }
 
@@ -1014,13 +1038,13 @@ export default function ChatPanel() {
             cleaned = cleaned.replace(/\s*__NAV:\/.+?__\s*/g, " ");
             didNavigate = true;
             const navBase = navPath.includes("#") ? navPath.split("#")[0] || "/" : navPath;
-            announceAiAction(`AI is opening ${navBase === "/" ? "the home page" : navBase.replace(/^\//, "").replace(/[-/]/g, " ")}`);
+            scheduleAction(() => announceAiAction(`AI is opening ${navBase === "/" ? "the home page" : navBase.replace(/^\//, "").replace(/[-/]/g, " ")}`));
             // Prefetch immediately so the page loads in the background while cursor animates
             try { router.prefetch(navBase); } catch { /* */ }
             // Animate cursor to the matching nav link
-            window.dispatchEvent(new CustomEvent("mdcran:cursor-nav", {
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-nav", {
               detail: { href: navBase, label: navBase === "/" ? "Going home…" : `Opening ${navBase.replace(/^\//, "").replace(/-/g, " ")}…` }
-            }));
+            })));
             // Push after cursor animation settles (~1.4s in)
             scheduleAction(() => {
               router.push(navBase);
@@ -1062,7 +1086,7 @@ export default function ChatPanel() {
               }, 3400);
             });
             didNavigate = true;
-            announceAiAction(`AI is opening ${gotoItemMatches[0][2].trim()}`);
+            scheduleAction(() => announceAiAction(`AI is opening ${gotoItemMatches[0][2].trim()}`));
           }
 
           // Zoom + focus marker
@@ -1087,7 +1111,7 @@ export default function ChatPanel() {
           if (/__RESETZOOM__/.test(cleaned)) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__RESETZOOM__\s*/g, " ");
-            window.dispatchEvent(new CustomEvent("mdcran:resetzoom"));
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:resetzoom")));
           }
 
           // Guided multi-page projects walkthrough (no argument)
@@ -1102,8 +1126,8 @@ export default function ChatPanel() {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__TOUR__\s*/g, " ");
             scheduleAction(() => {
+              window.dispatchEvent(new CustomEvent("mdcran:run-tutorial"));
               window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
-              scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:run-tutorial")), 350);
             }, 600);
           }
 
@@ -1157,7 +1181,7 @@ export default function ChatPanel() {
           if (/__CURSORRESET__/.test(cleaned)) {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__CURSORRESET__\s*/g, " ");
-            window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-hide")));
           }
 
           // Directional / container scroll: __SCROLL:dir__ or __SCROLL:dir:target__
@@ -1185,9 +1209,9 @@ export default function ChatPanel() {
             searchMatches.forEach((m) => {
               const query = m[1].trim();
               // Click the search button (aria-label="Search") to open the overlay
-              window.dispatchEvent(new CustomEvent("mdcran:cursor-click", {
+              scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-click", {
                 detail: { selector: '[aria-label="Search"]', label: "Opening search…" },
-              }));
+              })));
               // After overlay opens and input is mounted, type the query
               scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:cursor-type", {
                 detail: { target: "nav-search", typeText: query, label: `Searching for "${query}"…` },
@@ -1233,7 +1257,7 @@ export default function ChatPanel() {
             hasMarkers = true;
             cleaned = cleaned.replace(/\s*__COPYLINK(?::.+?)?__\s*/g, " ");
             const text = copyMatch[1]?.trim() || (typeof window !== "undefined" ? window.location.href : "");
-            window.dispatchEvent(new CustomEvent("mdcran:copy", { detail: { text } }));
+            scheduleAction(() => window.dispatchEvent(new CustomEvent("mdcran:copy", { detail: { text } })));
           }
 
           // Privacy consent opt-in / opt-out: __CONSENT:opt-in__ / __CONSENT:opt-out__
@@ -1379,7 +1403,7 @@ export default function ChatPanel() {
 
           // Handle highlight based on context
           if (highlightTarget) {
-            announceAiAction(`AI is highlighting ${highlightTarget.replace(/[-_]/g, " ")}`);
+            scheduleAction(() => announceAiAction(`AI is highlighting ${highlightTarget.replace(/[-_]/g, " ")}`));
             if (didNavigate) {
               // Auto-navigating: fire highlight after page loads
               scheduleAction(() => {
@@ -1400,47 +1424,43 @@ export default function ChatPanel() {
             }
           }
 
-          // Update the displayed message with markers stripped + flags. When read-aloud
-          // is on, keep the placeholder empty until TTS has decoded and can start; that
-          // makes the typing indicator represent the whole response, not just the LLM.
+          // Prepare the message without exposing its cards or actions before speech.
           if (hasMarkers || didNavigate || pendingHighlightTarget || projectCards || contactCard || bookingCard) {
             cleaned = cleaned.replace(/  +/g, " ").trim();
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
+            responseMessage = {
                 role: "assistant",
-                content: voiceOnRef.current ? "" : cleaned,
+                content: cleaned,
                 autoNavigated: didNavigate,
                 pendingHighlight: pendingHighlightTarget,
                 projectCards,
                 contactCard,
                 bookingCard,
                 sources,
-              };
-              return updated;
-            });
-          }
+            };
+          } else responseMessage = { role: "assistant", content: cleaned, sources };
         }
 
         /* Got a real response */
-        if (accumulated.replace(/__[A-Z_]+(?::[^_]+)?__/g, "").trim()) {
+        if (responseMessage?.content.trim()) {
+          const completedMessage = responseMessage;
+          const revealResponse = () => {
+            if (controller.signal.aborted || requestGeneration !== chatRequestGenerationRef.current || !chatOpenRef.current) return;
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = completedMessage;
+              return updated;
+            });
+          };
           // In voice mode, do not reveal the completed message until ElevenLabs has
           // synthesized and decoded the audio. `speak` only resolves after `src.start()`,
           // so the chat stays in its typing state until the reply is ready to say aloud.
           if (voiceOnRef.current) {
-            await speak(accumulated);
-            const displayText = accumulated
-              .replace(/\s*__[A-Z_]+:.+?__\s*/g, " ")
-              .replace(/\s*__[A-Z_]+__\s*/g, " ")
-              .replace(/  +/g, " ")
-              .trim();
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = { ...updated[updated.length - 1], content: displayText };
-              return updated;
-            });
+            let started = false;
+            await speak(accumulated, { actions: responseActions, onStart: () => { started = true; revealResponse(); } });
+            if (!started) { revealResponse(); responseActions.startText(); }
           } else {
-            void speak(accumulated);
+            revealResponse();
+            responseActions.startText();
           }
           break;
         }
@@ -1481,7 +1501,7 @@ export default function ChatPanel() {
         lastAgentMessageRef.current = Date.now();
       }
     }
-  }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak, announceAiAction, ensureAudioCtx, identityState, recycledIdentity, router, setTheme]);
+  }, [input, streaming, messages, pathname, disconnected, reconnectStep, agentName, speak, stopSpeaking, announceAiAction, ensureAudioCtx, identityState, recycledIdentity, router, setTheme]);
 
   // Project pages can open the chat with a focused, high-quality question without
   // exposing their internal data to the browser event payload.
