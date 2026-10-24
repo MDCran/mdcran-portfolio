@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Lightbox from "@/components/shared/Lightbox";
-import SectionActions from "./SectionActions";
 import BeforeAfterSlider from "@/components/shared/BeforeAfterSlider";
 import type { ArticleSection, Client, Project } from "@/lib/types";
 import { imageAssetAlt, imageAssetSrc, projectUrl, shouldBypassImageOptimization } from "@/lib/utils";
@@ -41,6 +40,8 @@ interface ProjectDetailProps {
   relatedProjects: Project[];
   backHref: string;
   backLabel: string;
+  variant?: "default" | "engineering";
+  status?: string;
   children?: ReactNode;
 }
 
@@ -66,6 +67,8 @@ export default function ProjectDetail({
   relatedProjects,
   backHref,
   backLabel,
+  variant = "default",
+  status,
   children,
 }: ProjectDetailProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -74,6 +77,8 @@ export default function ProjectDetail({
   const coverSrc = imageAssetSrc(coverImage);
   const hasCover = !!coverSrc;
   const hasVideos = !!project.videos?.length;
+  const isEngineering = variant === "engineering";
+  const publishDate = effectiveProjectDate(project);
   const showPricing = project.pricing.status !== "unavailable";
   const hasTopSidebarContent =
     showPricing ||
@@ -145,7 +150,23 @@ export default function ProjectDetail({
       <Navbar />
 
       <section className="relative w-full mt-[var(--navbar-height)]">
-        {hasCover ? (
+        {isEngineering ? (
+          <div className="border-b border-white/8 bg-white/[0.015]">
+            <div className="content-container py-10 sm:py-14 lg:py-16">
+              <BackLink href={backHref} label={backLabel} />
+              <div className={`mt-4 grid items-center gap-8 lg:gap-12 ${hasCover ? "lg:grid-cols-2" : "max-w-3xl"}`}>
+                <div className="min-w-0">
+                  <p className="mb-4 text-[11px] uppercase tracking-[0.16em] text-[var(--cranberry)]">{status ?? "Engineering project"}</p>
+                  <h1 className="font-nord text-3xl leading-tight tracking-wide text-white sm:text-4xl" data-highlight-id="project-title">{project.title}</h1>
+                  {project.description && <p className="mt-5 max-w-2xl text-sm leading-7 text-white/65 sm:text-base sm:leading-8" data-highlight-id="project-description">{project.description}</p>}
+                </div>
+                {hasCover && <div className="relative aspect-video overflow-hidden rounded-sm border border-white/10 bg-black/20">
+                  <Image src={coverSrc} alt={imageAssetAlt(coverImage, project.title)} fill className="object-contain" priority sizes="(max-width: 1023px) 100vw, 540px" unoptimized={shouldBypassImageOptimization(coverSrc)} />
+                </div>}
+              </div>
+            </div>
+          </div>
+        ) : hasCover ? (
           <div className="relative w-full h-[420px] sm:h-[520px] overflow-hidden">
             <Image
               src={coverSrc}
@@ -176,8 +197,7 @@ export default function ProjectDetail({
       </section>
 
       <main id={project.slug} className="content-container py-12 sm:py-16" data-highlight-id={project.id}>
-        <nav aria-label="Breadcrumb" className="mb-4 text-xs text-white/60"><Link href="/">Home</Link> / <Link href={backHref}>{backLabel}</Link> / <span aria-current="page">{project.title}</span></nav>
-        <SectionActions />
+        {!isEngineering && <nav aria-label="Breadcrumb" className="mb-6 text-xs text-white/60"><Link href="/">Home</Link> / <Link href={backHref}>{backLabel}</Link> / <span aria-current="page">{project.title}</span></nav>}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12">
           <div className="lg:col-span-2 space-y-12">
             {children}
@@ -261,14 +281,14 @@ export default function ProjectDetail({
               </section>
             )}
 
-            <section>
+            {publishDate && <section>
               <div className="flex items-center gap-2 text-xs text-white/45 border-t border-white/8 pt-5">
                 <Calendar size={12} className="text-[var(--cranberry)]" />
-                <span>{effectiveProjectDate(project) ? `Published ${formatProjectDate(effectiveProjectDate(project))}` : "Publish date not provided"}</span>
+                <span>Published {formatProjectDate(publishDate)}</span>
               </div>
-            </section>
+            </section>}
 
-            <section className="border-t border-white/8 pt-5">
+            <section className="border-t border-white/8 pt-5 lg:hidden" aria-label="Project engagement">
               <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[10px] tracking-widest uppercase mb-3" style={{ color: 'color-mix(in srgb, var(--theme-text, #fff) 30%, transparent)' }}>Appreciate this project</p>
@@ -293,6 +313,7 @@ export default function ProjectDetail({
           <div className="space-y-6 order-1 lg:order-none">
             {hasTopSidebarContent && (
             <div className="p-5 rounded-sm border border-white/7 bg-white/2 space-y-4" data-highlight-id="project-actions">
+              {isEngineering && <p className="text-[10px] tracking-widest uppercase text-white/45">Project links</p>}
               {showPricing && (
                 <div className={`inline-flex items-center gap-2 px-3 py-1.5 text-[10px] tracking-widest uppercase rounded-sm border ${pricingColor[project.pricing.status]}`}>
                   {project.pricing.status === "free" && <Download size={11} />}
@@ -459,7 +480,7 @@ export default function ProjectDetail({
               <div className="p-5 rounded-sm border border-white/7 bg-white/2" data-highlight-id="project-tags">
                 <div className="flex items-center gap-2 mb-4">
                   <Tag size={12} className="text-white/40" />
-                  <span className="text-[10px] tracking-widest uppercase text-white/40">Tags</span>
+                  <span className="text-[10px] tracking-widest uppercase text-white/40">{isEngineering ? "Technologies" : "Tags"}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {project.tags.map((tag) => {

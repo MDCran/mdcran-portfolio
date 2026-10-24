@@ -29,11 +29,13 @@ export default async function EngineeringProjectPage({ params }: Props) {
   const detail = engineeringDetail(project.slug);
   return (
     <ProjectDetail
-      project={{ ...project, githubUrl: detail?.sourceUrl ?? project.githubUrl }}
+      project={{ ...project, description: detail?.summary ?? project.description, tags: detail?.skills ?? project.tags, githubUrl: detail?.sourceUrl ?? project.githubUrl }}
       clients={clients.filter((client) => project.clientIds?.includes(client.id))}
       relatedProjects={projects.filter((candidate) => candidate.id !== project.id).slice(0, 4)}
       backHref="/engineering"
       backLabel="Engineering"
+      variant="engineering"
+      status={detail?.status}
     >
       <EngineeringProjectEvidence slug={project.slug} detail={detail} />
     </ProjectDetail>
