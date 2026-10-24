@@ -74,5 +74,5 @@ export function TerminalPointer({ shell, target }: {shell:React.RefObject<HTMLDi
     return()=>{clearTimeout(timer);clearTimeout(fade);};
   },[shell,target]);
   if(!target)return null;
-  return <div className={styles.pointer} style={{left:point.x,top:point.y,opacity:point.visible?1:0}} aria-hidden="true"><svg width="22" height="27" viewBox="0 0 22 27"><path d="M2 1L2 22L8 17L12 25L16 23L12 15L20 14Z" fill="#052e16" stroke="currentColor" strokeWidth="1.5"/></svg><span>{target.label}</span></div>;
+  return <div className={styles.pointer} style={{left:point.x,top:point.y,opacity:point.visible?1:0}} aria-hidden="true"><svg width="22" height="27" viewBox="0 0 22 27"><path d="M2 1L2 22L8 17L12 25L16 23L12 15L20 14Z" fill="var(--terminal-surface)" stroke="currentColor" strokeWidth="1.5"/></svg><span>{target.label}</span></div>;
 }

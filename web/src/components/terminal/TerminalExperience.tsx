@@ -27,6 +27,9 @@ import { TerminalToolbar, TerminalTour, TerminalCompanion, TerminalResize, Termi
 import workspaceStyles from "./TerminalWorkspace.module.css";
 import TerminalTranscript from "./TerminalTranscript";
 import { useTerminalScroll } from "./useTerminalScroll";
+import { useStoredPreference } from "@/lib/useStoredPreference";
+import { THEMES } from "@/lib/themes";
+import { DEFAULT_TERMINAL_THEME, TERMINAL_THEME_KEY, TERMINAL_THEMES, resolveTerminalTheme, terminalThemeStyle } from "@/lib/terminal-theme";
 import type { TerminalLogEntry } from "@/lib/terminal-output";
 import CRTThreeCanvas from "./CRTThreeCanvas";
 import SnakeGame from "./games/SnakeGame";
@@ -384,7 +387,7 @@ function directoryItems(path: string[], data: TerminalData): string[] {
 
 function PreviewImage({ url, alt }: { url: string; alt?: string }) {
   return (
-    <div className="relative w-full overflow-hidden rounded border border-[#4ade80]/12 bg-black/70">
+    <div className="relative w-full overflow-hidden rounded border border-[var(--terminal-accent)]/12 bg-black/70">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={url} alt={alt ?? ""} className="block h-auto max-h-52 w-full object-contain" />
       <div className="pointer-events-none absolute inset-0" style={{ background: "repeating-linear-gradient(180deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 3px)" }} />
@@ -407,9 +410,9 @@ function PreviewPanel({
 
   // ── Header ────────────────────────────────────────────────────────────────
   const header = (
-    <div className="flex shrink-0 items-center justify-between border-b border-[#4ade80]/8 px-3 py-2">
-      <span className="text-[7px] tracking-widest uppercase text-[#86efac]/30">Preview</span>
-      <button onClick={onClose} className="text-[0.6125rem] leading-none text-[#86efac]/35 transition-colors hover:text-[#dcfce7]">✕</button>
+    <div className="flex shrink-0 items-center justify-between border-b border-[var(--terminal-accent)]/8 px-3 py-2">
+      <span className="text-[7px] tracking-widest uppercase text-[color:var(--terminal-muted)]">Preview</span>
+      <button onClick={onClose} className="text-[0.6125rem] leading-none text-[color:var(--terminal-muted)] transition-colors hover:text-[color:var(--terminal-text)]">✕</button>
     </div>
   );
 
@@ -429,8 +432,8 @@ function PreviewPanel({
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-3 py-3">
           {/* Title + category */}
           <div>
-            <div className="text-[0.65rem] font-semibold leading-snug text-[#d9fbe3]/90">{p.title}</div>
-            <div className="mt-0.5 text-[0.5rem] text-[#86efac]/45">
+            <div className="text-[0.65rem] font-semibold leading-snug text-[color:var(--terminal-text)]">{p.title}</div>
+            <div className="mt-0.5 text-[0.5rem] text-[color:var(--terminal-muted)]">
               {[p.subcategory ?? p.category, p.publishDate ? formatDate(p.publishDate) : ""].filter(Boolean).join("  ·  ")}
             </div>
           </div>
@@ -439,17 +442,17 @@ function PreviewPanel({
           {p.tags?.length ? (
             <div className="flex flex-wrap gap-1">
               {p.tags.map((t) => (
-                <span key={t} className="rounded border border-[#4ade80]/15 bg-[#4ade80]/5 px-1.5 py-px text-[0.45rem] text-[#86efac]/60">{t}</span>
+                <span key={t} className="rounded border border-[var(--terminal-accent)]/15 bg-[var(--terminal-accent)]/5 px-1.5 py-px text-[0.45rem] text-[color:var(--terminal-muted)]">{t}</span>
               ))}
             </div>
           ) : null}
 
           {/* Description */}
           {p.description && (
-            <p className="text-[0.525rem] leading-relaxed text-[#d9fbe3]/75 break-words">{p.description}</p>
+            <p className="text-[0.525rem] leading-relaxed text-[color:var(--terminal-text)] break-words">{p.description}</p>
           )}
           {p.longDescription && (
-            <p className="text-[0.525rem] leading-relaxed text-[#d9fbe3]/60 break-words">{p.longDescription}</p>
+            <p className="text-[0.525rem] leading-relaxed text-[color:var(--terminal-muted)] break-words">{p.longDescription}</p>
           )}
 
           {/* Gallery images (no cover) */}
@@ -462,46 +465,46 @@ function PreviewPanel({
           )}
 
           {/* Meta table */}
-          <div className="space-y-0.5 border-t border-[#4ade80]/8 pt-2">
+          <div className="space-y-0.5 border-t border-[var(--terminal-accent)]/8 pt-2">
             {relatedClients.length > 0 && (
               <div className="flex gap-2 text-[0.5rem]">
-                <span className="w-14 shrink-0 text-[#86efac]/35">Client</span>
-                <span className="text-[#d9fbe3]/70">{relatedClients.map((c) => c.name).join(", ")}</span>
+                <span className="w-14 shrink-0 text-[color:var(--terminal-muted)]">Client</span>
+                <span className="text-[color:var(--terminal-text)]">{relatedClients.map((c) => c.name).join(", ")}</span>
               </div>
             )}
             {p.pricing?.status === "free" && (
               <div className="flex gap-2 text-[0.5rem]">
-                <span className="w-14 shrink-0 text-[#86efac]/35">Pricing</span>
-                <span className="text-[#86efac]/70">Free download</span>
+                <span className="w-14 shrink-0 text-[color:var(--terminal-muted)]">Pricing</span>
+                <span className="text-[color:var(--terminal-secondary)]">Free download</span>
               </div>
             )}
             {p.pricing?.price ? (
               <div className="flex gap-2 text-[0.5rem]">
-                <span className="w-14 shrink-0 text-[#86efac]/35">Price</span>
-                <span className="text-[#d9fbe3]/70">{formatMoney(p.pricing.price)}</span>
+                <span className="w-14 shrink-0 text-[color:var(--terminal-muted)]">Price</span>
+                <span className="text-[color:var(--terminal-text)]">{formatMoney(p.pricing.price)}</span>
               </div>
             ) : null}
             {p.credits?.length ? (
               <div className="flex gap-2 text-[0.5rem]">
-                <span className="w-14 shrink-0 text-[#86efac]/35">Credits</span>
-                <span className="text-[#d9fbe3]/70 break-words">{p.credits.map((c) => `${c.name} (${c.role})`).join(", ")}</span>
+                <span className="w-14 shrink-0 text-[color:var(--terminal-muted)]">Credits</span>
+                <span className="text-[color:var(--terminal-text)] break-words">{p.credits.map((c) => `${c.name} (${c.role})`).join(", ")}</span>
               </div>
             ) : null}
           </div>
 
           {/* Videos */}
           {p.videos?.length ? (
-            <div className="space-y-1 border-t border-[#4ade80]/8 pt-2">
-              <div className="text-[0.45rem] uppercase tracking-widest text-[#86efac]/30">Videos</div>
+            <div className="space-y-1 border-t border-[var(--terminal-accent)]/8 pt-2">
+              <div className="text-[0.45rem] uppercase tracking-widest text-[color:var(--terminal-muted)]">Videos</div>
               {p.videos.slice(0, 4).map((v, i) => (
                 <a
                   key={i}
                   href={`https://youtu.be/${v.youtubeId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-start gap-1.5 text-[0.5rem] text-[#86efac]/70 hover:text-[#86efac] transition-colors"
+                  className="flex items-start gap-1.5 text-[0.5rem] text-[color:var(--terminal-secondary)] hover:text-[color:var(--terminal-secondary)] transition-colors"
                 >
-                  <span className="mt-px shrink-0 text-[#86efac]/30">▶</span>
+                  <span className="mt-px shrink-0 text-[color:var(--terminal-muted)]">▶</span>
                   <span className="break-words">{v.title || `Video ${i + 1}`}</span>
                 </a>
               ))}
@@ -509,11 +512,11 @@ function PreviewPanel({
           ) : null}
 
           {/* Links */}
-          <div className="flex flex-wrap gap-3 border-t border-[#4ade80]/8 pt-2">
-            <a href={internalUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ Project page</a>
-            {p.liveUrl && <a href={p.liveUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac]/70 underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ Live site</a>}
-            {p.externalUrl && <a href={p.externalUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac]/70 underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ External link</a>}
-            {p.pricing?.downloadUrl && p.pricing.status === "free" && <a href={p.pricing.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac]/70 underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↓ Download</a>}
+          <div className="flex flex-wrap gap-3 border-t border-[var(--terminal-accent)]/8 pt-2">
+            <a href={internalUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">↗ Project page</a>
+            {p.liveUrl && <a href={p.liveUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">↗ Live site</a>}
+            {p.externalUrl && <a href={p.externalUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">↗ External link</a>}
+            {p.pricing?.downloadUrl && p.pricing.status === "free" && <a href={p.pricing.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">↓ Download</a>}
           </div>
         </div>
       </div>
@@ -528,34 +531,34 @@ function PreviewPanel({
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-3 py-3">
           {/* Title + meta */}
           <div>
-            <div className="text-[0.65rem] font-semibold leading-snug text-[#d9fbe3]/90">{a.title}</div>
-            <div className="mt-0.5 text-[0.5rem] text-[#86efac]/45">
+            <div className="text-[0.65rem] font-semibold leading-snug text-[color:var(--terminal-text)]">{a.title}</div>
+            <div className="mt-0.5 text-[0.5rem] text-[color:var(--terminal-muted)]">
               {a.author}  ·  {formatDate(a.publishDate)}
             </div>
-            <div className="mt-0.5 text-[0.5rem] text-[#86efac]/30">{a.category}</div>
+            <div className="mt-0.5 text-[0.5rem] text-[color:var(--terminal-muted)]">{a.category}</div>
           </div>
 
           {/* Tags */}
           {a.tags?.length ? (
             <div className="flex flex-wrap gap-1">
               {a.tags.map((t) => (
-                <span key={t} className="rounded border border-[#4ade80]/15 bg-[#4ade80]/5 px-1.5 py-px text-[0.45rem] text-[#86efac]/60">{t}</span>
+                <span key={t} className="rounded border border-[var(--terminal-accent)]/15 bg-[var(--terminal-accent)]/5 px-1.5 py-px text-[0.45rem] text-[color:var(--terminal-muted)]">{t}</span>
               ))}
             </div>
           ) : null}
 
           {/* Excerpt */}
           {a.excerpt && (
-            <div className="rounded border border-[#4ade80]/10 bg-[#05160c]/60 px-2.5 py-2 text-[0.525rem] leading-relaxed text-[#bbf7d0]/65 italic break-words">
+            <div className="rounded border border-[var(--terminal-accent)]/10 bg-[var(--terminal-surface)]/60 px-2.5 py-2 text-[0.525rem] leading-relaxed text-[color:var(--terminal-muted)] italic break-words">
               &quot;{a.excerpt}&quot;
             </div>
           )}
 
           {/* Sections */}
-          <div className="space-y-2.5 border-t border-[#4ade80]/8 pt-2">
+          <div className="space-y-2.5 border-t border-[var(--terminal-accent)]/8 pt-2">
             {a.sections.map((sec, i) => {
               if (sec.type === "text" && sec.content) {
-                return <p key={i} className="text-[0.525rem] leading-relaxed text-[#d9fbe3]/70 break-words">{sec.content.length > 400 ? sec.content.slice(0, 400) + "…" : sec.content}</p>;
+                return <p key={i} className="text-[0.525rem] leading-relaxed text-[color:var(--terminal-text)] break-words">{sec.content.length > 400 ? sec.content.slice(0, 400) + "…" : sec.content}</p>;
               }
               if (sec.type === "image" && sec.src) {
                 const u = imageAssetSrc(sec.src);
@@ -574,8 +577,8 @@ function PreviewPanel({
               if (sec.type === "video" && sec.youtubeId) {
                 return (
                   <a key={i} href={`https://youtu.be/${sec.youtubeId}`} target="_blank" rel="noopener noreferrer"
-                    className="flex items-start gap-1.5 text-[0.5rem] text-[#86efac]/70 hover:text-[#86efac] transition-colors">
-                    <span className="mt-px shrink-0 text-[#86efac]/30">▶</span>
+                    className="flex items-start gap-1.5 text-[0.5rem] text-[color:var(--terminal-secondary)] hover:text-[color:var(--terminal-secondary)] transition-colors">
+                    <span className="mt-px shrink-0 text-[color:var(--terminal-muted)]">▶</span>
                     <span className="break-words">{sec.caption ?? `Watch video`}</span>
                   </a>
                 );
@@ -583,24 +586,24 @@ function PreviewPanel({
               if ((sec.type === "checklist" || sec.type === "steps" || sec.type === "ingredient-list" || sec.type === "store-checklist") && sec.items?.length) {
                 const Tag = sec.type === "steps" ? "ol" : "ul";
                 return (
-                  <Tag key={i} className={`space-y-0.5 text-[0.5rem] text-[#d9fbe3]/65 ${sec.type === "steps" ? "list-decimal" : "list-disc"} list-inside`}>
+                  <Tag key={i} className={`space-y-0.5 text-[0.5rem] text-[color:var(--terminal-muted)] ${sec.type === "steps" ? "list-decimal" : "list-disc"} list-inside`}>
                     {sec.items.slice(0, 8).map((item, j) => <li key={j} className="break-words">{item}</li>)}
-                    {sec.items.length > 8 && <li className="text-[#86efac]/30">+{sec.items.length - 8} more…</li>}
+                    {sec.items.length > 8 && <li className="text-[color:var(--terminal-muted)]">+{sec.items.length - 8} more…</li>}
                   </Tag>
                 );
               }
               if (sec.type === "quote" && sec.content) {
-                return <blockquote key={i} className="border-l-2 border-[#4ade80]/30 pl-2 text-[0.525rem] italic text-[#bbf7d0]/55 break-words">&quot;{sec.content}&quot;</blockquote>;
+                return <blockquote key={i} className="border-l-2 border-[var(--terminal-accent)]/30 pl-2 text-[0.525rem] italic text-[color:var(--terminal-muted)] break-words">&quot;{sec.content}&quot;</blockquote>;
               }
               if (sec.type === "code" && sec.content) {
                 const lines = sec.content.split("\n").slice(0, 8);
-                return <pre key={i} className="rounded bg-[#010a04] px-2 py-1.5 text-[0.45rem] leading-relaxed text-[#86efac]/60 overflow-x-auto">{lines.join("\n")}{sec.content.split("\n").length > 8 ? "\n…" : ""}</pre>;
+                return <pre key={i} className="rounded bg-[var(--terminal-surface)] px-2 py-1.5 text-[0.45rem] leading-relaxed text-[color:var(--terminal-muted)] overflow-x-auto">{lines.join("\n")}{sec.content.split("\n").length > 8 ? "\n…" : ""}</pre>;
               }
               if (sec.type === "info-block" && sec.label) {
-                return <div key={i} className="flex gap-2 text-[0.5rem]"><span className="shrink-0 text-[#86efac]/35">{sec.label}</span><span className="text-[#d9fbe3]/70">{sec.value}</span></div>;
+                return <div key={i} className="flex gap-2 text-[0.5rem]"><span className="shrink-0 text-[color:var(--terminal-muted)]">{sec.label}</span><span className="text-[color:var(--terminal-text)]">{sec.value}</span></div>;
               }
               if (sec.type === "divider") {
-                return <div key={i} className="border-t border-[#4ade80]/10" />;
+                return <div key={i} className="border-t border-[var(--terminal-accent)]/10" />;
               }
               return null;
             })}
@@ -608,15 +611,15 @@ function PreviewPanel({
 
           {/* Taps + updated */}
           {(a.tapCount || a.updatedDate) && (
-            <div className="flex gap-3 border-t border-[#4ade80]/8 pt-2 text-[0.45rem] text-[#86efac]/30">
+            <div className="flex gap-3 border-t border-[var(--terminal-accent)]/8 pt-2 text-[0.45rem] text-[color:var(--terminal-muted)]">
               {a.tapCount ? <span>{a.tapCount.toLocaleString()} taps</span> : null}
               {a.updatedDate ? <span>Updated {formatDate(a.updatedDate)}</span> : null}
             </div>
           )}
 
           {/* Links */}
-          <div className="border-t border-[#4ade80]/8 pt-2">
-            <a href={`/articles/${a.slug}`} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ Read full article</a>
+          <div className="border-t border-[var(--terminal-accent)]/8 pt-2">
+            <a href={`/articles/${a.slug}`} target="_blank" rel="noopener noreferrer" className="text-[0.5rem] text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">↗ Read full article</a>
           </div>
           {/* Spacer for scroll */}
           <div className="h-2" />
@@ -646,25 +649,25 @@ function PreviewPanel({
         )}
 
         <div className="space-y-1.5">
-          <div className="text-[0.65rem] font-semibold leading-snug text-[#d9fbe3]/90">{preview.title}</div>
-          {preview.subtitle && <div className="text-[0.525rem] leading-snug text-[#86efac]/45">{preview.subtitle}</div>}
-          {preview.caption && <div className="text-[0.525rem] leading-snug text-[#86efac]/30 break-words">{preview.caption}</div>}
+          <div className="text-[0.65rem] font-semibold leading-snug text-[color:var(--terminal-text)]">{preview.title}</div>
+          {preview.subtitle && <div className="text-[0.525rem] leading-snug text-[color:var(--terminal-muted)]">{preview.subtitle}</div>}
+          {preview.caption && <div className="text-[0.525rem] leading-snug text-[color:var(--terminal-muted)] break-words">{preview.caption}</div>}
           {preview.details?.length ? (
             <div className="space-y-0.5 pt-1">
               {preview.details.map((detail, index) => (
-                <div key={`${detail}-${index}`} className="text-[0.525rem] leading-snug text-[#86efac]/55 break-words">{detail}</div>
+                <div key={`${detail}-${index}`} className="text-[0.525rem] leading-snug text-[color:var(--terminal-muted)] break-words">{detail}</div>
               ))}
             </div>
           ) : null}
           {preview.quote && (
-            <div className="rounded border border-[#4ade80]/12 bg-[#05160c]/70 px-2.5 py-2 text-[0.525rem] leading-snug italic text-[#bbf7d0]/70 break-words">
+            <div className="rounded border border-[var(--terminal-accent)]/12 bg-[var(--terminal-surface)]/70 px-2.5 py-2 text-[0.525rem] leading-snug italic text-[color:var(--terminal-text)] break-words">
               &quot;{preview.quote}&quot;
             </div>
           )}
         </div>
 
         {preview.linkUrl && (
-          <a href={preview.linkUrl} target="_blank" rel="noopener noreferrer" className="text-[0.525rem] text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">
+          <a href={preview.linkUrl} target="_blank" rel="noopener noreferrer" className="text-[0.525rem] text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">
             ↗ {preview.linkLabel ?? "View"}
           </a>
         )}
@@ -747,7 +750,7 @@ function BrowserPanel({
     <div className="flex h-full flex-col">
       {/* Mac-style title bar — drag area */}
       <div
-        className="flex shrink-0 items-center gap-2 border-b border-[#4ade80]/10 bg-[#020b05]/95 px-2.5 py-1.5 cursor-grab active:cursor-grabbing select-none"
+        className="flex shrink-0 items-center gap-2 border-b border-[var(--terminal-accent)]/10 bg-[var(--terminal-surface)]/95 px-2.5 py-1.5 cursor-grab active:cursor-grabbing select-none"
         onMouseDown={(e) => {
           // Only drag from the bar background (not from inputs/buttons)
           const target = e.target as HTMLElement;
@@ -786,11 +789,11 @@ function BrowserPanel({
             }}
           >
             <input
-              className="w-full min-w-0 rounded-sm border border-[#4ade80]/10 bg-[#031008] px-2 py-0.5 text-[0.525rem] text-[#d9fbe3]/85 placeholder-[#86efac]/20 outline-none transition-colors focus:border-[#4ade80]/35"
+              className="w-full min-w-0 rounded-sm border border-[var(--terminal-accent)]/10 bg-[var(--terminal-surface)] px-2 py-0.5 text-[0.525rem] text-[color:var(--terminal-text)] placeholder-[var(--terminal-secondary)]/20 outline-none transition-colors focus:border-[var(--terminal-accent)]/35"
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               placeholder="https://example.com"
-              style={{ textShadow: "0 0 6px rgba(74,222,128,0.1)" }}
+              style={{ textShadow: "0 0 6px rgb(var(--terminal-accent-rgb) / 0.1)" }}
             />
           </form>
         )}
@@ -801,19 +804,19 @@ function BrowserPanel({
         <div className="relative min-h-0 flex-1 overflow-hidden">
           {blockedUrl ? (
             /* Blocked content screen */
-            <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#020b05] px-6 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--terminal-surface)] px-6 text-center">
               <div className="text-[#ff5f57] text-[0.85rem] font-medium" style={{ textShadow: "0 0 12px rgba(255,95,87,0.5)" }}>
                 ACCESS BLOCKED
               </div>
-              <div className="text-[#86efac]/40 text-[0.5rem] leading-relaxed max-w-[220px]">
+              <div className="text-[color:var(--terminal-muted)] text-[0.5rem] leading-relaxed max-w-[220px]">
                 This content has been blocked by the terminal browser&apos;s content filter.
               </div>
-              <div className="text-[#86efac]/25 text-[0.45rem] font-mono break-all max-w-[220px]">
+              <div className="text-[color:var(--terminal-muted)] text-[0.45rem] font-mono break-all max-w-[220px]">
                 {blockedUrl}
               </div>
               <button
                 onClick={() => setBlockedUrl(null)}
-                className="mt-1 text-[0.5rem] text-[#86efac]/35 underline hover:text-[#86efac]/70 transition-colors"
+                className="mt-1 text-[0.5rem] text-[color:var(--terminal-muted)] underline hover:text-[color:var(--terminal-secondary)] transition-colors"
               >
                 Go back
               </button>
@@ -865,7 +868,7 @@ function BrowserPanel({
               <div
                 className="pointer-events-none absolute inset-x-0 z-10 h-[4px]"
                 style={{
-                  background: "linear-gradient(90deg, transparent 0%, rgba(74,222,128,0.05) 20%, rgba(74,222,128,0.11) 50%, rgba(74,222,128,0.05) 80%, transparent 100%)",
+                  background: "linear-gradient(90deg, transparent 0%, rgb(var(--terminal-accent-rgb) / 0.05) 20%, rgb(var(--terminal-accent-rgb) / 0.11) 50%, rgb(var(--terminal-accent-rgb) / 0.05) 80%, transparent 100%)",
                   animation: "browserBeamSweep 3.5s linear infinite",
                 }}
               />
@@ -918,16 +921,16 @@ function BrowserPanel({
 
               {/* Corner brackets */}
               <div className="pointer-events-none absolute inset-0 z-20">
-                <div className="absolute left-1.5 top-1.5 h-4 w-4 border-l-2 border-t-2 border-[#4ade80]/20" />
-                <div className="absolute right-1.5 top-1.5 h-4 w-4 border-r-2 border-t-2 border-[#4ade80]/20" />
-                <div className="absolute bottom-1.5 left-1.5 h-4 w-4 border-b-2 border-l-2 border-[#4ade80]/20" />
-                <div className="absolute bottom-1.5 right-1.5 h-4 w-4 border-b-2 border-r-2 border-[#4ade80]/20" />
+                <div className="absolute left-1.5 top-1.5 h-4 w-4 border-l-2 border-t-2 border-[var(--terminal-accent)]/20" />
+                <div className="absolute right-1.5 top-1.5 h-4 w-4 border-r-2 border-t-2 border-[var(--terminal-accent)]/20" />
+                <div className="absolute bottom-1.5 left-1.5 h-4 w-4 border-b-2 border-l-2 border-[var(--terminal-accent)]/20" />
+                <div className="absolute bottom-1.5 right-1.5 h-4 w-4 border-b-2 border-r-2 border-[var(--terminal-accent)]/20" />
               </div>
 
               {/* Inner border glow */}
               <div
                 className="pointer-events-none absolute inset-0 z-20"
-                style={{ boxShadow: "inset 0 0 22px rgba(74,222,128,0.05)" }}
+                style={{ boxShadow: "inset 0 0 22px rgb(var(--terminal-accent-rgb) / 0.05)" }}
               />
             </>
           )}
@@ -948,6 +951,8 @@ export default function TerminalExperience() {
   const isThreeStage = isTerminalRoute && !floating;
   const [windowSize, setWindowSize] = React.useState({width:1100,height:760});
   const [mode, setMode] = React.useState<TerminalMode>("shell");
+  const [storedTerminalTheme, setTerminalTheme] = useStoredPreference(TERMINAL_THEME_KEY, DEFAULT_TERMINAL_THEME);
+  const terminalTheme = resolveTerminalTheme(storedTerminalTheme) ?? DEFAULT_TERMINAL_THEME;
   const [tourStep, setTourStep] = React.useState<number|null>(null);
   const [tourTried, setTourTried] = React.useState(false);
   const tourDraftRef = React.useRef("");
@@ -1664,7 +1669,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),
       logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
-      logText("  resume · recruiter · search · tour · mode ai", "success"),
+      logText("  resume · recruiter · search · tour · theme · mode ai", "success"),
       logText("  Start typing anywhere. Tab cycles matches; Shift+Tab goes back.", "muted"),
       logText(""),
     ]), TERMINAL_TEXT_DELAY_MS);
@@ -1908,7 +1913,7 @@ export default function TerminalExperience() {
       else void doAsk(rest.trim());
       return;
     }
-    const passiveCommand = ["stop", "togglemusic", "togglekeystrokeclicks", "togglebackground", "window", "pet", "animations", "cursor", "highlight", "focus", "help", "?"].includes(cmd);
+    const passiveCommand = ["stop", "togglemusic", "togglekeystrokeclicks", "togglebackground", "theme", "window", "pet", "animations", "cursor", "highlight", "focus", "help", "?"].includes(cmd);
     if (!passiveCommand) stopAI(false);
     const parsed = parseArguments(rest);
     if (parsed.activeQuote) {
@@ -1964,6 +1969,7 @@ export default function TerminalExperience() {
         else showCommandUsage(cmd);
         break;
       case "window": doWindow(args); break;
+      case "theme": doTheme(args); break;
       case "focus": focusCommandInput(); append([logText("  Command line: focused", "success")]); break;
       case "togglemusic":
       case "togglekeystrokeclicks":
@@ -3038,6 +3044,24 @@ export default function TerminalExperience() {
     try {localStorage.setItem(`mdcran_terminal_${key}`,value);} catch { /* Optional preference. */ }
   }
 
+  function doTheme(args: string[]) {
+    const value = args.join(" ").trim().toLowerCase();
+    const current = THEMES.find(theme => theme.id === terminalTheme)!;
+    if (!value || value === "list") {
+      append([logText("  TERMINAL THEMES", "accent"), logText(`  Current theme: ${current.name}`, "success"),
+        ...TERMINAL_THEMES.map(id => {
+          const theme = THEMES.find(theme => theme.id === id)!;
+          return logText(`  ${id === terminalTheme ? "●" : "·"} ${theme.id.padEnd(15)} ${theme.description}`);
+        }), logText("  Use theme <name> to apply. Tab cycles choices; theme reset restores Hacker.", "muted")]);
+      return;
+    }
+    if (value === "status") { append([logText(`  Theme: ${current.name}`, "success")]); return; }
+    const next = value === "reset" ? DEFAULT_TERMINAL_THEME : resolveTerminalTheme(value);
+    if (!next) { showCommandUsage("theme"); return; }
+    setTerminalTheme(next);
+    append([logText(`  Theme: ${THEMES.find(theme => theme.id === next)!.name}`, "success")]);
+  }
+
   function doWindow(args:string[]) {
     if (args[0] !== "size" && args.length !== 1) { showCommandUsage("window"); return; }
     if(args[0]==="crt")setFloating(window.innerWidth < 900);
@@ -3521,12 +3545,12 @@ export default function TerminalExperience() {
 
   return (
     <div
-      className="fixed inset-0 z-[9998] flex select-none items-center justify-center overflow-hidden bg-[#050403] px-3 py-3 md:px-5 md:py-5 font-jb"
+      data-terminal-theme={terminalTheme}
+      className={`${workspaceStyles.themeRoot} fixed inset-0 z-[9998] flex select-none items-center justify-center overflow-hidden px-3 py-3 md:px-5 md:py-5 font-jb`}
       style={{
+        ...terminalThemeStyle(terminalTheme),
         padding: isThreeStage ? 0 : undefined,
-        background: isThreeStage
-          ? "radial-gradient(circle at 50% 12%, rgba(80, 255, 190, 0.08), transparent 18%), radial-gradient(circle at 50% 62%, rgba(70, 120, 255, 0.06), transparent 28%), radial-gradient(circle at 50% 100%, rgba(50, 255, 180, 0.05), transparent 26%), linear-gradient(180deg, #040606 0%, #020304 46%, #000101 100%)"
-          : "radial-gradient(circle at 50% 18%, rgba(122, 96, 54, 0.12), transparent 28%), radial-gradient(circle at 50% 50%, rgba(20, 83, 45, 0.08), transparent 38%), linear-gradient(180deg, #120f0b 0%, #060503 40%, #020201 100%)",
+        background: "radial-gradient(ellipse at 50% 20%, rgb(var(--terminal-accent-rgb) / .09), transparent 55%), var(--terminal-background)",
       }}
     >
       {isThreeStage && powerState !== "off" && (
@@ -3534,7 +3558,7 @@ export default function TerminalExperience() {
           powerState={powerState}
           pulseTick={crtPulseTick}
           screenRef={shellCaptureRef}
-          className="pointer-events-none absolute inset-0 z-0"
+          className={`${workspaceStyles.scene} pointer-events-none absolute inset-0 z-0`}
           onSceneStateChange={handleThreeSceneStateChange}
         />
       )}
@@ -3545,22 +3569,22 @@ export default function TerminalExperience() {
           <div className="pointer-events-auto flex flex-col items-center">
             <button
               onClick={handleTurnOn}
-                className="group relative flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-full border border-[#4ade80]/20 bg-[#040806] transition-all hover:border-[#4ade80]/60 hover:bg-[#070f08] focus:outline-none"
+                className="group relative flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-full border border-[var(--terminal-accent)]/20 bg-[var(--terminal-surface)] transition-all hover:border-[var(--terminal-accent)]/60 hover:bg-[var(--terminal-raised)] focus:outline-none"
                 style={{
-                  boxShadow: "0 0 50px rgba(74,222,128,0.08), inset 0 0 24px rgba(74,222,128,0.04)",
+                  boxShadow: "0 0 50px rgb(var(--terminal-accent-rgb) / 0.08), inset 0 0 24px rgb(var(--terminal-accent-rgb) / 0.04)",
                   transitionDuration: `${POWER_BUTTON_HOVER_MS}ms`,
                 }}
               >
               <div
-                className="absolute inset-4 rounded-full border border-[#4ade80]/15 transition-colors group-hover:border-[#4ade80]/40"
+                className="absolute inset-4 rounded-full border border-[var(--terminal-accent)]/15 transition-colors group-hover:border-[var(--terminal-accent)]/40"
                 style={{
-                  boxShadow: "inset 0 0 14px rgba(74,222,128,0.06)",
+                  boxShadow: "inset 0 0 14px rgb(var(--terminal-accent-rgb) / 0.06)",
                   transitionDuration: `${POWER_BUTTON_HOVER_MS}ms`,
                 }}
               />
               {/* Power icon */}
               <svg
-                className="relative z-10 h-10 w-10 text-[#4ade80]/40 transition-colors group-hover:text-[#4ade80]/80"
+                className="relative z-10 h-10 w-10 text-[color:var(--terminal-muted)] transition-colors group-hover:text-[color:var(--terminal-accent)]"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1.5}
@@ -3578,7 +3602,7 @@ export default function TerminalExperience() {
             className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] transition-colors"
             style={{
               color: "rgba(240, 253, 244, 0.52)",
-              textShadow: "0 0 12px rgba(74, 222, 128, 0.14)",
+              textShadow: "0 0 12px rgb(var(--terminal-accent-rgb) / 0.14)",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = "rgba(240, 253, 244, 0.82)";
@@ -3600,7 +3624,7 @@ export default function TerminalExperience() {
         data-maximized={maximized ? "true" : undefined}
         data-tour={tourStep !== null ? TOUR_STEPS[tourStep].target : undefined}
         data-animation={animation}
-        className={`${workspaceStyles.workspace} crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[#6d6553]/30 bg-[#090a08] outline-none`}
+        className={`${workspaceStyles.workspace} crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[var(--terminal-accent)]/30 bg-[var(--terminal-surface)] outline-none`}
         style={{
           // In Three.js mode: keep the terminal constrained to the CRT screen area.
           width:       maximized ? "100vw" : floating ? `${windowSize.width}px` : isThreeStage ? "67vw" : undefined,
@@ -3610,10 +3634,8 @@ export default function TerminalExperience() {
           borderColor: isThreeStage ? "transparent" : undefined,
           boxShadow:   isThreeStage || maximized
             ? "none"
-            : "0 0 0 2px rgba(31, 27, 21, 0.85), 0 0 0 8px rgba(74, 64, 49, 0.45), 0 24px 80px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -18px 40px rgba(0,0,0,0.55)",
-          background:  isThreeStage
-            ? "linear-gradient(180deg, rgba(4,10,7,0.62) 0%, rgba(4,10,7,0.55) 100%)"
-            : "linear-gradient(180deg, rgba(49,44,36,0.18) 0%, rgba(10,10,8,0.86) 10%, rgba(3,8,5,0.98) 100%)",
+            : "0 0 0 2px rgb(var(--terminal-background-rgb) / .95), 0 0 0 8px rgb(var(--terminal-accent-rgb) / .12), 0 24px 80px rgba(0,0,0,.4), inset 0 1px 0 rgb(var(--terminal-text-rgb) / .06)",
+          background: "var(--terminal-background)",
           borderRadius: maximized ? 0 : isThreeStage ? 28 : undefined,
         }}
         onFocus={(e) => {
@@ -3640,13 +3662,13 @@ export default function TerminalExperience() {
             inset: RETRO_GIF_INSET,
             width: `calc(100% - ${RETRO_GIF_INSET * 2}px)`,
             height: `calc(100% - ${RETRO_GIF_INSET * 2}px)`,
-            opacity: floating ? 0.16 : 0.48,
-            filter: "saturate(1.8) brightness(1.2)",
+            opacity: "var(--terminal-gif-opacity)",
+            filter: terminalTheme === "grayscale" || terminalTheme === "high-contrast" ? "grayscale(1)" : "saturate(1.3)",
           }}
         />
       )}
       {/* CRT CSS overlays */}
-      <>
+      <div className={workspaceStyles.decorations}>
       {/* Global scanline overlay */}
       <div
         className="pointer-events-none absolute inset-[10px] z-0 rounded-[22px]"
@@ -3654,7 +3676,7 @@ export default function TerminalExperience() {
           inset: isThreeStage ? 6 : undefined,
           borderRadius: isThreeStage ? 22 : undefined,
           background:
-            "repeating-linear-gradient(180deg, rgba(217,251,227,0.014), rgba(217,251,227,0.014) 1px, transparent 1px, transparent 4px), repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(0,0,0,0.24) 3px, rgba(0,0,0,0.24) 4px)",
+            "repeating-linear-gradient(180deg, rgb(var(--terminal-text-rgb) / 0.014), rgb(var(--terminal-text-rgb) / 0.014) 1px, transparent 1px, transparent 4px), repeating-linear-gradient(180deg, transparent, transparent 3px, rgba(0,0,0,0.24) 3px, rgba(0,0,0,0.24) 4px)",
           opacity: 0.76,
         }}
       />
@@ -3672,17 +3694,17 @@ export default function TerminalExperience() {
         style={isThreeStage ? { inset: 6, borderRadius: 22 } : undefined}
       >
         <div
-          className="absolute inset-[8px] rounded-[24px] border border-[#9ca88c]/10"
+          className="absolute inset-[8px] rounded-[24px] border border-[var(--terminal-accent)]/10"
           style={{
             boxShadow:
-              "inset 0 0 12px rgba(255,255,255,0.03), inset 0 0 26px rgba(0, 0, 0, 0.72), inset 0 0 100px rgba(20, 83, 45, 0.08), inset 0 14px 22px rgba(203, 178, 123, 0.04)",
+              "inset 0 0 12px rgba(255,255,255,0.03), inset 0 0 26px rgba(0, 0, 0, 0.72), inset 0 0 100px rgb(var(--terminal-accent-rgb) / 0.08), inset 0 14px 22px rgba(203, 178, 123, 0.04)",
           }}
         />
         <div
           className="absolute inset-[10px] rounded-[22px]"
           style={{
             background:
-              "repeating-linear-gradient(180deg, rgba(134,239,172,0.02), rgba(134,239,172,0.02) 1px, transparent 1px, transparent 3px)",
+              "repeating-linear-gradient(180deg, rgb(var(--terminal-secondary-rgb) / 0.02), rgb(var(--terminal-secondary-rgb) / 0.02) 1px, transparent 1px, transparent 3px)",
             mixBlendMode: "screen",
             opacity: 0.34,
           }}
@@ -3691,7 +3713,7 @@ export default function TerminalExperience() {
           className="absolute inset-[10px] rounded-[22px]"
           style={{
             background:
-              "linear-gradient(90deg, rgba(212, 69, 69, 0.022), rgba(74,222,128,0.014) 22%, rgba(134,239,172,0.014) 52%, rgba(74, 163, 255, 0.018) 78%, rgba(212,69,69,0.022))",
+              "linear-gradient(90deg, rgba(212, 69, 69, 0.022), rgb(var(--terminal-accent-rgb) / 0.014) 22%, rgb(var(--terminal-secondary-rgb) / 0.014) 52%, rgba(74, 163, 255, 0.018) 78%, rgba(212,69,69,0.022))",
             opacity: 0.55,
           }}
         />
@@ -3708,7 +3730,7 @@ export default function TerminalExperience() {
           className="absolute inset-[10px] rounded-[22px]"
           style={{
             background:
-              "radial-gradient(circle at center, rgba(134, 239, 172, 0.028), transparent 58%)",
+              "radial-gradient(circle at center, rgb(var(--terminal-secondary-rgb) / 0.028), transparent 58%)",
           }}
         />
         <div
@@ -3756,7 +3778,7 @@ export default function TerminalExperience() {
         <div className="crt-signal-band crt-signal-band-late absolute inset-x-[10px] top-[68%] h-10" />
         <div className="crt-orbit-grid absolute inset-[10px] rounded-[22px]" />
       </div>
-      </>
+      </div>
       <div
         className="crt-power-mask pointer-events-none absolute inset-[10px] z-[8] rounded-[22px]"
         style={isThreeStage ? { inset: 6, borderRadius: 22 } : undefined}
@@ -3787,12 +3809,12 @@ export default function TerminalExperience() {
       <div className="flex h-full flex-col">
       {/* Header bar */}
       <div
-        className="crt-content-layer relative z-[13] flex items-center justify-between border-b border-[#8ea06f]/10 bg-[linear-gradient(180deg,rgba(38,45,33,0.82),rgba(8,17,10,0.9))] px-5 h-11 shrink-0"
+        className="crt-content-layer relative z-[13] flex items-center justify-between border-b border-[var(--terminal-accent)]/10 bg-[linear-gradient(180deg,rgb(var(--terminal-surface-rgb) / 0.82),rgb(var(--terminal-surface-rgb) / 0.9))] px-5 h-11 shrink-0"
         style={
           isThreeStage
             ? {
                 borderBottomColor: "rgba(142,160,111,0.04)",
-                background: "rgba(4, 14, 8, 0.22)",
+                background: "rgb(var(--terminal-background-rgb) / 0.22)",
               }
             : undefined
         }
@@ -3828,15 +3850,15 @@ export default function TerminalExperience() {
         </div>
 
         <div
-          className="text-[#86efac]/45 text-[8px] tracking-wider select-none"
-          style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
+          className="text-[color:var(--terminal-muted)] text-[8px] tracking-wider select-none"
+          style={{ textShadow: "0 0 8px rgb(var(--terminal-accent-rgb) / 0.16)" }}
         >
           {pathLabel(cwd)}
         </div>
 
         <span
-          className="hidden sm:block text-[#86efac]/35 text-[7px] tracking-wider select-none"
-          style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.16)" }}
+          className="hidden sm:block text-[color:var(--terminal-muted)] text-[7px] tracking-wider select-none"
+          style={{ textShadow: "0 0 8px rgb(var(--terminal-accent-rgb) / 0.16)" }}
         >
           Type &quot;exit&quot; to close
         </span>
@@ -3848,7 +3870,7 @@ export default function TerminalExperience() {
       <div
         ref={browserBodyRef}
         className="crt-content-layer relative z-10 flex flex-1 min-h-0"
-        style={isThreeStage ? { background: "rgba(3, 12, 7, 0.08)" } : undefined}
+        style={isThreeStage ? { background: "rgb(var(--terminal-background-rgb) / 0.08)" } : undefined}
       >
         {/* Transcript — always visible */}
         <div
@@ -3856,10 +3878,10 @@ export default function TerminalExperience() {
           data-terminal-target="transcript"
           role="region" aria-label="Terminal output" tabIndex={0}
           className={`${workspaceStyles.transcript} select-text flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]`}
-          style={{ textShadow: "0 0 7px rgba(74, 222, 128, 0.12)" }}
+          style={{ textShadow: "0 0 7px rgb(var(--terminal-accent-rgb) / 0.12)" }}
         >
           {loading && (
-            <div className="text-[#86efac]/45 text-[0.525rem] py-2">
+            <div className="text-[color:var(--terminal-muted)] text-[0.525rem] py-2">
               Loading terminal data...
             </div>
           )}
@@ -3871,7 +3893,7 @@ export default function TerminalExperience() {
         {/* Game floating window — overlays the transcript like the browser */}
         {gameMode && (
           <div
-            className="absolute z-50 rounded-sm border border-[#4ade80]/20 bg-[#020b05] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_0_1px_rgba(74,222,128,0.06)] flex flex-col overflow-hidden"
+            className="absolute z-50 rounded-sm border border-[var(--terminal-accent)]/20 bg-[var(--terminal-surface)] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_0_1px_rgb(var(--terminal-accent-rgb) / 0.06)] flex flex-col overflow-hidden"
             style={{
               left: "6%",
               top: "4%",
@@ -3882,7 +3904,7 @@ export default function TerminalExperience() {
             }}
           >
             {/* Title bar */}
-            <div className="flex shrink-0 items-center gap-2 border-b border-[#4ade80]/10 bg-[#020b05]/95 px-2.5 py-1.5 select-none">
+            <div className="flex shrink-0 items-center gap-2 border-b border-[var(--terminal-accent)]/10 bg-[var(--terminal-surface)]/95 px-2.5 py-1.5 select-none">
               <div className="flex shrink-0 items-center gap-[5px]">
                 <button
                   onClick={() => setGameMode(null)}
@@ -3899,7 +3921,7 @@ export default function TerminalExperience() {
                   style={{ background: "#28c840", boxShadow: "0 0 4px rgba(40,200,64,0.5)" }}
                 />
               </div>
-              <span className="text-[0.525rem] text-[#86efac]/50 tracking-wider uppercase ml-1">
+              <span className="text-[0.525rem] text-[color:var(--terminal-muted)] tracking-wider uppercase ml-1">
                 {gameMode === "snake" ? "Snake Game" : "Pac-Man"}
               </span>
             </div>
@@ -3913,7 +3935,7 @@ export default function TerminalExperience() {
 
         {/* Preview panel (sidebar) — only shown when no browser and preview is active */}
         {!browseUrl && activePreview && (
-          <div data-terminal-target="preview" className="absolute inset-x-2 bottom-14 top-12 z-40 flex shrink-0 flex-col overflow-hidden rounded-sm border border-[#4ade80]/15 bg-[#031008] md:static md:z-auto md:w-64 md:rounded-none md:border-0 md:border-l lg:w-72">
+          <div data-terminal-target="preview" className="absolute inset-x-2 bottom-14 top-12 z-40 flex shrink-0 flex-col overflow-hidden rounded-sm border border-[var(--terminal-accent)]/15 bg-[var(--terminal-surface)] md:static md:z-auto md:w-64 md:rounded-none md:border-0 md:border-l lg:w-72">
             <PreviewPanel
               preview={activePreview}
               clients={data?.clients ?? []}
@@ -3928,7 +3950,7 @@ export default function TerminalExperience() {
         {/* Floating browser window — absolutely positioned overlay */}
         {browseUrl && browserFloatSize.w > 0 && (
           <div
-            className="hidden md:block absolute z-50 rounded-sm border border-[#4ade80]/20 bg-[#020b05] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_0_1px_rgba(74,222,128,0.06)]"
+            className="hidden md:block absolute z-50 rounded-sm border border-[var(--terminal-accent)]/20 bg-[var(--terminal-surface)] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_0_1px_rgb(var(--terminal-accent-rgb) / 0.06)]"
             style={{
               left: browserFloatPos.x,
               top: browserFloatPos.y,
@@ -4125,19 +4147,19 @@ export default function TerminalExperience() {
 
       {/* Input bar */}
       <div
-        className={`${workspaceStyles.commandArea} crt-content-layer relative z-10 border-t border-[#8ea06f]/10 bg-[linear-gradient(180deg,rgba(8,17,10,0.9),rgba(22,28,17,0.82))] shrink-0`}
+        className={`${workspaceStyles.commandArea} crt-content-layer relative z-10 border-t border-[var(--terminal-accent)]/10 bg-[linear-gradient(180deg,rgb(var(--terminal-surface-rgb) / 0.9),rgb(var(--terminal-surface-rgb) / 0.82))] shrink-0`}
         style={
           isThreeStage
             ? {
                 borderTopColor: "rgba(142,160,111,0.04)",
-                background: "rgba(4, 14, 8, 0.22)",
+                background: "rgb(var(--terminal-background-rgb) / 0.22)",
               }
             : undefined
         }
       >
         {results.length > 0 && (
-          <div data-terminal-target="results" className={`${workspaceStyles.results} mb-2 max-h-[min(28vh,200px)] overflow-y-auto rounded border border-[#4ade80]/15 bg-[#05160c]/90`}>
-            <div className="mb-2 px-3 text-[7px] tracking-wider text-[#86efac]/45 uppercase">
+          <div data-terminal-target="results" className={`${workspaceStyles.results} mb-2 max-h-[min(28vh,200px)] overflow-y-auto rounded border border-[var(--terminal-accent)]/15 bg-[var(--terminal-surface)]/90`}>
+            <div className="mb-2 px-3 text-[7px] tracking-wider text-[color:var(--terminal-muted)] uppercase">
               {resultsLabel} · Arrow keys to select · Enter to open
             </div>
             <div className="flex flex-col gap-1">
@@ -4175,19 +4197,19 @@ export default function TerminalExperience() {
                     onClick={() => openResult(actualIndex)}
                     aria-label={`Open result ${actualIndex + 1}: ${result.label}`}
                     key={`${result.kind}-${"id" in result ? result.id : result.label}-${index}`}
-                    className={`${workspaceStyles.resultOption} w-full rounded text-left text-[0.525rem] focus-visible:outline-2 focus-visible:outline-[#4ade80] ${
+                    className={`${workspaceStyles.resultOption} w-full rounded text-left text-[0.525rem] focus-visible:outline-2 focus-visible:outline-[var(--terminal-accent)] ${
                       isActive
-                        ? "bg-[#0d2e1a] text-[#dcfce7]"
-                        : "text-[#86efac]/65"
+                        ? "bg-[var(--terminal-raised)] text-[color:var(--terminal-text)]"
+                        : "text-[color:var(--terminal-muted)]"
                     }`}
                     style={
                       isActive
-                        ? { boxShadow: "inset 0 0 0 1px rgba(74, 222, 128, 0.18)" }
+                        ? { boxShadow: "inset 0 0 0 1px rgb(var(--terminal-accent-rgb) / 0.18)" }
                         : undefined
                     }
                   >
-                    <span className="text-[#86efac]/45">[{actualIndex + 1}]</span>
-                    <span className="text-[#86efac]/45">{kind}</span>
+                    <span className="text-[color:var(--terminal-muted)]">[{actualIndex + 1}]</span>
+                    <span className="text-[color:var(--terminal-muted)]">{kind}</span>
                     <span className="min-w-0 break-words">{result.label}</span>
                   </button>
                 );
@@ -4196,11 +4218,11 @@ export default function TerminalExperience() {
           </div>
         )}
         {commandUsageHint && completionEnabled && (
-          <div className="mb-2 rounded border border-[#4ade80]/15 bg-[#05160c]/85 px-3 py-2 text-[8px] text-[#86efac]/55">
+          <div className="mb-2 rounded border border-[var(--terminal-accent)]/15 bg-[var(--terminal-surface)]/85 px-3 py-2 text-[8px] text-[color:var(--terminal-muted)]">
             {commandUsageHint}
           </div>
         )}
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[#b1cbbb]">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[color:var(--terminal-muted)]">
           <span role="status">{aiBusy ? "Michael is responding · stop or Ctrl+C cancels" : formMode ? `Editing ${formMode} draft · send or cancel` : mode === "shell" ? "SHELL · help for commands" : `${mode.toUpperCase()} · ask naturally · mode shell to return`}</span>
           <TerminalCompanion pet={pet} busy={aiBusy||busy} mode={mode}/>
         </div>
@@ -4225,9 +4247,9 @@ export default function TerminalExperience() {
             </div>
           </div>
         )}
-        {showStartupInputHint && !inputFocused && <div className="mb-1.5 px-1 text-[9px] text-[#86efac]/65">Start typing to focus the command line.</div>}
-        <div data-tour-target="command" className="flex items-center gap-2 rounded border border-[#86efac]/25 bg-[#031008] px-3 py-2 focus-within:border-[#86efac]/70">
-          <label htmlFor="terminal-overlay-input" className="text-[#4ade80] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : "michael >"}</label>
+        {showStartupInputHint && !inputFocused && <div className="mb-1.5 px-1 text-[9px] text-[color:var(--terminal-muted)]">Start typing to focus the command line.</div>}
+        <div data-tour-target="command" className="flex items-center gap-2 rounded border border-[var(--terminal-secondary)]/25 bg-[var(--terminal-surface)] px-3 py-2 focus-within:border-[var(--terminal-secondary)]/70">
+          <label htmlFor="terminal-overlay-input" className="text-[color:var(--terminal-accent)] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : "michael >"}</label>
           <input ref={inputRef} id="terminal-overlay-input" name="terminal_command" type="text" aria-label="Terminal command input"
             aria-describedby={showCompletions ? "terminal-command-suggestion" : undefined}
             autoFocus={powerState === "on"} value={input} disabled={busy || Boolean(gameMode) || powerState!=="on"}
@@ -4235,7 +4257,7 @@ export default function TerminalExperience() {
             onFocus={()=>setInputFocused(true)} onBlur={()=>setInputFocused(false)}
             spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off"
             placeholder={busy?"Processing…":mode==="shell"?"Type a command…":"Ask about Michael’s work…"}
-            className="min-w-0 flex-1 select-text bg-transparent text-[12px] leading-6 text-[#dcfce7] caret-[#86efac] outline-none placeholder:text-[#86efac]/45" />
+            className="min-w-0 flex-1 select-text bg-transparent text-[12px] leading-6 text-[color:var(--terminal-text)] caret-[var(--terminal-secondary)] outline-none placeholder:text-[color:var(--terminal-muted)]" />
         </div>
       </div>
       </div>
@@ -4392,10 +4414,10 @@ export default function TerminalExperience() {
           height: 1.05em;
           border-radius: 1px;
           background:
-            linear-gradient(180deg, rgba(220, 252, 231, 0.96), rgba(74, 222, 128, 0.92));
+            linear-gradient(180deg, rgb(var(--terminal-text-rgb) / 0.96), rgb(var(--terminal-accent-rgb) / 0.92));
           box-shadow:
-            0 0 10px rgba(74, 222, 128, 0.42),
-            0 0 18px rgba(74, 222, 128, 0.2);
+            0 0 10px rgb(var(--terminal-accent-rgb) / 0.42),
+            0 0 18px rgb(var(--terminal-accent-rgb) / 0.2);
           opacity: 0.7;
           animation: crtCursorBlink 1.05s steps(2) infinite;
         }
@@ -4787,14 +4809,14 @@ export default function TerminalExperience() {
         .crt-hud-corners {
           opacity: 0.22;
           background:
-            linear-gradient(#8de2ff, #8de2ff) left top / 42px 2px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) left top / 2px 42px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) right top / 42px 2px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) right top / 2px 42px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) left bottom / 42px 2px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) left bottom / 2px 42px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) right bottom / 42px 2px no-repeat,
-            linear-gradient(#8de2ff, #8de2ff) right bottom / 2px 42px no-repeat;
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) left top / 42px 2px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) left top / 2px 42px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) right top / 42px 2px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) right top / 2px 42px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) left bottom / 42px 2px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) left bottom / 2px 42px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) right bottom / 42px 2px no-repeat,
+            linear-gradient(var(--terminal-secondary), var(--terminal-secondary)) right bottom / 2px 42px no-repeat;
           filter: drop-shadow(0 0 4px rgba(141, 226, 255, 0.35));
           animation:
             crtHudPulse 4.5s ease-in-out infinite,

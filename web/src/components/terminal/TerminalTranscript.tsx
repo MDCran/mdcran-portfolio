@@ -10,18 +10,18 @@ const TerminalLine = React.memo(function TerminalLine({ entry, text, highlight }
 }) {
   if (entry.prompt != null) {
     const end = entry.prompt.lastIndexOf(">") + 1;
-    return <div className="flex leading-5" style={{textShadow:"0 0 6px rgba(134,239,172,.25)"}}>
-      <span className="text-[#4ade80] shrink-0 select-none">{entry.prompt.slice(0,end)}</span>
-      <span className="text-[#d9fbe3]/90">{entry.prompt.slice(end)}</span>
+    return <div className="flex leading-5" style={{textShadow:"0 0 6px rgb(var(--terminal-secondary-rgb) / .25)"}}>
+      <span className="text-[color:var(--terminal-accent)] shrink-0 select-none">{entry.prompt.slice(0,end)}</span>
+      <span className="text-[color:var(--terminal-text)]">{entry.prompt.slice(end)}</span>
     </div>;
   }
   if (entry.links) return <div className="flex flex-wrap gap-x-6 gap-y-0 leading-5">
     {entry.links.map(link=><a key={link.href} href={link.href} target="_blank" rel="noopener noreferrer"
-      className="text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors">↗ {link.label}</a>)}
+      className="text-[color:var(--terminal-secondary)] underline underline-offset-2 hover:text-[color:var(--terminal-text)] transition-colors">↗ {link.label}</a>)}
   </div>;
-  const tone = entry.tone === "success" ? "text-[#86efac]" : entry.tone === "error" ? "text-[#fca5a5]" : entry.tone === "accent" ? "text-[#4ade80] font-semibold" : entry.tone === "muted" ? "text-[#86efac]/45" : "text-[#d9fbe3]/85";
+  const tone = entry.tone === "success" ? "text-[color:var(--terminal-secondary)]" : entry.tone === "error" ? "text-[color:var(--terminal-error)]" : entry.tone === "accent" ? "text-[color:var(--terminal-accent)] font-semibold" : entry.tone === "muted" ? "text-[color:var(--terminal-muted)]" : "text-[color:var(--terminal-text)]";
   return <div className={`${entry.preserveWhitespace ? "whitespace-pre" : "whitespace-pre-wrap break-words"} leading-[0.875rem] ${tone}`}
-    style={{textShadow:"0 0 6px rgba(74,222,128,.14)"}}>
+    style={{textShadow:"0 0 6px rgb(var(--terminal-accent-rgb) / .14)"}}>
     {highlightParts(text,highlight).map((part,index)=>part.match?<mark key={index}>{part.text}</mark>:part.text)}
   </div>;
 });

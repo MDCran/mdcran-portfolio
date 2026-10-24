@@ -148,6 +148,9 @@
   --content-max-width:   72rem;   /* 1152px */
 }
 
+/* The full-screen terminal applies its own chosen palette, including grayscale. */
+html[data-theme="grayscale"]:has([data-terminal-theme]) { filter:none; }
+
 /* ─── Base Reset ─────────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;

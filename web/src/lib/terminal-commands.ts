@@ -1,8 +1,10 @@
+import { TERMINAL_THEMES } from "./terminal-theme";
+
 export const COMMAND_GROUPS = [
   { id: "explore", title: "Explore the portfolio", description: "Projects, articles, clients, search, and navigation" },
   { id: "recruiting", title: "Resume & recruiting", description: "Experience, skills, downloads, and role fit" },
   { id: "assistant", title: "AI & tour", description: "Ask questions or take a guided walkthrough" },
-  { id: "settings", title: "Sound & appearance", description: "Music, typing clicks, background, pets, and window size" },
+  { id: "settings", title: "Sound & appearance", description: "Themes, music, typing clicks, background, pets, and window size" },
   { id: "forms", title: "Contact & updates", description: "Create a draft, edit it, then send or cancel" },
   { id: "extras", title: "Games & extras", description: "Games, Spotify, the browser, and visitor stats" },
   { id: "terminal", title: "Terminal controls", description: "Help, clear, reload, and exit" },
@@ -45,6 +47,7 @@ export const TERMINAL_COMMANDS: readonly Command[] = [
   { name:"togglemusic", group:"settings", usage:"togglemusic [on|off|status]", options:toggleOptions, description:"Toggle the soundtrack. on/off sets it explicitly; status reads it without changing it.", example:"togglemusic off" },
   { name:"togglekeystrokeclicks", group:"settings", usage:"togglekeystrokeclicks [on|off|status]", options:toggleOptions, description:"Toggle typing and text-reveal clicks. on/off sets them; status reads the setting.", example:"togglekeystrokeclicks status" },
   { name:"togglebackground", group:"settings", usage:"togglebackground [on|off|status]", options:toggleOptions, description:"Toggle the retro background. on/off sets it; status reads the setting.", example:"togglebackground on" },
+  { name:"theme", group:"settings", usage:"theme [hacker|dark|cyberpunk|grayscale|light|high-contrast|list|status|reset]", options:[...TERMINAL_THEMES,"list","status","reset"], description:"Choose a site theme for the terminal. With no option, list the choices. Your choice is saved on this device; reset restores Hacker.", example:"theme cyberpunk" },
   { name:"pet", group:"settings", usage:"pet <cat|bot|crab|off>", options:["cat","bot","crab","off"], description:"Choose a terminal companion or hide it.", example:"pet crab" },
   { name:"animations", group:"settings", usage:"animations <scan|type|off>", options:["scan","type","off"], description:"Choose the text-reveal style. Reduced-motion preferences are respected.", example:"animations type" },
   { name:"window", group:"settings", usage:"window <float|max|crt|reset|size WIDTH HEIGHT>", options:["float","max","crt","reset","size"], description:"Resize, maximize, or restore the terminal. Orange resizes; green maximizes/restores.", example:"window size 1000 700" },

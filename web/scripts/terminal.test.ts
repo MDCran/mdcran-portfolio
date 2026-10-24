@@ -5,6 +5,52 @@ import { randomFreeCell } from "../src/lib/terminal-games";
 import type { Project } from "../src/lib/types";
 import { COMMAND_GROUPS, COMMANDS, TERMINAL_COMMANDS, terminalCommand, terminalCompletions, cycleTerminalCompletion, terminalHelp, resolveTerminalToggle } from "../src/lib/terminal-commands";
 import { TerminalScrollMotion, terminalWheelDelta } from "../src/lib/terminal-scroll";
+import { THEMES } from "../src/lib/themes";
+import { DEFAULT_TERMINAL_THEME, TERMINAL_THEMES, resolveTerminalTheme, terminalThemeStyle } from "../src/lib/terminal-theme";
+
+test("terminal themes share the site's palette and resolve names without accepting invalid input", () => {
+  assert.deepEqual([...TERMINAL_THEMES].sort(), THEMES.map(theme => theme.id).sort());
+  assert.equal(DEFAULT_TERMINAL_THEME, "hacker");
+  assert.equal(resolveTerminalTheme(" CYBERPUNK "), "cyberpunk");
+  assert.equal(resolveTerminalTheme("High Contrast"), "high-contrast");
+  assert.equal(resolveTerminalTheme("gray"), "grayscale");
+  for (const name of ["missing", "dark light", "", "__proto__", "red; background:url(test)"]) assert.equal(resolveTerminalTheme(name), null);
+  for (const theme of THEMES) {
+    const style = terminalThemeStyle(theme.id);
+    assert.equal(style["--terminal-background"], theme.background);
+    assert.equal(style["--terminal-text"], theme.text);
+    assert.equal(style["--terminal-accent"], theme.id === "grayscale" ? theme.accent : theme.primary);
+    assert.equal(style.colorScheme, theme.id === "light" ? "light" : "dark");
+  }
+});
+
+test("theme names and management options are discoverable through Tab and focused help", () => {
+  assert.deepEqual(terminalCompletions("theme "), [...TERMINAL_THEMES,"list","status","reset"].map(name => `theme ${name} `));
+  assert.deepEqual(terminalCompletions("/theme cy"), ["/theme cyberpunk "]);
+  assert.equal(terminalHelp("theme").commands[0].example, "theme cyberpunk");
+  assert.ok(terminalHelp("settings").commands.some(command => command.name === "theme"));
+});
+
+function colorContrast(a: string, b: string) {
+  const luminance = (hex: string) => {
+    const rgb = [1,3,5].map(index => parseInt(hex.slice(index,index+2),16) / 255)
+      .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+    return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+  };
+  const values = [luminance(a),luminance(b)].sort((x,y)=>y-x);
+  return (values[0] + .05) / (values[1] + .05);
+}
+
+test("theme body text, muted text, and highlighted text retain readable contrast", () => {
+  for (const name of TERMINAL_THEMES) {
+    const style = terminalThemeStyle(name);
+    for (const role of ["text", "muted"]) {
+      assert.ok(colorContrast(style[`--terminal-${role}`], style["--terminal-background"]) >= 4.5, `${name} ${role}`);
+      assert.ok(colorContrast(style[`--terminal-${role}`], style["--terminal-surface"]) >= 4.5, `${name} ${role} on panel`);
+    }
+    assert.ok(colorContrast(style["--terminal-on-selection"], style["--terminal-selection"]) >= 4.5, `${name} highlight`);
+  }
+});
 
 test("terminal scrolling eases between positions and coalesces repeated wheel input", () => {
   const motion = new TerminalScrollMotion();
