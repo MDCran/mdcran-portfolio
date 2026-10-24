@@ -1,6 +1,10 @@
+import "./helpers/css-modules";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resumeLines, resumeLinks, recruiterProjects, terminalActions, terminalWindowSize, highlightParts, TOUR_STEPS, type ResumeSnapshot } from "../src/lib/terminal-workspace";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TerminalToolbar, TerminalTour } from "../src/components/terminal/TerminalWorkspaceChrome";
+import { resumeLines, resumeLinks, recruiterProjects, terminalActions, terminalWindowSize, terminalTourStep, highlightParts, TOUR_STEPS, type ResumeSnapshot } from "../src/lib/terminal-workspace";
 import { streamTerminalAnswer } from "../src/lib/terminal-ai";
 import type { Project } from "../src/lib/types";
 
@@ -80,6 +84,36 @@ test("window sizes stay inside desktop and narrow viewports",()=>{
   assert.deepEqual(terminalWindowSize(9999,9999,1280,800),{width:1256,height:776});
   assert.deepEqual(terminalWindowSize(100,100,1280,800),{width:560,height:400});
   assert.deepEqual(terminalWindowSize(1100,760,390,700),{width:366,height:676});
-  assert.equal(TOUR_STEPS.length,5);
-  assert.equal(TOUR_STEPS.at(-1)?.command,"recruiter contact");
+});
+
+test("tour supports back, direct navigation, finish and restart without leaving an invalid step",()=>{
+  assert.equal(terminalTourStep("start",null),0);
+  assert.equal(terminalTourStep("back",0),0);
+  assert.equal(terminalTourStep("next",0),1);
+  assert.equal(terminalTourStep("4",0),3);
+  assert.equal(terminalTourStep("next",TOUR_STEPS.length-1),null);
+  assert.equal(terminalTourStep("stop",2),null);
+  assert.equal(terminalTourStep("start",3),0);
+  for(const invalid of ["-1","0","6","1.5","nonsense"]) assert.equal(terminalTourStep(invalid,0),undefined);
+});
+
+test("toolbar exposes just the two workspaces and a tour toggle",()=>{
+  const html=renderToStaticMarkup(React.createElement(TerminalToolbar,{mode:"ai",run(){},tourActive:true,disabled:false}));
+  assert.equal((html.match(/<button /g)||[]).length,3);
+  assert.match(html,/aria-pressed="true"[^>]*>.*?AI chat/);
+  assert.match(html,/aria-expanded="true" aria-controls="terminal-tour"/);
+  assert.doesNotMatch(html,/Agent|Resume|Recruiter|Resize/);
+});
+
+test("tour stays navigable while data loads and prepares AI questions without sending",()=>{
+  const search=renderToStaticMarkup(React.createElement(TerminalTour,{step:1,run(){},tried:false,dataReady:false}));
+  assert.match(search,/disabled=""[^>]*>Loading portfolio/);
+  assert.match(search,/>Next →<\/button>/);
+  assert.match(search,/aria-current="step"/);
+  const ai=renderToStaticMarkup(React.createElement(TerminalTour,{step:3,run(){},tried:false,dataReady:true}));
+  assert.match(ai,/Draft a question/);
+  assert.match(ai,/only sent when you press Enter/);
+  const finish=renderToStaticMarkup(React.createElement(TerminalTour,{step:4,run(){},tried:true,dataReady:true}));
+  assert.match(finish,/Finish tour/);
+  assert.match(finish,/orange button/);
 });

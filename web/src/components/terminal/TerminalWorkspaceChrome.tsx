@@ -3,27 +3,36 @@ import * as React from "react";
 import { TOUR_STEPS, terminalWindowSize, type TerminalMode, type TerminalPet } from "@/lib/terminal-workspace";
 import styles from "./TerminalWorkspace.module.css";
 
-export function TerminalToolbar({ mode, run, floating, disabled }: { mode: TerminalMode; run: (command:string)=>void; floating:boolean; disabled:boolean }) {
+export function TerminalToolbar({ mode, run, tourActive, disabled }: { mode: TerminalMode; run: (command:string)=>void; tourActive:boolean; disabled:boolean }) {
   return <div className={styles.toolbar} role="toolbar" aria-label="Terminal workspace">
-    <span className={styles.modeLabel}>Workspace</span>
-    {(["shell","ai","agent"] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} onClick={()=>run(`mode ${value}`)} disabled={disabled}>{value === "ai" ? "AI chat" : value === "agent" ? "Agent" : "Shell"}</button>)}
-    <span className={styles.spacer}/>
-    <button type="button" onClick={()=>run("resume summary")} disabled={disabled}>Resume</button>
-    <button type="button" onClick={()=>run("recruiter")} disabled={disabled}>Recruiter</button>
-    <button type="button" onClick={()=>run("tour")} disabled={disabled}>Tour</button>
-    <button type="button" onClick={()=>run(`window ${floating ? "crt" : "float"}`)} aria-label={floating ? "Restore CRT window" : "Use resizable window"}>{floating ? "CRT" : "Resize ↗"}</button>
+    <div className={styles.modes} role="group" aria-label="Workspace" data-tour-target="modes">
+      {(["shell","ai"] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} onClick={()=>run(`mode ${value}`)} disabled={disabled}><span aria-hidden="true" className={styles.modeIcon}>{value === "shell" ? ">_" : "✦"}</span>{value === "ai" ? "AI chat" : "Shell"}</button>)}
+    </div>
+    <button type="button" className={styles.tourToggle} onClick={()=>run(tourActive ? "tour stop" : "tour")} aria-expanded={tourActive} aria-controls="terminal-tour" disabled={disabled}><span aria-hidden="true">◇</span> Tour</button>
   </div>;
 }
 
-export function TerminalTour({ step, run }: {step:number;run:(command:string)=>void}) {
+export function TerminalTour({ step, run, tried, dataReady }: {step:number;run:(command:string)=>void;tried:boolean;dataReady:boolean}) {
   const current=TOUR_STEPS[step];
+  const heading=React.useRef<HTMLHeadingElement>(null);
+  React.useEffect(()=>{heading.current?.focus({preventScroll:true});},[step]);
   if (!current) return null;
-  return <div className={styles.tour} aria-label="Guided portfolio tour">
-    <div className={styles.tourCopy}><strong>{step+1}/{TOUR_STEPS.length} · {current.title}</strong><p>{current.description}</p></div>
-    <button type="button" onClick={()=>run("tour back")} disabled={step===0}>Back</button>
-    <button type="button" onClick={()=>run("tour next")}>{step===TOUR_STEPS.length-1 ? "Finish" : "Next →"}</button>
-    <button type="button" onClick={()=>run("tour stop")} aria-label="End tour">×</button>
-  </div>;
+  const needsData=step===1||step===2;
+  return <section id="terminal-tour" className={styles.tour} aria-labelledby="terminal-tour-title">
+    <div className={styles.tourTop}><span>QUICK START <span>· {step+1} OF {TOUR_STEPS.length}</span></span><button type="button" onClick={()=>run("tour stop")} aria-label="End tour" title="End tour · Esc">×</button></div>
+    <div className={styles.tourMain}>
+      <div className={styles.tourCopy}><h2 id="terminal-tour-title" ref={heading} tabIndex={-1}>{current.title}</h2><p>{current.description}</p></div>
+      <div className={styles.tourExample}>
+        {current.command && <code>{current.mode==="shell" ? "> " : ""}{current.command}</code>}
+        <button type="button" className={styles.tryButton} disabled={needsData&&!dataReady} onClick={()=>run("tour try")}>{needsData&&!dataReady ? "Loading portfolio…" : current.action}<span aria-hidden="true"> ↗</span></button>
+      </div>
+    </div>
+    <div className={styles.tourHint} role="status">{tried ? "✓ " : "↳ "}{current.hint}</div>
+    <div className={styles.tourFooter}>
+      <div className={styles.tourProgress} role="group" aria-label="Tour steps">{TOUR_STEPS.map((item,index)=><button type="button" key={item.title} aria-label={`Step ${index+1}: ${item.title}`} aria-current={index===step?"step":undefined} onClick={()=>run(`tour ${index+1}`)}><span/></button>)}</div>
+      <div className={styles.tourNavigation}><button type="button" onClick={()=>run("tour back")} disabled={step===0}>← Back</button><button type="button" className={styles.nextButton} onClick={()=>run("tour next")}>{step===TOUR_STEPS.length-1 ? "Finish tour ✓" : "Next →"}</button></div>
+    </div>
+  </section>;
 }
 
 const pets = {cat:" /\\_/\\\n( o.o )\n > ^ <",bot:"┌─[•]─┐\n│ o o │\n└─┬─┬─┘",crab:" \\  /\n(V)(V)\n /||\\"};
@@ -32,7 +41,7 @@ export function TerminalCompanion({ pet, busy, mode }: {pet:TerminalPet;busy:boo
   React.useEffect(()=>{if(!wave)return; const timer=setTimeout(()=>setWave(false),2200);return()=>clearTimeout(timer);},[wave]);
   if(pet==="off")return null;
   return <button type="button" className={styles.pet} onClick={()=>setWave(true)} aria-label={`Pet your terminal ${pet}`} title="pet cat | bot | crab | off">
-    <pre aria-hidden="true">{pets[pet]}</pre><span>{wave ? "Hey, explorer! ♡" : busy ? "Thinking with you…" : mode==="agent" ? "Following the evidence." : "Ready when you are."}</span>
+    <pre aria-hidden="true">{pets[pet]}</pre><span>{wave ? "Hey, explorer! ♡" : busy ? "Thinking with you…" : mode==="ai" ? "Ask me anything." : "Ready when you are."}</span>
   </button>;
 }
 

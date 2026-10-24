@@ -21,7 +21,7 @@ import { assetUrl, imageAssetSrc, projectUrl } from "@/lib/utils";
 import { ROOTS, ROUTES, COMMANDS, parseArguments, resolveTerminalPath, isCodeProject, formatDate, submitTerminalForm, validateTerminalSnapshot, sanitizeBrowseUrl, type TerminalFormMode, type TerminalForm } from "@/lib/terminal-shell";
 import { buildSearch, type SearchHit } from "@/lib/terminal-search";
 import { streamTerminalAnswer, type TerminalTurn } from "@/lib/terminal-ai";
-import { resumeLines, resumeLinks, recruiterProjects, terminalActions, highlightParts, terminalWindowSize, RESUME_SECTIONS, TOUR_STEPS, type TerminalMode, type TerminalPet, type TerminalAnimation, type ResumeSection } from "@/lib/terminal-workspace";
+import { resumeLines, resumeLinks, recruiterProjects, terminalActions, highlightParts, terminalWindowSize, terminalTourStep, RESUME_SECTIONS, TOUR_STEPS, type TerminalMode, type TerminalPet, type TerminalAnimation, type ResumeSection } from "@/lib/terminal-workspace";
 import { TerminalToolbar, TerminalTour, TerminalCompanion, TerminalResize, TerminalPointer, type TerminalPointerTarget } from "./TerminalWorkspaceChrome";
 import workspaceStyles from "./TerminalWorkspace.module.css";
 import CRTThreeCanvas from "./CRTThreeCanvas";
@@ -1043,6 +1043,8 @@ export default function TerminalExperience() {
   const [windowSize, setWindowSize] = React.useState({width:1100,height:760});
   const [mode, setMode] = React.useState<TerminalMode>("shell");
   const [tourStep, setTourStep] = React.useState<number|null>(null);
+  const [tourTried, setTourTried] = React.useState(false);
+  const tourDraftRef = React.useRef("");
   const [pet, setPet] = React.useState<TerminalPet>("cat");
   const [animation, setAnimation] = React.useState<TerminalAnimation>("scan");
   const [highlight, setHighlight] = React.useState("");
@@ -1852,7 +1854,7 @@ export default function TerminalExperience() {
       { entry: logText(""),                                                                  typed: false },
       { entry: logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),                    typed: true  },
       { entry: logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"), typed: true  },
-      { entry: logText("  resume · recruiter · tour · mode ai · mode agent", "success"), typed: true },
+      { entry: logText("  resume · recruiter · search · tour · mode ai", "success"), typed: true },
       { entry: logText("  Start typing anywhere. Tab completes commands.", "muted"), typed: true },
       { entry: logText(""), typed: false },
     ];
@@ -1915,6 +1917,12 @@ export default function TerminalExperience() {
 
       e.preventDefault();
       e.stopPropagation();
+      if (tourStep !== null) {
+        setTourStep(null);
+        setPointerTarget(null);
+        focusCommandInput();
+        return;
+      }
       closeTerminal();
     };
 
@@ -1922,7 +1930,7 @@ export default function TerminalExperience() {
     return () => {
       window.removeEventListener("keydown", onWindowEscape, true);
     };
-  }, [active, busy, closeTerminal, powerState]);
+  }, [active, busy, closeTerminal, focusCommandInput, powerState, tourStep]);
 
   React.useEffect(() => {
     if (!active || powerState !== "on" || busy) return;
@@ -2110,9 +2118,9 @@ export default function TerminalExperience() {
     const rest = commandMatch?.[2] ?? "";
     if (mode !== "shell" && !trimmed.startsWith("/") && !(COMMANDS as readonly string[]).includes(cmd) && !/^\d+$/.test(cmd)) { void doAsk(trimmed); return; }
     if (cmd === "agent") {
-      setMode("agent");
+      setMode("ai");
       if (rest.trim()) void doAsk(rest.trim(), true);
-      else append([logText("  Agent mode: ask me to open projects, show resume evidence, or highlight skills. Type mode shell to return.", "success")]);
+      else append([logText("  AI chat. Use agent <request> to open a project or show resume evidence. Switch to Shell for commands.", "success")]);
       return;
     }
     if (cmd === "ai" && ["on","off"].includes(rest.trim())) { setMode(rest.trim()==="on"?"ai":"shell"); append([logText(`  Mode: ${rest.trim()==="on"?"AI chat":"Shell"}`,"success")]); return; }
@@ -2150,8 +2158,8 @@ export default function TerminalExperience() {
 
     switch (cmd) {
       case "mode":
-        if (["shell","ai","agent"].includes(textArgument)) { setMode(textArgument as TerminalMode); append([logText(`  ${textArgument.toUpperCase()} mode. ${textArgument === "shell" ? "Enter commands; help lists them." : "Ask naturally. /help lists commands; mode shell returns to commands."}`,"success")]); }
-        else append([logText("  Usage: mode shell | ai | agent", "muted")]);
+        if (["shell","ai"].includes(textArgument)) { setMode(textArgument as TerminalMode); append([logText(`  ${textArgument === "shell" ? "Shell" : "AI chat"}. ${textArgument === "shell" ? "Enter commands; help lists them." : "Ask naturally. /help lists commands; switch to Shell to return."}`,"success")]); }
+        else append([logText("  Usage: mode shell | ai", "muted")]);
         break;
       case "tour": doTour(textArgument); break;
       case "next": doTour("next"); break;
@@ -2330,7 +2338,7 @@ export default function TerminalExperience() {
     setLogs(previous => previous.map(entry => entry.id === id ? { ...entry, text: `${entry.text === "  Michael is thinking..." ? "" : entry.text}\n  [Response stopped]`, typeDurationMs: 0 } : entry));
   }
 
-  async function doAsk(question: string, agentMode = mode === "agent") {
+  async function doAsk(question: string, agentMode = false) {
     if (question.toLowerCase() === "clear") { stopAI(false); aiHistoryRef.current = []; append([logText("  AI conversation cleared.", "success")]); return; }
     if (!question) { append([logText('  ask <question> (or ai <question>) — ask Michael’s portfolio assistant.'), logText('  Example: ask What AI projects has Michael built?'), logText('  Follow-up questions keep context. Use ai clear to reset; stop or Ctrl+C cancels.', "muted")]); return; }
     if (aiRequestRef.current) { append([logText("  An answer is still streaming. Type stop before asking another question.", "muted")]); return; }
@@ -2475,8 +2483,8 @@ export default function TerminalExperience() {
       ...boxHeader("MDCRAN CLI  ·  COMMAND REFERENCE"),
       logText(""),
       logText("  ▸ WORKSPACE", "muted"),
-      logText("    mode shell|ai|agent   Commands, conversation, or guided AI actions"),
-      logText("    tour [next|back|stop] Guided portfolio walkthrough"),
+      logText("    mode shell|ai         Switch between commands and AI chat"),
+      logText("    tour [next|back|stop] Interactive terminal walkthrough"),
       logText("    recruiter            Resume, evidence, role matching & contact"),
       logText("    resume <section>     summary / experience / education / skills"),
       logText("    resume download      Published PDF and printable resume"),
@@ -2572,7 +2580,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),
       logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
-      logText('  resume · recruiter · tour · mode ai · mode agent', "muted"),
+      logText('  resume · recruiter · search · tour · mode ai', "muted"),
       logText(""),
     ]);
     setPreview(null);
@@ -3311,21 +3319,46 @@ export default function TerminalExperience() {
     else if(args[0]==="max") {setFloating(true);setWindowSize(terminalWindowSize(window.innerWidth,window.innerHeight,window.innerWidth,window.innerHeight));}
     else if(args[0]==="size" && args.length===3 && args.slice(1).every(value=>/^\d{3,4}$/.test(value))) {setFloating(true);setWindowSize(terminalWindowSize(Number(args[1]),Number(args[2]),window.innerWidth,window.innerHeight));}
     else {append([logText("  window float | max | crt | reset | size <width> <height>","muted")]);return;}
-    append([logText("  Window updated. Drag the lower-right corner to resize the floating window.","success")]);
+    if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
+    append([logText(args[0]==="crt" && window.innerWidth>=900 ? "  CRT view restored. Use the orange button to resize again." : "  Drag the bottom-right corner to resize. Use the orange button to restore the window.","success")]);
+  }
+
+  function toggleTerminalWindow() {
+    if (window.innerWidth < 900 && floating) {
+      const maximized = windowSize.width >= window.innerWidth - 25 && windowSize.height >= window.innerHeight - 25;
+      if (maximized) {
+        setWindowSize(terminalWindowSize(window.innerWidth * .86, window.innerHeight * .78, window.innerWidth, window.innerHeight));
+        if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
+      } else doWindow(["max"]);
+    } else doWindow([floating ? "crt" : "float"]);
   }
 
   function doTour(action:string) {
-    if(action==="stop" || action==="end") {setTourStep(null);setPointerTarget(null);append([logText("  Tour ended. Keep exploring with resume, recruiter, or mode ai.","success")]);return;}
-    if(!["","start","next","back"].includes(action)) {append([logText("  tour [start|next|back|stop]","muted")]);return;}
-    if(!data) {append([logText("  Portfolio data is still loading. Try tour again shortly.","muted")]);return;}
-    const next=action==="next" ? (tourStep ?? -1)+1 : action==="back" ? Math.max(0,(tourStep ?? 0)-1) : 0;
-    if(next>=TOUR_STEPS.length) {setTourStep(null);append([logText("  Tour complete. Try mode ai to ask follow-up questions.","success")]);return;}
-    stopAI(false);clearPreview();setHighlight("");setTourStep(next);
-    const step=TOUR_STEPS[next];
-    append([logText(`  TOUR ${next+1}/${TOUR_STEPS.length} · ${step.title}`,"accent")]);
-    if(step.command.startsWith("resume"))doResume(step.command.split(" ")[1]||"all");
-    else doRecruiter(step.command.split(" ").slice(1));
-    pointAt(next===1?"results":"transcript",`Tour · ${step.title}`);
+    if (action === "try") {
+      if (tourStep === null) { doTour("start"); return; }
+      const step = TOUR_STEPS[tourStep];
+      if ((tourStep===1||tourStep===2) && !data) return;
+      setTourTried(true);
+      if (step.target === "window") toggleTerminalWindow();
+      else if (step.mode === "ai") {
+        setMode("ai");
+        // Preserve an existing question; preparing an example never sends it.
+        if (!input.trim()) { setInput(step.command); tourDraftRef.current=step.command; }
+        focusCommandInput();
+      } else execute(step.command);
+      return;
+    }
+    const next = terminalTourStep(action,tourStep);
+    if (next === undefined) {append([logText("  tour [start|next|back|try|1-5|stop]","muted")]);return;}
+    if (tourDraftRef.current && input === tourDraftRef.current) setInput("");
+    tourDraftRef.current="";
+    stopAI(false);setPointerTarget(null);setTourTried(false);setTourStep(next);
+    if (next === null) {
+      append([logText(action === "next" ? "  You’re ready to explore. Use Shell for commands or AI chat for questions. Tour is here whenever you need it." : "  Tour closed. Keep exploring, or open Tour to start again.","success")]);
+      focusCommandInput();
+      return;
+    }
+    clearPreview();setBrowseUrl(null);setResults([]);setHighlight("");setMode(TOUR_STEPS[next].mode);
   }
 
   function doRecruiter(args:string[]) {
@@ -3613,7 +3646,8 @@ export default function TerminalExperience() {
     const hasNavigableResults = results.length > 0 && input.trim() === "";
 
     if (key === "Escape") {
-      closeTerminal();
+      if (tourStep !== null) doTour("stop");
+      else closeTerminal();
       return true;
     }
 
@@ -3824,6 +3858,7 @@ export default function TerminalExperience() {
         ref={shellCaptureRef}
         tabIndex={powerState === "on" ? 0 : -1}
         data-window={floating ? "floating" : "crt"}
+        data-tour={tourStep !== null ? TOUR_STEPS[tourStep].target : undefined}
         data-animation={animation}
         className={`${workspaceStyles.workspace} crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[#6d6553]/30 bg-[#090a08] outline-none`}
         style={{
@@ -4023,20 +4058,28 @@ export default function TerminalExperience() {
             : undefined
         }
       >
-        {/* Traffic lights: red=exit, yellow=no-op, green=indicator */}
-        <div className="flex items-center gap-[5px]">
+        {/* Traffic lights: red closes, orange toggles window sizing, green indicates power. */}
+        <div className="flex items-center gap-[2px]">
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); closeTerminal(); }}
             title="Exit terminal"
-            className="h-2.5 w-2.5 rounded-full cursor-pointer transition-opacity hover:opacity-80"
-            style={{ background: "#ff5f57", boxShadow: "0 0 6px rgba(255,95,87,0.35)" }}
-          />
+            aria-label="Exit terminal"
+            className={workspaceStyles.windowControl}
+            style={{ "--window-dot":"#ff5f57", "--window-glow":"#ff5f5759" } as React.CSSProperties}
+          ><span aria-hidden="true">×</span></button>
+          <button
+            type="button"
+            onClick={event=>{event.stopPropagation();toggleTerminalWindow();}}
+            className={workspaceStyles.windowControl}
+            data-tour-target="window"
+            aria-label={floating ? "Restore terminal window size" : "Use resizable terminal window"}
+            title={floating ? "Restore window size" : "Resize terminal window"}
+            style={{ "--window-dot":"#ffbd2e", "--window-glow":"#ffbd2e40" } as React.CSSProperties}
+          ><span aria-hidden="true">{floating ? "−" : "+"}</span></button>
           <span
-            className="block h-2.5 w-2.5 rounded-full"
-            style={{ background: "#ffbd2e", boxShadow: "0 0 5px rgba(255,189,46,0.25)" }}
-          />
-          <span
-            className="block h-2.5 w-2.5 rounded-full"
+            aria-hidden="true"
+            className="mx-1 block h-2.5 w-2.5 rounded-full"
             style={{ background: "#28c840", boxShadow: "0 0 8px rgba(40,200,64,0.35)" }}
           />
         </div>
@@ -4056,8 +4099,8 @@ export default function TerminalExperience() {
         </span>
       </div>
 
-      <TerminalToolbar mode={mode} run={execute} floating={floating} disabled={busy || Boolean(gameMode)} />
-      {tourStep !== null && <TerminalTour step={tourStep} run={execute} />}
+      <TerminalToolbar mode={mode} run={execute} tourActive={tourStep !== null} disabled={busy || Boolean(gameMode) || powerState!=="on"} />
+      {tourStep !== null && <TerminalTour step={tourStep} run={execute} tried={tourTried} dataReady={Boolean(data)} />}
       {/* Body */}
       <div
         ref={browserBodyRef}
@@ -4420,8 +4463,8 @@ export default function TerminalExperience() {
           <span role="status">{aiBusy ? "Michael is responding · stop or Ctrl+C cancels" : formMode ? `Editing ${formMode} draft · send or cancel` : mode === "shell" ? "SHELL · help for commands" : `${mode.toUpperCase()} · ask naturally · mode shell to return`}</span>
           <TerminalCompanion pet={pet} busy={aiBusy||busy} mode={mode}/>
         </div>
-        <div className="flex items-center gap-2 rounded border border-[#86efac]/25 bg-[#031008] px-3 py-2 focus-within:border-[#86efac]/70">
-          <label htmlFor="terminal-overlay-input" className="text-[#4ade80] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : mode === "agent" ? "agent >" : "michael >"}</label>
+        <div data-tour-target="command" className="flex items-center gap-2 rounded border border-[#86efac]/25 bg-[#031008] px-3 py-2 focus-within:border-[#86efac]/70">
+          <label htmlFor="terminal-overlay-input" className="text-[#4ade80] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : "michael >"}</label>
           <input ref={inputRef} id="terminal-overlay-input" name="terminal_command" type="text" aria-label="Terminal command input"
             autoFocus={powerState === "on"} value={input} disabled={busy || Boolean(gameMode) || powerState!=="on"}
             onChange={event=>{dismissStartupInputHint();setInput(event.target.value);}} onKeyDown={handleKeyDown}

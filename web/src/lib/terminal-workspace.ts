@@ -4,7 +4,7 @@ import { isCodeProject } from "./terminal-shell";
 import { buildSearch } from "./terminal-search";
 import { projectUrl } from "./utils";
 
-export type TerminalMode = "shell" | "ai" | "agent";
+export type TerminalMode = "shell" | "ai";
 export type TerminalPet = "cat" | "bot" | "crab" | "off";
 export type TerminalAnimation = "scan" | "type" | "off";
 export type ResumeSection = "all" | "summary" | "experience" | "education" | "skills" | "certifications" | "awards";
@@ -15,12 +15,24 @@ export type ResumeSnapshot = {
 export type WorkspaceLine = { text: string; heading?: boolean };
 export const RESUME_SECTIONS = ["all", "summary", "experience", "education", "skills", "certifications", "awards"] as const;
 export const TOUR_STEPS = [
-  { title: "Meet Michael", description: "Start with the published profile and current experience.", command: "resume summary" },
-  { title: "Engineering work", description: "Explore projects and open any result to inspect the work.", command: "recruiter projects" },
-  { title: "Skills & evidence", description: "Review the skills listed on the resume. Try recruiter skills React for matching work.", command: "resume skills" },
-  { title: "Experience & education", description: "Read the full timeline, dates, locations, and highlights.", command: "resume" },
-  { title: "Continue the conversation", description: "Ask the AI about a role, download the resume, or open the contact page.", command: "recruiter contact" },
-] as const;
+  { title: "Start with a command", description: "Shell is where you explore with commands. Type at the bottom and press Enter, or try the example here.", command: "help", action: "Show commands", hint: "Tab completes a command. ↑ brings back your last command.", mode: "shell", target: "command" },
+  { title: "Find something interesting", description: "Search across projects, articles, and clients. Click a result or type its number to open it.", command: "search React", action: "Try a search", hint: "Replace React with any topic, project, or creator you’re curious about.", mode: "shell", target: "command" },
+  { title: "Explore the resume", description: "Read Michael’s profile right here. Resume and recruiter tools are always available as commands.", command: "resume summary", action: "Show the resume", hint: "Next try resume experience, resume download, or recruiter projects.", mode: "shell", target: "command" },
+  { title: "Ask in your own words", description: "AI chat lets you ask questions and follow up naturally. Try the draft below, then press Enter when you’re ready.", command: "What are Michael’s strongest engineering projects?", action: "Draft a question", hint: "Your question is only sent when you press Enter. Switch back to Shell for commands.", mode: "ai", target: "modes" },
+  { title: "Make yourself at home", description: "The orange button at the top left changes the window size. In the floating window, drag the bottom-right corner to resize.", command: "", action: "Try the orange button", hint: "Try togglemusic, togglekeystrokeclicks, pet crab, snake, or pacman anytime.", mode: "shell", target: "window" },
+] as const satisfies ReadonlyArray<{title:string;description:string;command:string;action:string;hint:string;mode:TerminalMode;target:string}>;
+
+export function terminalTourStep(action: string, current: number | null): number | null | undefined {
+  if (["stop", "end"].includes(action)) return null;
+  if (["", "start"].includes(action)) return 0;
+  if (action === "next") return current === null ? 0 : current + 1 < TOUR_STEPS.length ? current + 1 : null;
+  if (action === "back") return Math.max(0, (current ?? 0) - 1);
+  if (/^\d+$/.test(action)) {
+    const index = Number(action) - 1;
+    if (index >= 0 && index < TOUR_STEPS.length) return index;
+  }
+  return undefined;
+}
 
 export function resumeLines(data: ResumeSnapshot, section: ResumeSection): WorkspaceLine[] {
   const lines: WorkspaceLine[] = [];
