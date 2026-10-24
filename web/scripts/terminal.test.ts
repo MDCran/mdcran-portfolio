@@ -4,6 +4,57 @@ import { ROOTS, ROUTES, VALID_DIRS, parseArguments, resolveTerminalPath, isCodeP
 import { randomFreeCell } from "../src/lib/terminal-games";
 import type { Project } from "../src/lib/types";
 import { COMMAND_GROUPS, COMMANDS, TERMINAL_COMMANDS, terminalCommand, terminalCompletions, cycleTerminalCompletion, terminalHelp, resolveTerminalToggle } from "../src/lib/terminal-commands";
+import { TerminalScrollMotion, terminalWheelDelta } from "../src/lib/terminal-scroll";
+
+test("terminal scrolling eases between positions and coalesces repeated wheel input", () => {
+  const motion = new TerminalScrollMotion();
+  motion.wheel(0, 120, 1000);
+  const first = motion.step(0, 0, 1000);
+  assert.ok(first > 0 && first < 120);
+  motion.wheel(first, 120, 1000);
+  assert.equal(motion.target, 240);
+  let position = first;
+  for (let time = 8; time < 1500; time += 8) {
+    const next = motion.step(position, time, 1000);
+    assert.ok(next >= position && next <= 240);
+    position = next;
+  }
+  assert.equal(position, 240);
+  assert.equal(motion.target, null);
+});
+
+test("reversing direction cancels queued travel and native interactions can stop motion", () => {
+  const motion = new TerminalScrollMotion();
+  motion.moveTo(800, 1000);
+  const position = motion.step(400, 0, 1000);
+  motion.wheel(position, -50, 1000);
+  assert.equal(motion.target, position - 50);
+  assert.ok(motion.step(position, 16, 1000) < position);
+  motion.stop();
+  assert.equal(motion.step(200, 32, 1000), 200);
+});
+
+test("streaming output can move the destination without jumps, and resizing clamps it", () => {
+  const motion = new TerminalScrollMotion();
+  motion.moveTo(500, 500);
+  const first = motion.step(400, 0, 500);
+  motion.moveTo(520, 520);
+  const next = motion.step(first, 16, 520);
+  assert.ok(next > first && next < 520);
+  assert.equal(motion.step(next, 32, 200), 200);
+  motion.moveTo(-100, 200);
+  assert.equal(motion.target, 0);
+});
+
+test("scrolling respects reduced motion and preserves wheel delta units", () => {
+  const motion = new TerminalScrollMotion();
+  motion.moveTo(600, 1000);
+  assert.equal(motion.step(0, 0, 1000, true), 600);
+  assert.equal(motion.target, null);
+  assert.equal(terminalWheelDelta(2.5, 0, 400), 2.5);
+  assert.equal(terminalWheelDelta(-3, 1, 400), -48);
+  assert.equal(terminalWheelDelta(1, 2, 400), 400);
+});
 
 test("Tab cycles every toggle match, wraps, and Shift+Tab reverses without narrowing the original prefix", () => {
   const matches = terminalCompletions("toggle");

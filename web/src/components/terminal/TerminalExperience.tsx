@@ -26,6 +26,7 @@ import { resumeLines, resumeLinks, recruiterProjects, terminalActions, terminalW
 import { TerminalToolbar, TerminalTour, TerminalCompanion, TerminalResize, TerminalPointer, type TerminalPointerTarget } from "./TerminalWorkspaceChrome";
 import workspaceStyles from "./TerminalWorkspace.module.css";
 import TerminalTranscript from "./TerminalTranscript";
+import { useTerminalScroll } from "./useTerminalScroll";
 import type { TerminalLogEntry } from "@/lib/terminal-output";
 import CRTThreeCanvas from "./CRTThreeCanvas";
 import SnakeGame from "./games/SnakeGame";
@@ -1009,6 +1010,7 @@ export default function TerminalExperience() {
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const shellCaptureRef = React.useRef<HTMLDivElement | null>(null);
+  const { followOutput: followTranscriptOutput, resumeFollowing } = useTerminalScroll(shellCaptureRef, transcriptRef, powerState === "on" && !gameMode);
   const musicEnabledRef = React.useRef(true);
   const keystrokesEnabledRef = React.useRef(true);
   const aiRequestRef = React.useRef<AbortController | null>(null);
@@ -1768,15 +1770,6 @@ export default function TerminalExperience() {
     };
   }, [active, busy, focusCommandInput, playTypeSfx, powerState]);
 
-  const followOutputRef = React.useRef(true);
-
-  // ── Auto-scroll ───────────────────────────────────────────────────────────
-  const followTranscriptOutput = React.useCallback(() => {
-    if (transcriptRef.current && followOutputRef.current && !window.getSelection()?.toString()) {
-      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
-    }
-  }, []);
-
   // ── Body scroll lock ──────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!active) return;
@@ -1887,7 +1880,7 @@ export default function TerminalExperience() {
     if (!trimmed) return;
     setCompletionCycle(null);
 
-    followOutputRef.current = true;
+    resumeFollowing();
     requestEpochRef.current += 1;
     historyRef.current = [trimmed, ...historyRef.current.slice(0, 49)];
     historyIdxRef.current = -1;
@@ -3519,20 +3512,6 @@ export default function TerminalExperience() {
     }
   }
 
-  function handleTerminalSurfaceWheel(e: React.WheelEvent<HTMLElement>) {
-    if (powerState !== "on" || e.ctrlKey) return;
-
-    const transcript = transcriptRef.current;
-    if (!transcript || transcript.scrollHeight <= transcript.clientHeight) return;
-
-    let deltaY = e.deltaY;
-    if (e.deltaMode === 1) deltaY *= 16;
-    if (e.deltaMode === 2) deltaY *= transcript.clientHeight;
-
-    transcript.scrollTop += deltaY;
-    e.preventDefault();
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   // On the /terminal route we always render (to show the "Turn On TV" button
@@ -3647,7 +3626,6 @@ export default function TerminalExperience() {
           if(window.getSelection()?.toString())return;
           focusTerminalSurface();
         }}
-        onWheel={handleTerminalSurfaceWheel}
         onKeyDownCapture={handleTerminalSurfaceKeyDown}
       >
       {/* Retro GIF cycling background — behind all effect layers; adjust RETRO_GIF_INSET to control bleed */}
@@ -3877,11 +3855,8 @@ export default function TerminalExperience() {
           ref={transcriptRef}
           data-terminal-target="transcript"
           role="region" aria-label="Terminal output" tabIndex={0}
-          className="select-text flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
+          className={`${workspaceStyles.transcript} select-text flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]`}
           style={{ textShadow: "0 0 7px rgba(74, 222, 128, 0.12)" }}
-          onScroll={event => {
-            const node=event.currentTarget;followOutputRef.current=node.scrollHeight-node.scrollTop-node.clientHeight<70;
-          }}
         >
           {loading && (
             <div className="text-[#86efac]/45 text-[0.525rem] py-2">
