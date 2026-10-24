@@ -1,20 +1,54 @@
+import "./helpers/css-modules";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import EngineeringProjectCard from "../src/components/work/EngineeringProjectCard";
+import EngineeringProjectCard, { EngineeringArticleCard } from "../src/components/work/EngineeringProjectCard";
+import EngineeringExplorer from "../src/components/work/EngineeringExplorer";
 import EngineeringProjectEvidence from "../src/components/work/EngineeringProjectEvidence";
 import { publicEngineeringProjects, engineeringDetail } from "../src/lib/engineering-projects";
 import { coreAiContracts } from "../src/lib/engineering";
 import { imageAssetSrc, projectUrl } from "../src/lib/utils";
 import { evidenceForSkill } from "../src/lib/portfolio-evidence";
-import type { Project } from "../src/lib/types";
+import type { Article, Project } from "../src/lib/types";
+import { engineeringWorkItems, matchesEngineeringWork } from "../src/lib/engineering-work";
 import CodeProjectRedirect from "../src/app/code/[slug]/page";
 import CodingProjectRedirect from "../src/app/coding-projects/[slug]/page";
 import { validateSiteActions } from "../src/lib/assistant-actions";
 
 const project: Project = { id: "army-reserve-mercury", slug: "army-reserve-mercury", title: "Army Reserve Mercury", category: "coding-projects", description: "A project summary.", tags: ["TypeScript"], pricing: { status: "unavailable" } };
+const article: Article = { id: "vision", slug: "vision-models", title: "Making AI Vision Models Faster", excerpt: "Token pruning in vision-language models.", author: "MDCran", publishDate: "2025-12-03", category: "tech", tags: ["AI", "Machine-learning", "LLMs"], sections: [] };
+
+test("engineering writing joins the project collection without including hidden or unrelated articles", () => {
+  const items = engineeringWorkItems([project], [article, { ...article, slug: "hidden", visible: false }, { ...article, slug: "art", tags: ["Painting"] }]);
+  assert.ok(items.some((item) => item.kind === "project" && item.slug === project.slug));
+  assert.deepEqual(items.filter((item) => item.kind === "article").map((item) => item.slug), [article.slug]);
+});
+
+test("integrated articles participate in search, area and relevant role filters", () => {
+  const entry = engineeringWorkItems([], [article]).find((item) => item.kind === "article")!;
+  assert.equal(matchesEngineeringWork(entry, "all", "all", "TOKEN PRUNING"), true);
+  assert.equal(matchesEngineeringWork(entry, "ai", "ai", "vision"), true);
+  assert.equal(matchesEngineeringWork(entry, "backend", "all", ""), false);
+  assert.equal(matchesEngineeringWork(entry, "all", "cloud", ""), false);
+  assert.equal(matchesEngineeringWork(entry, "all", "all", "unrelated"), false);
+});
+
+test("integrated article cards keep their article URL and an explicit reading action", () => {
+  const markup = renderToStaticMarkup(<EngineeringArticleCard article={article} />);
+  assert.match(markup, /id="article-vision-models"/);
+  assert.match(markup, /Technical article/);
+  assert.match(markup, /href="\/articles\/vision-models"[^>]*>Read article/);
+  assert.doesNotMatch(markup, /href="\/engineering\/vision-models"/);
+});
+
+test("the shared grid counts projects and articles separately even when their slugs match", () => {
+  const markup = renderToStaticMarkup(<EngineeringExplorer entries={[{ kind: "project", slug: "same", text: "Project" }, { kind: "article", slug: "same", text: "Article" }]}><article>Project card</article><article>Article card</article></EngineeringExplorer>);
+  assert.match(markup, /1 project · 1 article/);
+  assert.match(markup, /Project card/);
+  assert.match(markup, /Article card/);
+});
 
 test("engineering project cards link to the full page without a dropdown", () => {
   const markup = renderToStaticMarkup(<EngineeringProjectCard project={project} />);
