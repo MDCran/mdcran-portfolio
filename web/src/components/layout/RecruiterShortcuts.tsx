@@ -1,13 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, FolderCode, Crosshair, Github, Mail } from "lucide-react";
+import { FileText, FolderCode, Github, Mail } from "lucide-react";
 import styles from "./RecruiterShortcuts.module.css";
 
 const shortcuts = [
   { label: "Resume", href: "/resume", icon: FileText },
   { label: "Top projects", href: "/engineering#projects", icon: FolderCode },
-  { label: "Match a role", href: "/engineering#role-match", icon: Crosshair },
   { label: "GitHub", href: "https://github.com/MDCran", icon: Github },
   { label: "Contact", href: "/contact", icon: Mail },
 ];

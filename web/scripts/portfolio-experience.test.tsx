@@ -192,7 +192,7 @@ test("project explorer exposes named inputs, filter state, and live result count
   assert.match(html, /Search projects and technologies/);
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /role="status"/);
-  assert.match(html, /Job description<textarea/);
+  assert.doesNotMatch(html, /Match a role to project experience|Job description<textarea|id="role-match"/);
   assert.doesNotMatch(html, /shortlist|Save to shortlist|Project comparison/i);
 });
 
