@@ -223,12 +223,17 @@ export default function AIBrowserCursor() {
       const detail = (e as CustomEvent<NavDetail>).detail ?? {};
       clearTimers(); setClicking(false);
       if (!detail.href) { hideCursor(); return; }
-      const links = Array.from(document.querySelectorAll("nav a, header a")) as HTMLAnchorElement[];
-      const navEl = links.find((link) => {
-        if (link.getClientRects().length === 0) return false;
-        try { return new URL(link.href, window.location.origin).pathname === detail.href || link.getAttribute("href") === detail.href; }
-        catch { return false; }
+      const destination = detail.href.split("#")[0] || "/";
+      const links = Array.from(document.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+      const visibleLinks = links.filter(link => {
+        const rect = link.getBoundingClientRect();
+        return link.getClientRects().length > 0 && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
       });
+      const pathOf = (link: HTMLAnchorElement) => { try { return new URL(link.href, window.location.origin).pathname; } catch { return ""; } };
+      // Land on the actual visible project link/card when available. Otherwise
+      // use its navigation category, then point at the title after the page opens.
+      const navEl = visibleLinks.find(link => pathOf(link) === destination)
+        ?? visibleLinks.filter(link => link.closest("nav, header") && pathOf(link) !== "/" && destination.startsWith(`${pathOf(link)}/`)).sort((a, b) => pathOf(b).length - pathOf(a).length)[0];
       const center = navEl ? elementCenter(navEl) : { x: window.innerWidth / 2, y: 40 };
       const travel = moveTo(center.x, center.y, detail.label ?? `Navigating to ${detail.href}`);
       at(travel + 120, () => {

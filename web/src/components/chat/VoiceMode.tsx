@@ -5,6 +5,8 @@ import { playStreamingSpeech } from "@/lib/assistant-audio";
 import type { EvidenceSource } from "@/lib/assistant-evidence";
 import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
 import { createResponseActions, type ResponseActions } from "@/lib/assistant-response";
+import { queueSiteGuidance } from "@/lib/assistant-site-guidance";
+import { shouldKeepCurrentPage } from "@/lib/assistant-project-guidance";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -831,9 +833,10 @@ export default function VoiceMode() {
     } else {
       for (const action of structuredActions) {
         if (action.type === "navigate") { try { router.prefetch(action.value); } catch { /* */ } }
-        responseActions.schedule(() => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)), action.type === "highlight" && structuredActions.some(a => a.type === "navigate") ? 700 : 0);
       }
-      if (structuredActions.length) accumulated = accumulated.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE):[^_]+__/g, "");
+      queueSiteGuidance(structuredActions, responseActions, action => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)));
+      if (structuredActions.length) accumulated = accumulated.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE|GOTOITEM):[^_]+__/g, "");
+      if (shouldKeepCurrentPage(clean)) accumulated = accumulated.replace(/__(?:NAV|GOTOITEM):[^_]+__/g, "");
       const { cleaned, onResponseStart } = runDirectives(accumulated, responseActions);
       const reply = cleaned || "Here’s what I found.";
       setTurns((prev) => { const n = [...prev]; n[n.length - 1] = { role: "assistant", text: stripAudioTags(reply), sources }; return n; });

@@ -10,6 +10,8 @@ import { playStreamingSpeech } from "../src/lib/assistant-audio";
 import { providerCancellation, relayProviderBody } from "../src/lib/assistant-lifecycle";
 import { configuredTokenCap } from "../src/lib/assistant-budget-policy";
 import { createResponseActions } from "../src/lib/assistant-response";
+import { projectGuidanceActions } from "../src/lib/assistant-project-guidance";
+import { queueSiteGuidance } from "../src/lib/assistant-site-guidance";
 
 function responseClock() {
   let time = 0;
@@ -89,6 +91,64 @@ test("duplicate playback and text-ready notifications never run an action twice"
   const actions = createResponseActions({ signal: new AbortController().signal, isCurrent: () => true, clock: f.clock });
   actions.schedule(() => navigations++); actions.startText(); actions.startSpeech(); actions.startSpeech();
   f.paint(); f.paint(); f.advance(0); assert.equal(navigations, 1);
+});
+
+const guidanceCatalog: EvidenceSource[] = [
+  { id: "mercury", title: "Army Reserve — Mercury", href: "/engineering/army-reserve-mercury", kind: "project", excerpt: "Published project" },
+  { id: "coretex", title: "Coretex", href: "/engineering/coretex", kind: "project", excerpt: "Published project" },
+];
+test("best-project cards and gallery actions open the actual chosen project", () => {
+  const actions = projectGuidanceActions({ actions: [{ type: "navigate", value: "/engineering" }, { type: "highlight", value: "featured" }, { type: "project", value: "mercury" }], text: "My strongest example is Army Reserve — Mercury.", catalog: guidanceCatalog, userText: "Show me your best project", currentPage: "/" });
+  assert.deepEqual(actions, [{ type: "navigate", value: guidanceCatalog[0].href }, { type: "highlight", value: "project-title" }, { type: "project", value: "mercury" }]);
+});
+test("one catalog-backed project citation, exact name or legacy card gains direct guidance", () => {
+  for (const text of ["Explore [this project](/engineering/coretex).", "Coretex brings AI agents together.", "Explore this workspace. __PROJECTCARD:coretex__", "Explore this workspace. __NAV:/engineering/coretex__"]) {
+    const actions = projectGuidanceActions({ actions: [], text, catalog: guidanceCatalog, userText: "Tell me more", currentPage: "/" });
+    assert.equal(actions[0]?.value, "/engineering/coretex", text);
+    assert.equal(actions[1]?.value, "project-title", text);
+  }
+});
+test("project follow-ups keep the current page and focus its requested section", () => {
+  const actions = projectGuidanceActions({ actions: [{ type: "highlight", value: "project-gallery" }, { type: "project", value: "coretex" }], text: "Here are Coretex's screenshots.", catalog: guidanceCatalog, userText: "Show me screenshots", currentPage: "/engineering/coretex" });
+  assert.equal(actions.some(action => action.type === "navigate"), false);
+  assert.equal(actions[0].value, "project-gallery");
+});
+test("ambiguous comparisons, unrelated resume navigation and unknown projects are not redirected", () => {
+  const base = { catalog: guidanceCatalog, currentPage: "/", userText: "Compare these projects" };
+  assert.deepEqual(projectGuidanceActions({ ...base, actions: [], text: "[Coretex](/engineering/coretex) and [Mercury](/engineering/army-reserve-mercury) have different roles." }), []);
+  assert.deepEqual(projectGuidanceActions({ ...base, actions: [], text: "Open [secret work](/admin/private) or [a fake project](/engineering/made-up)." }), []);
+  assert.deepEqual(projectGuidanceActions({ ...base, actions: [{ type: "navigate", value: "/resume" }], text: "Coretex is one example on his resume." }), [{ type: "navigate", value: "/resume" }]);
+  assert.deepEqual(projectGuidanceActions({ ...base, userText: "Tell me about Coretex without opening it", actions: [{ type: "navigate", value: "/engineering/coretex" }], text: "Coretex is an AI workspace." }), []);
+});
+test("project guidance waits for speech, pointer movement, and the actual destination content", () => {
+  const f = responseClock(); const events: string[] = []; let path = "/"; let mounted = false;
+  const response = createResponseActions({ signal: new AbortController().signal, isCurrent: () => true, clock: f.clock });
+  queueSiteGuidance([{ type: "navigate", value: "/engineering/coretex" }, { type: "highlight", value: "project-title" }], response, action => {
+    events.push(action.type); if (action.type === "navigate") path = action.value;
+  }, { path: () => path, hasTarget: () => mounted, pointNavigation: () => events.push("cursor") });
+  f.advance(30_000); assert.equal(events.length, 0);
+  response.startSpeech(); f.advance(0); assert.deepEqual(events, ["cursor"]);
+  f.advance(949); assert.deepEqual(events, ["cursor"]);
+  f.advance(1); f.advance(3000); assert.deepEqual(events, ["cursor", "navigate"]);
+  mounted = true; f.advance(100); assert.deepEqual(events, ["cursor", "navigate", "highlight"]);
+});
+test("canceling a guided reply or taking over navigation prevents later page actions", () => {
+  for (const takeover of [false, true]) {
+    const f = responseClock(); const controller = new AbortController(); const events: string[] = []; let path = "/";
+    const response = createResponseActions({ signal: controller.signal, isCurrent: () => true, clock: f.clock });
+    queueSiteGuidance([{ type: "navigate", value: "/engineering/coretex" }, { type: "highlight", value: "project-title" }], response, action => events.push(action.type), { path: () => path, hasTarget: () => true, pointNavigation: () => events.push("cursor") });
+    response.startSpeech(); f.advance(0);
+    if (takeover) path = "/contact"; else controller.abort();
+    f.advance(10_000); assert.deepEqual(events, ["cursor"]);
+  }
+});
+test("closing while a project page loads cancels its pending spotlight", () => {
+  const f = responseClock(); const controller = new AbortController(); const events: string[] = []; let mounted = false;
+  const response = createResponseActions({ signal: controller.signal, isCurrent: () => true, clock: f.clock });
+  queueSiteGuidance([{ type: "highlight", value: "project-title" }], response, action => events.push(action.type), { path: () => "/engineering/coretex", hasTarget: () => mounted, pointNavigation: () => {} });
+  response.startText(); f.paint(); f.paint(); f.advance(500);
+  controller.abort(); mounted = true; f.advance(10_000);
+  assert.deepEqual(events, []); assert.equal(f.pending(), 0);
 });
 
 test("retrieval maps visitor language to actual public technology evidence", () => {

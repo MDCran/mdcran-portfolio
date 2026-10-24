@@ -6,7 +6,7 @@ export const siteActionSchema = {
   properties: { actions: { type: "array", maxItems: 4, items: { type: "object", properties: { type: { type: "string", enum: ["navigate", "highlight", "theme", "project", "textSize"] }, value: { type: "string", maxLength: 180 } }, required: ["type", "value"], additionalProperties: false } } },
   required: ["actions"], additionalProperties: false,
 };
-export const siteActionDescription = "Operate the public portfolio. Use this tool instead of text markers for navigation, highlighting sections, themes, project cards, and text size. Write a short natural answer before calling. Never submit forms. Only use published paths/project IDs provided in context.";
+export const siteActionDescription = "Operate the public portfolio. Use this tool instead of text markers for navigation, highlighting sections, themes, project cards, and text size. When focusing on a specific project, navigate to its exact published detail URL, highlight project-title or its relevant section, and include its project ID. For best-project requests choose one real project and open it, not a gallery. Write a short natural answer before calling. Never submit forms. Only use published paths/project IDs provided in context.";
 export function validateSiteActions(input: unknown, publicPaths?: readonly string[], projectIds?: readonly string[]): SiteAction[] {
   if (!input || typeof input !== "object" || !("actions" in input) || !Array.isArray(input.actions)) return [];
   return input.actions.slice(0, 4).filter((a): a is SiteAction => {

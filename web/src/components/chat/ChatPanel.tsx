@@ -1,10 +1,12 @@
 "use client";
 import { subscribeMemoryScopeChanges } from "@/lib/assistant-preferences";
 import EvidenceSources from "./EvidenceSources";
-import { safePublicPath } from "@/lib/assistant-evidence";
 import type { EvidenceSource } from "@/lib/assistant-evidence";
+import { safePublicPath } from "@/lib/assistant-evidence";
+import { shouldKeepCurrentPage } from "@/lib/assistant-project-guidance";
 import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type SiteAction } from "@/lib/assistant-actions";
 import { createResponseActions, type ResponseActions } from "@/lib/assistant-response";
+import { queueSiteGuidance } from "@/lib/assistant-site-guidance";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -942,6 +944,7 @@ export default function ChatPanel() {
         /* Process action markers + auto-navigation from markdown links */
         {
           let cleaned = sanitizeLegacyActions(accumulated);
+          if (shouldKeepCurrentPage(text)) cleaned = cleaned.replace(/__(?:NAV|GOTOITEM):[^_]+__/g, "");
           const scheduleAction = responseActions.schedule;
           let hasMarkers = sources.length > 0 || structuredActions.length > 0;
           let didNavigate = false;
@@ -952,19 +955,13 @@ export default function ChatPanel() {
           for (const action of structuredActions) {
             if (action.type === "project") projectCards = [...(projectCards || []), action.value].slice(0, 2);
             else if (action.type === "highlight") pendingHighlightTarget = action.value;
-            else {
-              if (action.type === "navigate") {
-                didNavigate = true;
-                try { router.prefetch(action.value); } catch { /* */ }
-              }
-              scheduleAction(() => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)));
+            else if (action.type === "navigate") {
+              didNavigate = true;
+              try { router.prefetch(action.value); } catch { /* */ }
             }
           }
-          if (structuredActions.length) cleaned = cleaned.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE):[^_]+__/g, "");
-          if (pendingHighlightTarget) {
-            const target = pendingHighlightTarget;
-            scheduleAction(() => { if (!controller.signal.aborted && requestGeneration === chatRequestGenerationRef.current) dispatchSiteAction({ type: "highlight", value: target }, () => {}, () => {}); }, didNavigate ? 700 : 0);
-          }
+          queueSiteGuidance(structuredActions, responseActions, action => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)));
+          if (structuredActions.length) cleaned = cleaned.replace(/__(?:NAV|HIGHLIGHT|THEME|PROJECTCARD|TEXTSIZE|GOTOITEM):[^_]+__/g, "");
 
           // Project card markers
           const cardMatches = [...cleaned.matchAll(/__PROJECTCARD:([\w-]+)__/g)].map((m) => m[1]);
@@ -1373,31 +1370,14 @@ export default function ChatPanel() {
           }
           const highlightTarget = highlightMatch?.[1];
 
-          // Fallback: auto-navigate from internal markdown links
-          // Skip auto-nav if a __HIGHLIGHT__ is present — let the user click "Take me there" instead
-          if (!didNavigate && !highlightTarget) {
-            const linkRegex = /\[([^\]]+)\]\((\/[^)]+)\)/g;
-            const internalLinks: string[] = [];
-            let linkExec: RegExpExecArray | null;
-            while ((linkExec = linkRegex.exec(cleaned)) !== null) {
-              if (safePublicPath(linkExec[2])) internalLinks.push(linkExec[2]);
-            }
-            // Auto-navigate if there's exactly one internal link
-            if (internalLinks.length === 1) {
-              const linkPath = internalLinks[0];
+          // Exact project links are resolved against the public catalog on the
+          // server. A citation alone must not trigger a second, competing redirect.
+          if (!structuredActions.length && !didNavigate && !highlightTarget && !shouldKeepCurrentPage(text)) {
+            const links = [...cleaned.matchAll(/\[[^\]]+\]\((\/[^)]+)\)/g)].map(match => match[1]).filter(safePublicPath);
+            if (links.length === 1) {
               didNavigate = true;
-              try { router.prefetch(linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath); } catch { /* */ }
-              scheduleAction(() => {
-                const base = linkPath.includes("#") ? linkPath.split("#")[0] || "/" : linkPath;
-                router.push(base);
-                if (linkPath.includes("#")) {
-                  const hash = linkPath.split("#")[1];
-                  scheduleAction(() => {
-                    const el = document.getElementById(hash) || document.querySelector(`[data-highlight-id="${hash}"]`);
-                    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }, 800);
-                }
-              }, 600);
+              try { router.prefetch(links[0]); } catch { /* */ }
+              queueSiteGuidance([{ type: "navigate", value: links[0] }], responseActions, action => dispatchSiteAction(action, href => router.push(href), value => setTheme(value as ThemeName)));
             }
           }
 
