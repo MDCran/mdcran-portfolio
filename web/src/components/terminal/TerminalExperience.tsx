@@ -3807,17 +3807,9 @@ export default function TerminalExperience() {
         }
       >
       <div className="flex h-full flex-col">
-      {/* Header bar */}
+      {/* Window controls sit directly over the terminal background. */}
       <div
-        className="crt-content-layer relative z-[13] flex items-center justify-between border-b border-[var(--terminal-accent)]/10 bg-[linear-gradient(180deg,rgb(var(--terminal-surface-rgb) / 0.82),rgb(var(--terminal-surface-rgb) / 0.9))] px-5 h-11 shrink-0"
-        style={
-          isThreeStage
-            ? {
-                borderBottomColor: "rgba(142,160,111,0.04)",
-                background: "rgb(var(--terminal-background-rgb) / 0.22)",
-              }
-            : undefined
-        }
+        className={`crt-content-layer ${workspaceStyles.windowHeader}`}
       >
         {/* Traffic lights: red closes, orange toggles window sizing, green maximizes. */}
         <div className="flex items-center gap-[2px]">
@@ -3827,8 +3819,8 @@ export default function TerminalExperience() {
             title="Exit terminal"
             aria-label="Exit terminal"
             className={workspaceStyles.windowControl}
-            style={{ "--window-dot":"#ff5f57", "--window-glow":"#ff5f5759" } as React.CSSProperties}
-          ><span aria-hidden="true">×</span></button>
+            style={{ "--window-glow":"#ff5f5759" } as React.CSSProperties}
+          ><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#ff5f57" /></svg></button>
           <button
             type="button"
             onClick={event=>{event.stopPropagation();toggleTerminalWindow();}}
@@ -3836,8 +3828,8 @@ export default function TerminalExperience() {
             data-tour-target="window"
             aria-label={floating ? "Restore terminal window size" : "Use resizable terminal window"}
             title={floating ? "Restore window size" : "Resize terminal window"}
-            style={{ "--window-dot":"#ffbd2e", "--window-glow":"#ffbd2e40" } as React.CSSProperties}
-          ><span aria-hidden="true">{floating ? "−" : "+"}</span></button>
+            style={{ "--window-glow":"#ffbd2e40" } as React.CSSProperties}
+          ><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#ffbd2e" /></svg></button>
           <button
             type="button"
             onClick={event=>{event.stopPropagation();toggleTerminalMaximize();}}
@@ -3845,8 +3837,8 @@ export default function TerminalExperience() {
             aria-label={maximized ? "Restore terminal window" : "Maximize terminal window"}
             aria-pressed={maximized}
             title={maximized ? "Restore window size" : "Full screen"}
-            style={{ "--window-dot":"#28c840", "--window-glow":"#28c84059" } as React.CSSProperties}
-          ><span aria-hidden="true">{maximized ? "−" : "+"}</span></button>
+            style={{ "--window-glow":"#28c84059" } as React.CSSProperties}
+          ><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#28c840" /></svg></button>
         </div>
 
         <div
