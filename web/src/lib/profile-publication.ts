@@ -71,7 +71,7 @@ export function buildProfilePublication(input: {
       slug: project.slug,
       title: project.title,
       summary: detail?.summary || project.description || "Public project notes are available at the evidence link.",
-      href: `https://www.mdcran.com/engineering#project-${encodeURIComponent(project.slug)}`,
+      href: `https://www.mdcran.com/engineering/${encodeURIComponent(project.slug)}`,
       sourceUrl: publicUrl(project.slug === "core-ai" ? coreAiContracts.repo : detail?.sourceUrl ?? project.githubUrl ?? project.repositories?.[0]?.url),
       sourceLabel: project.slug === "core-ai" ? "Separate public AI contracts (platform implementation is private)" : detail?.sourceLabel || "Public source",
       liveUrl: publicUrl(project.liveUrl),
@@ -80,7 +80,7 @@ export function buildProfilePublication(input: {
   });
   if (!projects.some((p) => p.slug === coreAiContracts.id)) projects.push({
     slug: coreAiContracts.id, title: coreAiContracts.title, summary: coreAiContracts.summary,
-    href: `https://www.mdcran.com/engineering#project-${coreAiContracts.id}`,
+    href: `https://www.mdcran.com/engineering/${coreAiContracts.id}`,
     sourceUrl: coreAiContracts.repo, sourceLabel: "Public contracts source", status: coreAiContracts.status,
   });
   const reportedAiTokens = aiUsage.totalTokens ?? aiUsage.claude.totalTokens + aiUsage.openai.totalTokens;

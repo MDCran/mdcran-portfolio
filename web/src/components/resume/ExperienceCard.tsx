@@ -124,8 +124,8 @@ export default function ExperienceCard({
         <div className="absolute top-0 left-6 right-0 h-px bg-gradient-to-r from-[#ef4242] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-t-sm" />
 
         <div className={`p-5 sm:p-6 ${hasHighlights ? "pb-10" : ""}`}>
-          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-            <div className="flex items-start gap-3">
+          <div className="mb-4 space-y-4">
+            <div className="flex min-w-0 items-start gap-3">
               {exp.companyLogo && (
                 <Image
                   src={imageAssetSrc(exp.companyLogo) ?? exp.companyLogo}
@@ -136,7 +136,7 @@ export default function ExperienceCard({
                   className="h-10 w-10 rounded-sm object-cover border border-white/10 shrink-0 mt-0.5"
                 />
               )}
-              <div>
+              <div className="min-w-0">
               <h3 className="font-nord text-lg md:text-xl text-white tracking-wide">{exp.role}</h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-sm md:text-base text-[#ef4242]">{exp.companyName}</span>
@@ -153,21 +153,19 @@ export default function ExperienceCard({
               </div>
               </div>
             </div>
-            <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
-              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-x-4 gap-y-1 text-xs">
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-white/35">
-                  <Calendar size={11} />
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs leading-relaxed">
+                <span className="inline-flex items-center gap-1.5 text-white/50">
+                  <Calendar size={12} className="shrink-0" aria-hidden="true" />
                   <span>{startLabel}{endLabel ? ` – ${endLabel}` : ""}</span>
                 </span>
                 {locationLabel && (
-                  <span className="inline-flex items-center gap-1.5 text-white/25">
-                    <MapPin size={11} />
+                  <span className="inline-flex min-w-0 items-center gap-1.5 text-white/45">
+                    <MapPin size={12} className="shrink-0" aria-hidden="true" />
                     <span>{locationLabel}</span>
                   </span>
                 )}
-              </div>
               {exp.current && (
-                <span className="text-[10px] text-[#ef4242] tracking-widest uppercase border border-[rgba(239,66,66,0.3)] px-2 py-0.5 rounded-sm mt-1">
+                <span className="inline-flex shrink-0 items-center rounded-sm border border-[rgba(239,66,66,0.3)] bg-[rgba(239,66,66,0.06)] px-2 py-0.5 text-[10px] uppercase leading-none tracking-wider text-[#ef4242]">
                   Current
                 </span>
               )}

@@ -1,4 +1,7 @@
 "use client";
+import { useGamePause } from "./useGamePause";
+import { INITIAL_PACMAN_MAZE, nextPacmanRound, pacmanTickMs, pacmanCollision } from "@/lib/terminal-games";
+import GameControls from "./GameControls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
@@ -6,28 +9,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const GRID_W = 15;
 const GRID_H = 15;
-const TICK_MS = 200;
+
 const POWER_DURATION = 8000;
 
 // 0=path, 1=wall, 2=dot, 3=power pellet
 // prettier-ignore
-const INITIAL_MAZE: number[][] = [
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,3,2,2,2,1,2,2,2,1,2,2,2,3,1],
-  [1,2,1,1,2,1,2,1,2,1,2,1,1,2,1],
-  [1,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
-  [1,2,1,2,1,1,2,1,2,1,1,2,1,2,1],
-  [1,2,2,2,2,2,2,1,2,2,2,2,2,2,1],
-  [1,1,1,2,1,2,1,1,1,2,1,2,1,1,1],
-  [0,0,2,2,1,2,2,2,2,2,1,2,2,0,0],
-  [1,1,1,2,1,2,1,0,1,2,1,2,1,1,1],
-  [1,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
-  [1,2,1,2,1,1,2,1,2,1,1,2,1,2,1],
-  [1,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
-  [1,2,1,1,2,1,2,1,2,1,2,1,1,2,1],
-  [1,3,2,2,2,1,2,2,2,1,2,2,2,3,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-];
+
 
 type Direction = "UP" | "DOWN" | "LEFT" | "RIGHT";
 type Pos = { x: number; y: number };
@@ -46,7 +33,7 @@ interface PacmanGameProps {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function cloneMaze(): number[][] {
-  return INITIAL_MAZE.map((row) => [...row]);
+  return INITIAL_PACMAN_MAZE.map((row) => [...row]);
 }
 
 function canMove(maze: number[][], x: number, y: number): boolean {
@@ -115,26 +102,7 @@ function isWall(maze: number[][], x: number, y: number): boolean {
   return maze[y][x] === 1;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export default function PacmanGame({ onExit }: PacmanGameProps) {
-  // ── React state (for overlays / HUD that need re-render) ──
-  const [started, setStarted] = useState(false);
-  const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
-  const [level, setLevel] = useState(1);
-  const [powerActive, setPowerActive] = useState(false);
-  const [powerRatio, setPowerRatio] = useState(0);
-
-  // ── Refs for game state (mutated in tick, read in render) ──
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mazeRef = useRef<number[][]>(cloneMaze());
-  const pacPosRef = useRef<Pos>({ x: 7, y: 9 });
-  const pacPrevRef = useRef<Pos>({ x: 7, y: 9 });
-  const dirRef = useRef<Direction>("LEFT");
-  const desiredDirRef = useRef<Direction>("LEFT");
-  const ghostsRef = useRef<Ghost[]>([
+function makeInitialGhosts(): Ghost[] { return [
     {
       pos: { x: 6, y: 7 },
       prevPos: { x: 6, y: 7 },
@@ -147,7 +115,34 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       color: "#f472b6",
       vulnerableColor: "#60a5fa",
     },
-  ]);
+    { pos: { x: 5, y: 7 }, prevPos: { x: 5, y: 7 }, color: "#22d3ee", vulnerableColor: "#60a5fa" },
+    { pos: { x: 9, y: 7 }, prevPos: { x: 9, y: 7 }, color: "#fb923c", vulnerableColor: "#60a5fa" },
+  ]; }
+
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function PacmanGame({ onExit }: PacmanGameProps) {
+  // ── React state (for overlays / HUD that need re-render) ──
+  const [started, setStarted] = useState(false);
+  const [roundState, setRoundState] = useState<"ready" | "playing" | "cleared" | "over">("ready");
+  const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [level, setLevel] = useState(1);
+  const levelRef = useRef(1);
+  const [highScore, setHighScore] = useState(0);
+  const [powerActive, setPowerActive] = useState(false);
+  const [powerRatio, setPowerRatio] = useState(0);
+
+  // ── Refs for game state (mutated in tick, read in render) ──
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mazeRef = useRef<number[][]>(cloneMaze());
+  const pacPosRef = useRef<Pos>({ x: 7, y: 9 });
+  const pacPrevRef = useRef<Pos>({ x: 7, y: 9 });
+  const dirRef = useRef<Direction>("LEFT");
+  const desiredDirRef = useRef<Direction>("LEFT");
+  const ghostsRef = useRef<Ghost[]>(makeInitialGhosts());
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
   const gameOverRef = useRef(false);
@@ -158,7 +153,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
   const lastTickTimeRef = useRef(0);
   const startedRef = useRef(false);
   const movingRef = useRef(false);
-  const powerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const rafRef = useRef<number>(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -174,26 +169,24 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
   const canvasWidthRef = useRef(0);
   const canvasHeightRef = useRef(0);
 
-  // ── Helpers ──
-
-  const makeInitialGhosts = (): Ghost[] => [
-    {
-      pos: { x: 6, y: 7 },
-      prevPos: { x: 6, y: 7 },
-      color: "#ef4444",
-      vulnerableColor: "#60a5fa",
-    },
-    {
-      pos: { x: 8, y: 7 },
-      prevPos: { x: 8, y: 7 },
-      color: "#f472b6",
-      vulnerableColor: "#60a5fa",
-    },
-  ];
+  const { paused, pausedRef, togglePause, resume } = useGamePause(duration => {
+    powerStartRef.current += duration;
+    lastTickTimeRef.current = performance.now();
+  });
+  const publishScore = useCallback(() => {
+    setScore(scoreRef.current);
+    let stored = 0;
+    try { const value = Number(localStorage.getItem("pacman-high-score")); stored = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0; } catch { /* storage unavailable */ }
+    const best = Math.max(stored, scoreRef.current);
+    setHighScore(previous => Math.max(previous, best));
+    try { if (best > stored) localStorage.setItem("pacman-high-score", String(best)); } catch { /* storage unavailable */ }
+  }, []);
 
   // ── Reset ──
 
-  const resetGame = useCallback(() => {
+  const resetGame = useCallback((nextLevel = false) => {
+    resume();
+    const nextRound = nextPacmanRound({ score: scoreRef.current, lives: livesRef.current, level: levelRef.current }, nextLevel);
     const newMaze = cloneMaze();
     const newGhosts = makeInitialGhosts();
 
@@ -203,8 +196,9 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     dirRef.current = "LEFT";
     desiredDirRef.current = "LEFT";
     ghostsRef.current = newGhosts;
-    scoreRef.current = 0;
-    livesRef.current = 3;
+    scoreRef.current = nextRound.score;
+    livesRef.current = nextRound.lives;
+    levelRef.current = nextRound.level;
     gameOverRef.current = false;
     wonRef.current = false;
     powerRef.current = false;
@@ -214,18 +208,18 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     flashRef.current = 0;
     trailRef.current = [];
 
-    if (powerTimerRef.current) clearTimeout(powerTimerRef.current);
-    powerTimerRef.current = null;
+
 
     startedRef.current = true;
     movingRef.current = false;
 
-    setScore(0);
-    setLives(3);
-    setLevel(1);
+    publishScore();
+    setLives(livesRef.current);
+    setLevel(nextRound.level);
+    setRoundState("ready");
     setStarted(true);
     setPowerActive(false);
-  }, []);
+  }, [resume, publishScore]);
 
   const resetPositions = useCallback(() => {
     pacPosRef.current = { x: 7, y: 9 };
@@ -235,26 +229,21 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     ghostsRef.current = makeInitialGhosts();
     powerRef.current = false;
     setPowerActive(false);
-    if (powerTimerRef.current) clearTimeout(powerTimerRef.current);
-    powerTimerRef.current = null;
+
   }, []);
 
   // ── Input ──
 
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+    (e: Pick<KeyboardEvent, "key" | "preventDefault">) => {
       if (e.key === "Escape") {
         onExit();
         return;
       }
 
-      if (
-        e.key === "Enter" &&
-        (gameOverRef.current || wonRef.current || !startedRef.current)
-      ) {
-        resetGame();
-        return;
-      }
+      if (e.key.toLowerCase() === "p" || e.key === " ") { e.preventDefault(); if (startedRef.current && !wonRef.current && !gameOverRef.current) togglePause(); return; }
+      if (e.key === "Enter") { resetGame(wonRef.current); return; }
+      if (pausedRef.current || wonRef.current || gameOverRef.current) return;
 
       if (
         ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
@@ -278,17 +267,19 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         moved = true;
       }
       if (moved && !movingRef.current) {
+        setRoundState("playing");
         movingRef.current = true;
         lastTickTimeRef.current = performance.now();
       }
     },
-    [onExit, resetGame]
+    [onExit, resetGame, togglePause, pausedRef]
   );
 
   // ── Game tick ──
 
   const gameTick = useCallback(() => {
-    if (gameOverRef.current || wonRef.current || !movingRef.current) return;
+    if (pausedRef.current || gameOverRef.current || wonRef.current || !movingRef.current) return;
+    if (powerRef.current && performance.now() - powerStartRef.current >= POWER_DURATION) { powerRef.current = false; setPowerActive(false); }
 
     tickRef.current += 1;
     lastTickTimeRef.current = performance.now();
@@ -345,25 +336,22 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       setPowerActive(true);
       flashRef.current = 300;
       flashStartRef.current = performance.now();
-      if (powerTimerRef.current) clearTimeout(powerTimerRef.current);
-      powerTimerRef.current = setTimeout(() => {
-        powerRef.current = false;
-        setPowerActive(false);
-      }, POWER_DURATION);
+
     }
 
     // Win check
     if (countCollectibles(maze) === 0) {
       wonRef.current = true;
+      setRoundState("cleared");
       scoreRef.current += 1000;
-      setScore(scoreRef.current);
+      publishScore();
       return;
     }
 
     // Move ghosts (every other tick)
     const ghosts = ghostsRef.current.map(ghost => ({ ...ghost, pos: { ...ghost.pos }, prevPos: { ...ghost.prevPos } }));
     if (tickRef.current % 2 === 0) {
-      for (const ghost of ghosts) {
+      for (const [ghostIndex, ghost] of ghosts.entries()) {
         const neighbors = getNeighbors(maze, ghost.pos);
         if (neighbors.length === 0) continue;
 
@@ -375,11 +363,13 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
 
         ghost.prevPos = { ...ghost.pos };
         const chaseTarget = !powerRef.current;
+        const target = ghostIndex === 1 ? { x: pac.x + (dirRef.current === "RIGHT" ? 2 : dirRef.current === "LEFT" ? -2 : 0), y: pac.y + (dirRef.current === "DOWN" ? 2 : dirRef.current === "UP" ? -2 : 0) }
+          : ghostIndex === 3 && dist(ghost.pos, pac) < 4 ? { x: 1, y: 13 } : pac;
         const rand = Math.random();
 
         if (rand < 0.75) {
           if (chaseTarget) {
-            choices.sort((a, b) => dist(a.pos, pac) - dist(b.pos, pac));
+            choices.sort((a, b) => dist(a.pos, target) - dist(b.pos, target));
           } else {
             choices.sort((a, b) => dist(b.pos, pac) - dist(a.pos, pac));
           }
@@ -393,8 +383,8 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
 
     // Collision check
     let lostLife = false;
-    for (const ghost of ghosts) {
-      if (ghost.pos.x === pac.x && ghost.pos.y === pac.y) {
+    for (const [index, ghost] of ghosts.entries()) {
+      if (pacmanCollision(prevPac, pac, ghostsRef.current[index].pos, ghost.pos)) {
         if (powerRef.current) {
           scoreRef.current += 200;
           ghost.prevPos = { ...ghost.pos };
@@ -413,17 +403,19 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       shakeStartRef.current = performance.now();
       if (livesRef.current <= 0) {
         gameOverRef.current = true;
-        setScore(scoreRef.current);
+        setRoundState("over");
+        publishScore();
         setLives(0);
         return;
       }
       setLives(livesRef.current);
       resetPositions();
       movingRef.current = false;
+      setRoundState("ready");
     }
 
-    setScore(scoreRef.current);
-  }, [resetPositions]);
+    publishScore();
+  }, [resetPositions, pausedRef, publishScore]);
 
   // ── Canvas rendering ──
 
@@ -477,7 +469,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
       // Interpolation factor (0..1) from last tick
       const elapsed = now - lastTickTimeRef.current;
       const t = movingRef.current
-        ? Math.min(elapsed / TICK_MS, 1)
+        ? Math.min(elapsed / pacmanTickMs(levelRef.current), 1)
         : 0;
 
       // Screen shake offset
@@ -854,7 +846,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         ctx.fillStyle = titleColor;
         ctx.font = `bold ${cs * 1.3}px 'JetBrains Mono', monospace`;
         ctx.fillText(
-          isWin ? "YOU WIN!" : "GAME OVER",
+          isWin ? "LEVEL CLEARED!" : "GAME OVER",
           totalW / 2,
           totalH / 2 - cs * 1.2
         );
@@ -875,7 +867,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         const enterAlpha = 0.5 + 0.5 * Math.sin(now * 0.004);
         ctx.globalAlpha = enterAlpha;
         ctx.fillText(
-          "ENTER to restart",
+          isWin ? "ENTER for next level" : "ENTER to restart",
           totalW / 2,
           totalH / 2 + cs * 1.2
         );
@@ -912,15 +904,16 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
 
     // Start game tick interval
     intervalRef.current = setInterval(() => {
+      if (pausedRef.current) return;
       gameTick();
       setPowerRatio(powerRef.current ? Math.max(0, 1 - (performance.now() - powerStartRef.current) / POWER_DURATION) : 0);
-    }, TICK_MS);
+    }, pacmanTickMs(level));
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [started, renderFrame, gameTick]);
+  }, [started, renderFrame, gameTick, level, pausedRef]);
 
   // ── Keyboard listener ──
 
@@ -958,7 +951,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
 
   useEffect(() => {
     return () => {
-      if (powerTimerRef.current) clearTimeout(powerTimerRef.current);
+
       cancelAnimationFrame(rafRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -999,6 +992,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         >
           Press ENTER to start
         </div>
+        <GameControls canPause={started && roundState !== "over" && roundState !== "cleared"} paused={paused} startLabel="Start" onKey={key => handleKeyDown({ key, preventDefault() {} })} />
         <div className="text-[11px] text-[#4b5563] mt-4">ESC to exit</div>
       </div>
     );
@@ -1016,7 +1010,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
     >
       {/* HUD */}
       <div
-        className="flex justify-between items-center w-full px-3 py-2 text-sm tracking-wider"
+        className="flex flex-wrap justify-between items-center gap-2 w-full px-3 py-2 text-sm tracking-wider"
         style={{ color: "#facc15", textShadow: "0 0 8px #facc1580" }}
       >
         {/* Score */}
@@ -1032,7 +1026,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         </span>
 
         {/* Lives as pac-man icons */}
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1" role="img" aria-label={`${lives} lives remaining`}>
           {Array.from({ length: lives }, (_, i) => (
             <svg
               key={i}
@@ -1092,6 +1086,8 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         </div>
       )}
 
+      <p role="status" className="text-[10px] text-[#facc15]/70">{roundState === "cleared" ? "Level cleared — choose Next level" : roundState === "over" ? "Game over" : roundState === "ready" ? "Ready — use arrows to move" : `Level ${level} · Lives ${lives}`} · Best: {highScore}</p>
+      {paused && <p role="status" className="text-xs text-[#facc15]">Paused · press P or Resume to continue</p>}
       {/* Game canvas container */}
       <div
         ref={containerRef}
@@ -1107,6 +1103,7 @@ export default function PacmanGame({ onExit }: PacmanGameProps) {
         />
       </div>
 
+      <GameControls canPause={started && roundState !== "over" && roundState !== "cleared"} paused={paused} startLabel={roundState === "cleared" ? "Next level" : "Restart"} onKey={key => handleKeyDown({ key, preventDefault() {} })} />
       {/* Bottom hint */}
       <div
         className="pb-1 text-[11px] text-[#4b5563]"

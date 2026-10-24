@@ -370,7 +370,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
 
   function getProjectHref(project: Project): string {
     if (project.category === "coding-projects") {
-      return `/engineering#project-${project.slug}`;
+      return `/engineering/${project.slug}`;
     }
 
     if (project.category === "arts-and-entertainment") {

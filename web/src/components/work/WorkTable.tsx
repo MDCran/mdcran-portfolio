@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useWorkQuery } from "@/lib/use-work-query";
 import Link from "next/link";
 import Image from "next/image";
+import FilterSelect from "@/components/shared/FilterSelect";
 import {
   Search,
   ArrowUpDown,
@@ -186,21 +187,12 @@ export default function WorkTable({ rows }: { rows: WorkRow[] }) {
             </button>
           ))}
         </div>
-        <select
-          aria-label="Filter category"
+        <FilterSelect
+          label="Filter category"
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="h-10 rounded-sm border border-white/10 bg-white/[0.03] px-2.5 text-xs text-white/70 outline-none focus:border-[var(--cranberry,#ef4242)]"
-        >
-          <option value="all" className="bg-[#0a0a0c]">
-            All categories
-          </option>
-          {categories.map(([value, label]) => (
-            <option key={value} value={value} className="bg-[#0a0a0c]">
-              {label}
-            </option>
-          ))}
-        </select>
+          onChange={setCategory}
+          options={[{ value: "all", label: "All categories" }, ...categories.map(([value, label]) => ({ value, label }))]}
+        />
       </div>
 
       {/* Table — full length; the whole page scrolls (no inner scroll) */}

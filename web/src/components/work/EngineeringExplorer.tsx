@@ -3,7 +3,8 @@
 import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowRight, Search } from "lucide-react";
 import { useWorkQuery } from "@/lib/use-work-query";
-import { matchesRole, normalizeRole, portfolioRoles, roleLabels } from "@/lib/public-portfolio";
+import { matchesRole, normalizeRole } from "@/lib/public-portfolio";
+import EngineeringRoleFilter from "./EngineeringRoleFilter";
 import { matchesArea, matchJobDescription, projectAreas } from "@/lib/portfolio-evidence";
 
 const areaLabels: Record<string, string> = { all: "All projects", ai: "AI", "full-stack": "Full-stack", cloud: "Cloud", mobile: "Mobile" };
@@ -32,8 +33,6 @@ export default function EngineeringExplorer({ entries, children }: {
       }
       if (!id.startsWith("project-")) return;
       const card = document.getElementById(id);
-      const details = card?.querySelector("details");
-      if (details) details.open = true;
       card?.scrollIntoView({ block: "start" });
     };
     revealProject();
@@ -51,10 +50,7 @@ export default function EngineeringExplorer({ entries, children }: {
             ))}
           </div>
           <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-            <label className="sr-only" htmlFor="engineering-role">Role view</label>
-            <select id="engineering-role" value={role} onChange={(event) => update({ role: event.target.value === "all" ? "" : event.target.value })} className="h-10 min-w-0 rounded-sm border border-white/10 bg-[var(--theme-bg,#0a0a0a)] px-3 text-xs text-white/65 focus:border-[var(--cranberry)] focus:outline-none">
-              {portfolioRoles.map((value) => <option key={value} value={value}>{roleLabels[value]}</option>)}
-            </select>
+            <EngineeringRoleFilter value={role} onChange={(value) => update({ role: value === "all" ? "" : value })} />
             <label className="relative min-w-40 flex-1 sm:w-60">
               <span className="sr-only">Search projects and technologies</span>
               <Search size={13} className="pointer-events-none absolute left-3 top-3.5 text-white/30" aria-hidden="true" />

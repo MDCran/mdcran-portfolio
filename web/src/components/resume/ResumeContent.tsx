@@ -186,11 +186,6 @@ export default function ResumeContent({
       />
 
       <main className="content-container py-14 md:py-16">
-        <nav aria-label="Resume sections" className="mb-8 flex flex-wrap gap-3 rounded-sm border border-white/15 p-4 text-sm text-white/75">
-          {[['experience','Experience'], ...((featuredWork.length || renownedProjects.length) ? [['renowned-projects','Featured work']] : []), ...(derivedEducations.length ? [['education','Education']] : []), ['skills','Skills'], ...(certifications.length ? [['certifications','Certifications']] : []), ...(awards.length ? [['awards','Awards']] : [])].map(([id,label]) => <a key={id} className="hover:text-[var(--cranberry)]" href={`#${id}`}>{label}</a>)}
-          <Link className="text-[var(--cranberry)] underline" href="/resume/print">Print / Save ATS PDF</Link>
-        </nav>
-
         <section aria-label="Engineering summary" className="mb-12 rounded-sm border border-white/12 bg-white/3 p-6">
           <p className="max-w-3xl text-sm leading-relaxed text-white/75">{ENGINEERING_SUMMARY}</p>
           <Link href="/engineering" className="mt-4 inline-block text-sm text-[var(--cranberry)] hover:underline underline-offset-4">

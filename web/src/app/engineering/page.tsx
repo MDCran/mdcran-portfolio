@@ -7,9 +7,9 @@ import PageHeader from "@/components/shared/PageHeader";
 import ArticleCard from "@/components/shared/ArticleCard";
 import EngineeringExplorer from "@/components/work/EngineeringExplorer";
 import EngineeringProjectCard from "@/components/work/EngineeringProjectCard";
-import { coreAiContracts, engineeringProjectOrder, engineeringProjects } from "@/lib/engineering";
+import { engineeringProjects } from "@/lib/engineering";
+import { publicEngineeringProjects, engineeringDetail } from "@/lib/engineering-projects";
 import { getProjects, getArticles } from "@/lib/public-content-cache";
-import type { Project } from "@/lib/types";
 import { buildSeoMetadata } from "@/lib/seo";
 
 export const metadata = buildSeoMetadata({
@@ -21,23 +21,7 @@ export const metadata = buildSeoMetadata({
 
 export default async function EngineeringPage() {
   const [allProjects, articles] = await Promise.all([getProjects(), getArticles()]);
-  const categories = new Set(["coding-projects", "code", "software"]);
-  const engineeringWork = allProjects.filter((project) =>
-    [project.category, ...(project.extraCategories ?? [])].some((category) => categories.has(category.toLowerCase())),
-  );
-  const projectsBySlug = new Map(engineeringWork.map((project) => [project.slug, project]));
-  const orderedProjects = [
-    ...engineeringProjectOrder.map((slug) => projectsBySlug.get(slug)).filter((project): project is Project => !!project),
-    ...engineeringWork.filter((project) => !engineeringProjectOrder.some((slug) => slug === project.slug)),
-  ];
-  if (!projectsBySlug.has(coreAiContracts.id)) {
-    orderedProjects.push({
-      id: coreAiContracts.id, slug: coreAiContracts.id, title: coreAiContracts.title,
-      description: coreAiContracts.summary, category: "coding-projects",
-      tags: [...coreAiContracts.skills], githubUrl: coreAiContracts.repo,
-      pricing: { status: "unavailable" },
-    });
-  }
+  const orderedProjects = publicEngineeringProjects(allProjects);
   const relatedArticles = articles.filter((article) =>
     (article.tags ?? []).some((tag) => /engineering|typescript|react|ai|software|cloud/i.test(tag)),
   ).slice(0, 3);
@@ -64,7 +48,7 @@ export default async function EngineeringPage() {
             text: [project.title, project.description, ...(project.tags ?? []), ...(engineeringProjects[project.slug]?.skills ?? []), engineeringProjects[project.slug]?.category].join(" "),
           }))}>
             {orderedProjects.map((project) => (
-              <EngineeringProjectCard key={project.id} project={project} detailOverride={project.slug === coreAiContracts.id ? { ...coreAiContracts, skills: [...coreAiContracts.skills], decisions: [...coreAiContracts.decisions], sourceUrl: coreAiContracts.repo } : undefined} />
+              <EngineeringProjectCard key={project.id} project={project} detailOverride={engineeringDetail(project.slug)} />
             ))}
           </EngineeringExplorer>
         </Suspense>

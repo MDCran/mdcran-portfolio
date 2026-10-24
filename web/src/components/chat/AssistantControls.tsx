@@ -1,5 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import FilterSelect from "@/components/shared/FilterSelect";
+import { Settings, X, RotateCcw, Trash2, Plus } from "lucide-react";
+import styles from "./AssistantControls.module.css";
 import { readVisitorMemory, editRememberedTopics } from "@/lib/visitor-memory";
 import {
   clearAssistantConversation,
@@ -9,6 +13,8 @@ import {
   type AssistantPreferences,
 } from "@/lib/assistant-preferences";
 export default function AssistantControls() {
+  const [open, setOpen] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [prefs, setPrefs] = useState(defaultAssistantPreferences);
   const [topics, setTopics] = useState<string[]>([]);
   const [topicDraft, setTopicDraft] = useState("");
@@ -30,49 +36,36 @@ export default function AssistantControls() {
     saveAssistantPreferences(p);
   }
   return (
-    <details
-      className="mx-4 my-2 rounded border border-current/15 p-2 text-xs"
-      data-assistant-ui
-    >
-      <summary className="cursor-pointer">
-        Conversation preferences · {prefs.audience}
-      </summary>
-      <div className="mt-3 grid gap-3">
-        <label>
-          Audience{" "}
-          <select
-            className="ml-2 bg-[var(--background,#111)]"
-            value={prefs.audience}
-            onChange={(e) =>
-              change({
-                audience: e.target.value as AssistantPreferences["audience"],
-              })
-            }
-          >
-            <option value="general">General</option>
-            <option value="recruiter">Recruiter</option>
-            <option value="engineering">Engineering</option>
-          </select>
-        </label>
-        <label>
-          Answer detail{" "}
-          <select
-            className="ml-2 bg-[var(--background,#111)]"
-            value={prefs.detail}
-            onChange={(e) =>
-              change({
-                detail: e.target.value as AssistantPreferences["detail"],
-              })
-            }
-          >
-            <option value="concise">Concise</option>
-            <option value="detailed">Detailed</option>
-          </select>
-        </label>
-        <label>
-          Speaking pace · {prefs.pace.toFixed(1)}×{" "}
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+      <button type="button" className={styles.settingsTrigger} aria-label="Conversation settings" title="Conversation settings">
+        <Settings size={14} aria-hidden="true" />
+      </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+      <Popover.Content aria-label="Conversation settings" data-assistant-ui data-force-dark="" className={styles.settingsPopover} align="end" sideOffset={12} collisionPadding={16} onEscapeKeyDown={(event) => event.stopPropagation()} onOpenAutoFocus={(event) => { event.preventDefault(); closeRef.current?.focus(); }}>
+        <div className={styles.settingsHeader}>
+          <Settings size={14} aria-hidden="true" />
+          <span>Conversation settings</span>
+          <button ref={closeRef} type="button" className={styles.settingsTrigger} aria-label="Close conversation settings" onClick={() => setOpen(false)}><X size={14} aria-hidden="true" /></button>
+        </div>
+      <div className={`${styles.body} ${styles.settingsBody}`}>
+        <div className={styles.field}>
+          <span>Audience</span>
+          <FilterSelect label="Audience" className={styles.settingsSelect} value={prefs.audience}
+            onChange={(value) => change({ audience: value as AssistantPreferences["audience"] })}
+            options={[{ value: "general", label: "General" }, { value: "recruiter", label: "Recruiter" }, { value: "engineering", label: "Engineering" }]} />
+        </div>
+        <div className={styles.field}>
+          <span>Answer detail</span>
+          <FilterSelect label="Answer detail" className={styles.settingsSelect} value={prefs.detail}
+            onChange={(value) => change({ detail: value as AssistantPreferences["detail"] })}
+            options={[{ value: "concise", label: "Concise" }, { value: "detailed", label: "Detailed" }]} />
+        </div>
+        <label className={styles.field}>
+          <span className={styles.fieldRow}><span>Speaking pace</span><span className={styles.pace}>{prefs.pace.toFixed(1)}×</span></span>
           <input
-            className="ml-2"
+            className={styles.range}
             type="range"
             min="0.7"
             max="1.2"
@@ -81,17 +74,17 @@ export default function AssistantControls() {
             onChange={(e) => change({ pace: Number(e.target.value) })}
           />
         </label>
-        <label>
+        <label className={styles.field}>
           Pronunciation hint{" "}
           <input
-            className="mt-1 w-full rounded border border-current/20 bg-transparent p-2"
+            className={styles.input}
             maxLength={160}
             value={prefs.pronunciation}
             placeholder="e.g. pronounce my name as…"
             onChange={(e) => change({ pronunciation: e.target.value })}
           />
         </label>
-        <label className="flex items-center gap-2">
+        <label className={styles.toggleRow}>
           <input
             type="checkbox"
             checked={prefs.memory}
@@ -99,25 +92,27 @@ export default function AssistantControls() {
           />
           Remember visits and topics on this device
         </label>
-        <p className="opacity-65">
+        <p className={styles.note}>
           Memory is optional. When enabled, prior conversations may inform
           replies. Turning it off stops recall and removes saved device topics.
           Service and security logs may still be retained.
         </p>
-        {prefs.memory && <div className="space-y-2">
+        {prefs.memory && <div className={styles.topics}>
           <p>Remembered topics on this device</p>
-          {topics.length === 0 && <p className="opacity-60">No saved topics.</p>}
-          {topics.map((topic, index) => <div key={`${index}-${topic}`} className="flex items-center gap-2"><input aria-label={`Remembered topic ${index + 1}`} className="min-w-0 flex-1 border border-current/20 bg-transparent p-1" defaultValue={topic} maxLength={80} onBlur={e => { if (e.target.value !== topic) editRememberedTopics(topics.map((t, i) => i === index ? e.target.value : t)); }} /><button onClick={() => editRememberedTopics(topics.filter((_, i) => i !== index))} aria-label={`Delete remembered topic ${index + 1}`}>Delete</button></div>)}
-          <form className="flex gap-2" onSubmit={e => { e.preventDefault(); if (topicDraft.trim()) { editRememberedTopics([...topics, topicDraft]); setTopicDraft(""); } }}><input aria-label="New remembered topic" className="min-w-0 flex-1 border border-current/20 bg-transparent p-1" value={topicDraft} maxLength={80} onChange={e => setTopicDraft(e.target.value)} placeholder="Add a topic to remember" /><button type="submit">Save</button></form>
-          <p className="opacity-60">Editing or deleting starts a fresh conversation so prior replies cannot restore removed topics. Up to six topics are saved.</p>
+          {topics.length === 0 && <p className={styles.note}>No saved topics.</p>}
+          {topics.map((topic, index) => <div key={`${index}-${topic}`} className={styles.topicRow}><input aria-label={`Remembered topic ${index + 1}`} className={styles.input} defaultValue={topic} maxLength={80} onBlur={e => { if (e.target.value !== topic) editRememberedTopics(topics.map((t, i) => i === index ? e.target.value : t)); }} /><button className={styles.button} onClick={() => editRememberedTopics(topics.filter((_, i) => i !== index))} aria-label={`Delete remembered topic ${index + 1}`}><Trash2 size={13} aria-hidden="true" /></button></div>)}
+          <form className={styles.topicRow} onSubmit={e => { e.preventDefault(); if (topicDraft.trim()) { editRememberedTopics([...topics, topicDraft]); setTopicDraft(""); } }}><input aria-label="New remembered topic" className={styles.input} value={topicDraft} maxLength={80} onChange={e => setTopicDraft(e.target.value)} placeholder="Add a topic to remember" /><button className={styles.button} type="submit"><Plus size={12} aria-hidden="true" />Save</button></form>
+          <p className={styles.note}>Editing or deleting starts a fresh conversation so prior replies cannot restore removed topics. Up to six topics are saved.</p>
         </div>}
         <button
-          className="justify-self-start rounded border border-current/25 px-3 py-2"
+          className={styles.dangerButton}
           onClick={clearAssistantConversation}
         >
-          Clear conversation & start fresh
+          <RotateCcw size={12} aria-hidden="true" />Clear conversation & start fresh
         </button>
       </div>
-    </details>
+      </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

@@ -15,5 +15,6 @@ export const metadata: Metadata = buildSeoMetadata({
 
 export default async function CodingProjectSlugRedirect({ params }: Props) {
   const { slug } = await params;
-  permanentRedirect(`/engineering#project-${slug}`);
+  if (!/^[a-z0-9-]+$/i.test(slug)) permanentRedirect("/engineering");
+  permanentRedirect(`/engineering/${slug}`);
 }

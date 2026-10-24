@@ -10,6 +10,7 @@ import {
   getExperiences,
   getFeaturedProjects,
   getProjects,
+  getResumeProfile,
   getSiteContent,
   getSkills,
 } from "@/lib/db";
@@ -29,6 +30,7 @@ export async function GET() {
     certifications,
     awards,
     clubs,
+    resumeProfile,
   ] = await Promise.all([
     getSiteContent(),
     getProjects(),
@@ -41,6 +43,7 @@ export async function GET() {
     getCertifications(),
     getAwards(),
     getClubs(),
+    getResumeProfile(),
   ]);
 
   const featuredClients = clients.filter((client) => client.featured);
@@ -58,6 +61,7 @@ export async function GET() {
     certifications,
     awards,
     clubs,
+    resumeProfile,
     generatedAt: new Date().toISOString(),
   });
 }

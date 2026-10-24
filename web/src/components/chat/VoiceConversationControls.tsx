@@ -5,6 +5,8 @@ import type { EvidenceSource } from "@/lib/assistant-evidence";
 import MicrophoneTest, { type MicrophoneTestControl } from "./MicrophoneTest";
 import { useRef } from "react";
 import AssistantControls from "./AssistantControls";
+import { AudioLines, Mic, MicOff, MessageSquare, Send, Text } from "lucide-react";
+import styles from "./AssistantControls.module.css";
 
 interface Props {
   onMicrophoneTest: () => void;
@@ -33,37 +35,47 @@ export default function VoiceConversationControls({
   return (
     <div
       data-assistant-ui
-      className="max-h-[65vh] w-[min(90vw,24rem)] overflow-y-auto rounded border border-white/15 bg-black/95 text-white"
+      data-force-dark=""
+      className={styles.panel}
     >
-      <div className="flex flex-wrap gap-2 p-3 text-xs">
+      <div className={styles.header}>
+        <span className={styles.iconBox}><AudioLines size={17} aria-hidden="true" /></span>
+        <div><p className={styles.heading}>Voice controls</p><p className={styles.subtitle}>Your conversation, your pace</p></div>
+        <div className={styles.settingsSlot}><AssistantControls /></div>
+      </div>
+      <div className={styles.toolbar}>
         <button
-          className="rounded border border-white/20 px-3 py-2"
+          className={styles.button}
           onClick={() => { microphoneTest.current?.stop(); onPause(); }}
         >
+          {paused ? <Mic size={13} aria-hidden="true" /> : <MicOff size={13} aria-hidden="true" />}
           {paused ? "Resume microphone" : "Pause microphone"}
         </button>
         <button
-          className="rounded border border-white/20 px-3 py-2"
+          className={styles.button}
           onClick={onTextHandoff}
         >
-          Continue in text
+          <MessageSquare size={13} aria-hidden="true" /> Continue in text
         </button>
       </div>
-      <details className="px-3 pb-3 text-xs">
-        <summary className="cursor-pointer">Transcript & text input</summary>
-        <div className="my-2 max-h-40 space-y-2 overflow-y-auto">
+      <details className={styles.accordion}>
+        <summary className={styles.summary}><Text size={14} aria-hidden="true" />Transcript & text input</summary>
+        <div className={styles.body}>
+        <div className={styles.transcript}>
+          {turns.length === 0 && <p className={styles.note}>Your conversation will appear here. You can also type a question below.</p>}
           {turns.map((turn, index) => (
-            <div key={index}>
-              <strong>{turn.role === "user" ? "You" : "AI guide"}:</strong>{" "}
+            <div key={index} className={styles.turn} data-role={turn.role}>
+              <strong className={styles.turnRole}>{turn.role === "user" ? "You" : "AI guide"}</strong>
               {turn.text}
               <EvidenceSources sources={turn.sources} />
             </div>
           ))}
         </div>
-        <label className="block">
+        <label className={styles.field}>
           Edit or type your question
           <textarea
-            className="my-2 block w-full border border-white/20 bg-transparent p-2"
+            className={styles.input}
+            placeholder="Type a question or edit your transcript…"
             value={text}
             maxLength={6000}
             onChange={(event) => onTextChange(event.target.value)}
@@ -71,14 +83,14 @@ export default function VoiceConversationControls({
         </label>
         <button
           disabled={!text.trim() || thinking}
-          className="rounded border border-white/20 px-3 py-2 disabled:opacity-40"
+          className={styles.primaryButton}
           onClick={onSend}
         >
-          Send text
+          <Send size={12} aria-hidden="true" /> Send text
         </button>
+        </div>
       </details>
       <MicrophoneTest ref={microphoneTest} onStart={onMicrophoneTest} />
-      <AssistantControls />
     </div>
   );
 }

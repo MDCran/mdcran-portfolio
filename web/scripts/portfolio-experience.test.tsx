@@ -1,3 +1,4 @@
+import "./helpers/css-modules";
 import { imageAssetSrc } from "../src/lib/utils";
 import test from "node:test";
 import assert from "node:assert/strict";

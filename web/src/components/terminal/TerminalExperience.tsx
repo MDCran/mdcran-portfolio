@@ -13,10 +13,17 @@ import type {
   Experience,
   Project,
   SiteContent,
+  ResumeProfile,
   Skill,
   SpotifyTrack,
 } from "@/lib/types";
 import { assetUrl, imageAssetSrc, projectUrl } from "@/lib/utils";
+import { ROOTS, ROUTES, COMMANDS, parseArguments, resolveTerminalPath, isCodeProject, formatDate, submitTerminalForm, validateTerminalSnapshot, sanitizeBrowseUrl, type TerminalFormMode, type TerminalForm } from "@/lib/terminal-shell";
+import { buildSearch, type SearchHit } from "@/lib/terminal-search";
+import { streamTerminalAnswer, type TerminalTurn } from "@/lib/terminal-ai";
+import { resumeLines, resumeLinks, recruiterProjects, terminalActions, highlightParts, terminalWindowSize, RESUME_SECTIONS, TOUR_STEPS, type TerminalMode, type TerminalPet, type TerminalAnimation, type ResumeSection } from "@/lib/terminal-workspace";
+import { TerminalToolbar, TerminalTour, TerminalCompanion, TerminalResize, TerminalPointer, type TerminalPointerTarget } from "./TerminalWorkspaceChrome";
+import workspaceStyles from "./TerminalWorkspace.module.css";
 import CRTThreeCanvas from "./CRTThreeCanvas";
 import SnakeGame from "./games/SnakeGame";
 import PacmanGame from "./games/PacmanGame";
@@ -24,6 +31,7 @@ import PacmanGame from "./games/PacmanGame";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TerminalData = {
+  resumeProfile?: ResumeProfile;
   siteContent: SiteContent;
   projects: Project[];
   featuredProjects: Project[];
@@ -70,13 +78,6 @@ type SpotifyViewState = {
   fetchedAt: number;
 };
 
-type SearchHit =
-  | { kind: "project"; id: string; label: string }
-  | { kind: "article"; id: string; label: string }
-  | { kind: "client"; id: string; label: string }
-  | { kind: "video"; url: string; label: string }
-  | { kind: "route"; path: string[]; label: string };
-
 type FormMode = "contact" | "subscribe" | "unsubscribe" | null;
 type PowerState = "off" | "starting" | "on" | "stopping";
 
@@ -101,93 +102,6 @@ const ASCII = [
   "██║ ╚═╝ ██║██████╔╝╚█████╔╝██║  ██║██║  ██║██║ ╚███║  ╚█████╔╝███████╗██║",
   "╚═╝     ╚═╝╚═════╝  ╚════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚══╝   ╚════╝ ╚══════╝╚═╝",
 ].join("\n");
-
-const ROOTS = [
-  "arts-and-entertainment",
-  "motion-and-graphics",
-  "code",
-  "articles",
-  "clients",
-  "featured-work",
-  "resume",
-  "contact",
-  "subscribe",
-  "unsubscribe",
-  "privacy",
-  "terms",
-] as const;
-
-const ROUTES: Record<string, string[]> = {
-  clients: ["clients"],
-  featured: ["featured-work"],
-  "featured-work": ["featured-work"],
-  work: [],
-  arts: ["arts-and-entertainment"],
-  "arts-and-entertainment": ["arts-and-entertainment"],
-  motion: ["motion-and-graphics"],
-  "motion-and-graphics": ["motion-and-graphics"],
-  code: ["code"],
-  articles: ["articles"],
-  resume: ["resume"],
-  contact: ["contact"],
-  message: ["contact"],
-  subscribe: ["subscribe"],
-  unsubscribe: ["unsubscribe"],
-  privacy: ["privacy"],
-  terms: ["terms"],
-};
-
-const COMMANDS = [
-  "help",
-  "?",
-  "clear",
-  "home",
-  "ls",
-  "pwd",
-  "cd",
-  "open",
-  "nano",
-  "search",
-  "select",
-  "clients",
-  "featured",
-  "projects",
-  "articles",
-  "resume",
-  "contact",
-  "subscribe",
-  "unsubscribe",
-  "spotify",
-  "browse",
-  "togglebackground",
-  "terms",
-  "privacy",
-  "visitors",
-  "snake",
-  "pacman",
-  "exit",
-] as const;
-
-const VALID_DIRS = new Set([
-  "/",
-  "/arts-and-entertainment",
-  "/arts-and-entertainment/minecraft-maps",
-  "/arts-and-entertainment/events",
-  "/motion-and-graphics",
-  "/motion-and-graphics/thumbnail-design",
-  "/motion-and-graphics/video-editing",
-  "/motion-and-graphics/web-dev-design",
-  "/engineering",
-  "/articles",
-  "/clients",
-  "/featured-work",
-  "/resume",
-  "/contact",
-  "/subscribe",
-  "/unsubscribe",
-  "/privacy",
-  "/terms",
-]);
 
 const EMPTY_FORM = {
   name: "",
@@ -314,95 +228,6 @@ function summarizeText(value?: string, maxLength = 240) {
   return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
-function parseArguments(input: string) {
-  const values: string[] = [];
-  let current = "";
-  let activeQuote: '"' | "'" | null = null;
-  let started = false;
-
-  for (const char of input) {
-    if (activeQuote) {
-      if (char === activeQuote) {
-        activeQuote = null;
-      } else {
-        current += char;
-      }
-      started = true;
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      activeQuote = char;
-      started = true;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (started) {
-        values.push(current);
-        current = "";
-        started = false;
-      }
-      continue;
-    }
-
-    current += char;
-    started = true;
-  }
-
-  if (started) {
-    values.push(current);
-  }
-
-  return {
-    values,
-    hasTrailingSpace: /\s$/.test(input),
-    activeQuote,
-  };
-}
-
-function inputSegments(input: string) {
-  const segments: Array<{ text: string; kind: "space" | "command" | "arg" }> =
-    [];
-  let index = 0;
-  let sawCommand = false;
-
-  while (index < input.length) {
-    const char = input[index];
-
-    if (/\s/.test(char)) {
-      const start = index;
-      while (index < input.length && /\s/.test(input[index])) index += 1;
-      segments.push({ text: input.slice(start, index), kind: "space" });
-      continue;
-    }
-
-    const kind = sawCommand ? "arg" : "command";
-    const start = index;
-
-    if (!sawCommand) {
-      while (index < input.length && !/\s/.test(input[index])) index += 1;
-      sawCommand = true;
-      segments.push({ text: input.slice(start, index), kind });
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      const quote = char;
-      index += 1;
-      while (index < input.length && input[index] !== quote) index += 1;
-      if (index < input.length) index += 1;
-      segments.push({ text: input.slice(start, index), kind });
-      continue;
-    }
-
-    while (index < input.length && !/\s/.test(input[index])) index += 1;
-    segments.push({ text: input.slice(start, index), kind });
-  }
-
-  return segments;
-}
-
 function assignContactValue(value: string) {
   if (!value) return { email: "", phone: "", identifier: "" };
   const trimmed = value.trim();
@@ -486,28 +311,6 @@ function spotifyPreviewState(
     linkLabel: "Listen on Spotify",
     caption: activeTrack.artist ?? activeTrack.albumName,
   };
-}
-
-function isCodeProject(p: Project) {
-  return (
-    p.category === "coding-projects" ||
-    p.subcategory === "coding" ||
-    p.extraCategories?.includes("coding-projects") ||
-    p.extraSubcategories?.includes("coding")
-  );
-}
-
-function formatDate(dateStr?: string) {
-  if (!dateStr) return "";
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
 }
 
 // ─── Directory listing ────────────────────────────────────────────────────────
@@ -594,67 +397,10 @@ function directoryItems(path: string[], data: TerminalData): string[] {
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
-function buildSearch(data: TerminalData, query: string): SearchHit[] {
-  const needle = normalize(query);
-  if (!needle) return [];
-
-  const results: SearchHit[] = [];
-
-  for (const [label, path] of Object.entries(ROUTES)) {
-    if (label.includes(needle))
-      results.push({ kind: "route", path, label });
-  }
-
-  for (const p of data.projects) {
-    const haystack = [
-      p.title,
-      p.slug,
-      p.description,
-      p.longDescription,
-      p.tags?.join(" "),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    if (haystack.includes(needle))
-      results.push({
-        kind: "project",
-        id: p.id,
-        label: `${p.title} (${p.slug})`,
-      });
-  }
-
-  for (const a of data.articles) {
-    const haystack = [a.title, a.slug, a.excerpt, a.tags.join(" ")]
-      .join(" ")
-      .toLowerCase();
-    if (haystack.includes(needle))
-      results.push({
-        kind: "article",
-        id: a.id,
-        label: `${a.title} (${a.slug})`,
-      });
-  }
-
-  for (const c of data.clients) {
-    const haystack = [c.name, c.id, c.bio, c.roles.join(" ")]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    if (haystack.includes(needle))
-      results.push({
-        kind: "client",
-        id: c.id,
-        label: `${c.name} (${c.id})`,
-      });
-  }
-
-  return results.slice(0, 12);
-}
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function LogLine({ entry }: { entry: LogEntry }) {
+function LogLine({ entry, highlight, animation }: { entry: LogEntry; highlight: string; animation: TerminalAnimation }) {
+  const content = highlightParts(entry.text ?? "", highlight).map((part,index) => part.match ? <mark key={index}>{part.text}</mark> : part.text);
   if (entry.prompt != null) {
     const gtIdx = entry.prompt.lastIndexOf(">");
     const path = gtIdx >= 0 ? entry.prompt.slice(0, gtIdx + 1) : "";
@@ -701,7 +447,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
       : "text-[#d9fbe3]/85";
   const weightClass = entry.tone === "accent" ? "font-semibold" : "";
 
-  if (entry.typeDurationMs) {
+  if (entry.typeDurationMs && animation === "type") {
     const lines = (entry.text ?? "").split("\n");
     const isMultiline = lines.length > 1; // ASCII art — keep exact whitespace, no wrap
     const steps = Math.max(
@@ -716,7 +462,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
           animation: `crtTyping ${entry.typeDurationMs}ms steps(${steps}, end) both`,
         }}
       >
-        {entry.text}
+        {content}
       </div>
     );
   }
@@ -726,7 +472,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
       className={`whitespace-pre-wrap break-words leading-[0.875rem] ${toneClass} ${weightClass}`}
       style={{ textShadow: "0 0 6px rgba(74, 222, 128, 0.14)" }}
     >
-      {entry.text}
+      {content}
     </div>
   );
 }
@@ -1024,44 +770,6 @@ function PreviewPanel({
 
 // ─── Browser content filter ───────────────────────────────────────────────────
 
-const BLOCKED_DOMAINS = new Set([
-  "pornhub.com","xvideos.com","xnxx.com","redtube.com","youporn.com","tube8.com",
-  "xhamster.com","spankbang.com","eporner.com","tnaflix.com","txxx.com",
-  "brazzers.com","naughtyamerica.com","bangbros.com","mofos.com","realitykings.com",
-  "onlyfans.com","fansly.com","manyvids.com","4tube.com","drtuber.com",
-  "chaturbate.com","cam4.com","stripchat.com","bongacams.com","myfreecams.com",
-  "livejasmin.com","camsoda.com","streamate.com","jasmin.com",
-  "rule34.xxx","e621.net","hentai2read.com","nhentai.net","hentaifox.com",
-]);
-
-function sanitizeBrowseUrl(raw: string): { url: string; blocked: boolean } {
-  const full = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  try {
-    const parsed = new URL(full);
-    const host = parsed.hostname.replace(/^www\./, "");
-    const baseDomain = host.split(".").slice(-2).join(".");
-    if (BLOCKED_DOMAINS.has(host) || BLOCKED_DOMAINS.has(baseDomain)) {
-      return { url: full, blocked: true };
-    }
-    // Enforce safe search on search engines
-    if (host === "google.com" && /\/search/.test(parsed.pathname)) {
-      parsed.searchParams.set("safe", "strict");
-    }
-    if (host === "bing.com" && /\/search/.test(parsed.pathname)) {
-      parsed.searchParams.set("adlt", "strict");
-    }
-    if (host === "duckduckgo.com") {
-      parsed.searchParams.set("kp", "1");
-    }
-    if (host === "youtube.com") {
-      parsed.searchParams.set("restrict", "strict");
-    }
-    return { url: parsed.toString(), blocked: false };
-  } catch {
-    return { url: full, blocked: false };
-  }
-}
-
 // ─── Browser Panel ────────────────────────────────────────────────────────────
 
 function BrowserPanel({
@@ -1125,6 +833,7 @@ function BrowserPanel({
       setBlockedUrl(safeUrl);
       return;
     }
+    if (!safeUrl) return;
     setBlockedUrl(null);
     onNavigate(safeUrl);
   }
@@ -1329,12 +1038,36 @@ export default function TerminalExperience() {
   const pathname = usePathname();
   const router = useRouter();
   const isTerminalRoute = pathname.startsWith("/terminal");
-  const isThreeStage = isTerminalRoute;
+  const [floating, setFloating] = React.useState(false);
+  const isThreeStage = isTerminalRoute && !floating;
+  const [windowSize, setWindowSize] = React.useState({width:1100,height:760});
+  const [mode, setMode] = React.useState<TerminalMode>("shell");
+  const [tourStep, setTourStep] = React.useState<number|null>(null);
+  const [pet, setPet] = React.useState<TerminalPet>("cat");
+  const [animation, setAnimation] = React.useState<TerminalAnimation>("scan");
+  const [highlight, setHighlight] = React.useState("");
+  const [cursorEnabled, setCursorEnabled] = React.useState(true);
+  const [pointerTarget, setPointerTarget] = React.useState<TerminalPointerTarget|null>(null);
+  const resizeWindow = React.useCallback((size:{width:number;height:number}) => setWindowSize(size),[]);
+  React.useEffect(()=>{
+    try {
+      const storedPet=localStorage.getItem("mdcran_terminal_pet");
+      if (["cat","bot","crab","off"].includes(storedPet ?? "")) setPet(storedPet as TerminalPet);
+      const storedAnimation=localStorage.getItem("mdcran_terminal_animation");
+      if (["scan","type","off"].includes(storedAnimation ?? "")) setAnimation(storedAnimation as TerminalAnimation);
+    } catch { /* Optional preferences. */ }
+    const clamp=()=>setWindowSize(size=>terminalWindowSize(size.width,size.height,window.innerWidth,window.innerHeight));
+    clamp();window.addEventListener("resize",clamp);return()=>window.removeEventListener("resize",clamp);
+  },[]);
   const [active, setActive] = React.useState(false);
   const [powerState, setPowerState] = React.useState<PowerState>("off");
+  const [dataVersion, setDataVersion] = React.useState(0);
+  const [dataError, setDataError] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [data, setData] = React.useState<TerminalData | null>(null);
   const [logs, setLogs] = React.useState<LogEntry[]>([]);
+  const latestLogsRef = React.useRef(logs);
+  latestLogsRef.current = logs;
   const [input, setInput] = React.useState("");
   const [crtPulseTick, setCrtPulseTick] = React.useState(0);
   const [cwd, setCwd] = React.useState<string[]>([]);
@@ -1368,6 +1101,16 @@ export default function TerminalExperience() {
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const shellCaptureRef = React.useRef<HTMLDivElement | null>(null);
+  const musicEnabledRef = React.useRef(true);
+  const keystrokesEnabledRef = React.useRef(true);
+  const aiRequestRef = React.useRef<AbortController | null>(null);
+  const aiHistoryRef = React.useRef<TerminalTurn[]>([]);
+  const aiEntryRef = React.useRef<string | null>(null);
+  const [aiBusy, setAiBusy] = React.useState(false);
+  React.useEffect(() => {
+    try { musicEnabledRef.current = localStorage.getItem("mdcran_terminal_music") !== "off"; keystrokesEnabledRef.current = localStorage.getItem("mdcran_terminal_clicks") !== "off"; } catch { /* Optional device preferences. */ }
+    return () => { aiRequestRef.current?.abort(); crtThemeRef.current?.pause(); };
+  }, []);
   const crtThemeRef = React.useRef<HTMLAudioElement | null>(null);
   const powerTimeoutRef = React.useRef<number | null>(null);
   const refocusTimeoutRef = React.useRef<number | null>(null);
@@ -1376,6 +1119,9 @@ export default function TerminalExperience() {
   const comboRef = React.useRef(0);
   const historyRef = React.useRef<string[]>([]);
   const historyIdxRef = React.useRef(-1);
+  const historyDraftRef = React.useRef("");
+  const requestEpochRef = React.useRef(0);
+  const sendingRef = React.useRef(false);
   const commandControlKeyRef = React.useRef<(key: string) => boolean>(() => false);
   const spotifyProgressEntryIds = React.useRef<{ time: string; bar: string } | null>(null);
 
@@ -1397,12 +1143,14 @@ export default function TerminalExperience() {
       const audio = new Audio("/crt-theme-song.mp3");
       audio.loop = false;
       audio.volume = 0.16;
+      audio.muted = !musicEnabledRef.current;
       audio.ontimeupdate = () => {
         if (audio.currentTime >= CRT_THEME_LOOP_END_SECONDS) {
           audio.currentTime = CRT_THEME_LOOP_START_SECONDS;
         }
       };
       audio.onended = () => {
+        if (!musicEnabledRef.current) return;
         audio.currentTime = CRT_THEME_LOOP_START_SECONDS;
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === "function") {
@@ -1421,28 +1169,12 @@ export default function TerminalExperience() {
       debugTerminalEvent("focus-miss", { reason: "no-input-ref" });
       return;
     }
-    const moveCaretToEnd = () => {
-      const end = node.value.length;
-      try {
-        node.setSelectionRange(end, end);
-      } catch {
-        // Some browsers can reject selection updates on certain input types.
-      }
-    };
-
-    const applyFocus = () => {
-      node.focus({ preventScroll: true });
-      moveCaretToEnd();
-    };
-
-    debugTerminalEvent("focus-attempt", { valueLength: node.value.length });
-    applyFocus();
-    window.requestAnimationFrame(applyFocus);
-    window.setTimeout(applyFocus, 90);
+    if (gameModeRef.current || node.disabled) return;
+    node.focus({ preventScroll: true });
   }, [debugTerminalEvent]);
 
   const focusTerminalSurface = React.useCallback(() => {
-    if (powerState !== "on" || busy) return;
+    if (powerState !== "on" || busy || gameModeRef.current) return;
     focusCommandInput();
   }, [busy, focusCommandInput, powerState]);
 
@@ -1482,6 +1214,7 @@ export default function TerminalExperience() {
 
   React.useEffect(() => {
     return () => {
+      if (powerTimeoutRef.current) window.clearTimeout(powerTimeoutRef.current);
       if (refocusTimeoutRef.current) {
         window.clearTimeout(refocusTimeoutRef.current);
         refocusTimeoutRef.current = null;
@@ -1572,7 +1305,7 @@ export default function TerminalExperience() {
       const items = directoryItems(cwd, data);
       for (const item of items) {
         // Directory entries are formatted as "  ▸  {name}/"
-        const m = item.match(/▸\s+(.+?)\/\s*$/);
+        const m = item.match(/\[DIR \]\s+(.+?)\/\s*$/);
         if (m) all.add(m[1]);
       }
     } else {
@@ -1583,12 +1316,6 @@ export default function TerminalExperience() {
     }
     return [...all].sort((a, b) => a.localeCompare(b));
   }, [cwd, data]);
-
-  const showInputHint =
-    powerState !== "off" &&
-    !busy &&
-    !input &&
-    (showStartupInputHint || !inputFocused);
 
   // Ghost text autocomplete suggestion
   const ghostSuffix = React.useMemo(() => {
@@ -1715,7 +1442,6 @@ export default function TerminalExperience() {
     return "";
   }, [input]);
 
-  const coloredInputSegments = React.useMemo(() => inputSegments(input), [input]);
   const activePreview = React.useMemo(
     () => (spotifyLive ? spotifyPreviewState(spotifyLive, spotifyClock) : preview),
     [preview, spotifyLive, spotifyClock]
@@ -1729,7 +1455,7 @@ export default function TerminalExperience() {
       if (e.typeDurationMs !== undefined || e.prompt != null || e.links || !e.text) return e;
       return { ...e, typeDurationMs: typedDuration(e.text) };
     });
-    setLogs((prev) => [...prev, ...animated]);
+    setLogs((prev) => [...prev, ...animated].slice(-2000));
   }, []);
 
   const clearPreview = React.useCallback(() => {
@@ -1822,6 +1548,7 @@ export default function TerminalExperience() {
 
   // Keyboard click for each character typed
   const playTypeSfx = React.useCallback(() => {
+    if (!keystrokesEnabledRef.current) return;
     const ctxP = getAudioCtx();
     if (!ctxP) return;
     void ctxP.then((ctx) => {
@@ -1852,6 +1579,7 @@ export default function TerminalExperience() {
 
   // Teletype tick for boot animation character printing
   const playPrintSfx = React.useCallback(() => {
+    if (!keystrokesEnabledRef.current) return;
     const ctxP = getAudioCtx();
     if (!ctxP) return;
     void ctxP.then((ctx) => {
@@ -1880,6 +1608,7 @@ export default function TerminalExperience() {
 
   // Mechanical "enter" thump when a command is submitted
   const playCommandSfx = React.useCallback(() => {
+    if (!keystrokesEnabledRef.current) return;
     const ctxP = getAudioCtx();
     if (!ctxP) return;
     void ctxP.then((ctx) => {
@@ -1942,9 +1671,10 @@ export default function TerminalExperience() {
   // "Turn On TV" button handler — must be in a click event for audio gesture context.
   // Animation starts immediately; content reveals after TERMINAL_APPEAR_MS.
   const handleTurnOn = React.useCallback(() => {
+    if (window.innerWidth < 900) setFloating(true);
     unlockAudioCtx();
     const audio = getOrCreateCrtThemeAudio();
-    void audio.play().catch(() => {});
+    if (musicEnabledRef.current) void audio.play().catch(() => {});
     startTerminalShell();
   }, [getOrCreateCrtThemeAudio, startTerminalShell, unlockAudioCtx]);
 
@@ -1966,6 +1696,14 @@ export default function TerminalExperience() {
       crtThemeRef.current.pause();
       crtThemeRef.current.currentTime = 0;
     }
+    requestEpochRef.current += 1;
+    aiRequestRef.current?.abort();
+    aiRequestRef.current = null;
+    setAiBusy(false);
+    setTourStep(null);
+    setMode("shell");
+    setPointerTarget(null);
+    setHighlight("");
     // Reset all overlays so they're gone when the terminal reopens
     setBrowseUrl(null);
     prevBrowseUrlRef.current = null;
@@ -1973,6 +1711,9 @@ export default function TerminalExperience() {
     setPreview(null);
     setSpotifyLive(null);
     setResults([]);
+    setGameMode(null);
+    setFormMode(null);
+    setFormState(EMPTY_FORM);
     setPowerState("stopping");
     playPowerSfx("stop");
     powerTimeoutRef.current = window.setTimeout(() => {
@@ -2018,20 +1759,28 @@ export default function TerminalExperience() {
     if (!active || data || requestedRef.current) return;
     requestedRef.current = true;
     setLoading(true);
-    fetch("/api/data/terminal")
+    const controller = new AbortController();
+    fetch("/api/data/terminal", { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<TerminalData>;
       })
       .then((d) => {
+        validateTerminalSnapshot(d);
+        if (controller.signal.aborted) return;
+        setDataError(false);
         setData(d);
         setLoading(false);
+        if (dataVersion > 0) append([logText("  Portfolio data refreshed.", "success")]);
       })
       .catch(() => {
+        if (controller.signal.aborted) return;
+        setDataError(true);
         setLoading(false);
-        append([logText("  ⚠ Failed to load terminal data.", "error")]);
+        append([logText("  ⚠ Failed to load terminal data. Type reload to retry.", "error")]);
       });
-  }, [active, data, append]);
+    return () => { controller.abort(); requestedRef.current = false; };
+  }, [active, data, append, dataVersion]);
 
   // ── Konami code detection ──────────────────────────────────────────────────
   React.useEffect(() => {
@@ -2083,6 +1832,10 @@ export default function TerminalExperience() {
   // ── Initialize on open ────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!active) return;
+    aiHistoryRef.current = [];
+    aiRequestRef.current?.abort();
+    aiRequestRef.current = null;
+    setAiBusy(false);
     setCwd([]);
     setPreview(null);
     setResults([]);
@@ -2097,9 +1850,11 @@ export default function TerminalExperience() {
     const bootLines: Array<{ entry: LogEntry; typed: boolean }> = [
       { entry: logText(ASCII, "accent"),                                                    typed: true  },
       { entry: logText(""),                                                                  typed: false },
-      { entry: logText("  MDCRAN CLI (Release Version 1.0)", "accent"),                    typed: true  },
+      { entry: logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),                    typed: true  },
       { entry: logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"), typed: true  },
-      { entry: logText(""),                                                                  typed: false },
+      { entry: logText("  resume · recruiter · tour · mode ai · mode agent", "success"), typed: true },
+      { entry: logText("  Start typing anywhere. Tab completes commands.", "muted"), typed: true },
+      { entry: logText(""), typed: false },
     ];
 
     const timers: number[] = [];
@@ -2140,49 +1895,6 @@ export default function TerminalExperience() {
   React.useEffect(() => {
     if (!active || powerState !== "on" || busy) return;
 
-    const focusBurst = window.setInterval(() => {
-      if (
-        document.activeElement !== inputRef.current &&
-        document.activeElement !== shellCaptureRef.current
-      ) {
-        focusTerminalSurface();
-      }
-    }, 220);
-
-    const stopBurst = window.setTimeout(() => {
-      window.clearInterval(focusBurst);
-    }, 1800);
-
-    return () => {
-      window.clearTimeout(stopBurst);
-      window.clearInterval(focusBurst);
-    };
-  }, [active, busy, focusTerminalSurface, powerState]);
-
-  React.useEffect(() => {
-    if (!active || powerState !== "on" || busy) return;
-
-    const onPointerDown = (e: PointerEvent) => {
-      const shellNode = shellCaptureRef.current;
-      if (!shellNode) return;
-      const target = e.target;
-      if (!(target instanceof Node)) return;
-      if (!shellNode.contains(target)) return;
-      if (isEditableTarget(target)) return;
-      window.setTimeout(() => {
-        focusTerminalSurface();
-      }, 0);
-    };
-
-    window.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [active, busy, focusTerminalSurface, powerState]);
-
-  React.useEffect(() => {
-    if (!active || powerState !== "on" || busy) return;
-
     const onWindowEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.metaKey || e.ctrlKey || e.altKey) return;
 
@@ -2216,7 +1928,10 @@ export default function TerminalExperience() {
     if (!active || powerState !== "on" || busy) return;
 
     const onWindowKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.target instanceof Element && e.target.closest("select,input,textarea,[contenteditable=true],[role=dialog]")) return;
+      if (e.target instanceof Element && e.target.closest("button,a") && (e.key.length !== 1 || e.key === " ")) return;
+      if (window.getSelection()?.toString()) return;
 
       // Let games handle their own keyboard input
       if (gameModeRef.current) return;
@@ -2263,26 +1978,22 @@ export default function TerminalExperience() {
     };
   }, [active, busy, focusCommandInput, playTypeSfx, powerState]);
 
+  const followOutputRef = React.useRef(true);
+
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   React.useEffect(() => {
-    if (transcriptRef.current) {
+    if (transcriptRef.current && followOutputRef.current && !window.getSelection()?.toString()) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
   }, [logs]);
 
   // ── Body scroll lock ──────────────────────────────────────────────────────
   React.useEffect(() => {
-    if (active) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!active) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
-      if (powerTimeoutRef.current) {
-        window.clearTimeout(powerTimeoutRef.current);
-        powerTimeoutRef.current = null;
-      }
+      document.body.style.overflow = previous;
     };
   }, [active]);
 
@@ -2306,7 +2017,7 @@ export default function TerminalExperience() {
 
     const tryPlay = () => {
       const audio = crtThemeRef.current;
-      if (!audio) return;
+      if (!audio || !musicEnabledRef.current) return;
       const playPromise = audio.play();
       if (playPromise && typeof playPromise.catch === "function") {
         void playPromise.catch(() => {});
@@ -2385,6 +2096,8 @@ export default function TerminalExperience() {
     const trimmed = raw.trim();
     if (!trimmed) return;
 
+    followOutputRef.current = true;
+    requestEpochRef.current += 1;
     historyRef.current = [trimmed, ...historyRef.current.slice(0, 49)];
     historyIdxRef.current = -1;
 
@@ -2395,7 +2108,28 @@ export default function TerminalExperience() {
     // Normalize: strip leading slash so both "ls" and "/ls" work the same
     const cmd = rawCmd.startsWith("/") ? rawCmd.slice(1) : rawCmd;
     const rest = commandMatch?.[2] ?? "";
-    const args = parseArguments(rest).values;
+    if (mode !== "shell" && !trimmed.startsWith("/") && !(COMMANDS as readonly string[]).includes(cmd) && !/^\d+$/.test(cmd)) { void doAsk(trimmed); return; }
+    if (cmd === "agent") {
+      setMode("agent");
+      if (rest.trim()) void doAsk(rest.trim(), true);
+      else append([logText("  Agent mode: ask me to open projects, show resume evidence, or highlight skills. Type mode shell to return.", "success")]);
+      return;
+    }
+    if (cmd === "ai" && ["on","off"].includes(rest.trim())) { setMode(rest.trim()==="on"?"ai":"shell"); append([logText(`  Mode: ${rest.trim()==="on"?"AI chat":"Shell"}`,"success")]); return; }
+    if (cmd === "ask" || cmd === "ai") {
+      if (!rest.trim()) { setMode("ai"); append([logText("  AI chat mode. Type your question naturally; /help for commands, mode shell to return.","success")]); }
+      else void doAsk(rest.trim());
+      return;
+    }
+    const passiveCommand = ["stop", "togglemusic", "togglekeystrokeclicks", "window", "pet", "animations", "cursor", "highlight", "focus"].includes(cmd);
+    if (!passiveCommand) stopAI(false);
+    const parsed = parseArguments(rest);
+    if (parsed.activeQuote) {
+      append([logText("  Unclosed quote. Close the quotation mark and try again.", "error")]);
+      return;
+    }
+    const args = parsed.values;
+    const textArgument = args.join(" ");
 
     // Numeric shortcut for selecting search results
     if (/^\d+$/.test(cmd) && results.length > 0) {
@@ -2403,18 +2137,63 @@ export default function TerminalExperience() {
       return;
     }
 
-    if (!["open", "nano", "select", "browse", "browser"].includes(cmd)) {
+    if (!passiveCommand && !["open", "nano", "select", "browse", "browser"].includes(cmd)) {
       clearPreview();
     }
-    if (!["browse", "browser"].includes(cmd) && browseUrl) {
+    if (!passiveCommand && !["browse", "browser"].includes(cmd) && browseUrl) {
       setBrowseUrl(null);
       prevBrowseUrlRef.current = null;
     }
-    if (cmd !== "spotify") {
+    if (!passiveCommand && cmd !== "spotify") {
       setSpotifyLive(null);
     }
 
     switch (cmd) {
+      case "mode":
+        if (["shell","ai","agent"].includes(textArgument)) { setMode(textArgument as TerminalMode); append([logText(`  ${textArgument.toUpperCase()} mode. ${textArgument === "shell" ? "Enter commands; help lists them." : "Ask naturally. /help lists commands; mode shell returns to commands."}`,"success")]); }
+        else append([logText("  Usage: mode shell | ai | agent", "muted")]);
+        break;
+      case "tour": doTour(textArgument); break;
+      case "next": doTour("next"); break;
+      case "back": doTour("back"); break;
+      case "recruiter": doRecruiter(args); break;
+      case "skills": doRecruiter(["skills",...args]); break;
+      case "experience": doResume("experience"); break;
+      case "education": doResume("education"); break;
+      case "highlight": doHighlight(textArgument); break;
+      case "cursor":
+        if (!["on","off"].includes(textArgument)) append([logText("  cursor on | off — toggle the assistant’s visual pointer", "muted")]);
+        else { setCursorEnabled(textArgument === "on"); if(textArgument==="off")setPointerTarget(null); append([logText(`  Assistant pointer ${textArgument}.`,"success")]); }
+        break;
+      case "pet":
+        if (["cat","bot","crab","off"].includes(textArgument)) {setPet(textArgument as TerminalPet);savePreference("pet",textArgument);append([logText(`  Terminal pet: ${textArgument}`,"success")]);}
+        else append([logText("  pet cat | bot | crab | off — choose a companion", "muted")]);
+        break;
+      case "animations":
+        if (["scan","type","off"].includes(textArgument)) {setAnimation(textArgument as TerminalAnimation);savePreference("animation",textArgument);append([logText(`  Text animations: ${textArgument}. Reduced-motion preferences are respected.`,"success")]);}
+        else append([logText("  animations scan | type | off", "muted")]);
+        break;
+      case "window": doWindow(args); break;
+      case "focus": focusCommandInput(); break;
+      case "togglemusic":
+        toggleAudio("music", args[0]);
+        break;
+      case "togglekeystrokeclicks":
+        toggleAudio("clicks", args[0]);
+        break;
+      case "stop":
+        stopAI();
+        break;
+      case "about":
+        doAbout();
+        break;
+      case "reload":
+        requestedRef.current = false;
+        setData(null);
+        setDataError(false);
+        setDataVersion(value => value + 1);
+        append([logText("  Reloading terminal data...", "muted")]);
+        break;
       case "?":
       case "help":
         doHelp();
@@ -2433,14 +2212,14 @@ export default function TerminalExperience() {
         doPwd();
         break;
       case "cd":
-        doCd(rest);
+        doCd(textArgument);
         break;
       case "open":
       case "nano":
-        doOpen(rest);
+        doOpen(textArgument);
         break;
       case "search":
-        doSearch(rest);
+        doSearch(textArgument);
         break;
       case "select":
         doSelect(args[0]);
@@ -2458,7 +2237,7 @@ export default function TerminalExperience() {
         doArticles();
         break;
       case "resume":
-        doResume();
+        doResume(textArgument || "all");
         break;
       case "contact":
         void doStartForm("contact", rest);
@@ -2470,32 +2249,20 @@ export default function TerminalExperience() {
         void doStartForm("unsubscribe", rest);
         break;
       case "set":
-        append([
-          logText(
-            "  Deprecated. Use direct arguments instead: contact <name> <email> <subject> <message>",
-            "muted"
-          ),
-        ]);
+        doSet(args[0] ?? "", args.slice(1).join(" "));
         break;
       case "send":
-        append([
-          logText(
-            '  Deprecated. Submit directly with: contact ..., subscribe ..., or unsubscribe ...',
-            "muted"
-          ),
-        ]);
+        void doSend();
         break;
       case "cancel":
-        setFormMode(null);
-        setFormState(EMPTY_FORM);
-        append([logText("  No active draft forms. Submit directly with command parameters.", "muted")]);
+        doCancel();
         break;
       case "spotify":
         void doSpotify();
         break;
       case "browse":
       case "browser":
-        doBrowse(rest);
+        doBrowse(textArgument);
         break;
       case "togglebackground":
         doToggleBackground();
@@ -2539,13 +2306,84 @@ export default function TerminalExperience() {
     }
   }
 
+  function toggleAudio(kind: "music" | "clicks", value?: string) {
+    const ref = kind === "music" ? musicEnabledRef : keystrokesEnabledRef;
+    if (value && !["on", "off"].includes(value.toLowerCase())) { append([logText(`  Usage: toggle${kind === "music" ? "music" : "keystrokeclicks"} [on|off]`, "error")]); return; }
+    const next = value ? value.toLowerCase() === "on" : !ref.current;
+    ref.current = next;
+    try { localStorage.setItem(`mdcran_terminal_${kind}`, next ? "on" : "off"); } catch { /* Optional device preference. */ }
+    if (kind === "music") {
+      const audio = getOrCreateCrtThemeAudio();
+      audio.muted = !next;
+      if (next) void audio.play().catch(() => append([logText("  Music could not play. Try togglemusic on again after interacting with the terminal.", "error")]));
+      else audio.pause();
+    }
+    append([logText(`  ${kind === "music" ? "Music" : "Keystroke clicks"}: ${next ? "on" : "off"}`, "success")]);
+  }
+
+  function stopAI(announce = true) {
+    if (!aiRequestRef.current) { if (announce) append([logText("  No AI response in progress.", "muted")]); return; }
+    aiRequestRef.current.abort();
+    aiRequestRef.current = null;
+    setAiBusy(false);
+    const id = aiEntryRef.current;
+    setLogs(previous => previous.map(entry => entry.id === id ? { ...entry, text: `${entry.text === "  Michael is thinking..." ? "" : entry.text}\n  [Response stopped]`, typeDurationMs: 0 } : entry));
+  }
+
+  async function doAsk(question: string, agentMode = mode === "agent") {
+    if (question.toLowerCase() === "clear") { stopAI(false); aiHistoryRef.current = []; append([logText("  AI conversation cleared.", "success")]); return; }
+    if (!question) { append([logText('  ask <question> (or ai <question>) — ask Michael’s portfolio assistant.'), logText('  Example: ask What AI projects has Michael built?'), logText('  Follow-up questions keep context. Use ai clear to reset; stop or Ctrl+C cancels.', "muted")]); return; }
+    if (aiRequestRef.current) { append([logText("  An answer is still streaming. Type stop before asking another question.", "muted")]); return; }
+    if (question.length > 4000) { append([logText("  Keep questions under 4,000 characters.", "error")]); return; }
+    clearPreview();
+    setHighlight("");
+    setSpotifyLive(null);
+    setResults([]);
+    const controller = new AbortController();
+    aiRequestRef.current = controller;
+    setAiBusy(true);
+    const entry = { ...logText("  Michael is thinking...", "accent"), typeDurationMs: 0 };
+    aiEntryRef.current = entry.id;
+    append([entry]);
+    try {
+      const answer = await streamTerminalAnswer({ question, agent: agentMode, history: aiHistoryRef.current, signal: controller.signal,
+        onText: text => { if (!controller.signal.aborted) setLogs(previous => previous.map(line => line.id === entry.id ? { ...line, text: `  MICHAEL\n  ${text}` } : line)); } });
+      if (controller.signal.aborted) return;
+      aiHistoryRef.current = [...aiHistoryRef.current, { role: "user", content: question }, { role: "assistant", content: answer.text.slice(0,6000) }].slice(-12) as TerminalTurn[];
+      if (answer.sources.length) append([logLinks(answer.sources)]);
+      if (agentMode && data) {
+        const actions=terminalActions(answer.actions,data.projects);
+        for (const action of actions) {
+          if(controller.signal.aborted)break;
+          if(action.type==="project") {
+            const project=data.projects.find(item=>item.id===action.id);
+            if(project) { showProject(project);setHighlight(project.title);pointAt("preview","Agent · opened project");append([logText(`  Agent opened ${project.title}.`,"success")]); }
+          } else if(action.type==="resume") {doResume(action.section);pointAt("transcript","Agent · resume");}
+          else if(action.type==="projects") {doRecruiter(["projects"]);pointAt("results","Agent · projects");}
+          else if(action.type==="highlight") doHighlight(action.text,true);
+          else if(action.type==="focus") pointAt(action.zone,"Agent · evidence");
+          await new Promise(resolve=>setTimeout(resolve,350));
+        }
+        if (!actions.length) append([logText("  Agent answered without opening content. Try: show my resume or open Coretex.","muted")]);
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) setLogs(previous => previous.map(line => line.id === entry.id && line.text === "  Michael is thinking..." ? { ...line, text: "  AI response unavailable.", tone: "error" } : line));
+      if (!controller.signal.aborted) append([logText(`  AI: ${error instanceof Error ? error.message : "Could not complete the response."}`, "error")]);
+    } finally {
+      if (aiRequestRef.current === controller) { aiRequestRef.current = null; setAiBusy(false); }
+    }
+  }
+
   // ── /visitors ──────────────────────────────────────────────────────────────
 
   async function doVisitors() {
+    const epoch = requestEpochRef.current;
     append([logText("  Fetching visitor data...", "muted")]);
     try {
       const res = await fetch("/api/data/visitors");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (epoch !== requestEpochRef.current) return;
       const { countries, total } = data as {
         countries: { countryName: string; count: number }[];
         total: number;
@@ -2636,6 +2474,20 @@ export default function TerminalExperience() {
       logText(""),
       ...boxHeader("MDCRAN CLI  ·  COMMAND REFERENCE"),
       logText(""),
+      logText("  ▸ WORKSPACE", "muted"),
+      logText("    mode shell|ai|agent   Commands, conversation, or guided AI actions"),
+      logText("    tour [next|back|stop] Guided portfolio walkthrough"),
+      logText("    recruiter            Resume, evidence, role matching & contact"),
+      logText("    resume <section>     summary / experience / education / skills"),
+      logText("    resume download      Published PDF and printable resume"),
+      logText("    highlight <phrase>   Highlight displayed text; clear to reset"),
+      logText("    cursor on|off        Assistant’s visible pointer"),
+      logText("    window float|max|crt Resize or restore the CRT window"),
+      logText("    window size 1000 700 Set floating window size"),
+      logText("    pet cat|bot|crab|off  Choose your terminal companion"),
+      logText("    animations scan|type|off  Text reveal style"),
+      logText("    focus                Focus the command line"),
+      logText(""),
       logText("  ▸ FILESYSTEM", "muted"),
       logText(`  ${"─".repeat(W)}`, "muted"),
       logText("    ls                   List current directory contents"),
@@ -2647,6 +2499,7 @@ export default function TerminalExperience() {
       logText(""),
       logText("  ▸ CONTENT", "muted"),
       logText(`  ${bar}`, "muted"),
+      logText("    about                Portfolio introduction"),
       logText("    clients              Browse all clients"),
       logText("    featured             Featured portfolio work"),
       logText("    projects             All projects"),
@@ -2657,13 +2510,17 @@ export default function TerminalExperience() {
       logText(""),
       logText("  ▸ SEARCH", "muted"),
       logText(`  ${bar}`, "muted"),
-      logText("    search <query>       Search projects, articles & clients"),
+      logText("    select <number>      Open a numbered result (or type its number)"),
+      logText("    search <query>       Search projects, articles, clients & videos"),
       logText(""),
       logText("  ▸ CONTACT", "muted"),
       logText(`  ${bar}`, "muted"),
       logText("    contact <name> <email> <subject> <message> [phone]"),
       logText("    subscribe <name> <email-or-phone>"),
       logText("    unsubscribe <email-or-phone>"),
+      logText("    With no arguments, contact/subscribe/unsubscribe start a draft"),
+      logText("    set <field> <value>   Edit a draft; quote values with spaces"),
+      logText("    send / cancel        Submit or discard the active draft"),
       logText(""),
       logText("  ▸ WEB", "muted"),
       logText(`  ${bar}`, "muted"),
@@ -2676,11 +2533,17 @@ export default function TerminalExperience() {
       logText(""),
       logText("  ▸ GAMES", "muted"),
       logText(`  ${bar}`, "muted"),
-      logText("    snake                Play Snake (arrow keys, ESC to exit)"),
-      logText("    pacman               Play Pac-Man (arrow keys, ESC to exit)"),
+      logText("    snake                Play Snake (arrows/WASD, P to pause, ESC to exit)"),
+      logText("    pacman               Play Pac-Man (arrows/WASD, P to pause, ESC to exit)"),
       logText(""),
       logText("  ▸ OTHER", "muted"),
       logText(`  ${bar}`, "muted"),
+      logText("    reload               Retry or refresh portfolio data"),
+      logText("    Tab: autocomplete; Up/Down: history or results; Esc: exit"),
+      logText("    togglemusic [on|off]  Toggle the terminal soundtrack"),
+      logText("    togglekeystrokeclicks [on|off]  Toggle typing/output clicks"),
+      logText("    ask <question>       Talk to Michael’s AI portfolio assistant"),
+      logText("    ai clear / stop      Reset AI history / stop a response"),
       logText("    togglebackground    Toggle retro GIF background on/off"),
       logText('    exit                 Type "exit" to close'),
       logText("    help                 Show this screen"),
@@ -2702,11 +2565,14 @@ export default function TerminalExperience() {
   // ── /clear ─────────────────────────────────────────────────────────────────
 
   function doClear() {
+    setHighlight("");
+    setPointerTarget(null);
     setLogs([
       logText(ASCII, "accent"),
       logText(""),
-      logText("  MDCRAN CLI (Release Version 1.0)", "accent"),
+      logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),
       logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
+      logText('  resume · recruiter · tour · mode ai · mode agent', "muted"),
       logText(""),
     ]);
     setPreview(null);
@@ -2721,7 +2587,7 @@ export default function TerminalExperience() {
 
   function doLs() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     clearPreview();
@@ -2751,44 +2617,14 @@ export default function TerminalExperience() {
 
   function doCd(target: string) {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     const t = target.trim();
-    if (!t || t === "/") {
-      setCwd([]);
-      append([logText("  /", "muted")]);
-      return;
-    }
-    if (t === "..") {
-      if (cwd.length === 0) {
-        append([logText("  Already at root.", "muted")]);
-        return;
-      }
-      const next = cwd.slice(0, -1);
+    const next = resolveTerminalPath(cwd, t);
+    if (next) {
       setCwd(next);
       append([logText(`  ${pathLabel(next)}`, "muted")]);
-      return;
-    }
-
-    // Resolve absolute or relative path
-    const segments = t.startsWith("/")
-      ? t.split("/").filter(Boolean)
-      : [...cwd, ...t.split("/").filter(Boolean)];
-
-    const key = `/${segments.join("/")}`;
-
-    if (VALID_DIRS.has(key)) {
-      setCwd(segments);
-      append([logText(`  ${key}`, "muted")]);
-      return;
-    }
-
-    // Try route alias (single segment)
-    const alias = ROUTES[t.toLowerCase()];
-    if (alias !== undefined) {
-      setCwd(alias);
-      append([logText(`  ${pathLabel(alias)}`, "muted")]);
       return;
     }
 
@@ -2804,7 +2640,7 @@ export default function TerminalExperience() {
 
   function doOpen(query: string) {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     if (!query) {
@@ -2847,7 +2683,7 @@ export default function TerminalExperience() {
 
   function doSearch(query: string) {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     if (!query) {
@@ -2891,8 +2727,8 @@ export default function TerminalExperience() {
   // ── /select ───────────────────────────────────────────────────────────────
 
   function doSelect(arg: string) {
-    const n = parseInt(arg, 10);
-    if (isNaN(n) || n < 1) {
+    const n = Number(arg);
+    if (!/^\d+$/.test(arg ?? "") || !Number.isSafeInteger(n) || n < 1) {
       append([logText("  Usage: select <number>", "muted")]);
       return;
     }
@@ -2901,7 +2737,7 @@ export default function TerminalExperience() {
 
   function openResult(idx: number) {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     if (idx < 0 || idx >= results.length) {
@@ -3251,10 +3087,9 @@ export default function TerminalExperience() {
 
   // ── /about ────────────────────────────────────────────────────────────────
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function doAbout() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     const about = data.siteContent?.homeAbout;
@@ -3306,7 +3141,7 @@ export default function TerminalExperience() {
 
   function doClients() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
 
@@ -3340,7 +3175,7 @@ export default function TerminalExperience() {
 
   function doFeatured() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
 
@@ -3374,7 +3209,7 @@ export default function TerminalExperience() {
 
   function doProjects() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
 
@@ -3408,7 +3243,7 @@ export default function TerminalExperience() {
 
   function doArticles() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
 
@@ -3444,486 +3279,149 @@ export default function TerminalExperience() {
 
   // ── /resume ───────────────────────────────────────────────────────────────
 
-  function doResume() {
-    if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
-      return;
+  function doResume(section = "all") {
+    if (!data) { append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Resume is loading. Try again in a moment.","muted")]);return; }
+    setResults([]);
+    if (["download","pdf","print"].includes(section)) { append([logText("  Open the published resume or use the print view to save a PDF.","success"),logLinks(resumeLinks(data.resumeProfile))]);return; }
+    if (!(RESUME_SECTIONS as readonly string[]).includes(section)) { append([logText("  resume [all|summary|experience|education|skills|certifications|awards|download|print]","muted")]);return; }
+    append([logText(""),...resumeLines(data,section as ResumeSection).map(line=>logText(`  ${line.text}`,line.heading?"accent":"default")),logText(""),logLinks(resumeLinks(data.resumeProfile))]);
+  }
+
+  function pointAt(zone:TerminalPointerTarget["zone"],label:string) {
+    if(cursorEnabled)setPointerTarget({token:Date.now(),zone,label});
+  }
+
+  function doHighlight(query:string, quiet=false) {
+    if(!query || query==="clear") {setHighlight("");setPointerTarget(null);return;}
+    if(query.length>120) {append([logText("  Highlight a phrase up to 120 characters.","error")]);return;}
+    const found=latestLogsRef.current.some(entry=>entry.text?.toLowerCase().includes(query.toLowerCase()));
+    if (!found && quiet) return;
+    setHighlight(query);
+    if(found)pointAt("transcript","Highlighted evidence");
+    else append([logText(`  No displayed text matches “${query}”. Open content first, then try highlight again.`,"muted")]);
+  }
+
+  function savePreference(key:string,value:string) {
+    try {localStorage.setItem(`mdcran_terminal_${key}`,value);} catch { /* Optional preference. */ }
+  }
+
+  function doWindow(args:string[]) {
+    if(args[0]==="crt")setFloating(window.innerWidth < 900);
+    else if(args[0]==="float" || args[0]==="reset") {setFloating(true);setWindowSize(terminalWindowSize(1100,760,window.innerWidth,window.innerHeight));}
+    else if(args[0]==="max") {setFloating(true);setWindowSize(terminalWindowSize(window.innerWidth,window.innerHeight,window.innerWidth,window.innerHeight));}
+    else if(args[0]==="size" && args.length===3 && args.slice(1).every(value=>/^\d{3,4}$/.test(value))) {setFloating(true);setWindowSize(terminalWindowSize(Number(args[1]),Number(args[2]),window.innerWidth,window.innerHeight));}
+    else {append([logText("  window float | max | crt | reset | size <width> <height>","muted")]);return;}
+    append([logText("  Window updated. Drag the lower-right corner to resize the floating window.","success")]);
+  }
+
+  function doTour(action:string) {
+    if(action==="stop" || action==="end") {setTourStep(null);setPointerTarget(null);append([logText("  Tour ended. Keep exploring with resume, recruiter, or mode ai.","success")]);return;}
+    if(!["","start","next","back"].includes(action)) {append([logText("  tour [start|next|back|stop]","muted")]);return;}
+    if(!data) {append([logText("  Portfolio data is still loading. Try tour again shortly.","muted")]);return;}
+    const next=action==="next" ? (tourStep ?? -1)+1 : action==="back" ? Math.max(0,(tourStep ?? 0)-1) : 0;
+    if(next>=TOUR_STEPS.length) {setTourStep(null);append([logText("  Tour complete. Try mode ai to ask follow-up questions.","success")]);return;}
+    stopAI(false);clearPreview();setHighlight("");setTourStep(next);
+    const step=TOUR_STEPS[next];
+    append([logText(`  TOUR ${next+1}/${TOUR_STEPS.length} · ${step.title}`,"accent")]);
+    if(step.command.startsWith("resume"))doResume(step.command.split(" ")[1]||"all");
+    else doRecruiter(step.command.split(" ").slice(1));
+    pointAt(next===1?"results":"transcript",`Tour · ${step.title}`);
+  }
+
+  function doRecruiter(args:string[]) {
+    if(!data) {append([logText("  Portfolio data is loading. Try again shortly, or reload after a failure.","muted")]);return;}
+    const action=args[0]||"summary",query=args.slice(1).join(" ");
+    if(action==="resume") {doResume(query||"all");return;}
+    if(action==="fit") {
+      if(!query) {append([logText("  recruiter fit <role or job description> — compare against published evidence","muted")]);return;}
+      void doAsk(`Compare this role or job description with Michael's published work: ${query}. Cite specific public projects, distinguish demonstrated skills from gaps, and do not infer availability, work authorization, years of experience, or unlisted qualifications.`,false);return;
     }
-
-    const lines: LogEntry[] = [
-      logText(""),
-      ...boxHeader("RÉSUMÉ  ·  MICHAEL CRAN  ·  MDCRAN"),
-    ];
-
-    if (data.experiences?.length) {
-      lines.push(logText(""));
-      lines.push(logText("  ▸ EXPERIENCE", "muted"));
-      lines.push(logText("  " + "─".repeat(50), "muted"));
-      for (const exp of data.experiences) {
-        const period = exp.current
-          ? `${exp.startDate} - Present`
-          : exp.endDate
-          ? `${exp.startDate} - ${exp.endDate}`
-          : exp.startDate;
-        lines.push(logText(""));
-        lines.push(
-          logText(
-            `  ${exp.role}  |  ${exp.companyName}${exp.location ? `  |  ${exp.location}` : ""}`,
-            "accent"
-          )
-        );
-        lines.push(logText(`  ${period}`, "muted"));
-        if (exp.description)
-          lines.push(logText(`    ${exp.description}`));
-        if (exp.highlights?.length) {
-          for (const h of exp.highlights)
-            lines.push(logText(`    ·  ${h}`, "muted"));
-        }
-      }
+    if(action==="contact") {
+      append([logText("  CONNECT WITH MICHAEL","accent"),logLinks([{label:"Contact Michael",href:"/contact"},...resumeLinks(data.resumeProfile)])]);return;
     }
-
-    if (data.educations?.length) {
-      lines.push(logText(""));
-      lines.push(logText("  ▸ EDUCATION", "muted"));
-      lines.push(logText("  " + "─".repeat(50), "muted"));
-      for (const edu of data.educations) {
-        lines.push(logText(""));
-        lines.push(
-          logText(
-            `  ${edu.institution}${edu.location ? `  -  ${edu.location}` : ""}`,
-            "accent"
-          )
-        );
-        lines.push(
-          logText(
-            `  ${edu.degree}${edu.field ? `, ${edu.field}` : ""}${
-              edu.endDate ? `  |  ${edu.endDate}` : edu.current ? "  |  In Progress" : ""
-            }`,
-            "muted"
-          )
-        );
-        if (edu.gpa)
-          lines.push(logText(`  GPA: ${edu.gpa}`, "muted"));
-      }
+    if(action==="summary") {
+      doResume("summary");
+      append([logText("  RECRUITER COMMANDS","accent"),logText("  recruiter projects [technology] · recruiter skills [technology]"),logText("  recruiter fit <role or job description> · recruiter contact"),logText("  resume experience · resume education · resume download"),logText("  Published portfolio evidence; availability and role fit can be discussed directly.","muted")]);return;
     }
-
-    if (data.skills?.length) {
-      lines.push(logText(""));
-      lines.push(logText("  ▸ SKILLS", "muted"));
-      lines.push(logText("  " + "─".repeat(50), "muted"));
-      const grouped: Record<string, string[]> = {};
-      for (const skill of data.skills) {
-        const cat = skill.category ?? "Other";
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(skill.name);
-      }
-      lines.push(logText(""));
-      for (const [cat, names] of Object.entries(grouped)) {
-        lines.push(logText(`  ${cat.padEnd(18)}  ${names.join(", ")}`));
-      }
+    if(action==="skills" && !query) {doResume("skills");return;}
+    if(action==="skills" || action==="projects") {
+      const matches=recruiterProjects(data,query);
+      setResults(matches.map(project=>({kind:"project" as const,id:project.id,label:project.title,slug:project.slug})));
+      setSelectedResultIdx(0);setResultsLabel(query?`Evidence · ${query}`:"Engineering evidence");
+      append([logText(`  ${matches.length} engineering project${matches.length===1?"":"s"}${query?` matching “${query}”`:""}`,"accent"),...matches.map((project,index)=>logText(`  [${index+1}] ${project.title} · ${(project.tags??[]).join(", ")}`)),logText(matches.length?"  Select a result below or type its number to inspect the project.":"  No published project matches every term. Try a specific technology or ask recruiter fit.","muted")]);return;
     }
-
-    if (data.certifications?.length) {
-      lines.push(logText(""));
-      lines.push(logText("  ▸ CERTIFICATIONS", "muted"));
-      lines.push(logText("  " + "─".repeat(50), "muted"));
-      for (const cert of data.certifications) {
-        lines.push(
-          logText(
-            `  ${cert.name}  -  ${cert.issuer}  ${cert.date}`
-          )
-        );
-      }
-    }
-
-    if (data.awards?.length) {
-      lines.push(logText(""));
-      lines.push(logText("  ▸ AWARDS", "muted"));
-      lines.push(logText("  " + "─".repeat(50), "muted"));
-      for (const award of data.awards) {
-        lines.push(
-          logText(
-            `  ${award.name}${award.issuer ? `  -  ${award.issuer}` : ""}  ${award.date}`
-          )
-        );
-      }
-    }
-
-    lines.push(logText(""));
-    lines.push(logLinks([{ label: "View full resume", href: "/resume" }]));
-    lines.push(logText(""));
-
-    append(lines);
+    append([logText("  recruiter [summary|projects|skills|fit|resume|contact]","muted")]);
   }
 
   // ── Forms ─────────────────────────────────────────────────────────────────
 
-  async function doStartForm(mode: FormMode, rawArgs = "") {
-    setFormMode(null);
-    setFormState(EMPTY_FORM);
-
-    const usage =
-      mode === "contact"
-        ? "  Usage: contact <name> <email> <subject> <message> [phone]"
-        : mode === "subscribe"
-        ? "  Usage: subscribe <name> <email-or-phone>"
-        : "  Usage: unsubscribe <email-or-phone>";
-
-    const parsedArgs = parseArguments(rawArgs).values;
-    if (!rawArgs.trim() || parsedArgs.length === 0) {
-      append([
-        logText(""),
-        logText(DIV, "muted"),
-        logText(`  ${mode?.toUpperCase() ?? "FORM"}`, "accent"),
-        logText(DIV, "muted"),
-        logText(""),
-        logText(usage, "muted"),
-        logText(""),
-      ]);
-      return;
-    }
-
-    const contactArg =
-      mode === "subscribe"
-        ? assignContactValue(parsedArgs[1] ?? "")
-        : assignContactValue(mode === "unsubscribe" ? parsedArgs[0] ?? "" : "");
-
-    const payload = {
-      name: mode === "contact" || mode === "subscribe" ? parsedArgs[0] ?? "" : "",
-      email:
-        mode === "contact"
-          ? parsedArgs[1] ?? ""
-          : contactArg.email,
-      phone:
-        mode === "contact"
-          ? parsedArgs[4] ?? ""
-          : contactArg.phone,
-      subject: mode === "contact" ? parsedArgs[2] ?? "" : "",
-      message: mode === "contact" ? parsedArgs[3] ?? "" : "",
-      identifier: contactArg.identifier,
-    };
-
-    if (mode === "contact") {
-      const missing = ["name", "email", "subject", "message"].filter(
-        (key) => !payload[key as keyof typeof payload]
-      );
-      if (missing.length) {
-        append([
-          logText(`  Missing required fields: ${missing.join(", ")}`, "error"),
-          logText(usage, "muted"),
-        ]);
-        return;
-      }
-    } else if (mode === "subscribe") {
-      if (!payload.name) {
-        append([
-          logText("  Missing required field: name", "error"),
-          logText(usage, "muted"),
-        ]);
-        return;
-      }
-      if (!payload.email && !payload.phone) {
-        append([
-          logText("  Please provide an email address or phone number", "error"),
-          logText(usage, "muted"),
-        ]);
-        return;
-      }
-    } else if (!payload.identifier) {
-      append([
-        logText("  Please provide an email address or phone number", "error"),
-        logText(usage, "muted"),
-      ]);
-      return;
-    }
-
-    setFormMode(null);
-    setFormState(EMPTY_FORM);
-
-    if (busy) return;
+  async function sendForm(mode: TerminalFormMode, payload: TerminalForm) {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setBusy(true);
     append([logText("  Sending...", "muted")]);
-
     try {
-      let res: Response;
-      if (mode === "contact") {
-        res = await fetch("/api/contact", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: payload.name,
-            email: payload.email,
-            phone: payload.phone || undefined,
-            subject: payload.subject,
-            message: payload.message,
-            consent: true,
-            source: "terminal",
-          }),
-        });
-      } else if (mode === "subscribe") {
-        res = await fetch("/api/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: payload.name || undefined,
-            email: payload.email || undefined,
-            phone: payload.phone || undefined,
-            consent: true,
-          }),
-        });
-      } else {
-        res = await fetch("/api/unsubscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ identifier: payload.identifier }),
-        });
-      }
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const successMsg =
-        mode === "contact"
-          ? "  Message sent. We will be in touch soon."
-          : mode === "subscribe"
-          ? "  Subscription saved."
-          : "  Unsubscribed.";
-
-      append([logText(""), logText(successMsg, "success"), logText("")]);
-      return;
-    } catch {
-      append([
-        logText(
-          "  Failed to send. Try again or use the website form directly.",
-          "error"
-        ),
-      ]);
-      return;
-    } finally {
-      setBusy(false);
-    }
-
-    if (mode === "contact") {
-      append([
-        logText(""),
-        logText(DIV, "muted"),
-        logText("  CONTACT FORM", "accent"),
-        logText(DIV, "muted"),
-        logText(""),
-        logText("  Fill in the fields below, then run  send  to submit."),
-        logText("  Usage:  set <field> <value>"),
-        logText(""),
-        logText("  name      [empty]", "muted"),
-        logText("  email     [empty]", "muted"),
-        logText("  phone     [empty]  (optional)", "muted"),
-        logText("  subject   [empty]", "muted"),
-        logText("  message   [empty]", "muted"),
-        logText(""),
-        logText('  Type  cancel  to discard.', "muted"),
-      ]);
-    } else if (mode === "subscribe") {
-      append([
-        logText(""),
-        logText(DIV, "muted"),
-        logText("  SUBSCRIBE TO NEWSLETTER", "accent"),
-        logText(DIV, "muted"),
-        logText(""),
-        logText(
-          "  Fill in at least one field, then run  send  to subscribe."
-        ),
-        logText("  Usage:  set <field> <value>"),
-        logText(""),
-        logText("  email   [empty]", "muted"),
-        logText("  phone   [empty]  (optional, for SMS)", "muted"),
-        logText(""),
-        logText('  Type  cancel  to discard.', "muted"),
-      ]);
-    } else if (mode === "unsubscribe") {
-      append([
-        logText(""),
-        logText(DIV, "muted"),
-        logText("  UNSUBSCRIBE", "accent"),
-        logText(DIV, "muted"),
-        logText(""),
-        logText("  Enter your email or phone number to unsubscribe."),
-        logText("  Usage:  set identifier <email or phone>"),
-        logText(""),
-        logText("  identifier   [empty]", "muted"),
-        logText(""),
-        logText('  Type  cancel  to discard.', "muted"),
-      ]);
-    }
-  }
-
-  // Legacy shim kept for backward compatibility.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function doSet(field: string, value: string) {
-    if (!formMode) {
-      append([
-        logText(
-          "  No active form. Start one with: contact, subscribe, or unsubscribe",
-          "muted"
-        ),
-      ]);
-      return;
-    }
-    if (!field || !value) {
-      append([logText("  Usage: set <field> <value>", "muted")]);
-      return;
-    }
-    const f = normalize(field);
-    const allowed =
-      formMode === "contact"
-        ? ["name", "email", "phone", "subject", "message"]
-        : formMode === "subscribe"
-        ? ["email", "phone"]
-          : ["email", "phone"];
-
-    if (!allowed.includes(f)) {
-      append([
-        logText(
-          `  Unknown field: '${f}'.  Available: ${allowed.join(", ")}`,
-          "error"
-        ),
-      ]);
-      return;
-    }
-
-    setFormState((prev) => ({ ...prev, [f]: value }));
-    append([logText(`  ${f}: ${value}`, "success")]);
-  }
-
-  // Legacy shim kept for backward compatibility.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function doSend() {
-    if (!formMode) {
-      append([
-        logText(
-          "  No active form. Start one with: contact, subscribe, or unsubscribe",
-          "muted"
-        ),
-      ]);
-      return;
-    }
-    if (busy) return;
-
-    // Validate
-    if (formMode === "contact") {
-      const missing: string[] = [];
-      if (!formState.name) missing.push("name");
-      if (!formState.email) missing.push("email");
-      if (!formState.subject) missing.push("subject");
-      if (!formState.message) missing.push("message");
-      if (missing.length) {
-        append([
-          logText(
-            `  Missing required fields: ${missing.join(", ")}`,
-            "error"
-          ),
-        ]);
-        return;
-      }
-    } else if (formMode === "subscribe") {
-      if (!formState.email && !formState.phone) {
-        append([
-          logText(
-            "  Please provide at least one of: email, phone",
-            "error"
-          ),
-        ]);
-        return;
-      }
-    } else if (formMode === "unsubscribe") {
-      if (!formState.identifier) {
-        append([
-          logText(
-            "  Please set identifier:  set identifier <email or phone>",
-            "error"
-          ),
-        ]);
-        return;
-      }
-    }
-
-    setBusy(true);
-    append([logText("  Sending...", "muted")]);
-
-    try {
-      let res: Response;
-      if (formMode === "contact") {
-        res = await fetch("/api/contact", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formState.name,
-            email: formState.email,
-            phone: formState.phone || undefined,
-            subject: formState.subject,
-            message: formState.message,
-            consent: true,
-            source: "terminal",
-          }),
-        });
-      } else if (formMode === "subscribe") {
-        res = await fetch("/api/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: formState.email || undefined,
-            phone: formState.phone || undefined,
-            consent: true,
-          }),
-        });
-      } else {
-        res = await fetch("/api/unsubscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ identifier: formState.identifier }),
-        });
-      }
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const successMsg =
-        formMode === "contact"
-          ? "  ✓  Message sent! We'll be in touch soon."
-          : formMode === "subscribe"
-          ? "  ✓  You're subscribed!"
-          : "  ✓  You've been unsubscribed.";
-
-      append([
-        logText(""),
-        logText(successMsg, "success"),
-        logText(""),
-      ]);
+      await submitTerminalForm(mode, payload);
+      append([logText(mode === "contact" ? "  Message sent." : mode === "subscribe" ? "  Subscription saved." : "  Unsubscribed.", "success")]);
       setFormMode(null);
       setFormState(EMPTY_FORM);
-    } catch {
-      append([
-        logText(
-          "  Failed to send. Try again or visit the website directly.",
-          "error"
-        ),
-      ]);
+    } catch (error) {
+      append([logText(`  ${error instanceof Error ? error.message : "Submission failed. Please try again."}`, "error")]);
     } finally {
+      sendingRef.current = false;
       setBusy(false);
     }
   }
 
-  // Legacy shim kept for backward compatibility.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function doCancel() {
-    if (!formMode) {
-      append([logText("  No active form.", "muted")]);
+  async function doStartForm(mode: FormMode, rawArgs = "") {
+    if (!mode) return;
+    const args = parseArguments(rawArgs).values;
+    if (!args.length) {
+      setFormMode(mode);
+      setFormState(EMPTY_FORM);
+      const fields = mode === "contact" ? "name, email, subject, message; optional phone" : mode === "subscribe" ? "email or phone; optional name" : "identifier (email or phone)";
+      append([logText(`  ${mode.toUpperCase()} DRAFT`, "accent"),
+        logText(`  Fields: ${fields}`),
+        logText('  Use set <field> "value", then send to submit or cancel to discard.'),
+        logText(mode === "subscribe" ? "  Sending consents to receiving updates at the supplied address or number." : mode === "contact" ? "  Sending consents to being contacted about this message." : "  Sending removes the supplied address or number from updates.", "muted")]);
       return;
     }
+    const expected = mode === "contact" ? [4, 5] : mode === "subscribe" ? [2] : [1];
+    if (!expected.includes(args.length)) {
+      append([logText(mode === "contact" ? '  Usage: contact "name" email "subject" "message" [phone]' : mode === "subscribe" ? '  Usage: subscribe "name" <email-or-phone>' : "  Usage: unsubscribe <email-or-phone>", "error")]);
+      return;
+    }
+    const contact = assignContactValue(mode === "subscribe" ? args[1] : args[0]);
+    const payload = mode === "contact" ? { ...EMPTY_FORM, name: args[0], email: args[1], subject: args[2], message: args[3], phone: args[4] ?? "" }
+      : { ...EMPTY_FORM, ...contact, name: mode === "subscribe" ? args[0] : "" };
+    setFormMode(mode);
+    setFormState(payload);
+    await sendForm(mode, payload);
+  }
+
+  function doSet(field: string, value: string) {
+    if (!formMode) { append([logText("  Start a draft with contact, subscribe, or unsubscribe.", "muted")]); return; }
+    const allowed = formMode === "contact" ? ["name", "email", "phone", "subject", "message"] : formMode === "subscribe" ? ["name", "email", "phone"] : ["identifier"];
+    if (!allowed.includes(field.toLowerCase())) { append([logText(`  Available fields: ${allowed.join(", ")}`, "error")]); return; }
+    setFormState(previous => ({ ...previous, [field.toLowerCase()]: value }));
+    append([logText(`  ${field}: ${value || "[empty]"}`, "success")]);
+  }
+
+  async function doSend() {
+    if (!formMode) { append([logText("  No active draft. Start with contact, subscribe, or unsubscribe.", "muted")]); return; }
+    await sendForm(formMode, formState);
+  }
+
+  function doCancel() {
     setFormMode(null);
     setFormState(EMPTY_FORM);
-    append([logText("  Form cancelled.", "muted")]);
+    append([logText("  Draft cancelled.", "muted")]);
   }
 
   // ── /spotify ──────────────────────────────────────────────────────────────
 
   const refreshSpotify = React.useCallback(async (announce = true) => {
+    const epoch = requestEpochRef.current;
     if (announce) {
       append([logText("  Fetching Spotify...", "muted")]);
     }
@@ -3932,6 +3430,7 @@ export default function TerminalExperience() {
       const res = await fetch("/api/spotify");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const track = (await res.json()) as SpotifyTrack;
+      if (epoch !== requestEpochRef.current) return;
       const activeTrack = resolveSpotifyTrack(track);
 
       if (!activeTrack?.title) {
@@ -4024,7 +3523,7 @@ export default function TerminalExperience() {
 
   function doTerms() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     const terms = data.siteContent?.termsPage;
@@ -4068,7 +3567,7 @@ export default function TerminalExperience() {
 
   function doPrivacy() {
     if (!data) {
-      append([logText("  Data loading, please wait...", "muted")]);
+      append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Data loading, please wait...", dataError ? "error" : "muted")]);
       return;
     }
     const privacy = data.siteContent?.privacyPage;
@@ -4137,6 +3636,7 @@ export default function TerminalExperience() {
         );
         return true;
       }
+      if (historyIdxRef.current === -1) historyDraftRef.current = input;
       const nextIdx = historyIdxRef.current + 1;
       if (nextIdx < historyRef.current.length) {
         historyIdxRef.current = nextIdx;
@@ -4155,7 +3655,7 @@ export default function TerminalExperience() {
       const nextIdx = historyIdxRef.current - 1;
       if (nextIdx < 0) {
         historyIdxRef.current = -1;
-        setInput("");
+        setInput(historyDraftRef.current);
       } else {
         historyIdxRef.current = nextIdx;
         setInput(historyRef.current[nextIdx]);
@@ -4164,6 +3664,7 @@ export default function TerminalExperience() {
     }
 
     if (key === "Tab") {
+      if (!ghostSuffix) return false;
       if (ghostSuffix) {
         // Accept the ghost suggestion exactly as displayed
         setInput((prev) => prev + ghostSuffix);
@@ -4177,8 +3678,12 @@ export default function TerminalExperience() {
   commandControlKeyRef.current = handleCommandControlKey;
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && aiRequestRef.current && e.currentTarget.selectionStart === e.currentTarget.selectionEnd) { e.preventDefault(); stopAI(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey || (e.shiftKey && e.key === "Tab")) return;
+    if (e.nativeEvent.isComposing || gameModeRef.current) return;
     if (handleCommandControlKey(e.key)) {
       e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -4194,13 +3699,14 @@ export default function TerminalExperience() {
   }
 
   function handleTerminalSurfaceKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (powerState !== "on" || busy) return;
+    if (powerState !== "on" || busy || gameModeRef.current) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target === inputRef.current) return;
-    if (e.target instanceof HTMLElement && e.target.tagName.toLowerCase() === "button") return;
+    if (e.target instanceof Element && e.target.closest("button,a,input,select,textarea,[contenteditable=true]")) return;
 
     if (handleCommandControlKey(e.key)) {
       e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -4238,21 +3744,11 @@ export default function TerminalExperience() {
   // On the /terminal route we always render (to show the "Turn On TV" button
   // + Three.js environment even before the user has activated the terminal).
   // On other routes we only render when the terminal overlay is active.
-  if (!active && !isThreeStage) return null;
+  if (!active && !isTerminalRoute) return null;
 
   return (
     <div
       className="fixed inset-0 z-[9998] flex select-none items-center justify-center overflow-hidden bg-[#050403] px-3 py-3 md:px-5 md:py-5 font-jb"
-      onPointerDownCapture={(e) => {
-        if (powerState !== "on") return;
-        if (e.target instanceof HTMLElement && e.target.closest("button")) return;
-        focusTerminalSurface();
-      }}
-      onClick={() => {
-        if (isThreeStage) {
-          focusTerminalSurface();
-        }
-      }}
       style={{
         padding: isThreeStage ? 0 : undefined,
         background: isThreeStage
@@ -4271,9 +3767,9 @@ export default function TerminalExperience() {
       )}
 
       {/* ── "Turn On TV" power button — shown on /terminal before boot ─── */}
-      {isThreeStage && powerState === "off" && (
+      {isTerminalRoute && powerState === "off" && (
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center">
-          <div className="pointer-events-auto hidden min-[900px]:flex flex-col items-center">
+          <div className="pointer-events-auto flex flex-col items-center">
             <button
               onClick={handleTurnOn}
                 className="group relative flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-full border border-[#4ade80]/20 bg-[#040806] transition-all hover:border-[#4ade80]/60 hover:bg-[#070f08] focus:outline-none"
@@ -4304,14 +3800,6 @@ export default function TerminalExperience() {
               <span className="sr-only">Turn On TV</span>
             </button>
           </div>
-          <div className="pointer-events-auto mx-6 hidden max-w-[18rem] rounded-sm border border-[#4ade80]/10 bg-[#041109]/55 px-5 py-4 text-center max-[899px]:block">
-            <p
-              className="text-[12px] leading-6 text-[#86efac]/55"
-              style={{ textShadow: "0 0 10px rgba(74, 222, 128, 0.08)" }}
-            >
-              This feature is for desktop users only. Sorry! &lt;3
-            </p>
-          </div>
           <Link
             href="/"
             className="pointer-events-auto absolute bottom-7 left-1/2 -translate-x-1/2 text-[11px] tracking-[0.18em] transition-colors"
@@ -4331,17 +3819,19 @@ export default function TerminalExperience() {
         </div>
       )}
       {/* Terminal shell — hidden in Three.js off-state; shown as overlay otherwise */}
-      {(!isThreeStage || powerState !== "off") && (
+      {powerState !== "off" && (
       <div
         ref={shellCaptureRef}
         tabIndex={powerState === "on" ? 0 : -1}
-        className={`crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[#6d6553]/30 bg-[#090a08] outline-none`}
+        data-window={floating ? "floating" : "crt"}
+        data-animation={animation}
+        className={`${workspaceStyles.workspace} crt-shell power-${powerState} ${isThreeStage ? "terminal-capture-shell" : ""} relative z-10 flex h-full w-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] border border-[#6d6553]/30 bg-[#090a08] outline-none`}
         style={{
           // In Three.js mode: keep the terminal constrained to the CRT screen area.
-          width:       isThreeStage ? "67vw" : undefined,
-          height:      isThreeStage ? "93vh" : undefined,
-          maxWidth:    isThreeStage ? "67vw" : undefined,
-          maxHeight:   isThreeStage ? "93vh" : undefined,
+          width:       floating ? `${windowSize.width}px` : isThreeStage ? "67vw" : undefined,
+          height:      floating ? `${windowSize.height}px` : isThreeStage ? "93vh" : undefined,
+          maxWidth:    floating ? "calc(100vw - 24px)" : isThreeStage ? "67vw" : undefined,
+          maxHeight:   floating ? "calc(100dvh - 24px)" : isThreeStage ? "93vh" : undefined,
           borderColor: isThreeStage ? "transparent" : undefined,
           boxShadow:   isThreeStage
             ? "none"
@@ -4356,8 +3846,11 @@ export default function TerminalExperience() {
             scheduleCommandRefocus(0);
           }
         }}
-        onPointerDown={() => focusTerminalSurface()}
-        onClick={() => focusTerminalSurface()}
+        onClick={(event) => {
+          if(event.target instanceof Element && event.target.closest("button,a,input,textarea,select,[data-terminal-target]"))return;
+          if(window.getSelection()?.toString())return;
+          focusTerminalSurface();
+        }}
         onWheel={handleTerminalSurfaceWheel}
         onKeyDownCapture={handleTerminalSurfaceKeyDown}
       >
@@ -4373,7 +3866,7 @@ export default function TerminalExperience() {
             inset: RETRO_GIF_INSET,
             width: `calc(100% - ${RETRO_GIF_INSET * 2}px)`,
             height: `calc(100% - ${RETRO_GIF_INSET * 2}px)`,
-            opacity: 0.48,
+            opacity: floating ? 0.16 : 0.48,
             filter: "saturate(1.8) brightness(1.2)",
           }}
         />
@@ -4503,102 +3996,6 @@ export default function TerminalExperience() {
         className="crt-neon-glitch-layer pointer-events-none absolute inset-[10px] z-[9] rounded-[22px]"
         style={isThreeStage ? { inset: 6, borderRadius: 22 } : undefined}
       />
-      <input
-        ref={inputRef}
-        id="terminal-overlay-input"
-        name="terminal_overlay_input"
-        data-terminal-overlay="true"
-        type="text"
-        aria-label="Terminal command input"
-        autoFocus={powerState === "on"}
-        value={input}
-        onChange={(e) => {
-          debugTerminalEvent("change", {
-            value: e.target.value,
-            valueLength: e.target.value.length,
-          });
-          dismissStartupInputHint();
-          setInput(e.target.value);
-        }}
-        onInput={(e) => {
-          const target = e.currentTarget;
-          debugTerminalEvent("input", {
-            value: target.value,
-            valueLength: target.value.length,
-          });
-        }}
-        onBeforeInput={(e) => {
-          debugTerminalEvent("beforeinput", {
-            data: e.data ?? null,
-            inputType: e.nativeEvent.inputType ?? null,
-          });
-        }}
-        onKeyDown={(e) => {
-          debugTerminalEvent("keydown", {
-            key: e.key,
-            value: e.currentTarget.value,
-          });
-          handleKeyDown(e);
-        }}
-        onKeyUp={(e) => {
-          debugTerminalEvent("keyup", {
-            key: e.key,
-            value: e.currentTarget.value,
-          });
-        }}
-        readOnly={false}
-        spellCheck={false}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        inputMode="text"
-        tabIndex={0}
-        onFocus={() => {
-          debugTerminalEvent("focus");
-          if (refocusTimeoutRef.current) {
-            window.clearTimeout(refocusTimeoutRef.current);
-            refocusTimeoutRef.current = null;
-          }
-          setInputFocused(true);
-        }}
-        onBlur={() => {
-          debugTerminalEvent("blur");
-          setInputFocused(false);
-          setInput("");
-          scheduleCommandRefocus(120);
-        }}
-        onPointerDown={(e) => {
-          debugTerminalEvent("pointerdown", {
-            x: e.clientX,
-            y: e.clientY,
-          });
-          dismissStartupInputHint();
-          e.stopPropagation();
-          focusCommandInput();
-        }}
-        onClick={(e) => {
-          debugTerminalEvent("click");
-          dismissStartupInputHint();
-          e.stopPropagation();
-          focusCommandInput();
-        }}
-        onWheel={(e) => {
-          e.stopPropagation();
-          handleTerminalSurfaceWheel(e);
-        }}
-        className="absolute z-[50] block cursor-text appearance-none border-0 bg-transparent text-transparent outline-none"
-        style={{
-          left: isThreeStage ? "6px" : "10px",
-          right: isThreeStage ? "6px" : "10px",
-          bottom: isThreeStage ? "6px" : "10px",
-          borderRadius: "16px",
-          height: isThreeStage ? "64px" : "72px",
-          pointerEvents: "auto",
-          background: "rgba(0, 255, 0, 0.015)",
-          color: "transparent",
-          caretColor: "transparent",
-        }}
-      />
       <div
         className="relative z-10 h-full"
         style={
@@ -4659,6 +4056,8 @@ export default function TerminalExperience() {
         </span>
       </div>
 
+      <TerminalToolbar mode={mode} run={execute} floating={floating} disabled={busy || Boolean(gameMode)} />
+      {tourStep !== null && <TerminalTour step={tourStep} run={execute} />}
       {/* Body */}
       <div
         ref={browserBodyRef}
@@ -4668,10 +4067,12 @@ export default function TerminalExperience() {
         {/* Transcript — always visible */}
         <div
           ref={transcriptRef}
-          className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
+          data-terminal-target="transcript"
+          role="region" aria-label="Terminal output" tabIndex={0}
+          className="select-text flex-1 min-w-0 overflow-y-auto px-5 pt-4 pb-3 text-[0.6125rem]"
           style={{ textShadow: "0 0 7px rgba(74, 222, 128, 0.12)" }}
-          onScroll={() => {
-            scheduleCommandRefocus(180);
+          onScroll={event => {
+            const node=event.currentTarget;followOutputRef.current=node.scrollHeight-node.scrollTop-node.clientHeight<70;
           }}
         >
           {loading && (
@@ -4680,7 +4081,7 @@ export default function TerminalExperience() {
             </div>
           )}
           {logs.map((entry) => (
-            <LogLine key={entry.id} entry={entry} />
+            <div key={entry.id} data-terminal-line><LogLine entry={entry} highlight={highlight} animation={animation} /></div>
           ))}
           <div className="h-3" />
         </div>
@@ -4730,7 +4131,7 @@ export default function TerminalExperience() {
 
         {/* Preview panel (sidebar) — only shown when no browser and preview is active */}
         {!browseUrl && activePreview && (
-          <div className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-l border-[#4ade80]/15 bg-[#031008]/92">
+          <div data-terminal-target="preview" className="absolute inset-x-2 bottom-14 top-12 z-40 flex shrink-0 flex-col overflow-hidden rounded-sm border border-[#4ade80]/15 bg-[#031008] md:static md:z-auto md:w-64 md:rounded-none md:border-0 md:border-l lg:w-72">
             <PreviewPanel
               preview={activePreview}
               clients={data?.clients ?? []}
@@ -4951,17 +4352,9 @@ export default function TerminalExperience() {
               }
             : undefined
         }
-        onClick={(e) => {
-          e.stopPropagation();
-          focusTerminalSurface();
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          focusTerminalSurface();
-        }}
       >
         {results.length > 0 && (
-          <div className="mb-2 rounded border border-[#4ade80]/15 bg-[#05160c]/90 px-2 py-2">
+          <div data-terminal-target="results" className="mb-2 max-h-[min(28vh,200px)] overflow-y-auto rounded border border-[#4ade80]/15 bg-[#05160c]/90 px-2 py-2">
             <div className="mb-1 px-1 text-[7px] tracking-wider text-[#86efac]/45 uppercase">
               {resultsLabel} · Arrow keys to select · Enter to open
             </div>
@@ -4993,9 +4386,12 @@ export default function TerminalExperience() {
                     ? "CLI"
                     : "ROUTE";
                 return (
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => openResult(actualIndex)}
+                    aria-label={`Open result ${actualIndex + 1}: ${result.label}`}
                     key={`${result.kind}-${"id" in result ? result.id : result.label}-${index}`}
-                    className={`rounded px-2 py-1 text-[0.525rem] leading-snug ${
+                    className={`w-full rounded px-2 py-1 text-left text-[0.525rem] leading-snug focus-visible:outline-2 focus-visible:outline-[#4ade80] ${
                       isActive
                         ? "bg-[#0d2e1a] text-[#dcfce7]"
                         : "text-[#86efac]/65"
@@ -5009,7 +4405,7 @@ export default function TerminalExperience() {
                     <span className="mr-2 text-[#86efac]/45">[{actualIndex + 1}]</span>
                     <span className="mr-2 text-[#86efac]/45">{kind}</span>
                     <span>{result.label}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -5020,104 +4416,27 @@ export default function TerminalExperience() {
             / {commandUsageHint}
           </div>
         )}
-        <div className="flex items-center gap-2">
-        {formMode && (
-          <span
-            className="text-[#fde68a]/70 text-[8px] shrink-0 select-none tracking-wider uppercase"
-            style={{ textShadow: "0 0 8px rgba(250, 204, 21, 0.18)" }}
-          >
-            [{formMode}]
-          </span>
-        )}
-        <span
-          className="text-[#4ade80] text-[0.6125rem] shrink-0 select-none"
-          style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.2)" }}
-          onPointerDown={() => focusTerminalSurface()}
-        >
-          {promptLabel(cwd)}
-        </span>
-        <div
-          className="relative flex-1 min-w-0 cursor-text"
-          onPointerDown={() => focusTerminalSurface()}
-        >
-          {input && (
-            <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
-              aria-hidden
-            >
-              {coloredInputSegments.map((segment, index) => (
-                <span
-                  key={`${segment.kind}-${index}`}
-                  className={
-                    segment.kind === "command"
-                      ? "text-[#4ade80]"
-                      : segment.kind === "arg"
-                      ? "text-[#fde68a]/90"
-                      : "text-transparent"
-                  }
-                  style={
-                    segment.kind === "command"
-                      ? { textShadow: "0 0 8px rgba(74, 222, 128, 0.2)" }
-                      : segment.kind === "arg"
-                      ? { textShadow: "0 0 8px rgba(250, 204, 21, 0.12)" }
-                      : undefined
-                  }
-                >
-                  {segment.text}
-                </span>
-              ))}
-            </div>
-          )}
-          {showInputHint && (
-            <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
-              aria-hidden
-            >
-              <span
-                className="crt-input-hint text-[#86efac]/48"
-                style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.2)" }}
-              >
-                Press Here to Start Typing...
-              </span>
-            </div>
-          )}
-          {/* Ghost autocomplete suggestion */}
-          {ghostSuffix && (
-            <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
-              aria-hidden
-            >
-              <span className="invisible">{input}</span>
-              <span className="text-[#86efac]/30">{ghostSuffix}</span>
-            </div>
-          )}
-          {powerState === "on" && inputFocused && !showStartupInputHint && (
-            <div
-              className="pointer-events-none absolute inset-0 flex items-center whitespace-pre text-[0.6125rem] overflow-hidden"
-              aria-hidden
-            >
-              <span className="invisible">{input}</span>
-              <span
-                className="crt-input-cursor crt-input-cursor-active"
-              />
-            </div>
-          )}
-          <div
-            aria-hidden
-            className="relative z-[2] w-full select-none text-[0.6125rem] opacity-0"
-          >
-            {busy ? "Processing..." : "."}
-          </div>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[#b1cbbb]">
+          <span role="status">{aiBusy ? "Michael is responding · stop or Ctrl+C cancels" : formMode ? `Editing ${formMode} draft · send or cancel` : mode === "shell" ? "SHELL · help for commands" : `${mode.toUpperCase()} · ask naturally · mode shell to return`}</span>
+          <TerminalCompanion pet={pet} busy={aiBusy||busy} mode={mode}/>
         </div>
-        {busy && (
-          <span className="text-[#86efac]/40 text-[0.525rem] animate-pulse select-none">
-            wait...
-          </span>
-        )}
+        <div className="flex items-center gap-2 rounded border border-[#86efac]/25 bg-[#031008] px-3 py-2 focus-within:border-[#86efac]/70">
+          <label htmlFor="terminal-overlay-input" className="text-[#4ade80] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : mode === "agent" ? "agent >" : "michael >"}</label>
+          <input ref={inputRef} id="terminal-overlay-input" name="terminal_command" type="text" aria-label="Terminal command input"
+            autoFocus={powerState === "on"} value={input} disabled={busy || Boolean(gameMode) || powerState!=="on"}
+            onChange={event=>{dismissStartupInputHint();setInput(event.target.value);}} onKeyDown={handleKeyDown}
+            onFocus={()=>setInputFocused(true)} onBlur={()=>setInputFocused(false)}
+            spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off"
+            placeholder={busy?"Processing…":mode==="shell"?"Type a command…":"Ask about Michael’s work…"}
+            className="min-w-0 flex-1 select-text bg-transparent text-[12px] leading-6 text-[#dcfce7] caret-[#86efac] outline-none placeholder:text-[#86efac]/45" />
         </div>
+        {ghostSuffix && inputFocused && mode==="shell" && <div className="mt-1 text-[9px] text-[#86efac]/65">Tab → {input}{ghostSuffix}</div>}
+        {showStartupInputHint && !inputFocused && <div className="mt-1 text-[9px] text-[#86efac]/65">Start typing to focus the command line.</div>}
       </div>
       </div>
       </div>
+      {floating && <TerminalResize shell={shellCaptureRef} onSize={resizeWindow}/>}
+      {cursorEnabled && <TerminalPointer shell={shellCaptureRef} target={pointerTarget}/>}
       </div>
       )}
       <style jsx>{`

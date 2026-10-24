@@ -7,13 +7,14 @@ import { validateSiteActions, dispatchSiteAction, sanitizeLegacyActions, type Si
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines, Lock } from "lucide-react";
+import { X, Send, MessageCircle, Volume2, VolumeX, Mic, Square, Loader2, AudioLines, Lock, ArrowUpRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { useTheme, THEMES, type ThemeName } from "@/lib/ThemeContext";
 import { readVisitorMemory, getDaypart, rememberTopic } from "@/lib/visitor-memory";
 import { createStreamLines } from "@/lib/stream-lines";
 import { readAssistantPreferences, pageQuestions } from "@/lib/assistant-preferences";
+import { CHAT_RECORDINGS, getChatRecording } from "@/lib/chat-recordings";
 import { offerConversation, takeConversation } from "@/lib/conversation-handoff";
 import AssistantControls from "./AssistantControls";
 import { extractPageContext } from "@/lib/page-context";
@@ -444,11 +445,13 @@ export default function ChatPanel() {
       // ElevenLabs can take a beat — show a loading state on the bubble until audio is ready.
       broadcast("preparing");
       const currentLang = (() => { try { return localStorage.getItem("mdcran_language") ?? "en-US"; } catch { return "en-US"; } })();
-      const res = await fetch("/api/voice/tts", {
+      const recording = getChatRecording(clean);
+      const pace = readAssistantPreferences().pace;
+      const res = recording ? await fetch(recording.href, { signal: controller.signal }) : await fetch("/api/voice/tts", {
         signal: controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean, language: currentLang, pace: readAssistantPreferences().pace }),
+        body: JSON.stringify({ text: clean, language: currentLang, pace }),
       });
       if (!res.ok) { endCaption(); return; }
       const arr = await res.arrayBuffer();
@@ -462,14 +465,15 @@ export default function ChatPanel() {
       try { ttsSrcRef.current?.stop(); } catch { /* */ }
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
+      if (recording) src.playbackRate.value = pace;
       src.connect(ctx.destination);
       ttsSrcRef.current = src;
-      const dur = audioBuf.duration || words.length * 0.34;
+      const dur = audioBuf.duration / src.playbackRate.value || words.length * 0.34;
       // On mobile: minimize chat so the caption takes the stage and reopens at the end.
       // On desktop: keep chat open and stream words in-place as they're spoken.
       setCapWords(words);
       setCapIdx(0);
-      if (isMobile) setMinimized(true);
+      if (isMobile && !recording) setMinimized(true);
       setSpeaking(true);
       broadcast("speaking");
       const startedAt = ctx.currentTime;
@@ -496,8 +500,15 @@ export default function ChatPanel() {
   })();
 
   const welcomeText = readVisitorMemory().returning
-    ? "Welcome back. I’m Michael’s AI portfolio guide. What would you like to explore?"
-    : "Hi, I’m Michael’s AI portfolio guide. Ask about his projects, experience, or skills, and I’ll point you to the supporting work.";
+    ? CHAT_RECORDINGS.returning.text
+    : CHAT_RECORDINGS.greeting.text;
+
+  const welcomeAudioStartedRef = useRef(false);
+  useEffect(() => {
+    if (!open || welcomeStep !== 4 || messages[0]?.content !== "__WELCOME__" || welcomeAudioStartedRef.current) return;
+    welcomeAudioStartedRef.current = true;
+    void speak(welcomeText);
+  }, [open, welcomeStep, messages, welcomeText, speak]);
 
   /* Multi-step welcome sequence — restarts if closed mid-sequence, skips if completed */
   useEffect(() => {
@@ -576,26 +587,10 @@ export default function ChatPanel() {
         farewellSent = true;
         setMessages((prev) => [...prev, {
           role: "assistant",
-          content: "Looks like you may have stepped away. I'll be ending this chat shortly. Feel free to reach back out anytime!",
+          content: CHAT_RECORDINGS.farewell.text,
         }]);
-        // Play pre-recorded farewell audio (cached by the browser on first load).
-        if (voiceOnRef.current) {
-          void (async () => {
-            try {
-              const res = await fetch("/api/voice/farewell");
-              if (!res.ok) return;
-              const arr = await res.arrayBuffer();
-              const ctx = ensureAudioCtx();
-              if (!ctx) return;
-              try { await ctx.resume(); } catch { /* */ }
-              const buf = await ctx.decodeAudioData(arr.slice(0));
-              const src = ctx.createBufferSource();
-              src.buffer = buf;
-              src.connect(ctx.destination);
-              src.start();
-            } catch { /* farewell audio unavailable — text message is enough */ }
-          })();
-        }
+        // Uses the saved MP3 and the same mute/stop/close controls as other replies.
+        void speak(CHAT_RECORDINGS.farewell.text);
       }
       if (idleMs >= INACTIVITY_TIMEOUT_MS) {
         setDisconnected(true);
@@ -603,7 +598,7 @@ export default function ChatPanel() {
       }
     }, INACTIVITY_CHECK_MS);
     return () => clearInterval(check);
-  }, [open, disconnected, streaming, welcomeStep, agentName, ensureAudioCtx]);
+  }, [open, disconnected, streaming, welcomeStep, agentName, speak]);
 
   /* Reset chat state when panel closes — each open is a fresh session */
   useEffect(() => {
@@ -621,6 +616,7 @@ export default function ChatPanel() {
       setReconnectStep(0);
       setAgentName(pickAgentName());
       welcomeCompletedRef.current = false;
+      welcomeAudioStartedRef.current = false;
       if (abortRef.current) {
         abortRef.current.abort();
         abortRef.current = null;
@@ -647,8 +643,8 @@ export default function ChatPanel() {
      instead of closing — so clicking the bubble picks the chat back up with its
      history intact rather than ending the session. */
   useEffect(() => {
-    const onToggle = () => { if (minimizedRef.current) { setMinimized(false); return; } setOpen((prev) => !prev); };
-    const onOpen = () => { const prior = takeConversation(); if(prior.length) { setMessages(prior); welcomeCompletedRef.current=true; setWelcomeStep(4); setWelcomeTyped(true); } setMinimized(false); setOpen(true); };
+    const onToggle = () => { if (voiceOnRef.current) ensureAudioCtx(); if (minimizedRef.current) { setMinimized(false); return; } setOpen((prev) => !prev); };
+    const onOpen = () => { if (voiceOnRef.current) ensureAudioCtx(); const prior = takeConversation(); if(prior.length) { setMessages(prior); welcomeCompletedRef.current=true; setWelcomeStep(4); setWelcomeTyped(true); } setMinimized(false); setOpen(true); };
     const onClose = () => { abortRef.current?.abort(); stopSpeaking(); setOpen(false); };
     const clear = () => { chatRequestGenerationRef.current += 1; abortRef.current?.abort(); stopSpeaking(); setMessages([]); setInput(""); setStreaming(false); chatSessionIdRef.current = crypto.randomUUID(); };
     const unsubscribeSharedMemory = subscribeMemoryScopeChanges(clear);
@@ -663,7 +659,7 @@ export default function ChatPanel() {
       window.removeEventListener("mdcran:chat-open", onOpen);
       window.removeEventListener("mdcran:chat-close", onClose);
     };
-  }, [stopSpeaking]);
+  }, [stopSpeaking, ensureAudioCtx]);
 
   /* ESC asks to end the chat (same confirmation as the X) */
   useEffect(() => {
@@ -1810,11 +1806,11 @@ export default function ChatPanel() {
 
             {/* Header */}
             <div
-              className="relative z-10 pl-5 pr-12 py-3 flex items-center gap-2"
+              className="relative z-10 flex items-center gap-1.5 py-3 pl-3 pr-12"
               style={{ borderBottom: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 12%, transparent)' }}
             >
               <div
-                className="inline-flex items-center gap-2 rounded-sm px-3 py-1.5"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-2"
                 style={{
                   border: '1px solid color-mix(in srgb, var(--theme-primary, #ef4242) 18%, transparent)',
                   backgroundColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 6%, transparent)',
@@ -1834,29 +1830,30 @@ export default function ChatPanel() {
                   type="button"
                   onClick={() => {
                     offerConversation(messages);
-                    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT)); // close the text panel
+                    window.dispatchEvent(new CustomEvent("mdcran:chat-close"));
                     window.dispatchEvent(new CustomEvent("mdcran:voice-open")); // open voice chat
                   }}
-                  className={`ml-auto flex h-7 items-center gap-1.5 px-2 rounded-sm border transition-colors cursor-pointer ${
+                  className={`ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 rounded-sm border transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary,#ef4242)] ${
                     isLight ? 'border-black/10 text-black/45 hover:border-black/25 hover:text-black' : 'border-white/10 text-white/45 hover:border-white/25 hover:text-white'
                   }`}
                   style={{ borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 35%, transparent)' }}
                   title="Switch to voice conversation"
                   aria-label="Switch to voice conversation"
                 >
-                  <AudioLines size={13} style={{ color: 'var(--theme-primary, #ef4242)' }} />
-                  <span className="text-[9px] uppercase tracking-[0.15em]">Switch to voice</span>
+                  <AudioLines size={14} className="shrink-0" aria-hidden="true" style={{ color: 'var(--theme-primary, #ef4242)' }} />
+                  <span className="text-[11px] font-medium">Voice</span>
                 </button>
               ) : (
                 <span
-                  className={`ml-auto flex h-7 items-center gap-1.5 px-2 rounded-sm border cursor-not-allowed opacity-70 ${
+                  className={`ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 rounded-sm border cursor-not-allowed opacity-70 ${
                     isLight ? 'border-black/10 text-black/35' : 'border-white/10 text-white/35'
                   }`}
                   title={voiceEnabled ? "Voice chat needs Chrome, Edge, or Safari" : "Voice chat isn't available right now"}
                   aria-label="Voice chat unavailable"
+                  aria-disabled="true"
                 >
                   <Lock size={12} />
-                  <span className="text-[9px] uppercase tracking-[0.15em]">Switch to voice</span>
+                  <span className="text-[11px] font-medium">Voice</span>
                 </span>
               )}
               {voiceEnabled && (
@@ -1870,7 +1867,7 @@ export default function ChatPanel() {
                       return next;
                     });
                   }}
-                  className={`flex h-7 w-7 items-center justify-center rounded-sm border transition-colors cursor-pointer ${
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border transition-colors cursor-pointer ${
                     isLight ? 'border-black/10 hover:border-black/25' : 'border-white/10 hover:border-white/25'
                   }`}
                   style={voiceOn ? { color: 'var(--theme-primary, #ef4242)', borderColor: 'color-mix(in srgb, var(--theme-primary, #ef4242) 45%, transparent)' } : { color: 'color-mix(in srgb, var(--theme-text, #fff) 35%, transparent)' }}
@@ -1884,9 +1881,8 @@ export default function ChatPanel() {
                   )}
                 </button>
               )}
+              <AssistantControls />
             </div>
-
-            <AssistantControls />
 
             {/* Messages */}
             <div
@@ -2108,20 +2104,23 @@ export default function ChatPanel() {
                 <ConnectingTimer />
               )}
 
-              {/* Suggestion chips — right-aligned, shown after welcome typewriter finishes */}
+              {/* Suggested questions, shown after the welcome typewriter finishes. */}
               {isWelcome && welcomeTyped && !streaming && !disconnected && (
-                <div className="flex flex-wrap gap-1.5 mt-1 justify-end">
+                <div className="mt-2 space-y-2" role="group" aria-label="Suggested questions">
+                  <p className={`text-[10px] uppercase tracking-wider ${isLight ? 'text-black/50' : 'text-white/50'}`}>Try asking</p>
                   {pageQuestions(pathname).map((s) => (
                     <button
                       key={s}
+                      type="button"
                       onClick={() => handleSend(s)}
-                      className={`text-[11px] px-3 py-1.5 rounded-sm border transition-all duration-200 cursor-pointer ${
+                      className={`flex w-full items-center justify-between gap-3 rounded-sm border px-3 py-2.5 text-left text-xs leading-relaxed transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary,#ef4242)] ${
                         isLight
-                          ? 'border-black/10 bg-black/3 text-black/35 hover:border-black/20 hover:text-black/60'
-                          : 'border-white/8 bg-white/3 text-white/30 hover:border-white/18 hover:text-white/60'
+                          ? 'border-black/10 bg-black/3 text-black/70 hover:border-black/25 hover:bg-black/6 hover:text-black'
+                          : 'border-white/10 bg-white/3 text-white/70 hover:border-white/25 hover:bg-white/6 hover:text-white'
                       }`}
                     >
-                      {s}
+                      <span className="min-w-0">{s}</span>
+                      <ArrowUpRight size={14} className="shrink-0 opacity-60" aria-hidden="true" />
                     </button>
                   ))}
                 </div>

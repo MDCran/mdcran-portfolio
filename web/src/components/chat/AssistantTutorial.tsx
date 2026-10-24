@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Pause, Play, RotateCcw, SkipForward, Accessibility } from "lucide-react";
 import { TOUR_TEXTS } from "@/lib/tour-texts";
+import { useStoredPreference } from "@/lib/useStoredPreference";
 
 const PAGE_TREE = [
   "mdcran.com/",
@@ -85,6 +86,11 @@ export default function AssistantTutorial() {
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false); // true while awaiting pregen
   const [paused, setPaused] = useState(false);
+  const [accessibilityPrefs] = useStoredPreference("mdcran_a11y", "{}");
+  const reducedMotion = (() => {
+    try { return JSON.parse(accessibilityPrefs)?.motion === "reduce"; }
+    catch { return false; }
+  })();
 
   const runIdRef = useRef(0);
   const invalidateRun = useCallback(() => { runIdRef.current += 1; }, []);
@@ -290,7 +296,7 @@ export default function AssistantTutorial() {
 
       // Prefetch pages while audio warms (non-blocking).
       try { router.prefetch("/resume"); } catch { /* */ }
-      try { router.prefetch("/engineering#project-army-reserve-mercury"); } catch { /* */ }
+      try { router.prefetch("/engineering/army-reserve-mercury"); } catch { /* */ }
 
       // Phase 1 — Server pregen: generate ALL segments in ONE sequential ElevenLabs call
       // so they share tonal baseline. Shows "Warming tour audio…" if it takes >700ms.
@@ -454,7 +460,8 @@ export default function AssistantTutorial() {
             if (abortedSections || myRun !== runIdRef.current) break;
 
             // ── Spotlight the Army Reserve Mercury card specifically ──
-            const armyLink = document.querySelector('a[href*="army-reserve-mercury"]') as HTMLElement | null;
+            const armyLinkSelector = 'a[href="/engineering/army-reserve-mercury"]';
+            const armyLink = Array.from(document.querySelectorAll<HTMLAnchorElement>(armyLinkSelector)).find(isVisible) ?? null;
             if (armyLink) {
               // Walk up to a meaningful card container (first ancestor > 80px tall).
               let armyEl: HTMLElement = armyLink;
@@ -467,14 +474,13 @@ export default function AssistantTutorial() {
               await wait(700);
               if (myRun !== runIdRef.current) break;
 
-              // Cursor moves to card, then clicks it.
-              const ar2 = armyEl.getBoundingClientRect();
+              // Target the real project link, rather than matching card/dropdown text.
               window.dispatchEvent(new CustomEvent("mdcran:cursor-move", {
-                detail: { x: ar2.left + ar2.width / 2, y: ar2.top + ar2.height / 2, label: "Army Reserve Mercury" },
+                detail: { selector: armyLinkSelector, label: "Army Reserve Mercury" },
               }));
               await wait(900);
               if (myRun !== runIdRef.current) break;
-              window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { text: "army reserve mercury" } }));
+              window.dispatchEvent(new CustomEvent("mdcran:cursor-click", { detail: { selector: armyLinkSelector } }));
               await wait(500);
               if (myRun !== runIdRef.current) break;
             }
@@ -482,7 +488,7 @@ export default function AssistantTutorial() {
             // ── Navigate to Army Reserve Mercury project page ──
             targetElRef.current = null;
             setSpot(null);
-            router.push("/engineering#project-army-reserve-mercury");
+            router.push("/engineering/army-reserve-mercury");
             await wait(2600);
             if (myRun !== runIdRef.current) break;
             window.dispatchEvent(new CustomEvent("mdcran:cursor-hide"));
@@ -628,13 +634,23 @@ export default function AssistantTutorial() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="fixed top-5 left-5 z-[75] flex items-center gap-1 rounded-sm border border-white/20 bg-black/70 p-1 backdrop-blur-md"
+            className="fixed top-5 left-5 z-[75] flex max-w-[calc(100vw-2.5rem)] flex-wrap items-center gap-1 rounded-sm border border-white/20 bg-black/70 p-1 backdrop-blur-md"
           >
             <button type="button" onClick={togglePause} className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/70 hover:bg-white/10 hover:text-white" aria-label={paused ? "Resume tour" : "Pause tour"} title={paused ? "Resume tour" : "Pause tour"}>
               {paused ? <Play size={12} /> : <Pause size={12} />}{paused ? "Resume" : "Pause"}
             </button>
             <button type="button" onClick={restartTour} className="rounded-sm p-2 text-white/55 hover:bg-white/10 hover:text-white" aria-label="Restart tour" title="Restart tour"><RotateCcw size={13} /></button>
-            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { motion: "reduce" } }))} className="rounded-sm p-2 text-white/55 hover:bg-white/10 hover:text-white" aria-label="Reduce motion" title="Reduce motion"><Accessibility size={13} /></button>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("mdcran:a11y-set", { detail: { motion: reducedMotion ? "allow" : "reduce" } }))}
+              className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-[10px] uppercase tracking-wide hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${reducedMotion ? "bg-white/15 text-white" : "text-white/55"}`}
+              aria-pressed={reducedMotion}
+              aria-label={`Reduce motion: ${reducedMotion ? "on" : "off"}`}
+              title={`Reduce motion: ${reducedMotion ? "on — click to turn off" : "off — click to turn on"}`}
+            >
+              <Accessibility size={13} aria-hidden="true" />
+              Reduce motion <span className="font-semibold">{reducedMotion ? "On" : "Off"}</span>
+            </button>
             <button type="button" onClick={() => endTour()} className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/70 hover:bg-white/10 hover:text-white" aria-label="Skip tour" title="Skip tour"><SkipForward size={12} />Skip</button>
           </motion.div>
         )}

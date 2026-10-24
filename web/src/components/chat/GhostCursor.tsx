@@ -3,39 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { findTarget } from "@/lib/find-target";
-
-const EASE = [0.16, 1, 0.3, 1] as const;
+import { useCursorMotion } from "@/lib/useCursorMotion";
 
 export default function GhostCursor() {
   const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const { x, y, place, move, stop, reducedMotion } = useCursorMotion();
+  const visibleRef = useRef(false);
   const [clicking, setClicking] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+    const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; stop(); };
     const at = (ms: number, fn: () => void) => timers.current.push(setTimeout(fn, ms));
 
     const onDirective = (e: Event) => {
       const target = (e as CustomEvent).detail as string;
       if (!target) return;
       clear();
-      // Start from the chat bubble (bottom-right).
-      const start = { x: window.innerWidth - 44, y: window.innerHeight - 44 };
-      setPos(start);
+      // Continue from the current position when another highlight arrives.
+      if (!visibleRef.current) place({ x: window.innerWidth - 44, y: window.innerHeight - 44 });
+      visibleRef.current = true;
       setClicking(false);
       setVisible(true);
 
       // Let any scroll-into-view settle, then fly to the element and "click" it.
       at(620, () => {
         const el = findTarget(target);
-        if (!el) { setVisible(false); return; }
+        if (!el) { setVisible(false); visibleRef.current = false; return; }
         const r = el.getBoundingClientRect();
-        setPos({ x: r.left + Math.min(r.width / 2, 80), y: r.top + Math.min(r.height / 2, 28) });
+        const travel = move({ x: r.left + Math.min(r.width / 2, 80), y: r.top + Math.min(r.height / 2, 28) });
+        at(travel + 120, () => setClicking(true));
+        at(travel + 400, () => setClicking(false));
+        at(travel + 1050, () => { setVisible(false); visibleRef.current = false; });
       });
-      at(1650, () => setClicking(true));   // click ripple after arrival
-      at(2050, () => setClicking(false));
-      at(2700, () => setVisible(false));
     };
 
     window.addEventListener("mdcran:highlight", onDirective);
@@ -47,7 +47,7 @@ export default function GhostCursor() {
       window.removeEventListener("mdcran:emphasize", onDirective);
       clear();
     };
-  }, []);
+  }, [place, move, stop]);
 
   return (
     <AnimatePresence>
@@ -56,22 +56,22 @@ export default function GhostCursor() {
           key="ghost"
           className="fixed left-0 top-0 z-[140] pointer-events-none"
           initial={false}
-          animate={{ x: pos.x, y: pos.y }}
+          style={{ x, y }}
           exit={{ opacity: 0, scale: 0.4 }}
-          transition={{ duration: 1.0, ease: EASE }}
+          transition={{ duration: reducedMotion ? 0 : 0.18 }}
         >
           {/* trailing glow */}
           <div className="absolute -translate-x-1/2 -translate-y-1/2 h-10 w-10 rounded-full blur-md" style={{ background: "radial-gradient(circle, rgba(239,66,66,0.55), transparent 70%)" }} />
           {/* core wisp */}
           <motion.div
             className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
-            animate={{ scale: clicking ? 0.6 : [1, 1.18, 1] }}
-            transition={clicking ? { duration: 0.15 } : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            animate={{ scale: reducedMotion ? 1 : clicking ? 0.6 : [1, 1.08, 1] }}
+            transition={reducedMotion ? { duration: 0 } : clicking ? { duration: 0.15 } : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
             style={{ height: 16, width: 16, background: "radial-gradient(circle at 35% 30%, #fff, #ef4242 70%)", boxShadow: "0 0 14px rgba(239,66,66,0.9)" }}
           />
           {/* click ripple */}
           <AnimatePresence>
-            {clicking && (
+            {clicking && !reducedMotion && (
               <motion.div
                 className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
                 style={{ borderColor: "rgba(239,66,66,0.7)" }}

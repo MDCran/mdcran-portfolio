@@ -29,7 +29,7 @@ export function evidenceForSkill(
     .map(([slug, p]) => ({
       slug,
       category: p.category,
-      href: `/engineering#project-${slug}`,
+      href: `/engineering/${slug}`,
     }));
 }
 export function matchJobDescription(

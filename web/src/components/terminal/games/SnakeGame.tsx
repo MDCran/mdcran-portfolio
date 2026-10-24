@@ -1,4 +1,7 @@
 "use client";
+import { useGamePause } from "./useGamePause";
+import GameControls from "./GameControls";
+import { randomFreeCell, snakeSelfCollision } from "@/lib/terminal-games";
 
 import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 
@@ -71,21 +74,6 @@ function posEq(a: Position, b: Position) {
   return a.x === b.x && a.y === b.y;
 }
 
-function posInList(p: Position, list: Position[]) {
-  return list.some((s) => posEq(s, p));
-}
-
-function randomFreeCell(occupied: Position[]): Position {
-  let pos: Position;
-  do {
-    pos = {
-      x: Math.floor(Math.random() * GRID_SIZE),
-      y: Math.floor(Math.random() * GRID_SIZE),
-    };
-  } while (posInList(pos, occupied));
-  return pos;
-}
-
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
@@ -133,6 +121,7 @@ const serverHighScore = () => 0;
 
 export default function SnakeGame({ onExit }: SnakeGameProps) {
   const [started, setStarted] = useState(false);
+  const [roundState, setRoundState] = useState("Ready");
   const [activeEffects, setActiveEffects] = useState<ActiveEffect[]>([]);
   const [score, setScore] = useState(0);
   const [sessionHighScore, setHighScore] = useState(0);
@@ -163,6 +152,13 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
   const screenFlashRef = useRef(0); // remaining alpha for flash
 
   const highScoreRef = useRef(0);
+
+  const { paused, pausedRef, togglePause, resume } = useGamePause(duration => {
+    lastTickRef.current = performance.now();
+    nextPowerupTimeRef.current += duration;
+    if (powerupRef.current) powerupRef.current.spawnedAt += duration;
+    activeEffectsRef.current.forEach(effect => { if (Number.isFinite(effect.expiresAt)) effect.expiresAt += duration; });
+  });
 
   // The simulation keeps a mutable copy; the HUD reads the subscribed snapshot.
   useEffect(() => {
@@ -220,8 +216,9 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
   // Reset
   // -----------------------------------------------------------------------
   const resetGame = useCallback(() => {
+    resume();
     const initialSnake = [{ x: 10, y: 10 }];
-    const initialFood = randomFreeCell(initialSnake);
+    const initialFood = randomFreeCell(initialSnake)!;
     snakeRef.current = initialSnake;
     foodRef.current = initialFood;
     dirRef.current = "RIGHT";
@@ -237,21 +234,23 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
     screenFlashRef.current = 0;
     lastTickRef.current = performance.now();
     setScore(0);
+    setRoundState("Playing");
     setStarted(true);
     scheduleNextPowerup();
-  }, [scheduleNextPowerup]);
+  }, [scheduleNextPowerup, resume]);
 
   // -----------------------------------------------------------------------
   // Input
   // -----------------------------------------------------------------------
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+    (e: Pick<KeyboardEvent, "key" | "preventDefault">) => {
       if (e.key === "Escape") {
         onExit();
         return;
       }
 
-      if (e.key === "Enter" && (!startedRef.current || gameOverRef.current)) {
+      if (e.key.toLowerCase() === "p" || e.key === " ") { e.preventDefault(); if (startedRef.current && !gameOverRef.current) togglePause(); return; }
+      if (e.key === "Enter") {
         resetGame();
         return;
       }
@@ -260,6 +259,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
         e.preventDefault();
       }
 
+      if (pausedRef.current) return;
       const current = dirRef.current;
       const key = e.key.toLowerCase();
       if ((key === "arrowup" || key === "w") && current !== "DOWN") {
@@ -272,7 +272,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
         nextDirRef.current = "RIGHT";
       }
     },
-    [onExit, resetGame]
+    [onExit, resetGame, togglePause, pausedRef]
   );
 
   useEffect(() => {
@@ -324,7 +324,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
       const cellH = h / GRID_SIZE;
 
       // -- Game tick --
-      if (startedRef.current && !gameOverRef.current) {
+      if (startedRef.current && !gameOverRef.current && !pausedRef.current) {
         const speed = getEffectiveSpeed();
         if (now - lastTickRef.current >= speed) {
           lastTickRef.current = now;
@@ -350,6 +350,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
               head.y = ((head.y % GRID_SIZE) + GRID_SIZE) % GRID_SIZE;
             } else {
               gameOverRef.current = true;
+              setRoundState("Game over");
               // Save high score
               if (scoreRef.current > highScoreRef.current) {
                 highScoreRef.current = scoreRef.current;
@@ -362,8 +363,9 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
           }
 
           // Self collision
-          if (posInList(head, currentSnake)) {
+          if (snakeSelfCollision(currentSnake, head, posEq(head, foodRef.current) || extraFoodRef.current.some(cell => posEq(head, cell)))) {
             gameOverRef.current = true;
+              setRoundState("Game over");
             if (scoreRef.current > highScoreRef.current) {
               highScoreRef.current = scoreRef.current;
               setHighScore(scoreRef.current);
@@ -393,8 +395,21 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
             scoreRef.current += pts;
             setScore(scoreRef.current);
 
-            const newFood = randomFreeCell(newSnake);
-            foodRef.current = newFood;
+            const newFood = randomFreeCell([...newSnake, ...extraFoodRef.current, ...(powerupRef.current ? [powerupRef.current.pos] : [])]) ?? randomFreeCell(newSnake);
+            if (newFood) {
+              extraFoodRef.current = extraFoodRef.current.filter(cell => !posEq(cell, newFood));
+              if (powerupRef.current && posEq(powerupRef.current.pos, newFood)) powerupRef.current = null;
+            }
+            if (newFood) foodRef.current = newFood;
+            else {
+              gameOverRef.current = true;
+              setRoundState("Board cleared");
+              if (scoreRef.current > highScoreRef.current) {
+                highScoreRef.current = scoreRef.current;
+                setHighScore(scoreRef.current);
+                try { localStorage.setItem(HIGH_SCORE_KEY, String(scoreRef.current)); } catch { /* storage unavailable */ }
+              }
+            }
 
             // Effects
             screenFlashRef.current = 0.25;
@@ -404,7 +419,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
               FOOD_COLOR
             );
             addScorePopup(head.x, head.y, pts);
-          } else {
+          } else if (!extraFoodRef.current.some(cell => posEq(head, cell))) {
             newSnake.pop();
           }
 
@@ -417,13 +432,10 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
             addScorePopup(head.x, head.y, 1);
             // Replace eaten extra food with a new one at a free cell
             const occupied2 = [...newSnake, foodRef.current, ...extraFoodRef.current];
-            extraFoodRef.current = [
-              ...extraFoodRef.current.slice(0, ateExtraIdx),
-              randomFreeCell(occupied2),
-              ...extraFoodRef.current.slice(ateExtraIdx + 1),
-            ];
-            // Grow the snake for eating extra food too
-            newSnake.push(newSnake[newSnake.length - 1]);
+            const replacement = randomFreeCell(occupied2);
+            extraFoodRef.current = extraFoodRef.current.filter((_, index) => index !== ateExtraIdx);
+            if (replacement) extraFoodRef.current.push(replacement);
+
           }
 
           // Check powerup pickup
@@ -438,7 +450,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
               // Spawn 3 bonus food items immediately
               const base = [...newSnake, foodRef.current];
               const ef: Position[] = [];
-              for (let fi = 0; fi < 3; fi++) ef.push(randomFreeCell([...base, ...ef]));
+              for (let fi = 0; fi < 3; fi++) { const cell = randomFreeCell([...base, ...ef]); if (cell) ef.push(cell); }
               extraFoodRef.current = ef;
             } else {
               // Remove existing effect of same kind, then add
@@ -474,7 +486,8 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
             const kinds: PowerupKind[] = ["speed", "slow", "ghost", "double", "multifood"];
             const kind = kinds[Math.floor(Math.random() * kinds.length)];
             const occupied = [...newSnake, foodRef.current, ...extraFoodRef.current];
-            powerupRef.current = { kind, pos: randomFreeCell(occupied), spawnedAt: now };
+            const cell = randomFreeCell(occupied);
+            powerupRef.current = cell ? { kind, pos: cell, spawnedAt: now } : null;
             scheduleNextPowerup();
           }
         }
@@ -703,7 +716,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
         ctx.font = `bold ${Math.round(w * 0.065)}px "JetBrains Mono", monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("GAME OVER", w / 2, h * 0.38);
+        ctx.fillText(snakeRef.current.length >= GRID_SIZE * GRID_SIZE ? "BOARD CLEARED" : "GAME OVER", w / 2, h * 0.38);
 
         ctx.fillStyle = SNAKE_COLOR;
         ctx.font = `${Math.round(w * 0.04)}px "JetBrains Mono", monospace`;
@@ -737,7 +750,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
       cancelled = true;
       cancelAnimationFrame(animFrameRef.current);
     };
-  }, [started, getEffectiveSpeed, hasEffect, scheduleNextPowerup, spawnParticles, addScorePopup]);
+  }, [pausedRef, started, getEffectiveSpeed, hasEffect, scheduleNextPowerup, spawnParticles, addScorePopup]);
 
   // -----------------------------------------------------------------------
   // Render
@@ -764,6 +777,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
         <div className="text-sm mt-6 animate-[pulse_1.5s_ease-in-out_infinite]" style={{ color: SNAKE_COLOR }}>
           Press ENTER to start
         </div>
+        <GameControls canPause={started && roundState === "Playing"} paused={paused} startLabel={started ? "Restart" : "Start"} onKey={key => handleKeyDown({ key, preventDefault() {} })} />
         <div className="text-[11px] text-[#4b5563] mt-4">ESC to exit</div>
         {highScore > 0 && (
           <div className="text-xs mt-2" style={{ color: "#facc15" }}>
@@ -780,7 +794,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
       style={{ fontFamily: "'JetBrains Mono', monospace" }}
     >
       {/* HUD */}
-      <div className="flex justify-between items-center w-full px-2 py-2 text-sm tracking-wider" style={{ color: SNAKE_COLOR }}>
+      <div className="flex flex-wrap justify-between items-center gap-2 w-full px-2 py-2 text-sm tracking-wider" style={{ color: SNAKE_COLOR }}>
         <div className="flex items-center gap-4">
           <span>SCORE: {score}</span>
           <span className="text-xs" style={{ color: "#6b7280" }}>
@@ -794,11 +808,13 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
         </div>
         <div className="flex items-center gap-3">
           {/* Active powerup indicators */}
-          <ActiveEffectIndicators effects={activeEffects} />
+          <ActiveEffectIndicators effects={activeEffects} paused={paused} />
           <span className="text-[#4b5563] text-[11px]">ESC to exit</span>
         </div>
       </div>
 
+      <p role="status" className="text-[10px] text-[#86efac]/70">{roundState} · Score {score}</p>
+      {paused && <p role="status" className="text-xs text-[#facc15]">Paused · press P or Resume to continue</p>}
       {/* Game canvas */}
       <div
         ref={wrapperRef}
@@ -815,6 +831,7 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
           }}
         />
       </div>
+      <GameControls canPause={started && roundState === "Playing"} paused={paused} startLabel={started ? "Restart" : "Start"} onKey={key => handleKeyDown({ key, preventDefault() {} })} />
     </div>
   );
 }
@@ -822,13 +839,14 @@ export default function SnakeGame({ onExit }: SnakeGameProps) {
 // ---------------------------------------------------------------------------
 // Sub-component: active effect indicators in HUD
 // ---------------------------------------------------------------------------
-function ActiveEffectIndicators({ effects }: { effects: ActiveEffect[] }) {
+function ActiveEffectIndicators({ effects, paused }: { effects: ActiveEffect[]; paused: boolean }) {
   // Publish clock snapshots so the HUD stays pure and timed effects count down.
   const [now, setNow] = useState(() => performance.now());
   useEffect(() => {
+    if (paused) return;
     const id = setInterval(() => setNow(performance.now()), 100);
     return () => clearInterval(id);
-  }, []);
+  }, [paused]);
 
   if (effects.length === 0) return null;
 

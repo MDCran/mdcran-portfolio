@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
-import { limitVoiceLike } from "@/lib/api-rate-limit";
-import { reserveVoiceCharacters } from "@/lib/assistant-operations";
 import { providerCancellation, relayProviderBody } from "@/lib/assistant-lifecycle";
+import { getChatRecording } from "@/lib/chat-recordings";
 
 // Michael's actual voice — the ONLY voice the assistant uses. No fallback to any other
 // voice: if this voice can't synthesize, we report "voice unavailable" rather than
@@ -33,16 +32,6 @@ export async function GET() {
 /* POST — synthesize speech for a short assistant reply and stream the audio back. */
 export async function POST(req: NextRequest) {
   const upstream = providerCancellation(req.signal);
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: "Voice not configured" }), { status: 503 });
-  }
-
-  // Cost guard: cap TTS synthesis per IP/session.
-  if (!(await limitVoiceLike(req, "voice-tts", 500))) {
-    return new Response(JSON.stringify({ error: "Voice rate limit reached" }), { status: 429 });
-  }
-
   let body: { text?: string; language?: string; pace?: number };
   try {
     body = await req.json();
@@ -50,9 +39,22 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
   }
 
-  const text = typeof body.text === "string" ? body.text.trim() : "";
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) {
     return new Response(JSON.stringify({ error: "No text" }), { status: 400 });
+  }
+  // Fixed chat copy always reuses a bundled recording, even after a cold start.
+  const recording = getChatRecording(text);
+  if (recording) return Response.redirect(new URL(recording.href, req.url), 303);
+
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) return Response.json({ error: "Voice not configured" }, { status: 503 });
+  // Saved playback needs neither the provider nor database-backed usage limits.
+  const [{ limitVoiceLike }, { reserveVoiceCharacters }] = await Promise.all([
+    import("@/lib/api-rate-limit"), import("@/lib/assistant-operations"),
+  ]);
+  if (!(await limitVoiceLike(req, "voice-tts", 500))) {
+    return Response.json({ error: "Voice rate limit reached" }, { status: 429 });
   }
   // Cap length to keep latency + cost sane.
   const clipped = text.length > 1200 ? text.slice(0, 1200) : text;

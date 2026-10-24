@@ -1,0 +1,29 @@
+{
+  "provider": "ElevenLabs",
+  "recordings": [
+    {
+      "file": "greeting-v1.mp3",
+      "text": "Hi, I’m Michael’s AI portfolio guide. Ask about his projects, experience, or skills, and I’ll point you to the supporting work.",
+      "voiceId": "EgUcxulGJojl01KsxgA1",
+      "model": "eleven_multilingual_v2",
+      "generationId": "hkEsb3f4EPQi6eDezOxb",
+      "durationSeconds": 6.965986394557823
+    },
+    {
+      "file": "returning-v1.mp3",
+      "text": "Welcome back. I’m Michael’s AI portfolio guide. What would you like to explore?",
+      "voiceId": "EgUcxulGJojl01KsxgA1",
+      "model": "eleven_multilingual_v2",
+      "generationId": "kM5HoMJw5fMnBChQrePY",
+      "durationSeconds": 5.154829931972789
+    },
+    {
+      "file": "farewell-v1.mp3",
+      "text": "Looks like you may have stepped away. I'll be ending this chat shortly. Feel free to reach back out anytime!",
+      "voiceId": "EgUcxulGJojl01KsxgA1",
+      "model": "eleven_multilingual_v2",
+      "generationId": "z5qNTjHdywGnNxlpLC1D",
+      "durationSeconds": 5.61922902494331
+    }
+  ]
+}

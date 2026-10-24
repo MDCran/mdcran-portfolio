@@ -4,7 +4,6 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import HomeExtras from "@/components/home/HomeExtras";
 import Hero from "@/components/home/Hero";
-import EngineeringHighlights from "@/components/home/EngineeringHighlights";
 import Stats from "@/components/home/Stats";
 import Services from "@/components/home/Services";
 import FeaturedProjects from "@/components/home/FeaturedProjects";
@@ -127,7 +126,7 @@ export default async function HomePage() {
   };
 
   const sectionMap: Record<string, ReactNode> = {
-    hero: <><Hero content={siteContent.homeHero} location={profile.location} /><div id="engineering" className="scroll-mt-24"><EngineeringHighlights projects={allProjects} /></div></>,
+    hero: <Hero content={siteContent.homeHero} location={profile.location} />,
     stats: (
       <div style={{ contentVisibility: "auto", containIntrinsicSize: "800px" }}>
         <Stats content={siteContent.homeStats} aiUsageTracker={siteContent.aiUsageTracker} />

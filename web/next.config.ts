@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  async headers() {
+    return [{
+      source: "/chat-audio/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+    }];
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",

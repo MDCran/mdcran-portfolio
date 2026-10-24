@@ -20,7 +20,7 @@ export default function EngineeringHighlights({ projects = [] }: { projects?: Pr
           <h3 className="mt-3 text-xl font-semibold">{project.title}</h3>
           <p className="mt-3 text-sm leading-relaxed text-white/80">{detail.summary}</p>
           <p className="mt-4 text-sm leading-relaxed text-white/70">{detail.skills.slice(0, 4).join(" · ")}</p>
-          <div className="mt-5 flex flex-wrap gap-4 text-sm"><Link href={`/engineering#project-${project.slug}`} className="inline-flex items-center gap-2 text-[var(--cranberry)] underline underline-offset-4">Contribution & case study <ArrowRight size={14} aria-hidden="true" /></Link>{source && <a href={source} className="underline underline-offset-4">Public source</a>}</div>
+          <div className="mt-5 flex flex-wrap gap-4 text-sm"><Link href={`/engineering/${project.slug}`} className="inline-flex items-center gap-2 text-[var(--cranberry)] underline underline-offset-4">Contribution & case study <ArrowRight size={14} aria-hidden="true" /></Link>{source && <a href={source} className="underline underline-offset-4">Public source</a>}</div>
         </article>;
       })}</div>
       {!selected.length && <p className="mt-4 text-white/75">Published project records are currently unavailable. Browse the engineering overview and resume below.</p>}

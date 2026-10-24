@@ -41,6 +41,7 @@ interface ProjectDetailProps {
   relatedProjects: Project[];
   backHref: string;
   backLabel: string;
+  children?: ReactNode;
 }
 
 const pricingLabel = {
@@ -65,6 +66,7 @@ export default function ProjectDetail({
   relatedProjects,
   backHref,
   backLabel,
+  children,
 }: ProjectDetailProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxAiOpened, setLightboxAiOpened] = useState(false);
@@ -173,11 +175,12 @@ export default function ProjectDetail({
         )}
       </section>
 
-      <main className="content-container py-12 sm:py-16" data-highlight-id={project.id}>
+      <main id={project.slug} className="content-container py-12 sm:py-16" data-highlight-id={project.id}>
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-white/60"><Link href="/">Home</Link> / <Link href={backHref}>{backLabel}</Link> / <span aria-current="page">{project.title}</span></nav>
         <SectionActions />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12">
           <div className="lg:col-span-2 space-y-12">
+            {children}
             {project.sections && project.sections.length > 0 && (
               <section className="space-y-1" data-highlight-id="project-body">
                 {project.sections.map((section, i) => (

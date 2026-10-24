@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useCursorMotion } from "@/lib/useCursorMotion";
 
 interface CursorPos { x: number; y: number }
 interface TargetDetail { selector?: string; text?: string; target?: string; label?: string }
@@ -112,12 +113,11 @@ function elementCenter(el: HTMLElement): CursorPos {
   return { x: r.left + Math.min(r.width / 2, 120), y: r.top + Math.min(r.height / 2, 32) };
 }
 
-const SPRING = { type: "spring", stiffness: 400, damping: 30 } as const;
 const AUTO_HIDE_MS = 6000;
 
 export default function AIBrowserCursor() {
   const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState<CursorPos>({ x: 0, y: 0 });
+  const { x, y, place, move, stop, reducedMotion } = useCursorMotion();
   const [clicking, setClicking] = useState(false);
   const [label, setLabel] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -125,7 +125,7 @@ export default function AIBrowserCursor() {
   const voiceBusyRef = useRef<"idle" | "preparing" | "speaking">("idle");
   const visRef = useRef(false);
 
-  function clearTimers() { timers.current.forEach(clearTimeout); timers.current = []; }
+  function clearTimers() { timers.current.forEach(clearTimeout); timers.current = []; stop(); }
   function at(ms: number, fn: () => void) { timers.current.push(setTimeout(fn, ms)); }
 
   function scheduleAutoHide() {
@@ -135,35 +135,18 @@ export default function AIBrowserCursor() {
   }
 
   function moveTo(x: number, y: number, lbl?: string | null) {
-    setPos({ x, y }); setVisible(true); visRef.current = true;
+    if (!visRef.current) place(chatOrigin());
+    const travelMs = move({ x, y });
+    setVisible(true); visRef.current = true;
     if (lbl !== undefined) setLabel(lbl ?? null);
     scheduleAutoHide();
+    return travelMs;
   }
+
+  function hideCursor() { stop(); setVisible(false); visRef.current = false; setLabel(null); }
 
   function chatOrigin(): CursorPos {
     return { x: window.innerWidth - 52, y: window.innerHeight - 52 };
-  }
-
-  /** Sweep the cursor across the screen (from bottom-right) before landing on (tx, ty).
-   *  Only called when the cursor is currently hidden — gives it presence and catches attention.
-   *  On mobile: single center waypoint and clamped destination to stay in safe viewport area. */
-  function wanderThen(tx: number, ty: number, lbl: string | null | undefined, onArrive: () => void) {
-    const origin = chatOrigin();
-    const sw = window.innerWidth, sh = window.innerHeight;
-    const isMobile = sw < 768;
-    setPos(origin); setVisible(true); visRef.current = true; setLabel(null);
-    if (isMobile) {
-      // Simpler single-waypoint wander for mobile — avoid crossing bottom chrome
-      const cx = Math.min(Math.max(tx, 20), sw - 30);
-      const cy = Math.min(Math.max(ty, 60), sh - 100);
-      at(80, () => setPos({ x: sw * 0.5, y: sh * 0.38 }));
-      at(380, () => { setPos({ x: cx, y: cy }); setLabel(lbl ?? null); scheduleAutoHide(); onArrive(); });
-    } else {
-      // Desktop: two sweeping waypoints for a visible arc across the screen
-      at(80, () => setPos({ x: sw * 0.6, y: sh * 0.5 }));
-      at(280, () => setPos({ x: sw * 0.3 + tx * 0.35, y: sh * 0.22 + ty * 0.28 }));
-      at(500, () => { setPos({ x: tx, y: ty }); setLabel(lbl ?? null); scheduleAutoHide(); onArrive(); });
-    }
   }
 
   useEffect(() => {
@@ -171,20 +154,11 @@ export default function AIBrowserCursor() {
       const detail = (e as CustomEvent<MoveDetail>).detail ?? {};
       clearTimers(); setClicking(false);
       const el = resolveTarget(detail);
-      const wasHidden = !visRef.current;
       if (el) {
         const center = elementCenter(el);
-        if (wasHidden) {
-          wanderThen(center.x, center.y, detail.label, () => {});
-        } else {
-          moveTo(center.x, center.y, detail.label);
-        }
+        moveTo(center.x, center.y, detail.label);
       } else if (detail.x !== undefined && detail.y !== undefined) {
-        if (wasHidden) {
-          wanderThen(detail.x, detail.y, detail.label, () => {});
-        } else {
-          moveTo(detail.x, detail.y, detail.label);
-        }
+        moveTo(detail.x, detail.y, detail.label);
       } else {
         moveTo(window.innerWidth / 2, window.innerHeight / 2, detail.label);
       }
@@ -193,77 +167,31 @@ export default function AIBrowserCursor() {
     function onClick(e: Event) {
       const detail = (e as CustomEvent<ClickDetail>).detail ?? {};
       clearTimers(); setClicking(false);
-      const wasHidden = !visRef.current;
-      // Snapshot the page path so we don't fire el.click() after navigation has already moved us elsewhere
       const clickOriginPath = window.location.pathname;
-
-      /** Scroll el into viewport if needed, then invoke callback after scroll settles.
-       *  Only scrolls for elements genuinely off-screen (below fold or scrolled above);
-       *  never scrolls for fixed/sticky nav elements that live near the top of the viewport. */
-      function withScroll(el: HTMLElement, cb: () => void) {
-        const rect = el.getBoundingClientRect();
-        const belowFold = rect.top > window.innerHeight - 60;
-        const aboveFold = rect.bottom < 0;
-        if (belowFold || aboveFold) el.scrollIntoView({ behavior: "smooth", block: "center" });
-        at((belowFold || aboveFold) ? 680 : 0, cb);
-      }
-
-      /** Animate cursor to el (already scrolled into view) and click it.
-       *  Skips el.click() if the page has navigated since this event was dispatched. */
-      function landAndClick(el: HTMLElement) {
-        const center = elementCenter(el);
-        moveTo(center.x, center.y, detail.label);
-        setVisible(true); visRef.current = true;
-        at(360, () => {
-          setClicking(true);
-          at(200, () => { try { if (window.location.pathname === clickOriginPath) el.click(); } catch { /* */ } });
-          at(500, () => setClicking(false));
-          at(1200, () => { setVisible(false); visRef.current = false; setLabel(null); });
-        });
-      }
-
-      if (wasHidden) {
+      const attempt = (retry = false) => {
         const el = resolveTarget(detail);
-        if (el) {
-          withScroll(el, () => {
-            const center = elementCenter(el);
-            wanderThen(center.x, center.y, detail.label, () => {
-              at(200, () => {
-                setClicking(true);
-                at(200, () => { try { if (window.location.pathname === clickOriginPath) el.click(); } catch { /* */ } });
-                at(500, () => setClicking(false));
-                at(1200, () => { setVisible(false); visRef.current = false; setLabel(null); });
-              });
-            });
+        if (!el) { if (!retry) at(300, () => attempt(true)); return; }
+        const rect = el.getBoundingClientRect();
+        const needsScroll = rect.top > window.innerHeight - 60 || rect.bottom < 0;
+        const reduced = document.documentElement.getAttribute("data-motion") === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (needsScroll) el.scrollIntoView({ behavior: reduced ? "instant" : "smooth", block: "center" });
+        at(needsScroll && !reduced ? 680 : 0, () => {
+          if (!el.isConnected || window.location.pathname !== clickOriginPath) return;
+          const center = elementCenter(el);
+          const travel = moveTo(center.x, center.y, detail.label);
+          // Let the pointer land, then make a short, deliberate press.
+          at(travel + 110, () => {
+            setClicking(true);
+            at(90, () => { try { if (el.isConnected && window.location.pathname === clickOriginPath) el.click(); } catch { /* */ } });
+            at(240, () => setClicking(false));
+            at(950, hideCursor);
           });
-        } else {
-          // Element not found yet (page may still be rendering) — retry once after 300ms
-          at(300, () => {
-            const el2 = resolveTarget(detail);
-            if (!el2) return;
-            withScroll(el2, () => {
-              const center = elementCenter(el2);
-              wanderThen(center.x, center.y, detail.label, () => {
-                at(200, () => {
-                  setClicking(true);
-                  at(200, () => { try { if (window.location.pathname === clickOriginPath) el2.click(); } catch { /* */ } });
-                  at(500, () => setClicking(false));
-                  at(1200, () => { setVisible(false); visRef.current = false; setLabel(null); });
-                });
-              });
-            });
-          });
-        }
-      } else {
-        at(200, () => {
-          const el = resolveTarget(detail);
-          if (!el) return;
-          withScroll(el, () => landAndClick(el));
         });
-      }
+      };
+      attempt();
     }
 
-    function onHide() { clearTimers(); setVisible(false); visRef.current = false; setClicking(false); setLabel(null); }
+    function onHide() { clearTimers(); hideCursor(); setClicking(false); }
 
     function onType(e: Event) {
       const detail = (e as CustomEvent<{ text?: string; selector?: string; target?: string; typeText?: string; label?: string }>).detail ?? {};
@@ -271,51 +199,42 @@ export default function AIBrowserCursor() {
       const resolved = resolveTarget(detail);
       if (!resolved) return;
       const el = controlWithin<HTMLElement>(resolved, "input, textarea") ?? resolved;
-      const origin = chatOrigin();
-      setPos(origin); setVisible(true); setLabel(detail.label ?? "Typing…");
-      at(350, () => {
-        const center = elementCenter(el);
-        moveTo(center.x, center.y, detail.label ?? "Typing…");
-        at(400, () => {
-          setClicking(true);
-          at(150, () => {
-            try { el.focus(); (el as HTMLElement).click(); } catch { /* */ }
-            setClicking(false);
+      const center = elementCenter(el);
+      const travel = moveTo(center.x, center.y, detail.label ?? "Typing…");
+      at(travel + 120, () => {
+        setClicking(true);
+        try { el.focus(); el.click(); } catch { /* */ }
+        at(180, () => setClicking(false));
+        const chars = (detail.typeText ?? "").split("");
+        const field = el as HTMLInputElement | HTMLTextAreaElement;
+        chars.forEach((char, i) => {
+          at(220 + i * 55, () => {
+            try {
+              setNativeValue(field, (field.value ?? "") + char);
+              field.dispatchEvent(new Event("input", { bubbles: true }));
+            } catch { /* */ }
           });
-          const chars = (detail.typeText ?? "").split("");
-          const field = el as HTMLInputElement | HTMLTextAreaElement;
-          chars.forEach((char, i) => {
-            at(600 + i * 55, () => {
-              try {
-                const newVal = (field.value ?? "") + char;
-                setNativeValue(field, newVal);
-                field.dispatchEvent(new Event("input", { bubbles: true }));
-              } catch { /* */ }
-            });
-          });
-          at(600 + chars.length * 55 + 600, () => { setVisible(false); setLabel(null); });
         });
+        at(220 + chars.length * 55 + 600, hideCursor);
       });
     }
 
     function onNav(e: Event) {
       const detail = (e as CustomEvent<NavDetail>).detail ?? {};
       clearTimers(); setClicking(false);
-      const origin = chatOrigin();
-      setPos(origin); setVisible(true); setLabel(detail.label ?? "Navigating…");
-      at(350, () => {
-        if (!detail.href) { setVisible(false); setLabel(null); return; }
-        let navEl: HTMLElement | null = null;
-        const links = Array.from(document.querySelectorAll("nav a, header a")) as HTMLAnchorElement[];
-        for (const link of links) {
-          try {
-            const url = new URL(link.href, window.location.origin);
-            if (url.pathname === detail.href || link.getAttribute("href") === detail.href) { navEl = link; break; }
-          } catch { /* */ }
-        }
-        const center = navEl ? elementCenter(navEl) : { x: window.innerWidth / 2, y: 40 };
-        moveTo(center.x, center.y, detail.label ?? `Navigating to ${detail.href}`);
-        at(600, () => { setClicking(true); at(500, () => setClicking(false)); at(1000, () => { setVisible(false); setLabel(null); }); });
+      if (!detail.href) { hideCursor(); return; }
+      const links = Array.from(document.querySelectorAll("nav a, header a")) as HTMLAnchorElement[];
+      const navEl = links.find((link) => {
+        if (link.getClientRects().length === 0) return false;
+        try { return new URL(link.href, window.location.origin).pathname === detail.href || link.getAttribute("href") === detail.href; }
+        catch { return false; }
+      });
+      const center = navEl ? elementCenter(navEl) : { x: window.innerWidth / 2, y: 40 };
+      const travel = moveTo(center.x, center.y, detail.label ?? `Navigating to ${detail.href}`);
+      at(travel + 120, () => {
+        setClicking(true);
+        at(240, () => setClicking(false));
+        at(1000, hideCursor);
       });
     }
 
@@ -326,8 +245,8 @@ export default function AIBrowserCursor() {
       if (!el) return;
       const pct = Math.max(0, Math.min(100, Number(detail.value ?? 50)));
       const center = elementCenter(el);
-      moveTo(center.x, center.y, detail.label ?? "Adjusting…");
-      at(420, () => {
+      const travel = moveTo(center.x, center.y, detail.label ?? "Adjusting…");
+      at(travel + 120, () => {
         setClicking(true); at(400, () => setClicking(false));
         const range = controlWithin<HTMLInputElement>(el, 'input[type="range"]');
         if (range) {
@@ -340,7 +259,7 @@ export default function AIBrowserCursor() {
         } else {
           el.dispatchEvent(new CustomEvent("mdcran:before-after", { detail: { value: pct }, bubbles: true }));
         }
-        at(900, () => { setVisible(false); setLabel(null); });
+        at(900, hideCursor);
       });
     }
 
@@ -351,8 +270,8 @@ export default function AIBrowserCursor() {
       if (!el) return;
       const box = controlWithin<HTMLInputElement>(el, 'input[type="checkbox"], input[type="radio"]');
       const center = elementCenter(box ?? el);
-      moveTo(center.x, center.y, detail.label ?? "Selecting…");
-      at(420, () => {
+      const travel = moveTo(center.x, center.y, detail.label ?? "Selecting…");
+      at(travel + 120, () => {
         setClicking(true);
         at(200, () => {
           try {
@@ -361,7 +280,7 @@ export default function AIBrowserCursor() {
           } catch { /* */ }
         });
         at(500, () => setClicking(false));
-        at(1200, () => { setVisible(false); setLabel(null); });
+        at(1200, hideCursor);
       });
     }
 
@@ -372,8 +291,8 @@ export default function AIBrowserCursor() {
       if (!el) return;
       const sel = controlWithin<HTMLSelectElement>(el, "select");
       const center = elementCenter(el);
-      moveTo(center.x, center.y, detail.label ?? "Choosing…");
-      at(420, () => {
+      const travel = moveTo(center.x, center.y, detail.label ?? "Choosing…");
+      at(travel + 120, () => {
         setClicking(true); at(400, () => setClicking(false));
         if (sel) {
           let val = detail.value;
@@ -387,7 +306,7 @@ export default function AIBrowserCursor() {
           try { el.click(); } catch { /* */ }
           if (detail.optionText) at(320, () => { try { findByText(detail.optionText!)?.click(); } catch { /* */ } });
         }
-        at(1200, () => { setVisible(false); setLabel(null); });
+        at(1200, hideCursor);
       });
     }
 
@@ -433,9 +352,9 @@ export default function AIBrowserCursor() {
           key="ai-cursor"
           className="fixed left-0 top-0 z-[150] pointer-events-none select-none"
           initial={false}
-          animate={{ x: pos.x, y: pos.y }}
+          style={{ x, y }}
           exit={{ opacity: 0, scale: 0.5 }}
-          transition={SPRING}
+          transition={{ duration: reducedMotion ? 0 : 0.18 }}
         >
           {/* Soft glow behind the cursor tip */}
           <div
@@ -452,8 +371,8 @@ export default function AIBrowserCursor() {
             width="22" height="28" viewBox="0 0 22 28" fill="none"
             className="absolute"
             style={{ top: 0, left: 0 }}
-            animate={{ scale: clicking ? 0.82 : 1 }}
-            transition={clicking ? { duration: 0.1 } : { duration: 0.18 }}
+            animate={{ scale: reducedMotion ? 1 : clicking ? 0.82 : 1 }}
+            transition={{ duration: reducedMotion ? 0 : clicking ? 0.1 : 0.18 }}
           >
             {/* Drop shadow layer */}
             <path
@@ -498,7 +417,7 @@ export default function AIBrowserCursor() {
 
           {/* Click ripple */}
           <AnimatePresence>
-            {clicking && (
+            {clicking && !reducedMotion && (
               <motion.div
                 key="ripple"
                 className="absolute rounded-full border-2"

@@ -11,7 +11,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function projectUrl(category: string, slug: string, subcategory?: string): string {
-  if (["coding-projects", "code"].includes(category.toLowerCase())) return `/engineering#project-${slug}`;
+  if (["coding-projects", "code", "software", "engineering"].includes(category.toLowerCase())) return `/engineering/${slug}`;
   return `/${category}/${subcategory ?? ""}/${slug}`.replace(/\/+/g, "/");
 }
 

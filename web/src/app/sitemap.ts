@@ -3,6 +3,7 @@ import { MetadataRoute } from "next";
 import { getArticles, getClients, getProjects } from "@/lib/db";
 import { projectUrl } from "@/lib/utils";
 import { SITE_URL } from "@/lib/seo";
+import { publicEngineeringProjects } from "@/lib/engineering-projects";
 
 const BASE_URL = SITE_URL;
 
@@ -60,6 +61,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly",
     priority: 0.75,
   }));
+  const engineeringRoutes: MetadataRoute.Sitemap = publicEngineeringProjects(projects).map((project) => ({
+    url: `${BASE_URL}/engineering/${project.slug}`, changeFrequency: "monthly", priority: 0.8,
+  }));
 
   const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
     url: `${BASE_URL}/articles/${article.slug}`,
@@ -68,5 +72,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...clientRoutes, ...projectRoutes, ...articleRoutes];
+  return [...staticRoutes, ...clientRoutes, ...projectRoutes, ...engineeringRoutes.filter((route) => !projectRoutes.some((projectRoute) => projectRoute.url === route.url)), ...articleRoutes];
 }

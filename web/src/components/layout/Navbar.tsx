@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import RecruiterShortcuts from "./RecruiterShortcuts";
 import { Search, X, Menu, ChevronDown } from "lucide-react";
 import { assetUrl, cn, projectUrl, imageAssetSrc } from "@/lib/utils";
 import { useTheme } from "@/lib/ThemeContext";
@@ -490,7 +489,6 @@ export default function Navbar({ opaque }: { opaque?: boolean } = {}) {
             </motion.div>
           )}
         </AnimatePresence>
-      <RecruiterShortcuts />
       </motion.nav>
 
       {/* ── Search overlay ── */}
