@@ -21,9 +21,11 @@ import { assetUrl, imageAssetSrc, projectUrl } from "@/lib/utils";
 import { ROOTS, ROUTES, COMMANDS, parseArguments, resolveTerminalPath, isCodeProject, formatDate, submitTerminalForm, validateTerminalSnapshot, sanitizeBrowseUrl, type TerminalFormMode, type TerminalForm } from "@/lib/terminal-shell";
 import { buildSearch, type SearchHit } from "@/lib/terminal-search";
 import { streamTerminalAnswer, type TerminalTurn } from "@/lib/terminal-ai";
-import { resumeLines, resumeLinks, recruiterProjects, terminalActions, highlightParts, terminalWindowSize, terminalTourStep, RESUME_SECTIONS, TOUR_STEPS, type TerminalMode, type TerminalPet, type TerminalAnimation, type ResumeSection } from "@/lib/terminal-workspace";
+import { resumeLines, resumeLinks, recruiterProjects, terminalActions, terminalWindowSize, terminalTourStep, RESUME_SECTIONS, TOUR_STEPS, type TerminalMode, type TerminalPet, type TerminalAnimation, type ResumeSection } from "@/lib/terminal-workspace";
 import { TerminalToolbar, TerminalTour, TerminalCompanion, TerminalResize, TerminalPointer, type TerminalPointerTarget } from "./TerminalWorkspaceChrome";
 import workspaceStyles from "./TerminalWorkspace.module.css";
+import TerminalTranscript from "./TerminalTranscript";
+import type { TerminalLogEntry } from "@/lib/terminal-output";
 import CRTThreeCanvas from "./CRTThreeCanvas";
 import SnakeGame from "./games/SnakeGame";
 import PacmanGame from "./games/PacmanGame";
@@ -49,14 +51,7 @@ type TerminalData = {
 
 type LogTone = "default" | "muted" | "success" | "error" | "accent";
 
-type LogEntry = {
-  id: string;
-  prompt?: string;
-  text?: string;
-  tone?: LogTone;
-  links?: Array<{ label: string; href: string }>;
-  typeDurationMs?: number; // if set, play typewriter reveal animation
-};
+type LogEntry = TerminalLogEntry;
 
 type PreviewState = {
   title: string;
@@ -119,10 +114,6 @@ const POWER_BUTTON_HOVER_MS = 40;
 const TERMINAL_APPEAR_MS = 1500;
 // Delay (ms) after terminal opens before the boot text starts printing.
 const TERMINAL_TEXT_DELAY_MS = 1000;
-// Characters per second for the boot text typewriter animation.
-const TERMINAL_PRINT_SPEED_CPS = 40;
-// Maximum total ms the entire boot typewriter may take (auto-speeds up for longer text).
-const TERMINAL_PRINT_MAX_MS = 1400;
 // Delay (ms) after terminal opens before the retro GIF background starts showing.
 const TERMINAL_GIF_DELAY_MS = 500;
 // Delay (ms) after the close command before the shell DISAPPEARS from screen.
@@ -151,17 +142,7 @@ function promptLabel(path: string[]) {
 }
 
 function logText(text: string, tone: LogTone = "default"): LogEntry {
-  return { id: mkId(), text, tone };
-}
-
-// Compute typewriter animation duration for a given text using the top-of-file constants.
-// For multi-line text, speed is based on the longest line (all rows reveal in sync via clip-path).
-function typedDuration(text: string): number {
-  const lines = text.split("\n");
-  const effectiveLen = lines.length > 1
-    ? Math.max(...lines.map((l) => l.length))
-    : text.length;
-  return Math.min(effectiveLen * (1000 / TERMINAL_PRINT_SPEED_CPS), TERMINAL_PRINT_MAX_MS);
+  return { id: mkId(), text, tone, preserveWhitespace: text === ASCII };
 }
 
 // Box header: always perfectly aligned regardless of title length.
@@ -398,84 +379,6 @@ function directoryItems(path: string[], data: TerminalData): string[] {
 // ─── Search ───────────────────────────────────────────────────────────────────
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function LogLine({ entry, highlight, animation }: { entry: LogEntry; highlight: string; animation: TerminalAnimation }) {
-  const content = highlightParts(entry.text ?? "", highlight).map((part,index) => part.match ? <mark key={index}>{part.text}</mark> : part.text);
-  if (entry.prompt != null) {
-    const gtIdx = entry.prompt.lastIndexOf(">");
-    const path = gtIdx >= 0 ? entry.prompt.slice(0, gtIdx + 1) : "";
-    const cmd = gtIdx >= 0 ? entry.prompt.slice(gtIdx + 1) : entry.prompt;
-    return (
-      <div
-        className="flex leading-5"
-        style={{ textShadow: "0 0 6px rgba(134, 239, 172, 0.25)" }}
-      >
-        <span className="text-[#4ade80] shrink-0 select-none">{path}</span>
-        <span className="text-[#d9fbe3]/90">{cmd}</span>
-      </div>
-    );
-  }
-
-  if (entry.links) {
-    return (
-      <div className="flex flex-wrap gap-x-6 gap-y-0 leading-5">
-        {entry.links.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[#86efac] underline underline-offset-2 hover:text-[#dcfce7] transition-colors"
-            style={{ textShadow: "0 0 8px rgba(74, 222, 128, 0.22)" }}
-          >
-            ↗ {link.label}
-          </a>
-        ))}
-      </div>
-    );
-  }
-
-  const toneClass =
-    entry.tone === "success"
-      ? "text-[#86efac]"
-      : entry.tone === "error"
-      ? "text-[#fca5a5]"
-      : entry.tone === "accent"
-      ? "text-[#4ade80]"
-      : entry.tone === "muted"
-      ? "text-[#86efac]/45"
-      : "text-[#d9fbe3]/85";
-  const weightClass = entry.tone === "accent" ? "font-semibold" : "";
-
-  if (entry.typeDurationMs && animation === "type") {
-    const lines = (entry.text ?? "").split("\n");
-    const isMultiline = lines.length > 1; // ASCII art — keep exact whitespace, no wrap
-    const steps = Math.max(
-      isMultiline ? Math.max(...lines.map((l) => l.length)) : (entry.text?.length ?? 1),
-      1,
-    );
-    return (
-      <div
-        className={`${isMultiline ? "whitespace-pre" : "whitespace-pre-wrap break-all"} leading-[0.875rem] overflow-hidden ${toneClass} ${weightClass}`}
-        style={{
-          textShadow: "0 0 6px rgba(74, 222, 128, 0.14)",
-          animation: `crtTyping ${entry.typeDurationMs}ms steps(${steps}, end) both`,
-        }}
-      >
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`whitespace-pre-wrap break-words leading-[0.875rem] ${toneClass} ${weightClass}`}
-      style={{ textShadow: "0 0 6px rgba(74, 222, 128, 0.14)" }}
-    >
-      {content}
-    </div>
-  );
-}
 
 function PreviewImage({ url, alt }: { url: string; alt?: string }) {
   return (
@@ -1046,7 +949,7 @@ export default function TerminalExperience() {
   const [tourTried, setTourTried] = React.useState(false);
   const tourDraftRef = React.useRef("");
   const [pet, setPet] = React.useState<TerminalPet>("cat");
-  const [animation, setAnimation] = React.useState<TerminalAnimation>("scan");
+  const [animation, setAnimation] = React.useState<TerminalAnimation>("type");
   const [highlight, setHighlight] = React.useState("");
   const [cursorEnabled, setCursorEnabled] = React.useState(true);
   const [pointerTarget, setPointerTarget] = React.useState<TerminalPointerTarget|null>(null);
@@ -1117,6 +1020,8 @@ export default function TerminalExperience() {
   const powerTimeoutRef = React.useRef<number | null>(null);
   const refocusTimeoutRef = React.useRef<number | null>(null);
   const audioContextRef = React.useRef<AudioContext | null>(null);
+  const printBufferRef = React.useRef<AudioBuffer | null>(null);
+  const lastPrintSoundRef = React.useRef(-1);
   const requestedRef = React.useRef(false);
   const comboRef = React.useRef(0);
   const historyRef = React.useRef<string[]>([]);
@@ -1452,12 +1357,7 @@ export default function TerminalExperience() {
 
   // ── append helper ──────────────────────────────────────────────────────────
   const append = React.useCallback((entries: LogEntry[]) => {
-    const animated = entries.map((e) => {
-      // Only animate plain text entries (not prompts, links, empty lines, or already-timed entries)
-      if (e.typeDurationMs !== undefined || e.prompt != null || e.links || !e.text) return e;
-      return { ...e, typeDurationMs: typedDuration(e.text) };
-    });
-    setLogs((prev) => [...prev, ...animated].slice(-2000));
+    setLogs((prev) => [...prev, ...entries].slice(-2000));
   }, []);
 
   const clearPreview = React.useCallback(() => {
@@ -1579,34 +1479,37 @@ export default function TerminalExperience() {
     });
   }, [getAudioCtx]);
 
-  // Teletype tick for boot animation character printing
+  // Called only after new characters are committed to the transcript. Never
+  // resume audio asynchronously here: a late resume would produce stale clicks.
   const playPrintSfx = React.useCallback(() => {
-    if (!keystrokesEnabledRef.current) return;
-    const ctxP = getAudioCtx();
-    if (!ctxP) return;
-    void ctxP.then((ctx) => {
-      if (!ctx) return;
-      const now = ctx.currentTime;
+    const ctx = audioContextRef.current;
+    if (!keystrokesEnabledRef.current || document.hidden || ctx?.state !== "running") return;
+    const now = ctx.currentTime;
+    if (now - lastPrintSoundRef.current < .02) return;
+    lastPrintSoundRef.current = now;
+    if (!printBufferRef.current) {
       const bufLen = Math.floor(ctx.sampleRate * 0.012);
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
       const ch = buf.getChannelData(0);
       for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
-      const noise = ctx.createBufferSource();
-      noise.buffer = buf;
-      const filter = ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.value = 3600 + Math.random() * 600;
-      filter.Q.value = 1.8;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.06 + Math.random() * 0.015, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.01);
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-      noise.start(now);
-      noise.stop(now + 0.014);
-    });
-  }, [getAudioCtx]);
+      printBufferRef.current = buf;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = printBufferRef.current;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 3600 + Math.random() * 600;
+    filter.Q.value = 1.8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.045, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.01);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.onended = () => { noise.disconnect(); filter.disconnect(); gain.disconnect(); };
+    noise.start(now);
+    noise.stop(now + 0.014);
+  }, []);
 
   // Mechanical "enter" thump when a command is submitted
   const playCommandSfx = React.useCallback(() => {
@@ -1848,45 +1751,18 @@ export default function TerminalExperience() {
     historyIdxRef.current = -1;
     setLogs([]);
 
-    // Boot lines: typed entries get the typewriter animation; blank lines appear instantly.
-    const bootLines: Array<{ entry: LogEntry; typed: boolean }> = [
-      { entry: logText(ASCII, "accent"),                                                    typed: true  },
-      { entry: logText(""),                                                                  typed: false },
-      { entry: logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),                    typed: true  },
-      { entry: logText("  Type \"help\" for commands  |  Type \"exit\" to close", "muted"), typed: true  },
-      { entry: logText("  resume · recruiter · search · tour · mode ai", "success"), typed: true },
-      { entry: logText("  Start typing anywhere. Tab completes commands.", "muted"), typed: true },
-      { entry: logText(""), typed: false },
-    ];
-
-    const timers: number[] = [];
-    let cursor = TERMINAL_TEXT_DELAY_MS;
-
-    for (const { entry, typed } of bootLines) {
-      const duration = typed && entry.text ? typedDuration(entry.text) : 0;
-      const t = window.setTimeout(
-        (e: LogEntry, d: number) => {
-          setLogs((prev) => [...prev, d > 0 ? { ...e, typeDurationMs: d } : e]);
-        },
-        cursor,
-        entry,
-        duration,
-      );
-      timers.push(t);
-      // Schedule per-character print sounds during the typewriter animation
-      if (typed && duration > 0) {
-        const tickInterval = 25; // ~40 chars/sec matches TERMINAL_PRINT_SPEED_CPS
-        const tickCount = Math.floor(duration / tickInterval);
-        for (let i = 0; i < tickCount; i++) {
-          const st = window.setTimeout(() => playPrintSfx(), cursor + i * tickInterval);
-          timers.push(st);
-        }
-      }
-      cursor += duration + 40;
-    }
-
-    return () => { timers.forEach((t) => window.clearTimeout(t)); };
-  }, [active, playPrintSfx]);
+    // The same character queue handles boot text and ordinary command output.
+    const timer = window.setTimeout(() => setLogs(previous => [...previous,
+      logText(ASCII, "accent"),
+      logText(""),
+      logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),
+      logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
+      logText("  resume · recruiter · search · tour · mode ai", "success"),
+      logText("  Start typing anywhere. Tab completes commands.", "muted"),
+      logText(""),
+    ]), TERMINAL_TEXT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [active]);
 
   React.useEffect(() => {
     if (!active || powerState !== "on") return;
@@ -1989,11 +1865,11 @@ export default function TerminalExperience() {
   const followOutputRef = React.useRef(true);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
-  React.useEffect(() => {
+  const followTranscriptOutput = React.useCallback(() => {
     if (transcriptRef.current && followOutputRef.current && !window.getSelection()?.toString()) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, []);
 
   // ── Body scroll lock ──────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -2065,10 +1941,10 @@ export default function TerminalExperience() {
     setLogs((prev) =>
       prev.map((entry) => {
         if (entry.id === ids.time) {
-          return { ...entry, text: `  ${durationText(progressMs)} / ${durationText(durationMs)}` };
+          return { ...entry, text: `  ${durationText(progressMs)} / ${durationText(durationMs)}`, instant: true };
         }
         if (entry.id === ids.bar) {
-          return { ...entry, text: `  ${progressBar(progressMs, durationMs)}` };
+          return { ...entry, text: `  ${progressBar(progressMs, durationMs)}`, instant: true };
         }
         return entry;
       })
@@ -2335,7 +2211,7 @@ export default function TerminalExperience() {
     aiRequestRef.current = null;
     setAiBusy(false);
     const id = aiEntryRef.current;
-    setLogs(previous => previous.map(entry => entry.id === id ? { ...entry, text: `${entry.text === "  Michael is thinking..." ? "" : entry.text}\n  [Response stopped]`, typeDurationMs: 0 } : entry));
+    setLogs(previous => previous.map(entry => entry.id === id ? { ...entry, text: `${entry.text === "  Michael is thinking..." ? "" : entry.text}\n  [Response stopped]`, instant: true } : entry));
   }
 
   async function doAsk(question: string, agentMode = false) {
@@ -2350,12 +2226,12 @@ export default function TerminalExperience() {
     const controller = new AbortController();
     aiRequestRef.current = controller;
     setAiBusy(true);
-    const entry = { ...logText("  Michael is thinking...", "accent"), typeDurationMs: 0 };
+    const entry = { ...logText("  Michael is thinking...", "accent"), instant: true };
     aiEntryRef.current = entry.id;
     append([entry]);
     try {
       const answer = await streamTerminalAnswer({ question, agent: agentMode, history: aiHistoryRef.current, signal: controller.signal,
-        onText: text => { if (!controller.signal.aborted) setLogs(previous => previous.map(line => line.id === entry.id ? { ...line, text: `  MICHAEL\n  ${text}` } : line)); } });
+        onText: text => { if (!controller.signal.aborted) setLogs(previous => previous.map(line => line.id === entry.id ? { ...line, text: `  MICHAEL\n  ${text}`, instant: false } : line)); } });
       if (controller.signal.aborted) return;
       aiHistoryRef.current = [...aiHistoryRef.current, { role: "user", content: question }, { role: "assistant", content: answer.text.slice(0,6000) }].slice(-12) as TerminalTurn[];
       if (answer.sources.length) append([logLinks(answer.sources)]);
@@ -4123,9 +3999,8 @@ export default function TerminalExperience() {
               Loading terminal data...
             </div>
           )}
-          {logs.map((entry) => (
-            <div key={entry.id} data-terminal-line><LogLine entry={entry} highlight={highlight} animation={animation} /></div>
-          ))}
+          <TerminalTranscript entries={logs} highlight={highlight} enabled={animation !== "off"}
+            active={powerState === "on" && !gameMode} onPrint={playPrintSfx} onProgress={followTranscriptOutput}/>
           <div className="h-3" />
         </div>
 
@@ -5340,11 +5215,6 @@ export default function TerminalExperience() {
         @keyframes crtVignetteShift {
           0%, 100% { opacity: 0.24; }
           50% { opacity: 0.36; }
-        }
-
-        @keyframes crtTyping {
-          from { clip-path: inset(0 100% 0 0); }
-          to   { clip-path: inset(0 0%   0 0); }
         }
 
         @keyframes crtStartupBloom {

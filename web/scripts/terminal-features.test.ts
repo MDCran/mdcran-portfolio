@@ -4,6 +4,93 @@ import { streamTerminalAnswer, cleanTerminalAnswer, terminalHistory } from "../s
 import { buildSearch } from "../src/lib/terminal-search";
 import { INITIAL_PACMAN_MAZE, nextPacmanRound, pacmanCollision, pacmanTickMs, snakeSelfCollision } from "../src/lib/terminal-games";
 import type { Article, Client, Project } from "../src/lib/types";
+import { TerminalPrinter } from "../src/lib/terminal-output";
+
+test("terminal output reveals characters in reading order, with clicks only for visible glyphs",()=>{
+  const printer=new TerminalPrinter();
+  printer.sync([{id:"one",text:"A\nB"},{id:"two",text:"CD"}]);
+  assert.equal(printer.advance(0),false);
+  printer.advance(12);
+  assert.deepEqual(printer.view().lines.map(row=>row.text),["A"]);
+  assert.equal(printer.view().pulse,1);
+  printer.advance(24);
+  assert.deepEqual(printer.view().lines.map(row=>row.text),["A\n"]);
+  assert.equal(printer.view().pulse,1,"newlines do not make typing clicks");
+  printer.advance(36);
+  assert.deepEqual(printer.view().lines.map(row=>row.text),["A\nB"]);
+  printer.advance(48);
+  assert.deepEqual(printer.view().lines.map(row=>row.text),["A\nB","C"]);
+  printer.advance(60);
+  assert.equal(printer.pending,false);
+  const pulse=printer.view().pulse;
+  printer.advance(1000);
+  assert.equal(printer.view().pulse,pulse,"finished output is silent");
+});
+
+test("character reveal keeps emoji and combining characters intact",()=>{
+  const printer=new TerminalPrinter();
+  printer.sync([{id:"unicode",text:"A👩‍💻é"}]);
+  printer.advance(0);
+  for(const [time,text] of [[12,"A"],[24,"A👩‍💻"],[36,"A👩‍💻é"]] as const) {
+    printer.advance(time);
+    assert.equal(printer.view().lines[0].text,text);
+  }
+});
+
+test("AI chunks extend the reveal instead of showing whole chunks or replaying prior text",()=>{
+  const printer=new TerminalPrinter();
+  printer.sync([{id:"ai",text:"Thinking…",instant:true}]);
+  printer.advance(0);
+  assert.equal(printer.view().pulse,0);
+  printer.sync([{id:"ai",text:"Hello",instant:false}]);
+  printer.advance(10);printer.advance(22);
+  assert.equal(printer.view().lines[0].text,"H");
+  printer.sync([{id:"ai",text:"Hello world",instant:false}]);
+  printer.advance(34);
+  assert.equal(printer.view().lines[0].text,"He");
+  printer.finish();
+  printer.sync([{id:"ai",text:"Hello world!",instant:false}]);
+  assert.equal(printer.view().lines[0].text,"Hello world");
+  printer.advance(1000);printer.advance(1012);
+  assert.equal(printer.view().lines[0].text,"Hello world!");
+});
+
+test("skip, reduced-motion completion and new commands flush old output without click bursts",()=>{
+  const printer=new TerminalPrinter();
+  const old={id:"old",text:"A long response"};
+  printer.sync([old]);printer.advance(0);printer.advance(12);
+  const pulse=printer.view().pulse;
+  printer.sync([old,{id:"command",prompt:"C:\\mdcran> resume"},{id:"new",text:"Michael"}]);
+  assert.equal(printer.view().lines[0].text,old.text);
+  assert.equal(printer.view().lines.at(-1)?.entry.id,"command");
+  assert.equal(printer.view().pulse,pulse);
+  printer.finish();
+  assert.equal(printer.pending,false);
+  assert.equal(printer.view().lines.at(-1)?.text,"Michael");
+  assert.equal(printer.view().pulse,pulse);
+  printer.sync([]);
+  assert.deepEqual(printer.view().lines,[]);
+});
+
+test("pausing resets time so returning to the tab cannot dump a whole pending line",()=>{
+  const printer=new TerminalPrinter();
+  printer.sync([{id:"long",text:"a".repeat(1000)}]);
+  printer.advance(0);printer.advance(12);
+  const before=printer.view().lines[0].text.length;
+  printer.resetClock();printer.advance(60000);
+  assert.equal(printer.view().lines[0].text.length,before);
+  printer.advance(60012);
+  assert.ok(printer.view().lines[0].text.length-before<=3);
+});
+
+test("live counters and stopped replies update silently without restarting a reveal",()=>{
+  const printer=new TerminalPrinter();
+  printer.sync([{id:"time",text:"0:01",instant:true}]);printer.advance(0);
+  printer.sync([{id:"time",text:"0:02",instant:true}]);
+  assert.equal(printer.view().lines[0].text,"0:02");
+  assert.equal(printer.pending,false);
+  assert.equal(printer.view().pulse,0);
+});
 
 function sse(text: string, chunkSize = 1) {
   const bytes = new TextEncoder().encode(text);
