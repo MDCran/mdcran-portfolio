@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -6,7 +7,7 @@ import EngineeringProjectCard from "../src/components/work/EngineeringProjectCar
 import EngineeringProjectEvidence from "../src/components/work/EngineeringProjectEvidence";
 import { publicEngineeringProjects, engineeringDetail } from "../src/lib/engineering-projects";
 import { coreAiContracts } from "../src/lib/engineering";
-import { projectUrl } from "../src/lib/utils";
+import { imageAssetSrc, projectUrl } from "../src/lib/utils";
 import { evidenceForSkill } from "../src/lib/portfolio-evidence";
 import type { Project } from "../src/lib/types";
 import CodeProjectRedirect from "../src/app/code/[slug]/page";
@@ -45,6 +46,25 @@ test("public engineering page selection excludes hidden/unrelated records and in
   assert.ok(selected.some((entry) => entry.slug === coreAiContracts.id));
   assert.ok(!selected.some((entry) => ["hidden", "art"].includes(entry.slug)));
   assert.ok(!publicEngineeringProjects([{ ...project, slug: coreAiContracts.id, visible: false }]).some((entry) => entry.slug === coreAiContracts.id));
+});
+
+test("contracts cover is bundled locally and fills missing project media", () => {
+  const fallback = publicEngineeringProjects([]).find((entry) => entry.slug === coreAiContracts.id)!;
+  assert.equal(imageAssetSrc(fallback.coverImage), coreAiContracts.coverImage.src);
+  assert.ok(existsSync(new URL(`../public${coreAiContracts.coverImage.src}`, import.meta.url)));
+  const markup = renderToStaticMarkup(<EngineeringProjectCard project={fallback} />);
+  assert.match(markup, /<img[^>]+alt="Core AI safety contracts/);
+
+  const contracts = { ...project, id: coreAiContracts.id, slug: coreAiContracts.id };
+  const withoutCover = publicEngineeringProjects([contracts]).find((entry) => entry.slug === contracts.slug)!;
+  assert.deepEqual(withoutCover.coverImage, coreAiContracts.coverImage);
+
+  const customCover = { src: "https://example.com/contracts.png", alt: "Custom project cover" };
+  const withCover = publicEngineeringProjects([{ ...contracts, coverImage: customCover }]).find((entry) => entry.slug === contracts.slug)!;
+  assert.deepEqual(withCover.coverImage, customCover);
+  const withGallery = publicEngineeringProjects([{ ...contracts, images: [customCover] }]).find((entry) => entry.slug === contracts.slug)!;
+  assert.deepEqual(withGallery.images, [customCover]);
+  assert.equal(withGallery.coverImage, undefined);
 });
 
 test("legacy URLs redirect to a project page rather than back into a card", async () => {

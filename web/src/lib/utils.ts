@@ -4,7 +4,7 @@ import type { ImageAsset } from "./types";
 
 const CDN_BASE_URL = (process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "https://cdn.mdcran.com").replace(/\/+$/, "");
 const CDN_ASSET_FILE_RE = /\.(?:png|jpe?g|gif|webp|avif|svg|mp4|webm|mov|m4v|pdf|ico)$/i;
-const LOCAL_ASSET_PREFIXES = ["/fonts/", "/icons/"];
+const LOCAL_ASSET_PREFIXES = ["/fonts/", "/icons/", "/project-covers/"];
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

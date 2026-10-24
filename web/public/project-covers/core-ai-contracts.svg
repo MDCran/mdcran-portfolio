@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" fill="none">
+  <defs>
+    <linearGradient id="background" x1="0" y1="675" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08090c"/><stop offset=".6" stop-color="#101015"/><stop offset="1" stop-color="#2c1117"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="translate(946 312) rotate(90) scale(310 365)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ef4242" stop-opacity=".2"/><stop offset="1" stop-color="#ef4242" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shield" x1="844" y1="192" x2="1062" y2="444" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff6868"/><stop offset="1" stop-color="#a62136"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="880" y1="202" x2="1044" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ed5555" stop-opacity=".12"/><stop offset="1" stop-color="#ed5555" stop-opacity=".02"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#ffffff" stroke-opacity=".035"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+  <path fill="url(#background)" d="M0 0h1200v675H0z"/>
+  <path fill="url(#grid)" d="M0 0h1200v675H0z"/>
+  <path fill="url(#halo)" d="M600 0h600v675H600z"/>
+  <path d="M72 92h42" stroke="#ef4242" stroke-width="4"/>
+  <text x="130" y="99" fill="#bf9398" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="600" letter-spacing="3">PUBLIC TYPESCRIPT PACKAGE</text>
+  <text x="66" y="253" fill="#f6f5f5" font-family="Arial, Helvetica, sans-serif" font-size="114" font-weight="800" letter-spacing="-5">CORE <tspan fill="#f34c53">AI</tspan></text>
+  <text x="72" y="333" fill="#f6f5f5" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" letter-spacing="1">SAFETY CONTRACTS</text>
+  <text x="74" y="384" fill="#9e9ba5" font-family="Arial, Helvetica, sans-serif" font-size="25">Boundaries for AI applications.</text>
+  <path d="M74 437h530" stroke="#ffffff" stroke-opacity=".09"/>
+  <rect x="73" y="479" width="210" height="44" rx="5" fill="#ef4242" fill-opacity=".07" stroke="#ef4242" stroke-opacity=".35"/>
+  <text x="91" y="507" fill="#eb9c9e" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" letter-spacing="1">INPUT ISOLATION</text>
+  <rect x="298" y="479" width="290" height="44" rx="5" fill="#74d9da" fill-opacity=".04" stroke="#74d9da" stroke-opacity=".25"/>
+  <text x="316" y="507" fill="#a2ccce" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600" letter-spacing="1">USAGE AUTHORIZATION</text>
+  <g stroke="#9c636c" stroke-opacity=".35" stroke-width="2">
+    <path d="M842 266h-52l-44-44h-65M842 349h-77l-34 34h-41M1062 266h44l32-32h62M1062 349h36l44 44h58"/>
+    <path d="M946 194v-54l-38-38V55M946 444v64l45 45v122"/>
+  </g>
+  <g fill="#ef747a">
+    <circle cx="681" cy="222" r="5"/><circle cx="690" cy="383" r="5"/><circle cx="908" cy="55" r="5"/>
+    <circle cx="1138" cy="234" r="5"/><circle cx="1142" cy="393" r="5"/><circle cx="991" cy="553" r="5"/>
+  </g>
+  <path d="M946 181l119 47v89c0 65-47 111-119 144-72-33-119-79-119-144v-89l119-47Z" stroke="#ef4242" stroke-width="14" filter="url(#glow)" opacity=".36"/>
+  <path d="M946 181l119 47v89c0 65-47 111-119 144-72-33-119-79-119-144v-89l119-47Z" fill="url(#glass)" stroke="url(#shield)" stroke-width="3"/>
+  <path d="M946 201l101 40v76c0 54-39 95-101 124-62-29-101-70-101-124v-76l101-40Z" stroke="#ffabab" stroke-opacity=".12"/>
+  <g stroke="#fff0f1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m914 282-25 29 25 29M978 282l25 29-25 29M955 271l-19 80"/>
+  </g>
+  <path d="M72 596h1056" stroke="#ffffff" stroke-opacity=".08"/>
+  <text x="73" y="632" fill="#6d6873" font-family="Arial, Helvetica, sans-serif" font-size="15" letter-spacing="2">PROVIDER-NEUTRAL · OPEN SOURCE</text>
+  <text x="1128" y="632" fill="#9c646d" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700" letter-spacing="2">CORE AI</text>
+</svg>

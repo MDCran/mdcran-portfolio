@@ -150,6 +150,10 @@ export const engineeringProjects: Record<string, EngineeringProjectDetail> = {
 export const coreAiContracts = {
   id: "core-ai-contracts",
   title: "Core AI safety contracts",
+  coverImage: {
+    src: "/project-covers/core-ai-contracts.png",
+    alt: "Core AI safety contracts — input isolation and usage authorization, with a code shield on a dark red background",
+  },
   category: "AI integration · Safety contracts",
   status: "Public TypeScript package",
   summary: "A small provider-neutral package for conversation safety and metered-usage authorization, used at the boundary between applications and private AI services.",

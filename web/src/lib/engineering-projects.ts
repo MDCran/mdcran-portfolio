@@ -7,7 +7,12 @@ export function isEngineeringProject(project: Project): boolean {
 }
 
 export function publicEngineeringProjects(projects: Project[]): Project[] {
-  const work = projects.filter(isEngineeringProject);
+  const work = projects.filter(isEngineeringProject).map((project) => {
+    if (project.slug !== coreAiContracts.id) return project;
+    const cover = project.coverImage ?? project.images?.[0];
+    const src = typeof cover === "string" ? cover : cover?.src;
+    return src?.trim() ? project : { ...project, coverImage: coreAiContracts.coverImage };
+  });
   const bySlug = new Map(work.map((project) => [project.slug, project]));
   const ordered = [
     ...engineeringProjectOrder.map((slug) => bySlug.get(slug)).filter((project): project is Project => !!project),
@@ -17,6 +22,7 @@ export function publicEngineeringProjects(projects: Project[]): Project[] {
   if (!projects.some((project) => project.slug === coreAiContracts.id)) ordered.push({
     id: coreAiContracts.id, slug: coreAiContracts.id, title: coreAiContracts.title,
     description: coreAiContracts.summary, category: "coding-projects",
+    coverImage: coreAiContracts.coverImage,
     tags: [...coreAiContracts.skills], githubUrl: coreAiContracts.repo,
     pricing: { status: "unavailable" },
   });
