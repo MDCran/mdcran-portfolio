@@ -4338,9 +4338,17 @@ export default function TerminalExperience() {
           <span role="status">{aiBusy ? "Michael is responding · stop or Ctrl+C cancels" : formMode ? `Editing ${formMode} draft · send or cancel` : mode === "shell" ? "SHELL · help for commands" : `${mode.toUpperCase()} · ask naturally · mode shell to return`}</span>
           <TerminalCompanion pet={pet} busy={aiBusy||busy} mode={mode}/>
         </div>
+        {ghostSuffix && inputFocused && mode==="shell" && (
+          <div id="terminal-command-suggestion" className="mb-1.5 flex items-start gap-2 px-1 text-[10px] leading-4 text-[#86efac]/70">
+            <kbd className="shrink-0 rounded border border-[#86efac]/20 px-1 text-[9px]">Tab</kbd>
+            <span className="min-w-0 break-words">{input}<span className="text-[#dcfce7]">{ghostSuffix}</span></span>
+          </div>
+        )}
+        {showStartupInputHint && !inputFocused && <div className="mb-1.5 px-1 text-[9px] text-[#86efac]/65">Start typing to focus the command line.</div>}
         <div data-tour-target="command" className="flex items-center gap-2 rounded border border-[#86efac]/25 bg-[#031008] px-3 py-2 focus-within:border-[#86efac]/70">
           <label htmlFor="terminal-overlay-input" className="text-[#4ade80] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : "michael >"}</label>
           <input ref={inputRef} id="terminal-overlay-input" name="terminal_command" type="text" aria-label="Terminal command input"
+            aria-describedby={ghostSuffix && inputFocused && mode==="shell" ? "terminal-command-suggestion" : undefined}
             autoFocus={powerState === "on"} value={input} disabled={busy || Boolean(gameMode) || powerState!=="on"}
             onChange={event=>{dismissStartupInputHint();setInput(event.target.value);}} onKeyDown={handleKeyDown}
             onFocus={()=>setInputFocused(true)} onBlur={()=>setInputFocused(false)}
@@ -4348,8 +4356,6 @@ export default function TerminalExperience() {
             placeholder={busy?"Processing…":mode==="shell"?"Type a command…":"Ask about Michael’s work…"}
             className="min-w-0 flex-1 select-text bg-transparent text-[12px] leading-6 text-[#dcfce7] caret-[#86efac] outline-none placeholder:text-[#86efac]/45" />
         </div>
-        {ghostSuffix && inputFocused && mode==="shell" && <div className="mt-1 text-[9px] text-[#86efac]/65">Tab → {input}{ghostSuffix}</div>}
-        {showStartupInputHint && !inputFocused && <div className="mt-1 text-[9px] text-[#86efac]/65">Start typing to focus the command line.</div>}
       </div>
       </div>
       </div>
