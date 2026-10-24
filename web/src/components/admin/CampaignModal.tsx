@@ -1,4 +1,5 @@
 "use client";
+import LabeledField from "./LabeledField";
 import { useState } from "react";
 
 
@@ -152,8 +153,7 @@ export default function CampaignModal({
     <Modal title={initial ? "Edit Compose" : "Compose"} onClose={onClose} wide>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label>Type</Label>
+          <LabeledField label="Type">
             <select
               className={inputCls}
               value={type}
@@ -168,10 +168,9 @@ export default function CampaignModal({
               <option value="email">Email</option>
               <option value="sms">SMS</option>
             </select>
-          </Field>
+          </LabeledField>
           {type === "email" && (
-            <Field>
-              <Label>Body Source</Label>
+            <LabeledField label="Body Source">
               <select
                 className={inputCls}
                 value={bodySource}
@@ -180,15 +179,14 @@ export default function CampaignModal({
                 <option value="text">Typed Body</option>
                 <option value="html">HTML File</option>
               </select>
-            </Field>
+            </LabeledField>
           )}
         </div>
 
         {type === "email" && (
-          <Field>
-            <Label required>Subject</Label>
+          <LabeledField label="Subject" required>
             <input className={inputCls} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Campaign subject line" />
-          </Field>
+          </LabeledField>
         )}
 
         {type === "email" && (
@@ -198,8 +196,7 @@ export default function CampaignModal({
         )}
 
         {(type === "sms" || bodySource === "text") && (
-          <Field>
-            <Label required>Message</Label>
+          <LabeledField label="Message" required>
             <textarea
               className={textareaCls}
               rows={5}
@@ -207,7 +204,7 @@ export default function CampaignModal({
               onChange={(e) => setMessage(e.target.value)}
               placeholder={type === "email" ? "Email body" : "Text message body"}
             />
-          </Field>
+          </LabeledField>
         )}
 
         {type === "email" && bodySource === "html" && (

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   if (action === "test") {
     const channel = searchParams.get("channel") as keyof DiscordChannelMap | null;
-    const validChannels: (keyof DiscordChannelMap)[] = ["forms", "bookings", "newsletter", "identities", "analytics"];
+    const validChannels: (keyof DiscordChannelMap)[] = ["forms", "bookings", "newsletter", "identities", "analytics", "deviceLinks", "returningVisitors"];
     if (!channel || !validChannels.includes(channel)) {
       return NextResponse.json({ error: "Invalid channel key" }, { status: 400 });
     }

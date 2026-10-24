@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Save, Loader2, CalendarClock, Check } from "lucide-react";
+import { adminRequest } from "@/lib/admin-client";
+import { bookingTimezoneValid } from "@/lib/admin-mutation";
 import DatePicker from "@/components/shared/DatePicker";
 import type { BookingConfig, BookingMeetingType, BookingRecord } from "@/lib/types";
 
@@ -21,30 +23,35 @@ export default function BookingAdmin() {
   // Raw text drafts for the durations inputs so commas can be typed freely.
   const [durationDrafts, setDurationDrafts] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    fetch("/api/admin/booking").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.config) {
-        // Drop blackout ranges that have already fully passed.
-        const today = new Date().toISOString().slice(0, 10);
-        const blackouts = (d.config.blackouts ?? []).filter((b: { end?: string }) => !b.end || b.end >= today);
-        setConfig({ ...d.config, blackouts });
-      }
-      if (Array.isArray(d?.bookings)) setBookings(d.bookings);
-    }).catch(() => {});
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await adminRequest<{ config: BookingConfig; bookings: BookingRecord[] }>("/api/admin/booking", { signal });
+      if (!data.config || !Array.isArray(data.bookings)) throw new Error("Booking settings returned an invalid response.");
+      setConfig(data.config); setBookings(data.bookings); setError("");
+    } catch (cause) { if (!signal?.aborted) setError(cause instanceof Error ? cause.message : "Could not load booking settings."); }
+    finally { if (!signal?.aborted) setLoading(false); }
   }, []);
+  useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
 
   const save = async () => {
-    if (!config) return;
-    setSaving(true);
+    if (!config || saving) return;
+    if (!bookingTimezoneValid(config.timezone)) { setError("Enter a valid timezone, such as America/New_York, before saving."); return; }
+    setSaving(true); setSaved(false); setError("");
     try {
-      const res = await fetch("/api/admin/booking", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
-      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
-    } finally { setSaving(false); }
+      const result = await adminRequest<{ config: BookingConfig }>("/api/admin/booking", { method: "PUT", body: JSON.stringify(config) });
+      if (!result.config) throw new Error("Save response was incomplete. Reload to confirm the saved settings before retrying.");
+      setConfig(current => current === config ? result.config : current);
+      setSaved(true);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save. Your changes are still here."); }
+    finally { setSaving(false); }
   };
 
-  if (!config) return <p className="text-xs text-white/30">Loading booking settings…</p>;
+  if (!config) return <div className="space-y-2 text-sm"><p role={error ? "alert" : "status"}>{error || "Loading booking settings…"}</p>{!loading && <button className="underline" onClick={() => { setLoading(true); void load(); }}>Retry</button>}</div>;
+  const displayTimezone = bookingTimezoneValid(config.timezone) ? config.timezone : "UTC";
 
-  const patch = (p: Partial<BookingConfig>) => setConfig((c) => (c ? { ...c, ...p } : c));
+  const patch = (p: Partial<BookingConfig>) => { setSaved(false); setConfig((c) => (c ? { ...c, ...p } : c)); };
   const setHour = (i: number, p: Partial<BookingConfig["hours"][number]>) =>
     setConfig((c) => c ? { ...c, hours: c.hours.map((h, idx) => idx === i ? { ...h, ...p } : h) } : c);
   const setType = (id: string, p: Partial<BookingMeetingType>) =>
@@ -55,17 +62,20 @@ export default function BookingAdmin() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-60">
           <p className="font-nord text-base text-white flex items-center gap-2"><CalendarClock size={16} className="text-[var(--cranberry,#ef4242)]" /> Meeting Booking</p>
           <p className="text-xs text-white/35 mt-0.5">Calendar-backed booking shown on the Contact page&apos;s &quot;Book a Meeting&quot; tab.</p>
         </div>
-        <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 h-9 px-4 rounded-sm bg-[var(--cranberry,#ef4242)] text-white text-xs uppercase tracking-wider hover:bg-[#dd3030] disabled:opacity-50">
+        <button onClick={save} disabled={saving} className="inline-flex shrink-0 items-center gap-2 h-9 whitespace-nowrap px-4 rounded-sm bg-[var(--cranberry,#ef4242)] text-white text-xs uppercase tracking-wider hover:bg-[#dd3030] disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
           {saved ? "Saved" : "Save"}
         </button>
       </div>
 
+      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+      {saved && <p role="status" className="text-sm text-emerald-300">Booking settings saved.</p>}
+      <fieldset disabled={saving} className="space-y-5" onChange={() => setSaved(false)}>
       {/* General */}
       <div className={card}>
         <label className="flex items-center gap-2 cursor-pointer">
@@ -74,14 +84,14 @@ export default function BookingAdmin() {
           <span className="text-xs text-white/35">— shows the &quot;Book a Meeting&quot; tab publicly</span>
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1">
             <span className={label}>iCal feed URL (private — never shown to visitors)</span>
             <input className={input} value={config.icalUrl} onChange={(e) => patch({ icalUrl: e.target.value })} placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" />
-          </div>
-          <div className="flex flex-col gap-1">
+          </label>
+          <label className="flex flex-col gap-1">
             <span className={label}>Timezone (IANA)</span>
             <input className={input} value={config.timezone} onChange={(e) => patch({ timezone: e.target.value })} placeholder="America/New_York" />
-          </div>
+          </label>
         </div>
         <p className="text-[11px] text-white/30">Availability uses your calendar&apos;s free/busy: events marked busy block out those times. Use the private <code className="text-white/50">basic.ics</code> link so private events count.</p>
       </div>
@@ -119,10 +129,10 @@ export default function BookingAdmin() {
             ["bufferMinutes", "Buffer between (min)"],
             ["slotIntervalMinutes", "Slot interval (min)"],
           ] as [keyof BookingConfig, string][]).map(([key, lbl]) => (
-            <div key={key} className="flex flex-col gap-1">
+            <label key={key} className="flex flex-col gap-1">
               <span className={label}>{lbl}</span>
               <input type="number" min={0} className={input} value={config[key] as number} onChange={(e) => patch({ [key]: Math.max(0, Number(e.target.value) || 0) } as Partial<BookingConfig>)} />
-            </div>
+            </label>
           ))}
         </div>
       </div>
@@ -166,11 +176,11 @@ export default function BookingAdmin() {
               </div>
               <input className={`${input} w-full`} value={t.description ?? ""} onChange={(e) => setType(t.id, { description: e.target.value })} placeholder="Short description" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="flex flex-col gap-1">
+                <label className="flex flex-col gap-1">
                   <span className={label}>Location</span>
                   <input className={input} list="booking-locations" value={t.location} onChange={(e) => setType(t.id, { location: e.target.value })} placeholder="Google Meet" />
-                </div>
-                <div className="flex flex-col gap-1">
+                </label>
+                <label className="flex flex-col gap-1">
                   <span className={label}>Durations (minutes, comma-separated)</span>
                   <input
                     className={input}
@@ -184,7 +194,7 @@ export default function BookingAdmin() {
                     placeholder="30, 60"
                     inputMode="numeric"
                   />
-                </div>
+                </label>
               </div>
             </div>
           ))}
@@ -201,7 +211,7 @@ export default function BookingAdmin() {
             <tbody>
               {bookings.map((b) => (
                 <tr key={b.id} className="border-t border-white/5">
-                  <td className="py-1.5 text-white/70">{new Date(b.start).toLocaleString("en-US", { timeZone: config.timezone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} <span className="text-white/30">({b.durationMinutes}m)</span></td>
+                  <td className="py-1.5 text-white/70">{new Date(b.start).toLocaleString("en-US", { timeZone: displayTimezone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} <span className="text-white/30">({b.durationMinutes}m)</span></td>
                   <td className="text-white/50">{b.typeName}</td>
                   <td className="text-white/50">{b.name}</td>
                   <td className="text-white/40">{b.email}{b.phone ? ` · ${b.phone}` : ""}</td>
@@ -213,6 +223,7 @@ export default function BookingAdmin() {
           </table>
         </div>
       </div>
+      </fieldset>
     </div>
   );
 }

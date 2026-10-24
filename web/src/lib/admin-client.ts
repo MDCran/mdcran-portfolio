@@ -34,6 +34,16 @@ export function recordVersion(record: unknown): number {
   return typeof version === "number" ? version : 0;
 }
 
+/** Batch writes return only submitted rows; retain the other rows already in the editor. */
+export function mergeSavedRecords<T extends { id: string }>(current: T[], saved: T[]): T[] {
+  const replacements = new Map(saved.map(record => [record.id, record]));
+  const existingIds = new Set(current.map(record => record.id));
+  return [
+    ...saved.filter(record => !existingIds.has(record.id)),
+    ...current.map(record => replacements.get(record.id) ?? record),
+  ];
+}
+
 export function recordId(collection: string, record: Record<string, unknown>): string {
   return String(collection === "skills" ? record.name : collection === "resumeProfile" ? "profile" : collection === "siteContent" ? "site-content" : record.id ?? "");
 }

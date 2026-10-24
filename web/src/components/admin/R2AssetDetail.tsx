@@ -5,7 +5,7 @@ import useSWR from "swr";
 import Image from "next/image";
 import { adminRequest } from "@/lib/admin-client";
 
-const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)));
+const fetcher = <T,>(url: string) => adminRequest<T>(url);
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -15,7 +15,7 @@ function bytes(n: number) {
 }
 
 export function R2StatsBar() {
-  const { data } = useSWR<{ total: number; bytes: number; images: number; videos: number; documents: number; others: number }>(
+  const { data, error, mutate } = useSWR<{ total: number; bytes: number; images: number; videos: number; documents: number; others: number }>(
     "/api/admin/r2/stats", fetcher, { revalidateOnFocus: false }
   );
   const cells = [
@@ -28,6 +28,7 @@ export function R2StatsBar() {
   ];
   return (
     <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+      {error && <p role="alert" className="col-span-full text-xs text-red-300">Asset totals could not refresh. <button className="underline" onClick={() => void mutate().catch(() => {})}>Retry</button></p>}
       {cells.map((c) => (
         <div key={c.label} className="rounded-sm border border-white/7 bg-white/2 p-3">
           <p className="text-[9px] tracking-[0.16em] uppercase text-white/35 mb-1">{c.label}</p>
@@ -49,7 +50,7 @@ export function R2AssetDetailPanel({ fileKey, onChanged }: { fileKey: string; on
 }
 
 function AssetDetailSession({ fileKey, onChanged }: { fileKey: string; onChanged?: () => void }) {
-  const { data, mutate } = useSWR<Detail>(`/api/admin/r2/detail?key=${encodeURIComponent(fileKey)}`, fetcher);
+  const { data, error: loadError, mutate } = useSWR<Detail>(`/api/admin/r2/detail?key=${encodeURIComponent(fileKey)}`, fetcher);
   const [edits, setEdits] = useState<{ key: string; values: Partial<Detail["meta"]> } | null>(null);
   const values = edits?.key === fileKey ? edits.values : {};
   const alt = values.alt ?? data?.meta.alt ?? "";
@@ -66,6 +67,7 @@ function AssetDetailSession({ fileKey, onChanged }: { fileKey: string; onChanged
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [replaceNotice, setReplaceNotice] = useState("");
 
   useEffect(() => () => saveRequest.current?.abort(), []);
 
@@ -113,13 +115,23 @@ function AssetDetailSession({ fileKey, onChanged }: { fileKey: string; onChanged
   };
 
   const replace = async (file: File | null) => {
-    if (!file) return;
-    const fd = new FormData();
-    fd.set("key", fileKey);
-    fd.set("file", file);
-    await fetch("/api/admin/r2/detail", { method: "POST", body: fd });
-    await mutate();
-    onChanged?.();
+    if (!file || saveRequest.current) return;
+    const controller = new AbortController(); saveRequest.current = controller;
+    setSaving(true); setSaveError(""); setReplaceNotice("");
+    let committed = false;
+    try {
+      const form = new FormData(); form.set("key", fileKey); form.set("file", file);
+      const response = await fetch("/api/admin/r2/detail", { method: "POST", body: form, signal: controller.signal });
+      const result = await response.json().catch(() => null);
+      controller.signal.throwIfAborted();
+      if (!response.ok) throw new Error(result?.error || "Could not replace the file. Select it again to retry.");
+      committed = true;
+      setReplaceNotice("File replaced successfully."); onChanged?.();
+      const refreshed = await adminRequest<Detail>(`/api/admin/r2/detail?key=${encodeURIComponent(fileKey)}`, { signal: controller.signal });
+      await mutate(refreshed, { revalidate: false });
+    } catch (cause) {
+      if (!controller.signal.aborted) setSaveError(committed ? "The file was replaced, but its preview could not refresh. Refresh details before repeating the upload." : cause instanceof Error ? cause.message : "Could not replace this file.");
+    } finally { if (saveRequest.current === controller) saveRequest.current = null; if (!controller.signal.aborted) setSaving(false); }
   };
 
   const input = "w-full bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-3 h-9 text-sm text-white outline-none placeholder-white/25";
@@ -130,7 +142,7 @@ function AssetDetailSession({ fileKey, onChanged }: { fileKey: string; onChanged
       {/* Preview */}
       <div className="overflow-hidden rounded-sm border border-white/8 bg-black/30 flex items-center justify-center min-h-[200px]">
         {!data ? (
-          <span className="text-xs text-white/25 py-10">Loading…</span>
+          <span className="text-xs text-white/60 py-10">{loadError ? "Could not load asset details." : "Loading…"}{loadError && <button className="ml-2 underline" onClick={() => void mutate().catch(() => {})}>Retry</button>}</span>
         ) : isImage ? (
           <Image unoptimized width={1200} height={800} src={data.url} alt={alt || fileKey} className="max-h-[60vh] h-auto w-full object-contain" onLoad={(e) => setDims(`${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}`)} />
         ) : isPdf ? (
@@ -192,10 +204,12 @@ function AssetDetailSession({ fileKey, onChanged }: { fileKey: string; onChanged
           </button>
           <label className="inline-flex items-center justify-center px-3 h-9 text-[11px] border border-white/15 text-white/55 rounded-sm hover:text-white hover:border-white/30 cursor-pointer">
             Replace file
-            <input type="file" className="hidden" onChange={(e) => replace(e.target.files?.[0] ?? null)} />
+            <input type="file" disabled={saving} className="hidden" onChange={(e) => { void replace(e.target.files?.[0] ?? null); e.target.value = ""; }} />
           </label>
           <a href={data?.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-3 h-9 text-[11px] border border-white/15 text-white/55 rounded-sm hover:text-white hover:border-white/30">Open</a>
         </div>
+        <button disabled={saving} className="text-xs underline disabled:opacity-40" onClick={() => { void mutate().then(() => setSaveError(""), () => setSaveError("Could not refresh asset details. Try again.")); }}>Refresh details</button>
+        {replaceNotice && <p role="status" className="text-xs text-emerald-300">{replaceNotice}</p>}
         {saveError && <p role="alert" className="text-xs text-red-300">{saveError}</p>}
         {visibility === "private" && <p className="text-[10px] text-white/30">Private assets are served via short-lived presigned URLs instead of the public CDN domain.</p>}
       </div>

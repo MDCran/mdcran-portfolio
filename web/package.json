@@ -14,10 +14,11 @@
     "sync:cdn-to-r2": "tsx scripts/sync-cdn-to-r2.ts",
     "gen:tour-audio": "node scripts/generate-tour-audio.mjs",
     "typecheck": "tsc --noEmit",
-    "test:unit": "tsx --test scripts/portfolio-experience.test.tsx scripts/rizz.test.ts scripts/public-modernization.test.tsx scripts/profile-publication.test.tsx scripts/assistant-modernization.test.ts scripts/content-health.test.ts scripts/admin-client.test.ts scripts/stored-preference.test.ts scripts/client-social-links.test.ts",
+    "test:unit": "tsx --test scripts/portfolio-experience.test.tsx scripts/rizz.test.ts scripts/public-modernization.test.tsx scripts/profile-publication.test.tsx scripts/assistant-modernization.test.ts scripts/content-health.test.ts scripts/admin-client.test.ts scripts/stored-preference.test.ts scripts/client-social-links.test.ts scripts/admin-navigation.test.tsx scripts/admin-accessibility.test.ts scripts/admin-api.test.ts scripts/admin-date.test.ts scripts/admin-labels.test.tsx",
     "test:backend": "tsx --test scripts/backend-modernization.test.ts",
     "test:smoke": "node scripts/smoke-modernization.mjs",
-    "publish:profile": "node scripts/publish-profile.mjs"
+    "publish:profile": "node scripts/publish-profile.mjs",
+    "test:admin": "node scripts/admin-http-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",

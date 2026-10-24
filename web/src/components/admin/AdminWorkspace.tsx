@@ -1,10 +1,13 @@
 "use client";
+import LabeledField from "./LabeledField";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import AdminShell from "./AdminShell";
+import AdminSearch from "./AdminSearch";
+import { adminNavigationItems, adminSectionPath, adminSectionFromLocation, isAdminSection } from "@/lib/admin-navigation";
 import Image, { type ImageProps } from "next/image";
-import { adminRequest, AdminRequestError, recordVersion, recordId, removedRecords, contentSignature } from "@/lib/admin-client";
+import { adminRequest, AdminRequestError, recordVersion, recordId, removedRecords, contentSignature, mergeSavedRecords } from "@/lib/admin-client";
 import { useSWRConfig } from "swr";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell } from "recharts";
 import TapsChart from "@/components/admin/TapsChart";
@@ -23,7 +26,7 @@ import CountryFlag from "@/components/shared/CountryFlag";
 import { defaultSiteContent } from "@/lib/site-content";
 import { SkillIcon } from "@/lib/skill-icons";
 import { assetUrl } from "@/lib/utils";
-import { LayoutDashboard, FolderKanban, FileText, Users, HardDrive, Settings2, FileUser, BarChart3, Monitor, Mail, ShieldAlert, Bot, MessageSquare, Send, Zap, Wine, Eye, CalendarCheck, Fingerprint, GitMerge, TrendingUp, Activity, Database, MessageCircle, Menu, X, ChevronDown, Globe, ArrowLeft, Pencil, Check, Trash2, Link2, Loader2 } from "lucide-react";
+import { X, ArrowLeft, Pencil, Check, Trash2, Link2, Loader2, Fingerprint, GitMerge } from "lucide-react";
 
 import { ContentStudio, OperationsCenter, BackupManager, PublishingStudio, AIStudio, ContentHealth, AnalyticsDashboard, SessionsControl, BookingAdmin, IdentitiesAdmin, DeviceCandidates, DiscordSettings, AiRoutingConditions, RizzSettings, RizzSubmissions, Contact, RateLimit, RizzEntry, Campaign, MetricsAuditTarget, MetricsAuditResponse, R2BrowserFile, R2BrowserFolder, R2BrowserResponse, NavSection, DEFAULT_RESUME_PROFILE, PROJECT_VIEWS_AUDIT_CACHE_KEY, PROJECT_VIEWS_REFRESH_INTERVAL_MS, uid, toEditableImageAsset, fmtDate, fmtDateTime, fmtDayLabel, formatBytes, isImageAssetFile, r2DisplayName, formatContactSource, formatRateLimitScope, campaignDeliveredCount, compareStrings, compareDates, humanizeChoiceList, DragReorderList, arrayMove, inputCls, textareaCls, btnRed, btnGhost, btnOutlineRed, btnOutline, Label, StringChipEditor, ActionLinkListEditor, Modal, IconPickerButton, DeleteDialog, PricingBadge, CampaignStatusBadge, SeedDatabaseCard } from './AdminShared';
 const ProjectModal = dynamic(() => import('./ProjectModal'));
@@ -38,11 +41,21 @@ function AdminImage({ src, alt, ...props }: Omit<ImageProps, "src"> & { src: str
   return src ? <Image src={src} alt={alt} {...props} /> : null;
 }
 
+const ADMIN_DATA_REQUIREMENTS: Record<string, string[]>={
+      dashboard:["projects","articles","clients","contacts","taps"],
+      projects:["projects","clients","taps"],articles:["articles","taps"],clients:["clients","projects"],
+      resume:["projects","clients"],"site-content":["site-content","projects","articles","clients"],bar:["site-content"],contacts:["contacts"],"contact-form-entries":["contacts"],campaigns:["campaigns","contacts"],rizz:["rizz","site-content"],"rate-limits":["rate-limits","chat"],ai:["chat"],
+};
+
 export default function AdminDashboard({ initialSection = "dashboard" }: { initialSection?: string }) {
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const [activeSection, setActiveSection] = useState<NavSection>(initialSection as NavSection);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [activeSection, updateActiveSection] = useState<NavSection>(isAdminSection(initialSection) ? initialSection : "dashboard");
+  const setActiveSection = useCallback((section: NavSection) => {
+    updateActiveSection(section);
+    const target = adminSectionPath(section);
+    if (window.location.pathname !== target || window.location.hash) window.history.pushState(null, "", target);
+  }, []);
   const [saveNotice, setSaveNotice] = useState<{state: "saving" | "saved" | "failed"; message: string} | null>(null);
   const savingRef = useRef(false);
   const retrySaveRef = useRef<null | (() => Promise<void>)>(null);
@@ -77,69 +90,74 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
   const [identityDetailEditName, setIdentityDetailEditName] = useState("");
   const [identityDetailCopied, setIdentityDetailCopied] = useState(false);
   const [identityDetailBusy, setIdentityDetailBusy] = useState(false);
+  const [identityRefreshError, setIdentityRefreshError] = useState("");
 
   const loadAllIdentities = useCallback(async () => {
-    const d = await fetch("/api/admin/identities").then((r) => r.ok ? r.json() : null).catch(() => null);
-    if (d?.identities) setAllIdentities(d.identities);
+    const data = await adminRequest<{ identities: Identity[] }>("/api/admin/identities");
+    if (!Array.isArray(data.identities)) throw new Error("Invalid identity response");
+    setAllIdentities(data.identities);
   }, []);
 
-  useEffect(() => { if (activeSection === "identities") loadAllIdentities(); }, [activeSection, loadAllIdentities]);
+  const refreshIdentityDetails = useCallback(async () => {
+    try { await loadAllIdentities(); setIdentityRefreshError(""); }
+    catch { setIdentityRefreshError("The latest identity details could not be loaded. Refresh to see the saved data."); }
+  }, [loadAllIdentities]);
+  useEffect(() => { if (activeSection === "identities") void refreshIdentityDetails(); }, [activeSection, refreshIdentityDetails]);
 
   const identityDetailRecord = allIdentities.find((i) => i.id === identityDetailId) ?? null;
 
   const renameIdentityDetail = async () => {
     if (!identityDetailId || !identityDetailEditName.trim()) return;
     setIdentityDetailBusy(true);
+    try {
+      await runSave("Identity", async () => {
     await adminRequest("/api/admin/identities", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: identityDetailId, name: identityDetailEditName.trim() }) });
     setIdentityDetailEditing(false);
-    await loadAllIdentities();
-    setIdentityDetailBusy(false);
+    await refreshIdentityDetails();
+      });
+    } finally { setIdentityDetailBusy(false); }
   };
   const deleteIdentityDetail = async () => {
     if (!identityDetailId || !identityDetailRecord) return;
     if (!(await confirmIdentity({ title: "Delete this identity?", body: "This permanently removes the identity record.", confirmLabel: "Delete", danger: true }))) return;
     setIdentityDetailBusy(true);
+    try {
+      await runSave("Identity", async () => {
     await adminRequest("/api/admin/identities", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: identityDetailId }) });
     setIdentityDetailId(null);
-    await loadAllIdentities();
-    setIdentityDetailBusy(false);
+    await refreshIdentityDetails();
+      });
+    } finally { setIdentityDetailBusy(false); }
   };
   const mergeIdentityDetailInto = async (targetId: string) => {
     if (!identityDetailId) return;
     const tgt = allIdentities.find((i) => i.id === targetId);
     if (!(await confirmIdentity({ title: `Merge into "${tgt?.name}"?`, body: `All of this identity's devices and activity move into "${tgt?.name}", and this identity is deleted.`, confirmLabel: "Merge", danger: true }))) return;
     setIdentityDetailBusy(true);
+    try {
+      await runSave("Identity", async () => {
     await adminRequest("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "merge", targetId, sourceIds: [identityDetailId] }) });
     setIdentityDetailId(targetId);
-    await loadAllIdentities();
-    setIdentityDetailBusy(false);
+    await refreshIdentityDetails();
+      });
+    } finally { setIdentityDetailBusy(false); }
   };
   const copyIdentityDetailLink = () => {
     navigator.clipboard.writeText(`https://mdcran.com/?identity=${identityDetailId}`).then(() => { setIdentityDetailCopied(true); setTimeout(() => setIdentityDetailCopied(false), 1500); }).catch(() => {});
   };
 
-  /* ── Deep-link each section via URL hash (#projects, #resume, …) ── */
+  /* Keep direct routes, browser history and legacy section hashes in sync. */
   useEffect(() => {
-    const VALID_SECTIONS: NavSection[] = [
-      "dashboard", "projects", "articles", "clients", "r2-assets", "site-content",
-      "resume", "analytics", "sessions", "contacts", "rate-limits", "ai", "contact-form-entries", "campaigns",
-      "rizz", "bar", "visitors", "booking", "identities", "crossdevice", "traffic", "status", "database", "discord", "content-studio", "operations", "publishing", "content-health",
-    ];
-    const applyHash = () => {
-      const hash = window.location.hash.replace(/^#/, "") || window.location.pathname.split("/").filter(Boolean)[2] || "dashboard";
-      if ((VALID_SECTIONS as string[]).includes(hash)) setActiveSection(hash as NavSection);
+    const applyLocation = () => {
+      const section = adminSectionFromLocation(window.location.pathname, window.location.hash);
+      updateActiveSection(section);
+      if (isAdminSection(window.location.hash.slice(1))) window.history.replaceState(null, "", adminSectionPath(section));
     };
-    applyHash();
-    window.addEventListener("hashchange", applyHash);
-    window.addEventListener("popstate", applyHash);
-    return () => { window.removeEventListener("hashchange", applyHash); window.removeEventListener("popstate", applyHash); };
+    applyLocation();
+    window.addEventListener("hashchange", applyLocation);
+    window.addEventListener("popstate", applyLocation);
+    return () => { window.removeEventListener("hashchange", applyLocation); window.removeEventListener("popstate", applyLocation); };
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const target = activeSection === "dashboard" ? "/admin/dashboard" : `/admin/dashboard/${activeSection}`;
-    if (window.location.pathname !== target || window.location.hash) window.history.pushState(null, "", target);
-  }, [activeSection]);
 
   /* ── Data state ── */
   const [projects, setProjects] = useState<Project[]>([]);
@@ -267,7 +285,6 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
   const [rizzSearch, setRizzSearch] = useState("");
   const [rizzSort, setRizzSort] = useState<"newest" | "oldest" | "az" | "za">("newest");
   const [adminSearch, setAdminSearch] = useState("");
-  const [adminSearchFocused, setAdminSearchFocused] = useState(false);
   const adminSearchInputRef = useRef<HTMLInputElement | null>(null);
   const filtersReadyRef=useRef(false);
   useEffect(()=>{
@@ -277,37 +294,6 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
   useEffect(()=>{if(filtersReadyRef.current)try{localStorage.setItem("mdcran_admin_views",JSON.stringify({projectSearch,projectCategoryFilter,articleSearch,clientSearch}));}catch{}},[projectSearch,projectCategoryFilter,articleSearch,clientSearch]);
 
 
-  useEffect(() => {
-    document.querySelector('nav[aria-label="Admin sections"] [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [activeSection]);
-
-  useEffect(() => {
-    if (!mobileNavOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = "hidden";
-    const dialog = document.querySelector<HTMLElement>('[aria-label="Admin navigation"]');
-    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileNavOpen(false);
-      if (event.key !== "Tab" || !dialog) return;
-      const items = Array.from(dialog.querySelectorAll<HTMLElement>("button, a[href]"));
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    };
-    const onResize = () => { if (window.innerWidth >= 768) setMobileNavOpen(false); };
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", onResize);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      previousFocus?.focus();
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [mobileNavOpen]);
-
   // Command-palette shortcut for the global admin search. It keeps navigation,
   // content lookup, and quick section changes equally fast on macOS and Windows.
   useEffect(() => {
@@ -315,7 +301,6 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
       event.preventDefault();
       adminSearchInputRef.current?.focus();
-      setAdminSearchFocused(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -333,16 +318,14 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "project" | "article" | "client" | "contact" | "campaign" | "rizz" | "r2"; id: string; label: string } | null>(null);
 
   /* Load each workspace on demand; a failed request remains retryable. */
+  const [loadedDataKeys, setLoadedDataKeys] = useState<Record<string, boolean>>({});
+  const [failedLoads, setFailedLoads] = useState<Record<string, string>>({});
+  const [dataReload, setDataReload] = useState(0);
   const loadedDataRef=useRef(new Set<string>());
   const loadingDataRef=useRef(new Set<string>());
   useEffect(()=>{
-    const need:Record<string,string[]>={
-      dashboard:["projects","articles","clients","contacts","taps"],
-      projects:["projects","clients","taps"],articles:["articles","taps"],clients:["clients","projects"],
-      resume:["projects","clients"],"site-content":["site-content","projects","articles","clients"],bar:["site-content"],contacts:["contacts"],"contact-form-entries":["contacts"],campaigns:["campaigns","contacts"],rizz:["rizz"],"rate-limits":["rate-limits"],ai:["chat"],
-    };
     const setters:Record<string,(data:never)=>void>={projects:setProjects,articles:setArticles,clients:setClients,contacts:setContacts,campaigns:setCampaigns,rizz:setRizzEntries,"rate-limits":setRateLimits};
-    const keys=(need[activeSection]??[]).filter(key=>!loadedDataRef.current.has(key)&&!loadingDataRef.current.has(key));
+    const keys=(ADMIN_DATA_REQUIREMENTS[activeSection]??[]).filter(key=>!loadedDataRef.current.has(key)&&!loadingDataRef.current.has(key));
     keys.forEach(key=>loadingDataRef.current.add(key));
     void Promise.allSettled(keys.map(async key=>{
       try{
@@ -352,10 +335,12 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
         else if(key==="chat"){const chat=data as {config:typeof chatRateLimitConfig;entries:typeof chatRateLimitEntries;security:typeof chatSecurity};setChatRateLimitConfig(chat.config);setChatRateLimitEntries(chat.entries);setChatSecurity(chat.security??null);}
         else setters[key]?.(data as never);
         loadedDataRef.current.add(key);
-      }catch(error){setSaveNotice({state:"failed",message:error instanceof Error?error.message:`Unable to load ${key}.`});}
+        setLoadedDataKeys(current => ({ ...current, [key]: true }));
+        setFailedLoads(current => { const next = { ...current }; delete next[key]; return next; });
+      }catch(error){setFailedLoads(current => ({ ...current, [key]: error instanceof Error ? error.message : `Unable to load ${key}.` }));}
       finally{loadingDataRef.current.delete(key);}
     })).then(()=>setHydrated(true));
-  },[activeSection]);
+  },[activeSection, dataReload]);
 
   useEffect(()=>{
     if(activeSection!=="campaigns")return;
@@ -490,15 +475,15 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
           setSkillCategories(data.skillCategories ?? []);
         }
         setResumeLoaded(true);
+        setFailedLoads(current => { const next = { ...current }; delete next.resume; return next; });
         resumeInitializedRef.current = true;
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        retrySaveRef.current = null;
-        setSaveNotice({state:"failed",message:"Resume could not be loaded. Reload before editing."});
+        setFailedLoads(current => ({ ...current, resume: "Resume could not be loaded. Retry before editing." }));
       });
     return () => controller.abort();
-  }, [activeSection, resumeLoaded]);
+  }, [activeSection, resumeLoaded, dataReload]);
 
   // Queue snapshots, retaining edits made while an earlier request is in flight.
   useEffect(() => {
@@ -684,7 +669,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
       const original=clients.find(item=>item.id===c.id);
       const changedProjects=projects.filter(p=>linkedProjectIds.includes(p.id)!==(p.clientIds?.includes(c.id)??false)).map(p=>({...p,clientIds:linkedProjectIds.includes(p.id)?[...(p.clientIds??[]),c.id]:(p.clientIds??[]).filter(id=>id!==c.id)}));
       const result=await adminRequest<{groups:{collection:string;records:unknown[]}[]}>("/api/admin/content",{method:"PUT",body:JSON.stringify({groups:[{collection:"clients",records:[{...original,...c,_version:recordVersion(original)}]},{collection:"projects",records:changedProjects}]})});
-      result.groups.forEach(group=>{if(group.collection==="clients")setClients(group.records as Client[]);if(group.collection==="projects")setProjects(group.records as Project[]);});
+      result.groups.forEach(group=>{if(group.collection==="clients")setClients(current=>mergeSavedRecords(current,group.records as Client[]));if(group.collection==="projects")setProjects(current=>mergeSavedRecords(current,group.records as Project[]));});
       setClientModal({open:false});
     });
   }
@@ -694,8 +679,11 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
   }
 
   async function handleLogout() {
-    await fetch("/api/admin/auth", { method: "DELETE" });
-    router.push("/admin");
+    await runSave("Sign out", async () => {
+      await adminRequest("/api/admin/auth", { method: "DELETE" });
+      router.push("/admin");
+      router.refresh();
+    });
   }
 
   async function runMetricsAudit(target: MetricsAuditTarget) {
@@ -748,7 +736,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
     await runSave("Contacts",async()=>{
       const changed=next.filter(item=>JSON.stringify(item)!==JSON.stringify(contacts.find(old=>old.id===item.id)));
       const result=await adminRequest<{groups:{collection:string;records:Contact[]}[]}>("/api/admin/content",{method:"PUT",body:JSON.stringify({groups:[{collection:"contacts",records:changed}]})});
-      setContacts(result.groups[0].records);
+      setContacts(current=>mergeSavedRecords(current,result.groups[0].records));
     });
   }
 
@@ -756,6 +744,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
     action: "reset" | "clear-pii",
     record: RateLimit
   ) {
+    await runSave("Rate limit", async () => {
     const response = await fetch("/api/admin/rate-limits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -790,9 +779,11 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
         };
       })
     );
+    });
   }
 
   async function deleteRateLimit(id: string) {
+    await runSave("Rate limit", async () => {
     const response = await fetch("/api/admin/rate-limits", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -804,6 +795,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
     }
 
     setRateLimits((prev) => prev.filter((entry) => entry.id !== id));
+    });
   }
 
   async function deleteContact(id:string) { await deleteRecord("contacts",id,contacts.find(item=>item.id===id),()=>setContacts(prev=>prev.filter(item=>item.id!==id))); }
@@ -1385,72 +1377,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
     { label: "Clients", count: contentHealth.clients.length, onClick: () => { setActiveSection("clients"); setClientSearch(contentHealth.clients[0]?.name ?? ""); } },
   ];
 
-  const navItems: { key: NavSection; label: string; unreadCount?: number }[] = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "content-studio", label: "Content studio" },
-    { key: "content-health", label: "Content health" },
-    { key: "publishing", label: "Publishing" },
-    { key: "operations", label: "Operations" },
-    { key: "projects", label: "Projects" },
-    { key: "articles", label: "Articles" },
-    { key: "clients", label: "Clients" },
-    { key: "r2-assets", label: "R2 Assets" },
-    { key: "site-content", label: "Site Content" },
-    { key: "resume", label: "Resume" },
-    { key: "analytics", label: "Analytics" },
-    { key: "sessions", label: "Sessions" },
-    { key: "contacts", label: "Contacts" },
-    { key: "rate-limits", label: "Rate Limits" },
-    { key: "ai", label: "AI Assistant" },
-    { key: "contact-form-entries", label: "Messages", unreadCount: unreadMessages },
-    { key: "campaigns", label: "Compose" },
-    { key: "rizz", label: "Rizz" },
-    { key: "bar", label: "Bar" },
-    { key: "visitors", label: "Visitors" },
-    { key: "booking", label: "Booking" },
-    { key: "identities", label: "Identities" },
-    { key: "crossdevice", label: "Cross-Device" },
-    { key: "traffic", label: "Traffic & AI" },
-    { key: "status", label: "Status" },
-    { key: "database", label: "Database" },
-    { key: "discord", label: "Discord" },
-  ];
-
-  const NAV_ICONS: Partial<Record<NavSection, React.ReactNode>> = {
-    dashboard:            <LayoutDashboard size={13} />,
-    projects:             <FolderKanban size={13} />,
-    articles:             <FileText size={13} />,
-    clients:              <Users size={13} />,
-    "r2-assets":          <HardDrive size={13} />,
-    "site-content":       <Settings2 size={13} />,
-    resume:               <FileUser size={13} />,
-    analytics:            <BarChart3 size={13} />,
-    sessions:             <Monitor size={13} />,
-    contacts:             <Mail size={13} />,
-    "rate-limits":        <ShieldAlert size={13} />,
-    ai:                   <Bot size={13} />,
-    "contact-form-entries": <MessageSquare size={13} />,
-    campaigns:            <Send size={13} />,
-    rizz:                 <Zap size={13} />,
-    bar:                  <Wine size={13} />,
-    visitors:             <Eye size={13} />,
-    booking:              <CalendarCheck size={13} />,
-    identities:           <Fingerprint size={13} />,
-    crossdevice:          <GitMerge size={13} />,
-    traffic:              <TrendingUp size={13} />,
-    status:               <Activity size={13} />,
-    "content-studio": <FileText size={13} />, "content-health": <Check size={13} />, publishing: <Send size={13} />, operations: <Activity size={13} />,
-    database:             <Database size={13} />,
-    discord:              <MessageCircle size={13} />,
-  };
-
-  const NAV_GROUPS: { label: string; items: NavSection[] }[] = [
-    { label: "Overview",  items: ["dashboard"] },
-    { label: "Content",   items: ["content-studio", "projects", "articles", "clients", "r2-assets", "site-content", "resume", "content-health", "publishing"] },
-    { label: "People",    items: ["contacts", "contact-form-entries", "booking", "identities", "crossdevice", "rizz"] },
-    { label: "Traffic",   items: ["analytics", "visitors", "sessions", "traffic", "ai"] },
-    { label: "System",    items: ["operations", "status", "rate-limits", "database", "discord", "campaigns", "bar"] },
-  ];
+  const navItems = adminNavigationItems;
 
   const adminSearchQuery = adminSearch.trim().toLowerCase();
   const adminSearchResults = !adminSearchQuery
@@ -1600,61 +1527,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
           })),
       ].slice(0, 16);
 
-  const sectionTitles: Record<NavSection, string> = {
-    dashboard: "Overview",
-    projects: "Projects",
-    articles: "Articles",
-    clients: "Clients",
-    "r2-assets": "R2 Assets",
-    "site-content": "Site Content",
-    resume: "Resume",
-    analytics: "Analytics",
-    sessions: "Sessions",
-    contacts: "Contacts",
-    "rate-limits": "Rate Limits",
-    ai: "AI Assistant",
-    "contact-form-entries": "Messages",
-    campaigns: "Compose",
-    rizz: "Rizz",
-    bar: "Bar",
-    visitors: "Visitors",
-    booking: "Booking",
-    identities: "Identities",
-    crossdevice: "Cross-Device",
-    traffic: "Traffic & AI",
-    status: "Status",
-    "content-studio":"Content studio", "content-health":"Content health", publishing:"Publishing", operations:"Operations",
-    database: "Database",
-    discord: "Discord",
-  };
-
-  const sectionDescriptions: Record<NavSection, string> = {
-    dashboard: "Snapshot of your content, traffic and quick actions.",
-    projects: "Create, edit, reorder and feature portfolio projects.",
-    articles: "Write and manage articles, with rich sections and media.",
-    clients: "Manage clients and the people you've worked with.",
-    "r2-assets": "Browse, upload and organize media stored in R2.",
-    "site-content": "Edit page headers, hero, about and footer content.",
-    resume: "Profile, experience, skills, certifications, awards and the resume PDF.",
-    analytics: "Visits, recruiter intent, top pages, scroll depth, live sessions and heatmaps.",
-    sessions: "Live visitors and tabs — control, refresh, redirect, kill or blacklist in real time.",
-    contacts: "Subscribers collected across the site.",
-    "rate-limits": "Inspect and clear API and chat rate-limit records.",
-    ai: "Everything the AI assistant knows — site context plus your own prompting and guidance.",
-    "contact-form-entries": "Messages submitted through the contact form.",
-    campaigns: "Compose and send email or SMS campaigns.",
-    rizz: "Submissions from the Rizz experience.",
-    bar: "Enable the /bar drink roulette and customize the wheel.",
-    visitors: "Live visitor analytics and adjustments.",
-    booking: "Calendar-backed meeting booking, business hours, and meeting types.",
-    identities: "Recognized visitors by device fingerprint — rename, merge, link, or remove. Expand any identity for its device graph and full text + voice conversation history.",
-    crossdevice: "Probabilistically matched device pairs from the cross-device engine — confirm to merge into one identity, or reject to suppress.",
-    traffic: "UTM link builder and AI routing conditions for the portfolio concierge.",
-    status: "Service uptime monitoring and incidents.",
-    "content-studio":"Draft, preview, publish and restore content revisions.", "content-health":"Resolve content and link issues.", publishing:"Shared profile, README, resume and image exports.", operations:"Job history, failures and recovery.",
-    database: "Download verified backups and preview a safe restore.",
-    discord: "Route site events to your Discord server — contact forms, bookings, newsletter, identity and weekly analytics digest.",
-  };
+  const sectionDataLoading = (ADMIN_DATA_REQUIREMENTS[activeSection] ?? []).some(key => !loadedDataKeys[key] && !failedLoads[key]) || (activeSection === "resume" && !resumeLoaded && !failedLoads.resume);
+  const sectionLoadErrors = [...(ADMIN_DATA_REQUIREMENTS[activeSection] ?? []), ...(activeSection === "resume" ? ["resume"] : [])].filter(key => failedLoads[key]);
 
   if (!hydrated) {
     return (
@@ -1667,222 +1541,19 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
   return (
     <div className="min-h-screen bg-[#0a0a0a] font-jb">
       {saveNotice && <div role={saveNotice.state === "failed" ? "alert" : "status"} className={`fixed bottom-5 left-1/2 z-[100000] flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-lg border bg-[#121212] px-4 py-3 text-sm shadow-xl ${saveNotice.state === "failed" ? "border-red-400 text-red-200" : "border-white/20 text-white"}`}><span>{saveNotice.message}</span>{saveNotice.state === "failed" && retrySaveRef.current && <button className="underline" onClick={()=>void retrySaveRef.current?.()}>Retry</button>}{saveNotice.state !== "saving" && <button aria-label="Dismiss save status" onClick={()=>setSaveNotice(null)}>×</button>}</div>}
-      {/* ── MAIN CONTENT ── */}
-      <main className="min-h-screen flex flex-col">
-        {/* ── TOP NAVIGATION ── */}
-        <header className="sticky top-0 z-30 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/8 shrink-0">
-          {/* subtle grid + glow to match the frontend */}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-60"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(239,66,66,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(239,66,66,0.04) 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
-          />
-          {/* Row 1 — brand, title, search, actions */}
-          <div className="relative px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-3 min-w-0 sm:min-w-[200px] shrink">
-              <span className="font-nord text-sm sm:text-base text-white tracking-wide">
-                MDCran<span className="text-[#ef4242]">.admin</span>
-              </span>
-              <span className="hidden sm:block h-4 w-px bg-white/10" />
-              <div className="hidden sm:block leading-none">
-                <span className="block text-[9px] uppercase tracking-[0.22em] text-[#ef4242]/70">Section</span>
-                <h1 className="font-nord text-sm text-white">{sectionTitles[activeSection]}</h1>
-              </div>
-            </div>
-          <div className="flex order-last md:order-none w-full md:w-auto md:flex-1 justify-center md:px-4">
-            <div className="relative w-full max-w-xl">
-              <input
-                ref={adminSearchInputRef}
-                className="w-full h-10 rounded-sm border border-white/10 bg-white/4 px-4 text-sm text-white outline-none placeholder-white/25 focus:border-[#ef4242] transition-colors"
-                value={adminSearch}
-                onChange={(e) => setAdminSearch(e.target.value)}
-                onFocus={() => setAdminSearchFocused(true)}
-                onBlur={() => window.setTimeout(() => setAdminSearchFocused(false), 120)}
-                placeholder="Search admin center..."
-                aria-label="Search admin sections and content"
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") { setAdminSearch(""); setAdminSearchFocused(false); }
-                  if (event.key === "Enter" && adminSearchResults[0]) adminSearchResults[0].onSelect();
-                }}
-              />
-              {adminSearchFocused && adminSearchQuery && (
-                <div className="absolute z-50 top-full mt-2 w-full rounded-sm border border-white/10 bg-[#0b0b0b]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
-                  {adminSearchResults.length === 0 ? (
-                    <div className="px-4 py-3 text-xs text-white/30">No matches found.</div>
-                  ) : (
-                    <div className="max-h-[360px] overflow-y-auto py-1">
-                      {adminSearchResults.map((result) => (
-                        <button
-                          key={result.id}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={result.onSelect}
-                          className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-white/4 transition-colors"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm text-white/80">{result.label}</div>
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-white/25">{result.hint}</div>
-                          </div>
-                          <span className="shrink-0 text-[9px] uppercase text-[#ef4242]/80">
-                            {sectionTitles[result.section]}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <a
-                href="https://mdcran.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:inline-flex items-center justify-center h-9 px-3 text-[11px] tracking-wider text-white/45 border border-white/10 rounded-sm hover:border-[#ef4242]/40 hover:text-white/80 transition-colors"
-                title="View live site"
-              >
-                Live Site ↗
-              </a>
-              {/* Mobile: icon-only logout */}
-              <button
-                onClick={handleLogout}
-                className="sm:hidden inline-flex items-center justify-center h-9 w-9 text-[#ef4242]/60 border border-[#ef4242]/25 rounded-sm hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors"
-                title="Log out"
-              >
-                <X size={14} />
-              </button>
-              {/* Desktop: text logout */}
-              <button
-                onClick={handleLogout}
-                className="hidden sm:inline-flex items-center justify-center h-9 px-3 text-[11px] tracking-wider text-[#ef4242]/60 border border-[#ef4242]/25 rounded-sm hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors"
-                title="Log out"
-              >
-                Log Out
-              </button>
-            </div>
-          </div>
+      <AdminShell activeSection={activeSection} onNavigate={setActiveSection} onLogout={handleLogout} unreadMessages={unreadMessages} search={<AdminSearch value={adminSearch} onChange={setAdminSearch} results={adminSearchResults} inputRef={adminSearchInputRef} />}>
 
-          {/* Row 2 — grouped section tabs (desktop) */}
-          <nav aria-label="Admin sections" className="hidden md:flex items-stretch gap-0 px-1 overflow-x-auto border-t border-white/6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-            {NAV_GROUPS.map((group, gi) => (
-              <div key={group.label} className={`flex items-center shrink-0 ${gi > 0 ? "border-l border-white/8 ml-px pl-px" : ""}`}>
-                <span className="hidden 2xl:block px-1.5 text-[7px] tracking-[0.22em] uppercase text-white/20 whitespace-nowrap self-center select-none">{group.label}</span>
-                {group.items.map((key) => {
-                  const item = navItems.find((n) => n.key === key);
-                  if (!item) return null;
-                  const active = activeSection === key;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setActiveSection(key)}
-                      title={sectionTitles[key]}
-                      aria-current={active ? "page" : undefined}
-                      className={`relative flex min-h-11 items-center gap-1 whitespace-nowrap px-3 py-2 text-[11px] tracking-wide transition-colors shrink-0 ${
-                        active ? "text-[#ef4242]" : "text-white/40 hover:text-white/80"
-                      }`}
-                    >
-                      <span className="opacity-70 shrink-0">{NAV_ICONS[key]}</span>
-                      <span>{item.label}</span>
-                      {Boolean(item.unreadCount) && (
-                        <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-[#ef4242] px-1 py-0.5 text-[9px] leading-none text-white">
-                          {item.unreadCount}
-                        </span>
-                      )}
-                      {active && <span className="absolute inset-x-1 -bottom-px h-px bg-[#ef4242] shadow-[0_0_8px_rgba(239,66,66,0.8)]" />}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-
-          {/* Row 2 — mobile: current section chip + hamburger */}
-          <div className="md:hidden flex items-center justify-between px-4 py-2 border-t border-white/6">
-            <button
-              onClick={() => setMobileNavOpen(true)}
-              className="flex items-center gap-2 h-9 px-3 rounded-sm border border-white/10 bg-white/4 text-[11px] text-white/70 hover:border-white/25 hover:text-white transition-colors min-w-0"
-            >
-              <span className="text-[#ef4242] opacity-80">{NAV_ICONS[activeSection]}</span>
-              <span className="truncate max-w-[140px]">{sectionTitles[activeSection]}</span>
-              <ChevronDown size={11} className="text-white/30 shrink-0 ml-1" />
-            </button>
-            <button
-              onClick={() => setMobileNavOpen(true)}
-              className="inline-flex items-center justify-center h-9 w-9 rounded-sm border border-white/10 text-white/50 hover:text-white hover:border-white/25 transition-colors"
-              aria-label="Open navigation"
-            >
-              <Menu size={15} />
-            </button>
-          </div>
-
-          {/* Mobile nav drawer */}
-          {mobileNavOpen && createPortal(
-            <div className="md:hidden fixed inset-0 z-[200] flex" role="dialog" aria-modal="true" aria-label="Admin navigation">
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileNavOpen(false)} />
-              <div className="relative z-10 w-72 max-w-[85vw] h-full bg-[#0b0b0b] border-r border-white/10 flex flex-col overflow-y-auto">
-                <div className="flex items-center justify-between px-4 h-14 border-b border-white/8 shrink-0">
-                  <span className="font-nord text-sm text-white">MDCran<span className="text-[#ef4242]">.admin</span></span>
-                  <button aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} className="inline-flex items-center justify-center h-11 w-11 text-white/40 hover:text-white transition-colors">
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="flex-1 py-3 space-y-1">
-                  {NAV_GROUPS.map((group) => (
-                    <div key={group.label}>
-                      <p className="px-4 pt-3 pb-1.5 text-[8px] tracking-[0.22em] uppercase text-white/25">{group.label}</p>
-                      {group.items.map((key) => {
-                        const item = navItems.find((n) => n.key === key);
-                        if (!item) return null;
-                        const active = activeSection === key;
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => { setActiveSection(key); setMobileNavOpen(false); }}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                              active
-                                ? "bg-[#ef4242]/10 text-[#ef4242] border-r-2 border-[#ef4242]"
-                                : "text-white/55 hover:text-white hover:bg-white/4"
-                            }`}
-                          >
-                            <span className={active ? "text-[#ef4242]" : "text-white/30"}>{NAV_ICONS[key]}</span>
-                            <span className="flex-1 text-left text-[13px]">{item.label}</span>
-                            {Boolean(item.unreadCount) && (
-                              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4242] px-1.5 py-0.5 text-[9px] leading-none text-white">{item.unreadCount}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-                <div className="px-4 py-4 border-t border-white/8 space-y-2 shrink-0">
-                  <a href="https://mdcran.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 h-9 px-3 w-full rounded-sm border border-white/10 text-[12px] text-white/45 hover:text-white/80 transition-colors">
-                    <Globe size={13} /> Live Site ↗
-                  </a>
-                  <button onClick={handleLogout} className="flex items-center justify-center gap-2 h-9 px-3 w-full rounded-sm border border-[#ef4242]/25 text-[12px] text-[#ef4242]/60 hover:bg-[#ef4242]/10 hover:text-[#ef4242] transition-colors">
-                    Log Out
-                  </button>
-                </div>
-              </div>
-            </div>
-          , document.body)}
-        </header>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0 px-3 sm:px-6 lg:px-8 py-5 sm:py-7 max-w-[1440px] w-full mx-auto">
-
-          {/* Section intro header — compact */}
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.28em] text-[#ef4242]/70 mb-1">{sectionTitles[activeSection]}</p>
-              <p className="text-xs text-white/35 max-w-xl leading-relaxed">{sectionDescriptions[activeSection]}</p>
-            </div>
-          </div>
-          <div className="mb-6 h-px w-full bg-gradient-to-r from-[#ef4242]/40 via-white/8 to-transparent" />
-
+          {activeSection === "identities" && identityRefreshError && <div role="alert" className="mb-6 rounded-lg border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100">
+            <p>{identityRefreshError}</p>
+            <button type="button" className={`${btnOutline} mt-3`} onClick={() => void refreshIdentityDetails()}>Refresh identity details</button>
+          </div>}
+          {sectionLoadErrors.length > 0 && <div role="alert" className="mb-6 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100">
+            <p className="font-semibold">This page could not load all its data.</p>
+            <ul className="mt-2 space-y-1">{sectionLoadErrors.map(key => <li key={key}>{key}: {failedLoads[key]}</li>)}</ul>
+            <button type="button" className={`${btnOutline} mt-3`} onClick={() => setDataReload(value => value + 1)}>Retry loading</button>
+          </div>}
+          {sectionDataLoading && <p role="status" className="mb-4 text-sm text-white/70">Loading page data…</p>}
+          <fieldset disabled={sectionDataLoading || sectionLoadErrors.length > 0} aria-busy={sectionDataLoading} className="min-w-0 border-0 p-0 m-0">
           {/* ─────────────────────────────────────
               DASHBOARD OVERVIEW
           ───────────────────────────────────── */}
@@ -2007,8 +1678,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   </div>
                   <div className="grid grid-cols-1 gap-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Type</Label>
+                      <LabeledField label="Type">
                         <select
                           className={inputCls}
                           value={tapEditorType}
@@ -2024,7 +1694,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           <option value="project">Project</option>
                           <option value="article">Article</option>
                         </select>
-                      </div>
+                      </LabeledField>
                       <div>
                         <Label>Current Count</Label>
                         <div className="flex h-9 items-center rounded-sm border border-white/10 bg-black/20 px-3 text-sm text-white/60">
@@ -2032,8 +1702,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                         </div>
                       </div>
                     </div>
-                    <div>
-                      <Label>Item</Label>
+                    <LabeledField label="Item">
                       <select
                         className={inputCls}
                         value={tapEditorTargetId}
@@ -2049,9 +1718,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           </option>
                         ))}
                       </select>
-                    </div>
-                    <div>
-                      <Label>Set Taps</Label>
+                    </LabeledField>
+                    <LabeledField label="Set Taps">
                       <input
                         className={inputCls}
                         inputMode="numeric"
@@ -2059,7 +1727,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                         onChange={(e) => setTapEditorCount(e.target.value.replace(/[^\d]/g, ""))}
                         placeholder="0"
                       />
-                    </div>
+                    </LabeledField>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t border-white/8 pt-4">
                     <span className="text-[11px] text-white/30">
@@ -3471,20 +3139,18 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="md:col-span-2">
-                    <Label>Message</Label>
+                  <LabeledField label="Message" className="md:col-span-2">
                     <input className={inputCls} value={siteContent.announcementBanner?.message ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, message: e.target.value } }))} placeholder="e.g. Now booking freelance projects for Q3" />
-                  </div>
+                  </LabeledField>
                   <div>
                     <Label>Icon</Label>
                     <div><IconPickerButton value={siteContent.announcementBanner?.icon} onChange={(icon) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, icon: icon ?? "" } }))} label="Icon" /></div>
                   </div>
-                  <div>
-                    <Label>Alignment</Label>
+                  <LabeledField label="Alignment">
                     <select className={inputCls} value={siteContent.announcementBanner?.align ?? "center"} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, align: e.target.value as "left" | "center" | "right" } }))}>
                       <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
                     </select>
-                  </div>
+                  </LabeledField>
                   <div>
                     <Label>Background color</Label>
                     <div className="flex gap-2">
@@ -3499,14 +3165,12 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                       <input className={inputCls} value={siteContent.announcementBanner?.textColor ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, textColor: e.target.value } }))} placeholder="#ffffff" />
                     </div>
                   </div>
-                  <div>
-                    <Label>CTA label (optional)</Label>
+                  <LabeledField label="CTA label (optional)">
                     <input className={inputCls} value={siteContent.announcementBanner?.ctaLabel ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, ctaLabel: e.target.value } }))} placeholder="Learn more" />
-                  </div>
-                  <div>
-                    <Label>CTA link</Label>
+                  </LabeledField>
+                  <LabeledField label="CTA link">
                     <input className={inputCls} value={siteContent.announcementBanner?.ctaHref ?? ""} onChange={(e) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, ctaHref: e.target.value } }))} placeholder="/contact" />
-                  </div>
+                  </LabeledField>
                   <div>
                     <Label>Show from (optional)</Label>
                     <DatePicker withTime value={siteContent.announcementBanner?.startsAt ?? ""} onChange={(v) => setSiteContent((prev) => ({ ...prev, announcementBanner: { ...prev.announcementBanner, startsAt: v } }))} placeholder="Always" />
@@ -3521,14 +3185,13 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
               {/* Home: By the Numbers (stats) */}
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Home: By the Numbers</p>
-                <div>
-                  <Label>Eyebrow</Label>
+                <LabeledField label="Eyebrow">
                   <input
                     className={inputCls}
                     value={siteContent.homeStats?.eyebrow ?? ""}
                     onChange={(e) => setSiteContent((prev) => ({ ...prev, homeStats: { eyebrow: e.target.value, metrics: prev.homeStats?.metrics ?? [] } }))}
                   />
-                </div>
+                </LabeledField>
                 <div className="space-y-2">
                   <Label>Metric labels (live values are computed automatically)</Label>
                   {(siteContent.homeStats?.metrics ?? []).map((m, mi) => (
@@ -3581,44 +3244,40 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                       onChange={(v) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, lastUpdated: v } }))}
                     />
                   </div>
-                  <div>
-                    <Label>Claude Total Tokens</Label>
+                  <LabeledField label="Claude Total Tokens">
                     <input
                       type="number"
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.claude.totalTokens ?? 0}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, totalTokens: Number(e.target.value) } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Claude Total Messages</Label>
+                  </LabeledField>
+                  <LabeledField label="Claude Total Messages">
                     <input
                       type="number"
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.claude.totalMessages ?? 0}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, totalMessages: Number(e.target.value) } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Peak Hour</Label>
+                  </LabeledField>
+                  <LabeledField label="Peak Hour">
                     <input
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.claude.peakHour ?? ""}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, peakHour: e.target.value } } }))}
                       placeholder="1 AM"
                     />
-                  </div>
+                  </LabeledField>
                 </div>
 
-                <div className="max-w-xs">
-                  <Label>Favorite Model</Label>
+                <LabeledField label="Favorite Model" className="max-w-xs">
                   <input
                     className={inputCls}
                     value={siteContent.aiUsageTracker?.claude.favoriteModel ?? ""}
                     onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, claude: { ...prev.aiUsageTracker.claude, favoriteModel: e.target.value } } }))}
                     placeholder="Opus 4.8"
                   />
-                </div>
+                </LabeledField>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -3676,42 +3335,38 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/6">
-                  <div>
-                    <Label>OpenAI Total Tokens</Label>
+                  <LabeledField label="OpenAI Total Tokens">
                     <input
                       type="number"
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.openai.totalTokens ?? 0}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, openai: { ...prev.aiUsageTracker.openai, totalTokens: Number(e.target.value) } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>OpenAI Total Requests</Label>
+                  </LabeledField>
+                  <LabeledField label="OpenAI Total Requests">
                     <input
                       type="number"
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.openai.totalRequests ?? 0}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, openai: { ...prev.aiUsageTracker.openai, totalRequests: Number(e.target.value) } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>ElevenLabs Characters Used</Label>
+                  </LabeledField>
+                  <LabeledField label="ElevenLabs Characters Used">
                     <input
                       type="number"
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.elevenlabs.charactersUsed ?? 0}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, elevenlabs: { ...prev.aiUsageTracker.elevenlabs, charactersUsed: Number(e.target.value) } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>ElevenLabs Quota (optional)</Label>
+                  </LabeledField>
+                  <LabeledField label="ElevenLabs Quota (optional)">
                     <input
                       type="number"
                       className={inputCls}
                       value={siteContent.aiUsageTracker?.elevenlabs.charactersQuota ?? ""}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, aiUsageTracker: { ...prev.aiUsageTracker, elevenlabs: { ...prev.aiUsageTracker.elevenlabs, charactersQuota: e.target.value ? Number(e.target.value) : undefined } } }))}
                     />
-                  </div>
+                  </LabeledField>
                 </div>
               </div>
 
@@ -3738,8 +3393,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                     <p className="font-nord text-sm text-white">{label}</p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <div>
-                        <Label>Eyebrow</Label>
+                      <LabeledField label="Eyebrow">
                         <input
                           className={inputCls}
                           value={block.eyebrow}
@@ -3750,9 +3404,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                             }))
                           }
                         />
-                      </div>
-                      <div>
-                        <Label>Title</Label>
+                      </LabeledField>
+                      <LabeledField label="Title">
                         <input
                           className={inputCls}
                           value={block.title}
@@ -3763,9 +3416,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                             }))
                           }
                         />
-                      </div>
-                      <div>
-                        <Label>Description</Label>
+                      </LabeledField>
+                      <LabeledField label="Description">
                         <textarea
                           className={textareaCls}
                           rows={2}
@@ -3777,7 +3429,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                             }))
                           }
                         />
-                      </div>
+                      </LabeledField>
                     </div>
 
                     <div className="space-y-3">
@@ -3805,8 +3457,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                               </button>
                             </div>
                           </div>
-                          <div>
-                            <Label>Card Title</Label>
+                          <LabeledField label="Card Title">
                             <input
                               className={inputCls}
                               value={card.title}
@@ -3822,9 +3473,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                                 }))
                               }
                             />
-                          </div>
-                          <div>
-                            <Label>Link</Label>
+                          </LabeledField>
+                          <LabeledField label="Link">
                             <input
                               className={inputCls}
                               value={card.href}
@@ -3840,10 +3490,9 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                                 }))
                               }
                             />
-                          </div>
+                          </LabeledField>
                           {showCountField && (
-                            <div>
-                              <Label>Count / Label</Label>
+                            <LabeledField label="Count / Label">
                               <input
                                 className={inputCls}
                                 value={card.count ?? ""}
@@ -3859,7 +3508,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                                   }))
                                 }
                               />
-                            </div>
+                            </LabeledField>
                           )}
                           {showItemsField && (
                             <div>
@@ -3881,8 +3530,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                               />
                             </div>
                           )}
-                          <div className={descriptionSpanClass}>
-                            <Label>Description</Label>
+                          <LabeledField label="Description" className={descriptionSpanClass}>
                             <textarea
                               className={textareaCls}
                               rows={2}
@@ -3899,7 +3547,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                                 }))
                               }
                             />
-                          </div>
+                          </LabeledField>
                         </div>
                       ))}
                     </div>
@@ -3934,8 +3582,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Code Page Header</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div>
-                    <Label>Eyebrow</Label>
+                  <LabeledField label="Eyebrow">
                     <input
                       className={inputCls}
                       value={siteContent.codePage.eyebrow}
@@ -3946,9 +3593,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                         }))
                       }
                     />
-                  </div>
-                  <div>
-                    <Label>Title</Label>
+                  </LabeledField>
+                  <LabeledField label="Title">
                     <input
                       className={inputCls}
                       value={siteContent.codePage.title}
@@ -3959,9 +3605,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                         }))
                       }
                     />
-                  </div>
-                  <div>
-                    <Label>Description</Label>
+                  </LabeledField>
+                  <LabeledField label="Description">
                     <textarea
                       className={textareaCls}
                       rows={2}
@@ -3973,7 +3618,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                         }))
                       }
                     />
-                  </div>
+                  </LabeledField>
                 </div>
               </div>
 
@@ -4123,106 +3768,93 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                  <div>
-                    <Label>Hero Eyebrow</Label>
+                  <LabeledField label="Hero Eyebrow">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.eyebrow}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, eyebrow: e.target.value } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Hero Title Primary</Label>
+                  </LabeledField>
+                  <LabeledField label="Hero Title Primary">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.titlePrimary}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, titlePrimary: e.target.value } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Hero Title Accent</Label>
+                  </LabeledField>
+                  <LabeledField label="Hero Title Accent">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.titleAccent}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, titleAccent: e.target.value } }))}
                     />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>Hero Description</Label>
+                  </LabeledField>
+                  <LabeledField label="Hero Description" className="lg:col-span-2">
                     <textarea
                       className={textareaCls}
                       rows={2}
                       value={siteContent.homeHero.description}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, description: e.target.value } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Hero Supporting Text</Label>
+                  </LabeledField>
+                  <LabeledField label="Hero Supporting Text">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.supportingText}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, supportingText: e.target.value } }))}
                     />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>Hero Location Text</Label>
+                  </LabeledField>
+                  <LabeledField label="Hero Location Text" className="lg:col-span-2">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.locationText}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, locationText: e.target.value } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Primary CTA Label</Label>
+                  </LabeledField>
+                  <LabeledField label="Primary CTA Label">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.primaryCta.label}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, primaryCta: { ...prev.homeHero.primaryCta, label: e.target.value } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Primary CTA Link</Label>
+                  </LabeledField>
+                  <LabeledField label="Primary CTA Link">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.primaryCta.href}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, primaryCta: { ...prev.homeHero.primaryCta, href: e.target.value } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Secondary CTA Label</Label>
+                  </LabeledField>
+                  <LabeledField label="Secondary CTA Label">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.secondaryCta.label}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, secondaryCta: { ...prev.homeHero.secondaryCta, label: e.target.value } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Secondary CTA Link</Label>
+                  </LabeledField>
+                  <LabeledField label="Secondary CTA Link">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.secondaryCta.href}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, secondaryCta: { ...prev.homeHero.secondaryCta, href: e.target.value } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Tertiary CTA Label</Label>
+                  </LabeledField>
+                  <LabeledField label="Tertiary CTA Label">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.tertiaryCta.label}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, tertiaryCta: { ...prev.homeHero.tertiaryCta, label: e.target.value } } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>Tertiary CTA Link</Label>
+                  </LabeledField>
+                  <LabeledField label="Tertiary CTA Link">
                     <input
                       className={inputCls}
                       value={siteContent.homeHero.tertiaryCta.href}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeHero: { ...prev.homeHero, tertiaryCta: { ...prev.homeHero.tertiaryCta, href: e.target.value } } }))}
                     />
-                  </div>
+                  </LabeledField>
                 </div>
-                <div>
-                  <Label>Hero Service Tags (one per line: Label | /link)</Label>
+                <LabeledField label="Hero Service Tags (one per line: Label | /link)">
                   <textarea
                     className={textareaCls}
                     rows={5}
@@ -4244,44 +3876,39 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                       }))
                     }
                   />
-                </div>
+                </LabeledField>
 
                 <div className="border-t border-white/8 pt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div>
-                    <Label>About Eyebrow</Label>
+                  <LabeledField label="About Eyebrow">
                     <input
                       className={inputCls}
                       value={siteContent.homeAbout.eyebrow}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, eyebrow: e.target.value } }))}
                     />
-                  </div>
-                  <div>
-                    <Label>About Title</Label>
+                  </LabeledField>
+                  <LabeledField label="About Title">
                     <input
                       className={inputCls}
                       value={siteContent.homeAbout.title}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, title: e.target.value } }))}
                     />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>About Description</Label>
+                  </LabeledField>
+                  <LabeledField label="About Description" className="lg:col-span-2">
                     <textarea
                       className={textareaCls}
                       rows={4}
                       value={siteContent.homeAbout.description}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, description: e.target.value } }))}
                     />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>About Supporting Text</Label>
+                  </LabeledField>
+                  <LabeledField label="About Supporting Text" className="lg:col-span-2">
                     <input
                       className={inputCls}
                       value={siteContent.homeAbout.supportingText}
                       onChange={(e) => setSiteContent((prev) => ({ ...prev, homeAbout: { ...prev.homeAbout, supportingText: e.target.value } }))}
                     />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>About Tags (comma-separated)</Label>
+                  </LabeledField>
+                  <LabeledField label="About Tags (comma-separated)" className="lg:col-span-2">
                     <input
                       className={inputCls}
                       value={siteContent.homeAbout.tags.join(", ")}
@@ -4295,11 +3922,10 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                         }))
                       }
                     />
-                  </div>
+                  </LabeledField>
                   {siteContent.homeAbout.images.map((image, index) => (
                     <React.Fragment key={`about-image-${index}`}>
-                      <div>
-                        <Label>About Image {index + 1} URL</Label>
+                      <LabeledField label={<> About Image {index + 1} URL </>}>
                         <input
                           className={inputCls}
                           value={image.src}
@@ -4315,9 +3941,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                             }))
                           }
                         />
-                      </div>
-                      <div>
-                        <Label>About Image {index + 1} Alt</Label>
+                      </LabeledField>
+                      <LabeledField label={<> About Image {index + 1} Alt </>}>
                         <input
                           className={inputCls}
                           value={image.alt ?? ""}
@@ -4333,7 +3958,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                             }))
                           }
                         />
-                      </div>
+                      </LabeledField>
                     </React.Fragment>
                   ))}
                   <div className="lg:col-span-2">
@@ -4366,50 +3991,45 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                 <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                   <p className="font-nord text-sm text-white">{label}</p>
                   <div className={`grid grid-cols-1 gap-3 ${showCtaFields ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
-                    <div>
-                      <Label>Eyebrow</Label>
+                    <LabeledField label="Eyebrow">
                       <input
                         className={inputCls}
                         value={siteContent[key].eyebrow}
                         onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], eyebrow: e.target.value } }))}
                       />
-                    </div>
-                    <div>
-                      <Label>Title</Label>
+                    </LabeledField>
+                    <LabeledField label="Title">
                       <input
                         className={inputCls}
                         value={siteContent[key].title}
                         onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], title: e.target.value } }))}
                       />
-                    </div>
-                    <div>
-                      <Label>Description</Label>
+                    </LabeledField>
+                    <LabeledField label="Description">
                       <textarea
                         className={textareaCls}
                         rows={2}
                         value={siteContent[key].description}
                         onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], description: e.target.value } }))}
                       />
-                    </div>
+                    </LabeledField>
                     {showCtaFields && (
-                      <div>
-                        <Label>CTA Label</Label>
+                      <LabeledField label="CTA Label">
                         <input
                           className={inputCls}
                           value={siteContent[key].ctaLabel ?? ""}
                           onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], ctaLabel: e.target.value } }))}
                         />
-                      </div>
+                      </LabeledField>
                     )}
                     {showCtaFields && (
-                      <div>
-                        <Label>CTA Link</Label>
+                      <LabeledField label="CTA Link">
                         <input
                           className={inputCls}
                           value={siteContent[key].ctaHref ?? ""}
                           onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], ctaHref: e.target.value } }))}
                         />
-                      </div>
+                      </LabeledField>
                     )}
                   </div>
                 </div>
@@ -4418,18 +4038,15 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Work Page</p>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                  <div>
-                    <Label>Eyebrow</Label>
+                  <LabeledField label="Eyebrow">
                     <input className={inputCls} value={siteContent.workPage.eyebrow} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, eyebrow: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <Label>Title</Label>
+                  </LabeledField>
+                  <LabeledField label="Title">
                     <input className={inputCls} value={siteContent.workPage.title} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, title: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <Label>Description</Label>
+                  </LabeledField>
+                  <LabeledField label="Description">
                     <textarea className={textareaCls} rows={2} value={siteContent.workPage.description} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, description: e.target.value } }))} />
-                  </div>
+                  </LabeledField>
                 </div>
                 <div className="space-y-3">
                   {(siteContent.workPage.cards ?? []).map((card, cardIndex) => (
@@ -4444,14 +4061,12 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           Remove
                         </button>
                       </div>
-                      <div>
-                        <Label>Section Title</Label>
+                      <LabeledField label="Section Title">
                         <input className={inputCls} value={card.title} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).map((entry, index) => index === cardIndex ? { ...entry, title: e.target.value } : entry) } }))} />
-                      </div>
-                      <div>
-                        <Label>Section Link</Label>
+                      </LabeledField>
+                      <LabeledField label="Section Link">
                         <input className={inputCls} value={card.href} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).map((entry, index) => index === cardIndex ? { ...entry, href: e.target.value } : entry) } }))} />
-                      </div>
+                      </LabeledField>
                       <div>
                         <Label>Items</Label>
                         <StringChipEditor
@@ -4470,10 +4085,9 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                           }
                         />
                       </div>
-                      <div className="lg:col-span-3">
-                        <Label>Description</Label>
+                      <LabeledField label="Description" className="lg:col-span-3">
                         <textarea className={textareaCls} rows={2} value={card.description} onChange={(e) => setSiteContent((prev) => ({ ...prev, workPage: { ...prev.workPage, cards: (prev.workPage.cards ?? []).map((entry, index) => index === cardIndex ? { ...entry, description: e.target.value } : entry) } }))} />
-                      </div>
+                      </LabeledField>
                     </div>
                   ))}
                 </div>
@@ -4514,18 +4128,15 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                 ] as const).map(([key, label]) => (
                   <div key={key} className="grid grid-cols-1 gap-3 rounded-sm border border-white/8 p-3 lg:grid-cols-3">
                     <div className="lg:col-span-3 text-[11px] tracking-widest uppercase text-white/35">{label}</div>
-                    <div>
-                      <Label>Eyebrow</Label>
+                    <LabeledField label="Eyebrow">
                       <input className={inputCls} value={siteContent.pageHeaders[key].eyebrow} onChange={(e) => setSiteContent((prev) => ({ ...prev, pageHeaders: { ...prev.pageHeaders, [key]: { ...prev.pageHeaders[key], eyebrow: e.target.value } } }))} />
-                    </div>
-                    <div>
-                      <Label>Title</Label>
+                    </LabeledField>
+                    <LabeledField label="Title">
                       <input className={inputCls} value={siteContent.pageHeaders[key].title} onChange={(e) => setSiteContent((prev) => ({ ...prev, pageHeaders: { ...prev.pageHeaders, [key]: { ...prev.pageHeaders[key], title: e.target.value } } }))} />
-                    </div>
-                    <div>
-                      <Label>Description</Label>
+                    </LabeledField>
+                    <LabeledField label="Description">
                       <textarea className={textareaCls} rows={2} value={siteContent.pageHeaders[key].description} onChange={(e) => setSiteContent((prev) => ({ ...prev, pageHeaders: { ...prev.pageHeaders, [key]: { ...prev.pageHeaders[key], description: e.target.value } } }))} />
-                    </div>
+                    </LabeledField>
                   </div>
                 ))}
               </div>
@@ -4533,48 +4144,39 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
               <div className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                 <p className="font-nord text-sm text-white">Footer</p>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                  <div>
-                    <Label>Location Text</Label>
+                  <LabeledField label="Location Text">
                     <input className={inputCls} value={siteContent.footer.locationText} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, locationText: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <Label>Status Label</Label>
+                  </LabeledField>
+                  <LabeledField label="Status Label">
                     <input className={inputCls} value={siteContent.footer.statusLabel} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, statusLabel: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <Label>Email Link</Label>
+                  </LabeledField>
+                  <LabeledField label="Email Link">
                     <input className={inputCls} value={siteContent.footer.emailHref} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, emailHref: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <Label>GitHub Link</Label>
+                  </LabeledField>
+                  <LabeledField label="GitHub Link">
                     <input className={inputCls} value={siteContent.footer.githubHref} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, githubHref: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <Label>Copyright Text</Label>
+                  </LabeledField>
+                  <LabeledField label="Copyright Text">
                     <input className={inputCls} value={siteContent.footer.copyrightText} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, copyrightText: e.target.value } }))} />
-                  </div>
-                  <div className="lg:col-span-3">
-                    <Label>Footer Blurb</Label>
+                  </LabeledField>
+                  <LabeledField label="Footer Blurb" className="lg:col-span-3">
                     <textarea className={textareaCls} rows={2} value={siteContent.footer.blurb} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, blurb: e.target.value } }))} />
-                  </div>
+                  </LabeledField>
                 </div>
                 <div className="space-y-3">
                   {siteContent.footer.linkGroups.map((group, groupIndex) => (
                     <div key={`footer-group-${groupIndex}`} className="rounded-sm border border-white/8 p-3 space-y-3">
-                      <div>
-                        <Label>Group Title</Label>
+                      <LabeledField label="Group Title">
                         <input className={inputCls} value={group.title} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, linkGroups: prev.footer.linkGroups.map((entry, index) => index === groupIndex ? { ...entry, title: e.target.value } : entry) } }))} />
-                      </div>
+                      </LabeledField>
                       {group.links.map((link, linkIndex) => (
                         <div key={`footer-link-${groupIndex}-${linkIndex}`} className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                          <div>
-                            <Label>Link Label</Label>
+                          <LabeledField label="Link Label">
                             <input className={inputCls} value={link.label} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, linkGroups: prev.footer.linkGroups.map((entry, index) => index === groupIndex ? { ...entry, links: entry.links.map((entryLink, entryLinkIndex) => entryLinkIndex === linkIndex ? { ...entryLink, label: e.target.value } : entryLink) } : entry) } }))} />
-                          </div>
-                          <div>
-                            <Label>Link URL</Label>
+                          </LabeledField>
+                          <LabeledField label="Link URL">
                             <input className={inputCls} value={link.href} onChange={(e) => setSiteContent((prev) => ({ ...prev, footer: { ...prev.footer, linkGroups: prev.footer.linkGroups.map((entry, index) => index === groupIndex ? { ...entry, links: entry.links.map((entryLink, entryLinkIndex) => entryLinkIndex === linkIndex ? { ...entryLink, href: e.target.value } : entryLink) } : entry) } }))} />
-                          </div>
+                          </LabeledField>
                         </div>
                       ))}
                     </div>
@@ -4604,30 +4206,25 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
                 <div key={key} className="border border-white/7 bg-white/2 rounded-sm p-5 space-y-4">
                   <p className="font-nord text-sm text-white">{label}</p>
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                    <div>
-                      <Label>Eyebrow</Label>
+                    <LabeledField label="Eyebrow">
                       <input className={inputCls} value={siteContent[key].eyebrow} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], eyebrow: e.target.value } }))} />
-                    </div>
-                    <div>
-                      <Label>Title</Label>
+                    </LabeledField>
+                    <LabeledField label="Title">
                       <input className={inputCls} value={siteContent[key].title} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], title: e.target.value } }))} />
-                    </div>
-                    <div>
-                      <Label>Last Updated</Label>
+                    </LabeledField>
+                    <LabeledField label="Last Updated">
                       <input className={inputCls} value={siteContent[key].lastUpdated} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], lastUpdated: e.target.value } }))} />
-                    </div>
+                    </LabeledField>
                   </div>
                   <div className="space-y-3">
                     {siteContent[key].sections.map((section, sectionIndex) => (
                       <div key={`${key}-section-${sectionIndex}`} className="rounded-sm border border-white/8 p-3 space-y-3">
-                        <div>
-                          <Label>Section Heading</Label>
+                        <LabeledField label="Section Heading">
                           <input className={inputCls} value={section.heading} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], sections: prev[key].sections.map((entry, index) => index === sectionIndex ? { ...entry, heading: e.target.value } : entry) } }))} />
-                        </div>
-                        <div>
-                          <Label>Section Body</Label>
+                        </LabeledField>
+                        <LabeledField label="Section Body">
                           <textarea className={textareaCls} rows={3} value={section.body} onChange={(e) => setSiteContent((prev) => ({ ...prev, [key]: { ...prev[key], sections: prev[key].sections.map((entry, index) => index === sectionIndex ? { ...entry, body: e.target.value } : entry) } }))} />
-                        </div>
+                        </LabeledField>
                         <div>
                           <Label>Bullets</Label>
                           <StringChipEditor
@@ -4725,7 +4322,7 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
           ───────────────────────────────────── */}
           {activeSection === "rizz" && (
             <div className="space-y-4">
-              <RizzSettings content={siteContent} onChange={setSiteContent} />
+              <RizzSettings content={siteContent} onChange={setSiteContent} onSave={async () => { await saveSiteContentEditor(); return siteSavedSignatureRef.current === contentSignature(siteContent); }} />
 
               <div className="flex flex-wrap gap-3">
                 <input
@@ -5614,8 +5211,8 @@ export default function AdminDashboard({ initialSection = "dashboard" }: { initi
             <DiscordSettings />
           )}
 
-        </div>
-      </main>
+          </fieldset>
+      </AdminShell>
 
       {/* ── MODALS ── */}
       {projectModal.open && (

@@ -1,4 +1,5 @@
 "use client";
+import LabeledField from "./LabeledField";
 import { useState } from "react";
 
 
@@ -183,18 +184,15 @@ export default function ArticleModal({
     <Modal title={initial ? "Edit Article" : "New Article"} onClose={onClose} wide fullPage>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label required>Title</Label>
+          <LabeledField label="Title" required>
             <input className={`${inputCls} ${isErr("title") ? "border-[#ef4242]" : ""}`} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Article title" />
-          </Field>
-          <Field>
-            <Label>Slug</Label>
+          </LabeledField>
+          <LabeledField label="Slug">
             <input className={inputCls} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="auto-generated" />
-          </Field>
+          </LabeledField>
         </div>
 
-        <Field>
-          <Label required>Excerpt</Label>
+        <LabeledField label="Excerpt" required>
           <textarea
             className={`${textareaCls} ${isErr("excerpt") ? "border-[#ef4242]" : ""}`}
             rows={2}
@@ -202,13 +200,12 @@ export default function ArticleModal({
             onChange={(e) => setExcerpt(e.target.value)}
             placeholder="Short description shown in article listings…"
           />
-        </Field>
+        </LabeledField>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label>Author</Label>
+          <LabeledField label="Author">
             <input className={inputCls} value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="MDCran" />
-          </Field>
+          </LabeledField>
           <Field>
             <Label>Publish Date</Label>
             <DatePicker value={publishDate} onChange={setPublishDate} />
@@ -216,8 +213,7 @@ export default function ArticleModal({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label>Category</Label>
+          <LabeledField label="Category">
             <select className={inputCls} value={category} onChange={(e) => setCategory(e.target.value as ArticleCategory)}>
               <option value="press">Press</option>
               <option value="recipe">Recipe</option>
@@ -226,11 +222,10 @@ export default function ArticleModal({
               <option value="tutorial">Tutorial</option>
               <option value="announcement">Announcement</option>
             </select>
-          </Field>
-          <Field>
-            <Label>Tags</Label>
+          </LabeledField>
+          <LabeledField label="Tags">
             <input className={inputCls} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="tag1, tag2, tag3" />
-          </Field>
+          </LabeledField>
         </div>
 
         <Field>

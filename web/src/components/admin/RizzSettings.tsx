@@ -1,5 +1,6 @@
 "use client";
 
+import { adminRequest } from "@/lib/admin-client";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { SiteContent } from "@/lib/types";
 import { answerKeys, getRizzConfig, questionLabels, rizzThemes, type RizzTheme } from "@/lib/rizz";
@@ -8,7 +9,7 @@ import RizzThemeEditor from "./RizzThemeEditor";
 const input = "w-full rounded-xl border border-white/15 bg-black/30 px-3 py-3 text-base text-white";
 const button = "min-h-11 rounded-xl border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-50";
 
-export default function RizzSettings({ content, onChange }: { content: SiteContent; onChange: Dispatch<SetStateAction<SiteContent>> }) {
+export default function RizzSettings({ content, onChange, onSave }: { content: SiteContent; onChange: Dispatch<SetStateAction<SiteContent>>; onSave?: () => Promise<boolean> }) {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [failed, setFailed] = useState(false);
@@ -17,8 +18,13 @@ export default function RizzSettings({ content, onChange }: { content: SiteConte
   async function save() {
     setSaving(true); setStatus(""); setFailed(false);
     try {
-      const response = await fetch("/api/admin/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(content) });
-      if (!response.ok) throw new Error("Couldn't save. Your changes are still here; please try again.");
+      if (onSave) {
+        if (!await onSave()) throw new Error("Could not save. Your edits are still here; review the dashboard error and retry.");
+      } else {
+        const result = await adminRequest<{ record: SiteContent & { _version?: number } }>("/api/admin/site-content", { method: "PUT", body: JSON.stringify(content) });
+        if (!result.record) throw new Error("Save response was incomplete. Reload to confirm the saved settings before retrying.");
+        onChange(current => current === content ? result.record : { ...current, _version: result.record._version });
+      }
       setStatus("Saved. Theme, answers, and page switches are up to date.");
     } catch (error) { setFailed(true); setStatus(error instanceof Error ? error.message : "Couldn't save. Please try again."); }
     finally { setSaving(false); }

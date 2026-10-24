@@ -1,4 +1,5 @@
 "use client";
+import LabeledField from "./LabeledField";
 import { useState } from "react";
 
 
@@ -84,18 +85,15 @@ export default function ContactEditorModal({
     <Modal title={initial ? "Edit Contact" : "Add Contact"} onClose={onClose}>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field>
-            <Label required>Name</Label>
+          <LabeledField label="Name" required>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Contact name" />
-          </Field>
-          <Field>
-            <Label>Email</Label>
+          </LabeledField>
+          <LabeledField label="Email">
             <input className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
-          </Field>
-          <Field>
-            <Label>Phone</Label>
+          </LabeledField>
+          <LabeledField label="Phone">
             <input className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
-          </Field>
+          </LabeledField>
           <Field>
             <Label>Subscribed</Label>
             <button
@@ -111,14 +109,12 @@ export default function ContactEditorModal({
             </button>
           </Field>
         </div>
-        <Field>
-          <Label>Subject</Label>
+        <LabeledField label="Subject">
           <input className={inputCls} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Admin Contact" />
-        </Field>
-        <Field>
-          <Label>Notes</Label>
+        </LabeledField>
+        <LabeledField label="Notes">
           <textarea className={textareaCls} rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Added from the admin center." />
-        </Field>
+        </LabeledField>
         {error && <p className="text-[11px] text-[#ef4242]">{error}</p>}
       </div>
       <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/8">

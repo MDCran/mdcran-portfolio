@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { adminRequest, AdminRequestError, removedRecords, recordVersion } from "../src/lib/admin-client";
+import { adminRequest, AdminRequestError, removedRecords, recordVersion, mergeSavedRecords } from "../src/lib/admin-client";
+
+test("partial batch saves retain unrelated rows and apply returned versions without duplicates", () => {
+  const rows = [{ id: "untouched", name: "Keep", _version: 2 }, { id: "edited", name: "Before", _version: 1 }];
+  assert.deepEqual(mergeSavedRecords(rows, [{ id: "edited", name: "After", _version: 2 }]), [rows[0], { id: "edited", name: "After", _version: 2 }]);
+  assert.deepEqual(mergeSavedRecords(rows, []), rows);
+  const created = { id: "new", name: "New", _version: 1 };
+  assert.deepEqual(mergeSavedRecords(rows, [created]), [created, ...rows]);
+  assert.deepEqual(mergeSavedRecords([created, ...rows], [created]), [created, ...rows]);
+});
 
 test("HTTP errors never look like successful saves and conflict details survive", async () => {
   const original = globalThis.fetch;
@@ -92,4 +101,34 @@ test("aborts during response parsing survive even when the body parser rejects o
     };
     await assert.rejects(adminRequest("/test"), error => error === abortedBody);
   } finally { globalThis.fetch = original; }
+});
+
+import { completeAdminMutation, bookingTimezoneValid, identityTrackingUrl } from "../src/lib/admin-mutation";
+
+test("failed admin writes never refresh or report success", async () => {
+  let refreshes = 0;
+  await assert.rejects(completeAdminMutation(async () => { throw new AdminRequestError("Unauthorized", 401); }, async () => { refreshes++; }), /Unauthorized/);
+  assert.equal(refreshes, 0);
+});
+
+test("accepted commands are not repeated when refresh fails", async () => {
+  let writes = 0; let reads = 0;
+  const result = await completeAdminMutation(async () => { writes++; return { ok: true }; }, async () => { reads++; throw new Error("network offline"); });
+  assert.deepEqual(result, { value: { ok: true }, refreshError: "network offline" });
+  assert.equal(writes, 1); assert.equal(reads, 1);
+  const saved = { record: { id: "item", _version: 4 } };
+  assert.deepEqual(await completeAdminMutation(async () => saved, async () => []), { value: saved, refreshError: null });
+});
+
+test("booking timezone drafts reject incomplete input without crashing meeting rendering", () => {
+  assert.equal(bookingTimezoneValid("America/New_York"), true);
+  assert.equal(bookingTimezoneValid("UTC"), true);
+  for (const value of ["", "America/", "fake-timezone"]) assert.equal(bookingTimezoneValid(value), false);
+});
+
+test("identity tracking links preserve existing queries/fragments and reject external destinations", () => {
+  const link = new URL(identityTrackingUrl("/resume?utm_source=linkedin#skills", "name & value"));
+  assert.equal(link.origin, "https://mdcran.com"); assert.equal(link.searchParams.get("utm_source"), "linkedin"); assert.equal(link.searchParams.get("identity"), "name & value"); assert.equal(link.hash, "#skills");
+  assert.equal(new URL(identityTrackingUrl("/resume?identity=old", "new")).searchParams.getAll("identity").length, 1);
+  assert.throws(() => identityTrackingUrl("//example.com", "id"), /mdcran.com/);
 });

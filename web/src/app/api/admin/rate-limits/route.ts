@@ -1,78 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
-import {
-  deleteRateLimitRecord,
-  getRateLimitRecords,
-  updateRateLimitRecord,
-} from "@/lib/rate-limit";
-import type { RateLimitRecord } from "@/lib/types";
+import { deleteRateLimitRecord, getRateLimitRecords, applyRateLimitAdminAction } from "@/lib/rate-limit";
+import { adminError } from "@/lib/admin-content";
+import { adminObject, adminString, readAdminObject } from "@/lib/admin-api-validation";
+import { AdminDataError } from "@/lib/content-validation";
 
 export async function GET() {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const data = await getRateLimitRecords();
-  return NextResponse.json(data);
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try { return NextResponse.json(await getRateLimitRecords()); }
+  catch (error) { return adminError(error); }
 }
-
 export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json().catch(() => null);
-  const action = body?.action;
-
-  if (action === "reset") {
-    const record = body?.record as RateLimitRecord | undefined;
-    if (!record?.id) {
-      return NextResponse.json({ error: "Record required" }, { status: 400 });
-    }
-
-    await updateRateLimitRecord({
-      ...record,
-      count: 0,
-      blockedCount: 0,
-      lastBlockedAt: undefined,
-      notes: "Reset by admin",
-    });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const body = await readAdminObject(req);
+    if (body.action !== "reset" && body.action !== "clear-pii") throw new AdminDataError("Invalid action", 400);
+    const id = adminString(body.id ?? adminObject(body.record).id, "id");
+    await applyRateLimitAdminAction(id, body.action);
     return NextResponse.json({ ok: true });
-  }
-
-  if (action === "clear-pii") {
-    const record = body?.record as RateLimitRecord | undefined;
-    if (!record?.id) {
-      return NextResponse.json({ error: "Record required" }, { status: 400 });
-    }
-
-    await updateRateLimitRecord({
-      ...record,
-      ip: undefined,
-      browser: undefined,
-      userAgent: undefined,
-      city: undefined,
-      region: undefined,
-      country: undefined,
-      notes: "PII cleared by admin",
-    });
-    return NextResponse.json({ ok: true });
-  }
-
-  return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (error) { return adminError(error); }
 }
-
 export async function DELETE(req: NextRequest) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json().catch(() => null);
-  const id = typeof body?.id === "string" ? body.id : "";
-  if (!id) {
-    return NextResponse.json({ error: "ID required" }, { status: 400 });
-  }
-
-  await deleteRateLimitRecord(id);
-  return NextResponse.json({ ok: true });
+  if (!(await isAdminAuthenticated())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    await deleteRateLimitRecord(adminString((await readAdminObject(req)).id, "id"));
+    return NextResponse.json({ ok: true });
+  } catch (error) { return adminError(error); }
 }

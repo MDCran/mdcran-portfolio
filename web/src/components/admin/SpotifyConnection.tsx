@@ -38,7 +38,7 @@ export default function SpotifyConnection() {
     <p role="status" className="rounded-sm border border-white/10 p-3 text-xs leading-relaxed text-white/60">{error ? messages.unavailable : data ? messages[data.status] || messages.unavailable : "Checking Spotify connection…"}</p>
     <div className="flex flex-wrap gap-3">
       <a href="/api/spotify/auth" className="inline-flex min-h-11 items-center justify-center px-4 bg-[#ef4242] hover:bg-[#d93838] text-white text-xs rounded-sm">Connect / Reconnect</a>
-      <button type="button" disabled={isValidating} onClick={() => void mutate()} className="min-h-11 rounded-sm border border-white/15 px-4 text-xs text-white/65 disabled:opacity-40">{isValidating ? "Checking…" : "Check connection"}</button>
+      <button type="button" disabled={isValidating} onClick={() => void mutate().catch(() => {})} className="min-h-11 rounded-sm border border-white/15 px-4 text-xs text-white/65 disabled:opacity-40">{isValidating ? "Checking…" : "Check connection"}</button>
     </div>
     <p className="text-xs leading-relaxed text-white/40">Approve access on Spotify, then return here automatically. Credentials stay on the server.</p>
   </div>;

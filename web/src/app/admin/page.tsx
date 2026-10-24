@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { assetUrl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import type { SiteContent } from "@/lib/types";
 
 /* ─── Corner Brackets ────────────────────────────────────── */
@@ -82,6 +82,7 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!password.trim()) {
       setError("Password required.");
       return;
@@ -92,7 +93,6 @@ export default function AdminLoginPage() {
     }
     setLoading(true);
     setError("");
-    await new Promise((r) => setTimeout(r, 300));
 
     try {
       const res = await fetch("/api/admin/auth", {
@@ -136,7 +136,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-6 relative overflow-hidden">
+    <main className="min-h-dvh bg-[#0a0a0a] flex items-center justify-center px-4 py-10 sm:px-6 relative overflow-x-clip">
       <ScanLines />
 
       {/* Background glows */}
@@ -182,7 +182,8 @@ export default function AdminLoginPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
-            className="font-nord text-2xl tracking-[0.3em] text-white uppercase mb-2"
+            id="admin-login-title"
+            className="font-nord text-xl sm:text-2xl tracking-[0.15em] sm:tracking-[0.3em] text-white uppercase mb-2"
             style={{ textShadow: "0 0 30px rgba(239,66,66,0.4)" }}
           >
             Admin Center
@@ -191,7 +192,7 @@ export default function AdminLoginPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.35, duration: 0.5 }}
-            className="text-[10px] tracking-[0.25em] uppercase text-white/30"
+            className="text-[10px] tracking-[0.25em] uppercase text-white/60"
           >
             Restricted Access · MDCran
           </motion.p>
@@ -202,20 +203,25 @@ export default function AdminLoginPage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="relative rounded-sm border border-white/8 bg-white/3 backdrop-blur-xl px-8 pt-8 pb-1"
+          className="relative rounded-sm border border-white/15 bg-white/3 backdrop-blur-xl px-5 sm:px-8 pt-8 pb-1"
         >
           <CornerBrackets />
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} aria-labelledby="admin-login-title" aria-busy={loading} className="space-y-5">
             {/* Password field */}
             <div>
-              <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-2">
+              <label htmlFor="admin-password" className="block text-[11px] tracking-[0.2em] uppercase text-white/70 mb-2">
                 Password
               </label>
               <div className="relative">
                 <input
                   ref={inputRef}
+                  id="admin-password"
+                  name="password"
                   type={showPw ? "text" : "password"}
+                  required
+                  aria-describedby={error ? "admin-login-error" : undefined}
+                  aria-invalid={Boolean(error) && step === "password"}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -224,13 +230,15 @@ export default function AdminLoginPage() {
                   disabled={loading || attempts >= 5}
                   placeholder="Enter admin password"
                   autoComplete="current-password"
-                  className="w-full h-11 bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-4 pr-12 text-white text-sm placeholder:text-white/20 outline-none transition-all duration-200 tracking-wider disabled:opacity-40"
+                  className="w-full h-12 bg-white/4 border border-white/25 focus:border-[#f78787] focus:ring-2 focus:ring-[#ef4242]/20 rounded-sm px-3 pr-20 text-white text-base placeholder:text-white/50 outline-none transition-colors duration-200 disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors text-xs tracking-wider"
-                  tabIndex={-1}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  aria-pressed={showPw}
+                  aria-controls="admin-password"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 min-h-11 px-3 rounded-sm text-white/70 hover:text-white focus-visible:outline-2 focus-visible:outline-[#f78787] transition-colors text-xs tracking-wider"
                 >
                   {showPw ? "HIDE" : "SHOW"}
                 </button>
@@ -241,46 +249,48 @@ export default function AdminLoginPage() {
             {step === "setup" && (
               <div className="rounded-sm border border-white/10 bg-white/3 p-4 text-center space-y-2">
                 <p className="text-[10px] tracking-[0.2em] uppercase text-[#ef4242]">Set up 2FA</p>
-                <p className="text-[11px] text-white/45 leading-relaxed">Scan with Google Authenticator / Authy, then enter the 6-digit code. This is required on every future login.</p>
+                <p id="admin-code-help" className="text-xs text-white/70 leading-relaxed">Scan with Google Authenticator / Authy, then enter the 6-digit code. This is required on every future login.</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {qr && <img src={qr} alt="2FA QR code" className="mx-auto rounded-sm bg-white p-1" width={180} height={180} />}
-                {secret && <p className="text-[10px] text-white/30 break-all font-mono">Manual key: {secret}</p>}
+                {secret && <p className="text-xs text-white/70 break-all font-mono">Manual key: {secret}</p>}
               </div>
             )}
 
             {/* 2FA code field */}
             {(step === "setup" || step === "code") && (
               <div>
-                <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-2">Authentication Code</label>
+                <label htmlFor="admin-authentication-code" className="block text-[11px] tracking-[0.2em] uppercase text-white/70 mb-2">Authentication Code</label>
                 <input
+                  id="admin-authentication-code"
+                  name="code"
                   type="text"
                   inputMode="numeric"
+                  required
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  disabled={loading}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={[step === "setup" ? "admin-code-help" : "", error ? "admin-login-error" : ""].filter(Boolean).join(" ") || undefined}
                   autoComplete="one-time-code"
                   value={code}
                   onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
                   placeholder="6-digit code"
                   autoFocus
-                  className="w-full h-11 bg-white/4 border border-white/10 focus:border-[#ef4242] rounded-sm px-4 text-white text-sm tracking-[0.4em] text-center placeholder:tracking-normal placeholder:text-white/20 outline-none transition-all"
+                  className="w-full h-12 bg-white/4 border border-white/25 focus:border-[#f78787] focus:ring-2 focus:ring-[#ef4242]/20 rounded-sm px-4 text-white text-base tracking-[0.4em] text-center placeholder:tracking-normal placeholder:text-white/50 outline-none transition-colors disabled:opacity-50"
                 />
               </div>
             )}
 
             {/* Error */}
-            <AnimatePresence>
+            <div id="admin-login-error" role="alert" aria-atomic="true">
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="flex items-center gap-2 text-[#ef4242] text-xs py-2 px-3 bg-[#ef4242]/8 border border-[#ef4242]/20 rounded-sm">
-                    <span className="text-base leading-none">⚠</span>
+                  <div className="flex items-start gap-2 text-red-300 text-xs py-2 px-3 bg-[#ef4242]/8 border border-[#ef4242]/25 rounded-sm">
+                    <span className="text-base leading-none" aria-hidden="true">⚠</span>
                     <span>{error}</span>
                   </div>
-                </motion.div>
               )}
-            </AnimatePresence>
+            </div>
+            <p role="status" className="sr-only">{loading ? "Authenticating. Please wait." : ""}</p>
 
             {/* Submit */}
             <div className="relative group pt-1">
@@ -288,7 +298,7 @@ export default function AdminLoginPage() {
               <button
                 type="submit"
                 disabled={loading || attempts >= 5}
-                className="relative w-full h-11 bg-[#ef4242] hover:bg-[#dd3030] disabled:opacity-40 disabled:cursor-not-allowed text-white font-nord tracking-[0.25em] text-xs uppercase rounded-sm transition-colors duration-200 shadow-[0_0_30px_rgba(239,66,66,0.3)] flex items-center justify-center gap-2"
+                className="relative w-full min-h-12 px-3 py-2 bg-[#bd2938] hover:bg-[#a92432] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f78787] disabled:opacity-50 disabled:cursor-not-allowed text-white font-nord tracking-[0.16em] text-xs uppercase rounded-sm transition-colors duration-200 shadow-[0_0_30px_rgba(239,66,66,0.3)] flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -312,7 +322,7 @@ export default function AdminLoginPage() {
 
           {/* Hint */}
           <div className="mt-5 pt-4 pb-3 border-t border-white/5 text-center">
-            <p className="text-[10px] text-white/20 tracking-[0.16em] uppercase whitespace-nowrap">
+            <p className="text-[10px] text-white/60 tracking-[0.1em] uppercase leading-relaxed">
               Unauthorized access attempts are logged.
             </p>
           </div>
@@ -323,13 +333,13 @@ export default function AdminLoginPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="text-center mt-6 text-[10px] text-white/20 tracking-wider"
+          className="text-center mt-6 text-xs text-white/60 tracking-wider"
         >
-          <Link href="/" className="hover:text-white/40 transition-colors">
+          <Link href="/" className="inline-flex min-h-11 items-center rounded-sm hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f78787] transition-colors">
             ← Return to MDCran.com
           </Link>
         </motion.p>
       </motion.div>
-    </div>
+    </main>
   );
 }

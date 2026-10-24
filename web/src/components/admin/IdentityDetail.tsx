@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { adminRequest } from "@/lib/admin-client";
+import { completeAdminMutation } from "@/lib/admin-mutation";
 import Link from "next/link";
 import {
   Loader2, Monitor, Smartphone, Tablet, MessageSquare, Mic, Network, Mail, Calendar,
@@ -160,7 +162,11 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
   onMutate?: () => void;
 }) {
   const [data, setData] = useState<DetailData | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
+  const [mutationError, setMutationError] = useState("");
+  const [notice, setNotice] = useState("");
+  const requestRef = useRef<AbortController | null>(null);
+  const mutationPending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -178,37 +184,50 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
     finally { setHistoryLoading(false); }
   };
 
-  const reload = useCallback(() => {
-    // No synchronous setState here — all state updates happen in the async callbacks
-    // (avoids cascading-renders / set-state-in-effect when called from the effect).
-    fetch(`/api/admin/identities/${id}/detail`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.identity) { setData(d as DetailData); setError(false); } else setError(true); })
-      .catch(() => setError(true));
+  const reload = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController(); requestRef.current = controller;
+    const result = await adminRequest<DetailData>(`/api/admin/identities/${encodeURIComponent(id)}/detail`, { signal: controller.signal });
+    if (!result.identity || result.identity.id !== id) throw new Error("The identity activity response was incomplete.");
+    setData(result); setError("");
   }, [id]);
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    void reload().catch(cause => { if (!(cause instanceof Error && cause.name === "AbortError")) setError(cause instanceof Error ? cause.message : "Could not load identity activity."); });
+    return () => requestRef.current?.abort();
+  }, [reload]);
 
+  const changeDevice = async (body: Record<string, unknown>) => {
+    if (mutationPending.current) return;
+    mutationPending.current = true; setBusy(true); setMutationError(""); setNotice("");
+    try {
+      const result = await completeAdminMutation(
+        () => adminRequest("/api/admin/identities", { method: "POST", body: JSON.stringify(body) }),
+        reload,
+      );
+      setNotice("Device change saved."); onMutate?.();
+      if (result.refreshError) setMutationError(`The change succeeded, but activity could not refresh. Reload the activity before repeating the action. ${result.refreshError}`);
+    } catch (cause) { setMutationError(cause instanceof Error ? cause.message : "Could not save the device change."); }
+    finally { mutationPending.current = false; setBusy(false); }
+  };
   const moveDevice = async (serial: string, toId: string) => {
-    if (!toId) return;
-    setBusy(true);
-    await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "move-device", serial, toId }) });
-    setBusy(false); reload(); onMutate?.();
+    if (toId && toId !== id) await changeDevice({ action: "move-device", serial, toId });
   };
   const removeDevice = async (serial: string) => {
-    if (!(await confirm({ title: "Remove this device?", body: "It will be detached from this identity.", confirmLabel: "Remove", danger: true }))) return;
-    setBusy(true);
-    await fetch("/api/admin/identities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove-device", id, serial }) });
-    setBusy(false); reload(); onMutate?.();
+    if (mutationPending.current || !(await confirm({ title: "Remove this device?", body: "It will be detached from this identity.", confirmLabel: "Remove", danger: true }))) return;
+    await changeDevice({ action: "remove-device", id, serial });
   };
-
-  if (error) return <p className="text-xs text-white/30">Couldn’t load this identity’s activity.</p>;
-  if (!data) return <div className="flex items-center gap-2 text-[11px] text-white/40"><Loader2 size={12} className="animate-spin" /> Loading everything tied to this identity…</div>;
+  const retryLoad = () => { void reload().catch(cause => setError(cause instanceof Error ? cause.message : "Could not load identity activity.")); };
+  if (!data || data.identity.id !== id) return <div className="space-y-2 text-xs text-white/60"><p role={error ? "alert" : "status"}>{error || "Loading everything tied to this identity…"}</p>{error && <button className="underline" onClick={retryLoad}>Retry</button>}</div>;
 
   const devices = data.identity.devices ?? [];
   const suspected = data.candidates.filter((c) => c.state === "SUSPECTED");
 
   return (
     <div className="space-y-4">
+      {(mutationError || error) && <p role="alert" className="text-sm text-red-300">{mutationError || error}</p>}
+      {notice && <p role="status" className="text-sm text-emerald-300">{notice}</p>}
+      <button disabled={busy} className="text-xs underline" onClick={retryLoad}>Refresh activity</button>
+      <fieldset disabled={busy} className="space-y-4">
       {/* Devices */}
       <div className="space-y-1.5">
         <HubHeader icon={<Network size={11} />} label="Devices" count={devices.length} href={SECTION.crossdevice} />
@@ -374,6 +393,7 @@ export default function IdentityDetail({ id, allIdentities, confirm, onMutate }:
       )}
 
       {busy && <div className="flex items-center gap-2 text-[11px] text-white/40"><Loader2 size={12} className="animate-spin" /> Working…</div>}
+      </fieldset>
     </div>
   );
 }

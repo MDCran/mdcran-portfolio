@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { adminRequest } from "@/lib/admin-client";
+import { identityTrackingUrl } from "@/lib/admin-mutation";
 import Link from "next/link";
 import {
   Trash2, Link2, GitMerge, Check, X, Pencil, Loader2, Fingerprint, UserPlus,
@@ -10,7 +12,6 @@ import type { Identity } from "@/lib/types";
 import IdentityPicker from "@/components/admin/IdentityPicker";
 import { useConfirm } from "@/components/admin/ConfirmModal";
 
-const SITE = "https://mdcran.com";
 
 function DeviceIcon({ type }: { type?: string }) {
   if (type === "mobile") return <Smartphone size={12} className="text-white/35" />;
@@ -64,9 +65,7 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
     setBusy(true);
     setLoadError("");
     try {
-      const response = await fetch("/api/admin/identities", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(result?.error || "The identity change could not be saved.");
+      const result = await adminRequest<{ identity?: Identity }>("/api/admin/identities", { method, body: JSON.stringify(body) });
       await load();
       return result;
     } catch (error) {
@@ -96,8 +95,11 @@ export default function IdentitiesAdmin({ onOpenIdentity }: { onOpenIdentity?: (
     if (await performMutation("POST", { action: "merge", targetId, sourceIds: [sourceId] })) setSelected(new Set());
   };
   const copyLink = (id: string) => {
-    const url = `${SITE}${linkPath.startsWith("/") ? linkPath : `/${linkPath}`}?identity=${id}`;
-    navigator.clipboard.writeText(url).then(() => { setCopied(id); setTimeout(() => setCopied(null), 1500); }).catch(() => {});
+    try {
+      const url = identityTrackingUrl(linkPath, id);
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable. Copy the identity link from a secure browser window.");
+      void navigator.clipboard.writeText(url).then(() => { setCopied(id); setTimeout(() => setCopied(null), 1500); }).catch(() => setLoadError("Could not copy the link. Check browser clipboard permissions and retry."));
+    } catch (cause) { setLoadError(cause instanceof Error ? cause.message : "Could not copy the identity link."); }
   };
   const create = async () => {
     const name = newName.trim();

@@ -1,4 +1,5 @@
 "use client";
+import LabeledField from "./LabeledField";
 import { useState } from "react";
 
 
@@ -131,8 +132,7 @@ export default function CampaignViewModal({
 
         {campaign.type === "email" && campaignRemainingCount(campaign) > 0 && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[140px_1fr] md:items-end">
-            <Field>
-              <Label>Send Next</Label>
+            <LabeledField label="Send Next">
               <input
                 type="number"
                 min={1}
@@ -141,7 +141,7 @@ export default function CampaignViewModal({
                 value={batchCount}
                 onChange={(e) => setBatchCount(e.target.value)}
               />
-            </Field>
+            </LabeledField>
             <button
               className="inline-flex h-10 w-[140px] items-center justify-center rounded-sm border border-white/15 text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white disabled:opacity-50"
               onClick={() => void handleSendBatch()}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Copy,
   Check,
@@ -13,6 +13,7 @@ import {
   X,
   Save,
 } from "lucide-react";
+import { adminRequest } from "@/lib/admin-client";
 import type { UtmLink } from "@/lib/types";
 
 const SOURCES = [
@@ -106,19 +107,21 @@ export default function UtmLinkGenerator() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [links, setLinks] = useState<UtmLink[] | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
+  const loadRequest = useRef<AbortController | null>(null);
+  const mutationPending = useRef(false);
   const load = useCallback(() => {
-    fetch("/api/admin/utm-links")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.links) setLinks(d.links as UtmLink[]);
-        else setLinks([]);
-      })
-      .catch(() => setLinks([]));
+    loadRequest.current?.abort();
+    const controller = new AbortController(); loadRequest.current = controller;
+    adminRequest<{ links: UtmLink[] }>("/api/admin/utm-links", { signal: controller.signal })
+      .then(data => { if (!controller.signal.aborted) { setLinks(data.links); setError(""); } })
+      .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load saved links."); });
   }, []);
 
   useEffect(() => {
     load();
+    return () => loadRequest.current?.abort();
   }, [load]);
 
   const generatedUrl = buildUrl(baseUrl, campaign, source, medium, customSource, term, content);
@@ -137,11 +140,12 @@ export default function UtmLinkGenerator() {
   };
 
   const handleSave = async () => {
-    if (!generatedUrl || saving) return;
+    if (!generatedUrl || mutationPending.current) return;
+    mutationPending.current = true; loadRequest.current?.abort();
     const resolvedSource = source === "custom" ? customSource.trim() : source;
-    setSaving(true);
+    setSaving(true); setError("");
     const payload = {
-      ...(editingId ? { id: editingId } : {}),
+      ...(editingId ? { id: editingId, createdAt: links?.find(link => link.id === editingId)?.createdAt } : {}),
       label: label.trim() || `${resolvedSource} — ${campaign.trim()}`,
       baseUrl: baseUrl.trim(),
       source: resolvedSource,
@@ -152,17 +156,13 @@ export default function UtmLinkGenerator() {
       url: generatedUrl,
     };
     try {
-      await fetch("/api/admin/utm-links", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const result = await adminRequest<{ link: UtmLink }>("/api/admin/utm-links", { method: "POST", body: JSON.stringify(payload) });
+      if (!result.link) throw new Error("Save response was incomplete. Refresh the list to confirm before retrying.");
+      setLinks(previous => [result.link, ...(previous ?? []).filter(link => link.id !== result.link.id)]);
       resetForm();
-      load();
-    } catch {
-      // swallow — the list reload will reflect actual state
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save. Your inputs are still here.");
     } finally {
-      setSaving(false);
+      mutationPending.current = false; setSaving(false);
     }
   };
 
@@ -187,39 +187,38 @@ export default function UtmLinkGenerator() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Remove this saved link?")) return;
+    if (mutationPending.current || !confirm("Remove this saved link?")) return;
+    mutationPending.current = true; loadRequest.current?.abort();
+    setSaving(true); setError("");
     try {
-      await fetch("/api/admin/utm-links", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
+      await adminRequest("/api/admin/utm-links", { method: "DELETE", body: JSON.stringify({ id }) });
       if (editingId === id) resetForm();
-      load();
-    } catch {
-      /* ignore — reload reflects state */
-    }
+      setLinks(previous => previous?.filter(link => link.id !== id) ?? null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not remove the link."); }
+    finally { mutationPending.current = false; setSaving(false); }
   };
 
   const handleCopy = () => {
     if (!generatedUrl) return;
+    if (!navigator.clipboard) { setError("Clipboard access is unavailable. Select and copy the generated URL."); return; }
     navigator.clipboard
       .writeText(generatedUrl)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       })
-      .catch(() => {});
+      .catch(() => setError("Could not copy the link. Check browser clipboard permissions or copy the URL manually."));
   };
 
   const handleCopyRow = (url: string, id: string) => {
+    if (!navigator.clipboard) { setError("Clipboard access is unavailable. Open the saved URL and copy it from the address bar."); return; }
     navigator.clipboard
       .writeText(url)
       .then(() => {
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 1500);
       })
-      .catch(() => {});
+      .catch(() => setError("Could not copy the link. Check browser clipboard permissions or copy the URL manually."));
   };
 
   const inputCls =
@@ -231,6 +230,8 @@ export default function UtmLinkGenerator() {
 
   return (
     <div className="space-y-4">
+      {error && <p role="alert" className="text-sm text-red-300">{error} <button disabled={saving} className="underline" onClick={load}>Refresh saved links</button></p>}
+      <fieldset disabled={saving} className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-2">
         <LinkIcon size={15} className="text-[var(--cranberry)]" />
@@ -441,7 +442,7 @@ export default function UtmLinkGenerator() {
       {/* Saved links table */}
       {links === null ? (
         <p className="text-xs text-white/30 flex items-center gap-1.5">
-          <Loader2 size={12} className="animate-spin" /> Loading saved links…
+          {error ? "Saved links are unavailable. Use Refresh saved links to retry." : <><Loader2 size={12} className="animate-spin" /> Loading saved links…</>}
         </p>
       ) : links.length === 0 ? (
         <div className="rounded-sm border border-white/8 bg-white/[0.02] p-8 text-center">
@@ -540,6 +541,7 @@ export default function UtmLinkGenerator() {
           </table>
         </div>
       )}
+      </fieldset>
     </div>
   );
 }

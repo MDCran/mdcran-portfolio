@@ -18,9 +18,11 @@ function issue(): NextResponse {
 }
 
 export async function POST(req: NextRequest) {
-  const { password, code } = await req.json();
-  if (!password) {
-    return NextResponse.json({ error: "Password required" }, { status: 400 });
+  const body: unknown = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { password, code } = body as { password?: unknown; code?: unknown };
+  if (typeof password !== "string" || !password || password.length > 1024 || (code !== undefined && (typeof code !== "string" || !/^\d{6}$/.test(code)))) {
+    return NextResponse.json({ error: "A valid password and optional six-digit code are required" }, { status: 400 });
   }
 
   // Password gate first — only the password holder can ever reach TOTP setup or login.

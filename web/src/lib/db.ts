@@ -1327,13 +1327,9 @@ export interface AdminTotpState { secret: string | null; enabled: boolean }
 export async function getAdminTotp(): Promise<AdminTotpState> {
   // Backend escape hatch: ADMIN_TOTP_RESET=1 forces re-setup (recovery from lockout).
   if (process.env.ADMIN_TOTP_RESET === "1") return { secret: null, enabled: false };
-  try {
-    const db = await getDb();
-    const doc = await db.collection("settings").findOne<{ key: string; secret?: string; enabled?: boolean }>({ key: "admin_totp" });
-    return { secret: doc?.secret ?? null, enabled: Boolean(doc?.enabled) };
-  } catch {
-    return { secret: null, enabled: false };
-  }
+  const db = await getDb();
+  const doc = await db.collection("settings").findOne<{ key: string; secret?: string; enabled?: boolean }>({ key: "admin_totp" });
+  return { secret: doc?.secret ?? null, enabled: Boolean(doc?.enabled) };
 }
 
 /** Store a pending (not-yet-enabled) secret during setup. */

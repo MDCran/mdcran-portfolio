@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { NextRequest } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { AdminDataError } from "@/lib/content-validation";
 import type { RateLimitRecord } from "@/lib/types";
 
 type RateLimitScope = "contact-form" | "subscribe-form";
@@ -65,6 +66,16 @@ export async function updateRateLimitRecord(record: RateLimitRecord): Promise<vo
     { $set: record },
     { upsert: true }
   );
+}
+
+/** Admin actions update only their intended fields, never a stale browser snapshot. */
+export async function applyRateLimitAdminAction(id: string, action: "reset" | "clear-pii"): Promise<void> {
+  const db = await getDb();
+  const update = action === "reset"
+    ? { $set: { count: 0, blockedCount: 0, notes: "Reset by admin" }, $unset: { lastBlockedAt: "" } }
+    : { $set: { notes: "PII cleared by admin" }, $unset: { ip: "", browser: "", userAgent: "", city: "", region: "", country: "" } };
+  const result = await db.collection("rate_limits").updateOne({ id }, update);
+  if (!result.matchedCount) throw new AdminDataError("Rate limit record not found", 404);
 }
 
 export async function deleteRateLimitRecord(id: string): Promise<void> {

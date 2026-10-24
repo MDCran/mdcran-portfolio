@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
+import { adminRequest } from "@/lib/admin-client";
+import { completeAdminMutation } from "@/lib/admin-mutation";
 import CountryFlag from "@/components/shared/CountryFlag";
 
-const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)));
+const fetcher = <T,>(url: string) => adminRequest<T>(url);
 
 interface Tab { sessionId: string; lastPath: string | null; lastSeen: string; active: boolean }
 interface Visitor {
@@ -29,10 +31,6 @@ function formatBytes(b: number) {
 
 interface Storage { totalBytes: number; totalCount: number; collections: { name: string; bytes: number; count: number }[] }
 
-async function post(body: unknown) {
-  await fetch("/api/admin/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-}
-
 const card = "rounded-sm border border-white/7 bg-white/2 p-5";
 const btn = "px-2 py-1 rounded-sm text-[10px] tracking-wide uppercase border transition-colors";
 
@@ -42,28 +40,35 @@ export default function SessionsControl() {
     revalidateOnFocus: true,
     keepPreviousData: true,
   });
-  const { data: storage } = useSWR<Storage>("/api/admin/sessions?storage=1", fetcher, { refreshInterval: 30_000, revalidateOnFocus: false });
+  const { data: storage, error: storageError } = useSWR<Storage>("/api/admin/sessions?storage=1", fetcher, { refreshInterval: 30_000, revalidateOnFocus: false });
   const { mutate } = useSWRConfig();
   const refresh = () => mutate("/api/admin/sessions");
   const refreshStorage = () => mutate("/api/admin/sessions?storage=1");
 
   const [busy, setBusy] = useState<string | null>(null);
-  const act = async (key: string, body: unknown) => {
-    setBusy(key);
-    await post(body);
-    await refresh();
-    setBusy(null);
+  const mutationPending = useRef(false);
+  const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const act = async (key: string, body: unknown, includeStorage = false) => {
+    if (mutationPending.current) return;
+    mutationPending.current = true; setBusy(key); setActionError(""); setMessage("");
+    try {
+      const result = await completeAdminMutation(
+        () => adminRequest("/api/admin/sessions", { method: "POST", body: JSON.stringify(body) }),
+        () => includeStorage ? Promise.all([refresh(), refreshStorage()]) : refresh(),
+      );
+      setMessage(key === "clear-logs" ? "Session logs cleared." : "Command accepted.");
+      if (result.refreshError) setActionError(`The change succeeded, but the latest data could not be loaded. Refresh the view; do not repeat the command. ${result.refreshError}`);
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "The command failed. Try again."); }
+    finally { mutationPending.current = false; setBusy(null); }
   };
 
   const clearLogs = async () => {
-    if (!confirm("Clear ALL session logs (sessions, pageviews, events, heatmap)? This frees space and can't be undone. Live sessions will repopulate as visitors return.")) return;
-    setBusy("clear-logs");
-    await post({ action: "clear-logs" });
-    await Promise.all([refresh(), refreshStorage()]);
-    setBusy(null);
+    if (mutationPending.current || !confirm("Clear ALL session logs (sessions, pageviews, events, heatmap)? This cannot be undone. Live sessions will repopulate as visitors return.")) return;
+    await act("clear-logs", { action: "clear-logs" }, true);
   };
 
-  if (error) return <p className="text-xs text-white/30">Couldn&apos;t load sessions.</p>;
+  if (error && !data) return <div role="alert" className="text-sm text-red-300">Could not load sessions. <button onClick={() => void refresh().catch(() => {})} className="underline">Retry</button></div>;
   if (!data) return <p className="text-white/30 text-xs">Loading sessions…</p>;
 
   const visitors = data.visitors;
@@ -72,6 +77,11 @@ export default function SessionsControl() {
 
   return (
     <div className="space-y-6">
+      {(actionError || error) && <p role="alert" className="text-sm text-red-300">{actionError || "Session refresh failed. Displayed data may be out of date."}</p>}
+      {message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
+      <button disabled={Boolean(busy)} className={btn} onClick={() => { void Promise.all([refresh(), refreshStorage()]).catch(() => setActionError("Could not refresh sessions. Try again.")); }}>Refresh view</button>
+      {storageError && <p role="alert" className="text-xs text-amber-200">Storage usage could not be loaded. Use Refresh view to retry.</p>}
+      <fieldset disabled={Boolean(busy)} className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Active Visitors", value: activeVisitors, live: true },
@@ -194,6 +204,7 @@ export default function SessionsControl() {
           </div>
         ))}
       </div>
+      </fieldset>
     </div>
   );
 }

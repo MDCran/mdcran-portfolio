@@ -10,6 +10,7 @@ import {
   MapPin,
   Zap,
 } from "lucide-react";
+import { adminRequest } from "@/lib/admin-client";
 import type { DeviceLinkCandidate, CrossDeviceAutoConfig } from "@/lib/types";
 
 type State = "SUSPECTED" | "CONFIRMED" | "REJECTED";
@@ -92,16 +93,17 @@ export default function DeviceCandidates() {
   const [cfg, setCfg] = useState<CrossDeviceAutoConfig | null>(null);
   const [savingCfg, setSavingCfg] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
+  const [error, setError] = useState("");
+  const mutationPending = useRef(false);
 
   const load = useCallback((state: State) => {
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
     const { signal } = controller;
-    fetch(`/api/admin/device-candidates?state=${state}`, { signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (signal?.aborted) return; setCandidates(d?.candidates ?? []); if (d?.autoConfig) setCfg(d.autoConfig); })
-      .catch(() => { if (!signal?.aborted) setCandidates([]); });
+    adminRequest<{ candidates: DeviceLinkCandidate[]; autoConfig: CrossDeviceAutoConfig }>(`/api/admin/device-candidates?state=${state}`, { signal })
+      .then(d => { if (signal.aborted) return; setCandidates(d.candidates); setCfg(d.autoConfig); setError(""); })
+      .catch(cause => { if (!signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load candidates."); });
   }, []);
 
   useEffect(() => {
@@ -110,30 +112,30 @@ export default function DeviceCandidates() {
   }, [filter, load]);
 
   const saveCfg = async (patch: Partial<CrossDeviceAutoConfig>) => {
-    const next = { ...(cfg ?? { enabled: true, autoConfirmScore: 85, autoRejectStaleDays: 14 }), ...patch };
-    setCfg(next);
-    setSavingCfg(true);
-    await fetch("/api/admin/device-candidates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "set-config", ...next }),
-    }).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.autoConfig) setCfg(d.autoConfig); }).catch(() => {});
-    setSavingCfg(false);
+    if (!cfg || mutationPending.current) return;
+    mutationPending.current = true; setSavingCfg(true); setError("");
+    try {
+      const result = await adminRequest<{ autoConfig: CrossDeviceAutoConfig }>("/api/admin/device-candidates", { method: "POST", body: JSON.stringify({ action: "set-config", ...cfg, ...patch }) });
+      if (!result.autoConfig) throw new Error("Save response was incomplete. Reload settings before retrying.");
+      setCfg(result.autoConfig);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save automation settings. Review your changes and save again."); }
+    finally { mutationPending.current = false; setSavingCfg(false); }
   };
-
   const act = async (id: string, action: "confirm" | "reject") => {
-    setWorkingId(id);
-    await fetch("/api/admin/device-candidates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, id }),
-    }).catch(() => {});
-    setWorkingId(null);
-    load(filter);
+    if (mutationPending.current) return;
+    mutationPending.current = true; setWorkingId(id); setError("");
+    try {
+      await adminRequest("/api/admin/device-candidates", { method: "POST", body: JSON.stringify({ action, id }) });
+      setCandidates(current => current?.filter(candidate => candidate.id !== id) ?? null);
+      load(filter);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update this candidate."); }
+    finally { mutationPending.current = false; setWorkingId(null); }
   };
 
   return (
     <div className="space-y-4">
+      {error && <p role="alert" className="text-sm text-red-300">{error} <button className="underline" disabled={Boolean(workingId) || savingCfg} onClick={() => load(filter)}>Retry loading</button></p>}
+      <fieldset disabled={Boolean(workingId) || savingCfg} className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
@@ -167,6 +169,7 @@ export default function DeviceCandidates() {
         </div>
       </div>
 
+      {cfg && <button disabled={savingCfg || Boolean(workingId)} onClick={() => void saveCfg({})} className="rounded border border-white/20 px-3 py-2 text-xs">{savingCfg ? "Saving settings…" : "Save automation settings"}</button>}
       {/* Automation policy — the queue self-manages; this is the override. */}
       {cfg && (
         <div className="rounded-sm border border-white/8 bg-white/2 p-3.5 space-y-3">
@@ -183,7 +186,7 @@ export default function DeviceCandidates() {
                 <span className="text-[10px] uppercase tracking-wider text-white/40">Auto-confirm at ≥ {cfg.autoConfirmScore}/100</span>
                 <input type="range" min={50} max={100} step={1} value={cfg.autoConfirmScore}
                   onChange={(e) => setCfg((c) => c ? { ...c, autoConfirmScore: Number(e.target.value) } : c)}
-                  onPointerUp={(e) => saveCfg({ autoConfirmScore: Number((e.target as HTMLInputElement).value) })}
+                  onBlur={(e) => saveCfg({ autoConfirmScore: Number(e.target.value) })}
                   className="w-48 accent-[var(--cranberry)]" />
               </label>
               <label className="flex flex-col gap-1">
@@ -202,7 +205,7 @@ export default function DeviceCandidates() {
       )}
 
       {/* Loading */}
-      {candidates === null && (
+      {candidates === null && !error && (
         <p className="text-xs text-white/30 flex items-center gap-1.5">
           <Loader2 size={12} className="animate-spin" /> Loading candidates…
         </p>
@@ -311,6 +314,7 @@ export default function DeviceCandidates() {
           })}
         </div>
       )}
+      </fieldset>
     </div>
   );
 }

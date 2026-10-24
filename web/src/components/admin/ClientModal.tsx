@@ -1,4 +1,5 @@
 "use client";
+import LabeledField from "./LabeledField";
 import { useState } from "react";
 
 
@@ -105,31 +106,27 @@ export default function ClientModal({
     <Modal title={initial ? "Edit Client" : "New Client"} onClose={onClose} wide>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label required>Name</Label>
+          <LabeledField label="Name" required>
             <input className={`${inputCls} ${isErr("name") ? "border-[#ef4242]" : ""}`} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
-          </Field>
-          <Field>
-            <Label required>ID (slug)</Label>
+          </LabeledField>
+          <LabeledField label="ID (slug)" required>
             <input
               className={`${inputCls} ${isErr("id") ? "border-[#ef4242]" : ""}`}
               value={id}
               onChange={(e) => setId(e.target.value)}
               placeholder="popularmmos"
             />
-          </Field>
+          </LabeledField>
         </div>
 
-        <Field>
-          <Label>Bio</Label>
+        <LabeledField label="Bio">
           <textarea className={textareaCls} rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Client biography…" />
-        </Field>
+        </LabeledField>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label>Location</Label>
+          <LabeledField label="Location">
             <input className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="United States" />
-          </Field>
+          </LabeledField>
           <Field>
             <Label>Avatar URL</Label>
             <div className="grid grid-cols-[1.6fr_auto] gap-2">
@@ -141,10 +138,9 @@ export default function ClientModal({
           </Field>
         </div>
 
-        <Field>
-          <Label>Roles</Label>
+        <LabeledField label="Roles">
           <input className={inputCls} value={roles} onChange={(e) => setRoles(e.target.value)} placeholder="YouTuber, Content Creator (comma-separated)" />
-        </Field>
+        </LabeledField>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -205,8 +201,7 @@ export default function ClientModal({
         <div className="border-t border-white/8 pt-4">
           <p className={labelCls}>Quote / Testimonial</p>
           <div className="space-y-2">
-            <Field>
-              <Label>Quote Text</Label>
+            <LabeledField label="Quote Text">
               <textarea
                 className={textareaCls}
                 rows={2}
@@ -214,16 +209,15 @@ export default function ClientModal({
                 onChange={(e) => setQuoteText(e.target.value)}
                 placeholder="&ldquo;MDCran delivered exactly what we needed…&rdquo;"
               />
-            </Field>
-            <Field>
-              <Label>Context</Label>
+            </LabeledField>
+            <LabeledField label="Context">
               <input
                 className={inputCls}
                 value={quoteContext}
                 onChange={(e) => setQuoteContext(e.target.value)}
                 placeholder="On the Monopoly Map project"
               />
-            </Field>
+            </LabeledField>
           </div>
         </div>
 

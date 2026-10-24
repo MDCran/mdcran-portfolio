@@ -1,4 +1,5 @@
 "use client";
+import LabeledField from "./LabeledField";
 import { useState } from "react";
 
 
@@ -249,34 +250,30 @@ export default function ProjectModal({
     <Modal title={initial ? "Edit Project" : "New Project"} onClose={onClose} wide fullPage>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label required>Title</Label>
+          <LabeledField label="Title" required>
             <input
               className={`${inputCls} ${isErr("title") ? "border-[#ef4242]" : ""}`}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Project title"
             />
-          </Field>
-          <Field>
-            <Label>Slug</Label>
+          </LabeledField>
+          <LabeledField label="Slug">
             <input
               className={inputCls}
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder="auto-generated from title"
             />
-          </Field>
+          </LabeledField>
         </div>
 
-        <Field>
-          <Label>Description</Label>
+        <LabeledField label="Description">
           <textarea className={textareaCls} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Project description…" />
-        </Field>
+        </LabeledField>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <Label>Category</Label>
+          <LabeledField label="Category">
             <select
               className={inputCls}
               value={category}
@@ -304,9 +301,8 @@ export default function ProjectModal({
               <option value="motion-and-graphics">Motion & Graphics</option>
               <option value="coding-projects">Engineering</option>
             </select>
-          </Field>
-          <Field>
-            <Label>Subcategory</Label>
+          </LabeledField>
+          <LabeledField label="Subcategory">
             <select
               className={inputCls}
               value={subcategory}
@@ -328,13 +324,12 @@ export default function ProjectModal({
                 </>
               )}
             </select>
-          </Field>
+          </LabeledField>
         </div>
 
-        <Field>
-          <Label>Tags</Label>
+        <LabeledField label="Tags">
           <input className={inputCls} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="minecraft, map, adventure (comma-separated)" />
-        </Field>
+        </LabeledField>
 
         <Field>
           <Label>Cover Image URL</Label>
@@ -403,67 +398,60 @@ export default function ProjectModal({
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field>
-            <Label>Pricing Status</Label>
+          <LabeledField label="Pricing Status">
             <select className={inputCls} value={pricingStatus} onChange={(e) => setPricingStatus(e.target.value as ProjectStatus)}>
               <option value="free">Free</option>
               <option value="for_sale">For Sale</option>
               <option value="unavailable">Unavailable</option>
             </select>
-          </Field>
+          </LabeledField>
           {pricingStatus === "for_sale" && (
-            <Field>
-              <Label>Price (USD)</Label>
+            <LabeledField label="Price (USD)">
               <input className={inputCls} type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="9.99" />
-            </Field>
+            </LabeledField>
           )}
           {pricingStatus === "for_sale" && (
             <div className="col-span-3">
-              <Field>
-                <Label>Checkout URL</Label>
+              <LabeledField label="Checkout URL">
                 <input className={inputCls} value={checkoutUrl} onChange={(e) => setCheckoutUrl(e.target.value)} placeholder="https://… (Stripe, Gumroad, etc.)" />
-              </Field>
+              </LabeledField>
             </div>
           )}
           {pricingStatus === "free" && (
             <div className="col-span-2">
-              <Field>
-                <Label>Download URL</Label>
+              <LabeledField label="Download URL">
                 <input className={inputCls} value={downloadUrl} onChange={(e) => setDownloadUrl(e.target.value)} placeholder="https://…" />
-              </Field>
+              </LabeledField>
             </div>
           )}
         </div>
 
-        <Field>
-          <Label>Live URL (optional)</Label>
+        <LabeledField label="Live URL (optional)">
           <input
             className={inputCls}
             value={liveUrl}
             onChange={(e) => setLiveUrl(e.target.value)}
             placeholder="https://… (site or demo)"
           />
-        </Field>
+        </LabeledField>
 
-        <Field>
-          <Label>Read More URL (optional)</Label>
+        <LabeledField label="Read More URL (optional)">
           <input
             className={inputCls}
             value={externalUrl}
             onChange={(e) => setExternalUrl(e.target.value)}
             placeholder="https://… (press article or case study)"
           />
-        </Field>
+        </LabeledField>
 
-        <Field>
-          <Label>GitHub URL (optional)</Label>
+        <LabeledField label="GitHub URL (optional)">
           <input
             className={inputCls}
             value={githubUrl}
             onChange={(e) => setGithubUrl(e.target.value)}
             placeholder="https://github.com/… (repository link)"
           />
-        </Field>
+        </LabeledField>
 
         <Field>
           <Label>Additional public repositories</Label>

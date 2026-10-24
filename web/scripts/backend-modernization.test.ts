@@ -139,3 +139,50 @@ test("identity history returns newest bounded page then older rows without cross
   assert.equal(older.nextCursor, null);
   assert.equal(older.messages.some((message) => message.id === "other-person"), false);
 });
+
+
+test("status CRUD rejects missing targets, preserves service flags, and removes related incidents atomically", async () => {
+  const [{ getDb }] = await modules;
+  const { writeStatus, removeStatus } = await import("../src/lib/admin-status");
+  const serviceId = "status-test-service";
+  await writeStatus({ type: "service", id: serviceId, name: "Test service", defunct: true }, true);
+  await assert.rejects(writeStatus({ type: "service", id: serviceId, name: "Duplicate" }, true));
+  await assert.rejects(writeStatus({ type: "service", id: "missing", name: "Must not upsert" }, false));
+  await assert.rejects(writeStatus({ type: "incident", serviceId: "missing", title: "Orphan", message: "No service" }, true));
+  await writeStatus({ type: "incident", id: "status-test-incident", serviceId, title: "Test incident", message: "Investigating" }, true);
+  await writeStatus({ type: "service", id: serviceId, name: "Renamed" }, false);
+  const db = await getDb();
+  assert.equal((await db.collection("statusServices").findOne({ id: serviceId }))?.defunct, true);
+  await writeStatus({ type: "incident", id: "status-test-incident", status: "resolved" }, false);
+  assert.ok((await db.collection("statusIncidents").findOne({ id: "status-test-incident" }))?.resolvedAt);
+  await writeStatus({ type: "incident", id: "status-test-incident", status: "monitoring" }, false);
+  assert.equal((await db.collection("statusIncidents").findOne({ id: "status-test-incident" }))?.resolvedAt, undefined);
+  await assert.rejects(removeStatus("not-a-type", serviceId));
+  assert.ok(await db.collection("statusServices").findOne({ id: serviceId }));
+  await removeStatus("service", serviceId);
+  assert.equal(await db.collection("statusIncidents").countDocuments({ serviceId }), 0);
+  assert.equal(await db.collection("statusServices").countDocuments({ id: serviceId }), 0);
+  await assert.rejects(removeStatus("service", serviceId));
+});
+
+
+test("rate-limit privacy actions preserve current counters and never upsert missing records", async () => {
+  const [{ getDb }] = await modules;
+  const { applyRateLimitAdminAction } = await import("../src/lib/rate-limit");
+  const db = await getDb();
+  const collection = db.collection("rate_limits");
+  await collection.insertOne({ id: "rate-test", count: 12, blockedCount: 3, limit: 5, scope: "contact-form", ip: "192.0.2.1", browser: "Test", lastBlockedAt: "2026-01-01T00:00:00Z" });
+  await applyRateLimitAdminAction("rate-test", "clear-pii");
+  const cleared = await collection.findOne({ id: "rate-test" });
+  assert.equal(cleared?.count, 12);
+  assert.equal(cleared?.blockedCount, 3);
+  assert.equal(cleared?.ip, undefined);
+  assert.equal(cleared?.browser, undefined);
+  await applyRateLimitAdminAction("rate-test", "reset");
+  const reset = await collection.findOne({ id: "rate-test" });
+  assert.equal(reset?.count, 0);
+  assert.equal(reset?.lastBlockedAt, undefined);
+  assert.equal(reset?.scope, "contact-form");
+  await assert.rejects(applyRateLimitAdminAction("missing", "reset"));
+  assert.equal(await collection.countDocuments({ id: "missing" }), 0);
+});

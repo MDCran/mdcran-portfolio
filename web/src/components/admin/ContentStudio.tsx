@@ -145,7 +145,7 @@ export default function ContentStudio() {
     if (!controller) return;
     let committed = false;
     try {
-      const record = raw ? JSON.parse(raw) : editor;
+      const record = action === "draft" ? (raw ? JSON.parse(raw) : editor) : undefined;
       await adminRequest("/api/admin/content", { method: "POST", signal: controller.signal,
         body: JSON.stringify({ collection, id, action, expectedVersion: detail.version, record, revisionId }) });
       committed = true;
@@ -154,7 +154,7 @@ export default function ContentStudio() {
     } catch (cause) {
       if (controller.signal.aborted) return;
       const unconfirmed = cause instanceof AdminRequestError && cause.status >= 200 && cause.status < 300;
-      if (committed || unconfirmed) setRefreshRequired(true);
+      if (committed || unconfirmed || (cause instanceof AdminRequestError && cause.status === 409)) setRefreshRequired(true);
       setError(committed ? "The change was saved, but the latest content could not be loaded. Refresh saved content to continue; this will not repeat the write." : cause instanceof Error ? cause.message : "Save failed. Your edits are still here.");
     } finally { endOperation(controller); }
   }

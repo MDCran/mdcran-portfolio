@@ -191,29 +191,7 @@ export function normalizeSectionForSave(section: ArticleSection): ArticleSection
   };
 }
 
-export function fmtDate(d?: string): string {
-  if (!d) return "—";
-  try {
-    const [year, month, day] = d.split("T")[0].split("-").map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  }
-  catch { return d; }
-}
-
-export function fmtDateTime(d?: string): string {
-  if (!d) return "â€”";
-  try {
-    return new Date(d).toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return d;
-  }
-}
+export { fmtDate, fmtDateTime } from "@/lib/admin-date";
 
 export function fmtDayLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });

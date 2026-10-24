@@ -16,8 +16,8 @@ export function verifyAdminToken(token: string): boolean {
     if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
       return false;
     }
-    jwt.verify(token, JWT_SECRET);
-    return true;
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
+    return typeof payload === "object" && payload.role === "admin" && typeof payload.exp === "number";
   } catch {
     return false;
   }

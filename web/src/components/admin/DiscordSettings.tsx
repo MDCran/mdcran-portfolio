@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { adminRequest } from "@/lib/admin-client";
 import { Save, Loader2, Check, Send, Radio, Key, Hash } from "lucide-react";
 import type { DiscordConfig, DiscordChannelMap } from "@/lib/discord";
 
@@ -42,15 +43,16 @@ export default function DiscordSettings() {
   const [digestState, setDigestState] = useState<TestState>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/admin/discord")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.config) setConfig(d.config);
-        setTokenConfigured(Boolean(d?.tokenConfigured));
-      })
-      .catch(() => {});
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await adminRequest<{ config: DiscordConfig; tokenConfigured: boolean }>("/api/admin/discord", { signal });
+      if (!data.config) throw new Error("Discord settings returned an incomplete response.");
+      setConfig(data.config); setTokenConfigured(Boolean(data.tokenConfigured)); setError(null);
+    } catch (cause) { if (!signal?.aborted) setError(cause instanceof Error ? cause.message : "Could not load Discord settings."); }
+    finally { if (!signal?.aborted) setLoading(false); }
   }, []);
+  useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
 
   const patch = (p: Partial<DiscordConfig>) =>
     setConfig((c) => (c ? { ...c, ...p } : c));
@@ -65,24 +67,19 @@ export default function DiscordSettings() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/discord", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (res.ok) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      } else {
-        setError("Failed to save — check the console.");
-      }
+      const result = await adminRequest<{ config: DiscordConfig }>("/api/admin/discord", { method: "PUT", body: JSON.stringify(config) });
+      if (!result.config) throw new Error("Save response was incomplete. Reload to confirm saved settings before retrying.");
+      setConfig(current => current === config ? result.config : current);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save. Your edits are still here.");
     } finally {
       setSaving(false);
     }
   };
 
   const sendTest = async (channel: keyof DiscordChannelMap) => {
-    setTestStates((s) => ({ ...s, [channel]: "loading" }));
+    setError(null); setTestStates((s) => ({ ...s, [channel]: "loading" }));
     try {
       const res = await fetch(`/api/admin/discord?action=test&channel=${channel}`, { method: "POST" });
       const d = await res.json().catch(() => ({}));
@@ -90,12 +87,13 @@ export default function DiscordSettings() {
       if (!res.ok) setError(d?.error ?? "Test failed.");
       setTimeout(() => setTestStates((s) => ({ ...s, [channel]: "idle" })), 3000);
     } catch {
+      setError("Could not send the test. Check the connection and try again.");
       setTestStates((s) => ({ ...s, [channel]: "error" }));
     }
   };
 
   const triggerDigest = async () => {
-    setDigestState("loading");
+    setError(null); setDigestState("loading");
     try {
       const res = await fetch("/api/cron/discord-digest", { method: "POST" });
       const d = await res.json().catch(() => ({}));
@@ -103,19 +101,20 @@ export default function DiscordSettings() {
       if (!d?.sent) setError(d?.error ?? "Digest failed.");
       setTimeout(() => setDigestState("idle"), 4000);
     } catch {
+      setError("Could not send the digest. Check the connection and try again.");
       setDigestState("error");
     }
   };
 
   if (!config) {
-    return <p className="text-xs text-white/30">Loading Discord settings…</p>;
+    return <div className="space-y-2 text-sm"><p role={error ? "alert" : "status"}>{error || "Loading Discord settings…"}</p>{!loading && <button className="underline" onClick={() => { setLoading(true); void load(); }}>Retry</button>}</div>;
   }
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-60">
           <p className="font-nord text-base text-white flex items-center gap-2">
             <Radio size={16} className="text-[var(--cranberry,#ef4242)]" />
             Discord Notifications
@@ -127,7 +126,7 @@ export default function DiscordSettings() {
         <button
           onClick={save}
           disabled={saving}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-sm bg-[var(--cranberry,#ef4242)] text-white text-xs uppercase tracking-wider hover:bg-[#dd3030] disabled:opacity-50"
+          className="inline-flex shrink-0 items-center gap-2 h-9 whitespace-nowrap px-4 rounded-sm bg-[var(--cranberry,#ef4242)] text-white text-xs uppercase tracking-wider hover:bg-[#dd3030] disabled:opacity-50"
         >
           {saving ? (
             <Loader2 size={14} className="animate-spin" />

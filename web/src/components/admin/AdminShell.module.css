@@ -1,0 +1,77 @@
+.shell { min-height: 100dvh; color: #f4f4f5; background: #0a0a0a; }
+.sidebar { display: none; }
+.workspace { min-width: 0; }
+.brand { flex-shrink: 0; padding: 24px 22px 20px; border-bottom: 1px solid #ffffff12; font-size: 18px; font-weight: 700; letter-spacing: -.025em; }
+.brand > span { color: #f76b6b; }
+.brand small { display: block; margin-top: 7px; color: #a1a1aa; font-size: 11px; font-weight: 400; letter-spacing: .02em; }
+.navigation { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 12px; scrollbar-width: thin; scrollbar-color: #484848 transparent; }
+.group + .group { margin-top: 23px; }
+.groupLabel { margin: 0 0 7px; padding: 0 10px; color: #a1a1aa; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.navLink { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 9px 11px; border: 1px solid transparent; border-radius: 7px; color: #bcbcc4; font-size: 12px; line-height: 1.4; text-decoration: none; transition: background .15s, color .15s; }
+.navLink > svg { flex-shrink: 0; opacity: .8; }
+.navLink:hover { background: #ffffff08; color: #fff; }
+.navLink[aria-current="page"] { border-color: #ef424238; background: #ef424215; color: #ff9292; }
+.navLink[aria-current="page"] > svg { opacity: 1; }
+.badge { margin-left: auto; padding: 2px 6px; min-width: 21px; border-radius: 10px; background: #ad2532; color: white; font-size: 10px; text-align: center; }
+.sidebarFooter { flex-shrink: 0; display: grid; gap: 5px; padding: 12px; border-top: 1px solid #ffffff12; background: #0d0d10; }
+.sidebarFooter a, .sidebarFooter button { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 10px 11px; border-radius: 6px; color: #bcbcc4; font-size: 12px; text-align: left; }
+.sidebarFooter a:hover, .sidebarFooter button:hover { color: #fff; background: #ffffff08; }
+.toolbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #ffffff12; background: #0a0a0af5; backdrop-filter: blur(16px); }
+.search { flex: 1 1 100%; min-width: 0; order: 3; }
+.menuButton, .closeButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #ffffff20; border-radius: 6px; color: #e4e4e7; font-size: 12px; }
+.closeButton { width: 44px; }
+.liveLink { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; min-height: 44px; font-size: 11px; color: #bcbcc4; }
+.content { width: 100%; max-width: 1480px; min-width: 0; margin: 0 auto; padding: 24px 16px 48px; outline: none; overflow-wrap: anywhere; }
+.pageHeading { margin-bottom: 28px; padding-bottom: 23px; border-bottom: 1px solid #ffffff12; }
+.eyebrow { margin: 0 0 9px; color: #f78787; font-size: 10px; text-transform: uppercase; letter-spacing: .14em; }
+.pageHeading h1 { margin: 0; color: #fafafa; font-size: clamp(23px, 3vw, 30px); font-weight: 650; letter-spacing: -.035em; line-height: 1.25; }
+.description { max-width: 760px; margin: 10px 0 0; color: #a1a1aa; font-size: 12px; line-height: 1.8; }
+.drawerOverlay { position: fixed; inset: 0; z-index: 200; background: #000a; backdrop-filter: blur(4px); }
+.drawer { position: fixed; inset: 0 auto 0 0; z-index: 201; width: min(320px, 90vw); height: 100dvh; display: flex; flex-direction: column; background: #0d0d10; border-right: 1px solid #ffffff20; box-shadow: 16px 0 60px #0006; }
+.drawerHeading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #ffffff12; }
+.drawerTitle { margin: 0; color: #fff; font-size: 15px; font-weight: 600; }
+.skipLink { position: fixed; top: 10px; left: 12px; z-index: 250; transform: translateY(-160%); padding: 12px 16px; border-radius: 6px; background: #fff; color: #111; font-size: 13px; }
+.skipLink:focus { transform: translateY(0); }
+.navLink:focus-visible, .sidebarFooter a:focus-visible, .sidebarFooter button:focus-visible, .menuButton:focus-visible, .closeButton:focus-visible, .liveLink:focus-visible { outline: 2px solid #ff9292; outline-offset: 2px; }
+.content :global(.grid) > * { min-width: 0; }
+.content :global(.overflow-x-auto), .content :global(.overflow-auto) { max-width: 100%; overscroll-behavior-x: contain; }
+.content :where(input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="password"], input[type="tel"], input[type="number"], input[type="date"], input[type="datetime-local"], input[type="time"], select, textarea) { min-width: 0; min-height: 40px; color: #f4f4f5; border-color: #ffffff30; background-color: #151518; color-scheme: dark; }
+.content :where(input, textarea)::placeholder { color: #92929d; opacity: 1; }
+.content :where(select) { padding-block: 8px; }
+.content :where(option) { background: #151518; color: #f4f4f5; }
+.content :where(label, legend) { color: #c5c5cd; }
+.content :where(button, th) { overflow-wrap: normal; word-break: normal; }
+.content :where(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid #ff9292; outline-offset: 3px; }
+.searchControl { position: relative; width: 100%; }
+.searchInput { width: 100%; min-height: 44px; padding: 10px 13px; border: 1px solid #ffffff30; border-radius: 6px; background: #151518; color: #f4f4f5; font-size: 14px; outline: none; }
+.searchInput::placeholder { color: #92929d; }
+.searchInput:focus { border-color: #ff9292; box-shadow: 0 0 0 2px #ef424220; }
+.searchPopover { position: absolute; z-index: 50; top: calc(100% + 8px); width: 100%; border: 1px solid #ffffff25; border-radius: 8px; overflow: hidden; background: #111114; box-shadow: 0 16px 40px #0008; }
+.searchResults { max-height: min(360px, 60dvh); overflow-y: auto; overscroll-behavior: contain; }
+.searchOption { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 54px; padding: 10px 13px; cursor: pointer; }
+.searchOption[aria-selected="true"], .searchOption:hover { background: #ef424218; }
+.searchResultText { min-width: 0; }
+.searchResultText strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e4e4e7; font-size: 13px; font-weight: 500; }
+.searchResultText small { display: block; margin-top: 3px; color: #a1a1aa; font-size: 10px; }
+.searchResultSection { max-width: 35%; color: #ff9292; font-size: 10px; text-align: right; }
+.searchEmpty { padding: 14px; color: #bcbcc4; font-size: 12px; }
+/* Reserve room for the desktop sidebar without containing fixed editor dialogs. */
+@media (min-width: 1024px) and (max-width: 1400px) { .content :global(.xl\:grid-cols-7) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1024px) and (max-width: 1114px) {
+  .content [class~="lg:grid-cols-[250px_1fr]"], .content [class~="xl:grid-cols-[320px_minmax(0,1fr)]"] { grid-template-columns: minmax(0, 1fr); }
+  .content :global(.lg\:grid-cols-3), .content :global(.xl\:grid-cols-3) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 607px) {
+  .content :global(.sm\:grid-cols-4), .content :global(.md\:grid-cols-4), .content :global(.xl\:grid-cols-7) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .content :global(.lg\:grid-cols-3), .content :global(.xl\:grid-cols-3) { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 639px) { .content :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea), .searchInput { font-size: 16px; } }
+@media (min-width: 640px) { .toolbar { flex-wrap: nowrap; padding: 14px 24px; } .search { flex-basis: auto; order: 0; max-width: 640px; } .content { padding: 30px 24px 56px; } }
+@media (min-width: 1024px) {
+  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 40; display: flex; flex-direction: column; width: 250px; height: 100dvh; background: #0d0d10; border-right: 1px solid #ffffff12; }
+  .workspace { margin-left: 250px; }
+  .menuButton { display: none; }
+  .toolbar { padding-inline: 32px; }
+  .content { padding: 34px 32px 64px; }
+}

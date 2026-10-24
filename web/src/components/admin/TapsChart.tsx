@@ -1,5 +1,6 @@
 "use client";
 
+import { adminRequest } from "@/lib/admin-client";
 import useSWR from "swr";
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import {
@@ -28,7 +29,7 @@ type AnalyticsResponse = {
   taps: TapPoint[];
 };
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => adminRequest<AnalyticsResponse>(url);
 
 const chartConfig = {
   taps: {
@@ -42,7 +43,7 @@ function truncateLabel(label: string) {
 }
 
 export default function TapsChart() {
-  const { data } = useSWR<AnalyticsResponse>("/api/admin/analytics", fetcher, {
+  const { data, error, mutate } = useSWR<AnalyticsResponse>("/api/admin/analytics", fetcher, {
     revalidateOnFocus: false,
   });
 
@@ -71,9 +72,10 @@ export default function TapsChart() {
         </div>
       </CardHeader>
       <CardContent>
+        {error && <p role="alert" className="mb-3 text-sm text-red-300">Tap activity could not load. <button className="underline" onClick={() => void mutate().catch(() => {})}>Retry</button></p>}
         {points.length === 0 ? (
           <div className="flex h-[300px] items-center justify-center rounded-sm border border-white/6 bg-white/2 text-xs text-white/30">
-            No taps yet.
+            {error ? "Tap activity is unavailable." : !data ? "Loading tap activity…" : "No taps yet."}
           </div>
         ) : (
           <ChartContainer config={chartConfig} className="h-[280px]">

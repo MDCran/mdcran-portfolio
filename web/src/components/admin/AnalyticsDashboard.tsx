@@ -2,9 +2,10 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
+import { adminRequest } from "@/lib/admin-client";
 import CountryFlag from "@/components/shared/CountryFlag";
 
-const fetcher = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)));
+const fetcher = <T,>(url: string) => adminRequest<T>(url);
 
 interface Overview {
   totalVisits: number;
@@ -78,11 +79,11 @@ function BarList({ items, max }: { items: { name: string; count: number; code?: 
 
 /* ── Heatmap overlay ── */
 function Heatmap() {
-  const { data: pagesData } = useSWR<{ pages: string[] }>("/api/admin/analytics/heatmap", fetcher);
+  const { data: pagesData, error: pagesError, mutate: refreshPages } = useSWR<{ pages: string[] }>("/api/admin/analytics/heatmap", fetcher);
   const [selectedPath, setPath] = useState<string | null>(null);
   const path = selectedPath ?? pagesData?.pages[0] ?? null;
   const [filter, setFilter] = useState<"all" | "click" | "rage" | "move">("all");
-  const { data, isLoading } = useSWR<{ path: string; points: { type: string; x: number; y: number }[] }>(
+  const { data, isLoading, error: pointsError, mutate: refreshPoints } = useSWR<{ path: string; points: { type: string; x: number; y: number }[] }>(
     path ? `/api/admin/analytics/heatmap?path=${encodeURIComponent(path)}` : null,
     fetcher
   );
@@ -135,9 +136,10 @@ function Heatmap() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-[200px_1fr] gap-4">
+      {(pagesError || pointsError) && <p role="alert" className="text-sm text-red-300">Heatmap data could not refresh. <button className="underline" onClick={() => { void Promise.all([refreshPages(), refreshPoints()]).catch(() => {}); }}>Retry heatmap</button></p>}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[200px_1fr]">
         <div className="space-y-1 max-h-[520px] overflow-y-auto pr-1">
-          {pages.length === 0 && <p className="text-xs text-white/25">No heatmap data yet.</p>}
+          {pages.length === 0 && !pagesError && <p className="text-xs text-white/25">No heatmap data yet.</p>}
           {pages.map((p) => (
             <button key={p} onClick={() => setPath(p)} className={`w-full text-left px-2.5 py-1.5 rounded-sm text-xs truncate transition-colors ${p === path ? "bg-[#ef4242]/10 text-[#ef4242]" : "text-white/50 hover:bg-white/4 hover:text-white/80"}`} title={p}>
               {p}
@@ -191,7 +193,7 @@ export default function AnalyticsDashboard() {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => window.clearInterval(timer);
   }, []);
-  const { data, error } = useSWR<Overview>("/api/admin/analytics/overview", fetcher, {
+  const { data, error, mutate } = useSWR<Overview>("/api/admin/analytics/overview", fetcher, {
     refreshInterval: 15_000,
     revalidateOnFocus: true,
     keepPreviousData: true,
@@ -200,7 +202,7 @@ export default function AnalyticsDashboard() {
   const toggleSession = (id: string) =>
     setExpandedSessions((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
-  if (error) return <p className="text-xs text-white/30">Couldn&apos;t load analytics.</p>;
+  if (error && !data) return <div role="alert" className="text-sm text-red-300">Could not load analytics. <button className="underline" onClick={() => void mutate().catch(() => {})}>Retry</button></div>;
   if (!data) return <p className="text-white/30 text-xs">Loading analytics…</p>;
 
   const overviewCards = [
@@ -215,6 +217,7 @@ export default function AnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="text-sm text-amber-200">Analytics could not refresh. Displayed data may be out of date. <button className="underline" onClick={() => void mutate().catch(() => {})}>Retry</button></p>}
       {/* Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         {overviewCards.map((c) => (

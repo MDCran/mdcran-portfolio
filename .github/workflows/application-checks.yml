@@ -41,6 +41,7 @@ jobs:
           npm run start -- -p 4000 > /tmp/mdcran-app.log 2>&1 &
           for attempt in $(seq 1 30); do curl --silent --fail http://localhost:4000/robots.txt > /dev/null && break; sleep 1; done
           npm run test:smoke
+          SMOKE_ORIGIN=http://localhost:4000 npm run test:admin
       - run: git diff --check
       - name: Stop isolated database
         if: always()
