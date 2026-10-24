@@ -19,6 +19,7 @@ import type {
 } from "@/lib/types";
 import { assetUrl, imageAssetSrc, projectUrl } from "@/lib/utils";
 import { ROOTS, ROUTES, COMMANDS, parseArguments, resolveTerminalPath, isCodeProject, formatDate, submitTerminalForm, validateTerminalSnapshot, sanitizeBrowseUrl, type TerminalFormMode, type TerminalForm } from "@/lib/terminal-shell";
+import { COMMAND_GROUPS, TERMINAL_COMMANDS, terminalCommand, terminalHelp, terminalCompletions, cycleTerminalCompletion, resolveTerminalToggle, type CompletionCycle } from "@/lib/terminal-commands";
 import { buildSearch, type SearchHit } from "@/lib/terminal-search";
 import { streamTerminalAnswer, type TerminalTurn } from "@/lib/terminal-ai";
 import { resumeLines, resumeLinks, recruiterProjects, terminalActions, terminalWindowSize, terminalTourStep, RESUME_SECTIONS, TOUR_STEPS, type TerminalMode, type TerminalPet, type TerminalAnimation, type ResumeSection } from "@/lib/terminal-workspace";
@@ -975,6 +976,7 @@ export default function TerminalExperience() {
   const latestLogsRef = React.useRef(logs);
   latestLogsRef.current = logs;
   const [input, setInput] = React.useState("");
+  const [completionCycle, setCompletionCycle] = React.useState<CompletionCycle | null>(null);
   const [crtPulseTick, setCrtPulseTick] = React.useState(0);
   const [cwd, setCwd] = React.useState<string[]>([]);
   const [preview, setPreview] = React.useState<PreviewState | null>(null);
@@ -1014,7 +1016,11 @@ export default function TerminalExperience() {
   const aiEntryRef = React.useRef<string | null>(null);
   const [aiBusy, setAiBusy] = React.useState(false);
   React.useEffect(() => {
-    try { musicEnabledRef.current = localStorage.getItem("mdcran_terminal_music") !== "off"; keystrokesEnabledRef.current = localStorage.getItem("mdcran_terminal_clicks") !== "off"; } catch { /* Optional device preferences. */ }
+    try {
+      musicEnabledRef.current = localStorage.getItem("mdcran_terminal_music") !== "off";
+      keystrokesEnabledRef.current = localStorage.getItem("mdcran_terminal_clicks") !== "off";
+      setGifEnabled(localStorage.getItem("mdcran_terminal_background") !== "off");
+    } catch { /* Optional device preferences. */ }
     return () => { aiRequestRef.current?.abort(); crtThemeRef.current?.pause(); };
   }, []);
   const crtThemeRef = React.useRef<HTMLAudioElement | null>(null);
@@ -1030,7 +1036,7 @@ export default function TerminalExperience() {
   const historyDraftRef = React.useRef("");
   const requestEpochRef = React.useRef(0);
   const sendingRef = React.useRef(false);
-  const commandControlKeyRef = React.useRef<(key: string) => boolean>(() => false);
+  const commandControlKeyRef = React.useRef<(key: string, backwards?: boolean) => boolean>(() => false);
   const spotifyProgressEntryIds = React.useRef<{ time: string; bar: string } | null>(null);
 
   // Blur input while a game is running so key events go to the game, not the command bar.
@@ -1155,8 +1161,6 @@ export default function TerminalExperience() {
     for (const project of data.projects) {
       push(project.slug);
       push(project.title);
-      push(project.description);
-      push(project.longDescription);
       push(project.category);
       push(project.subcategory);
       project.tags?.forEach(push);
@@ -1169,7 +1173,6 @@ export default function TerminalExperience() {
     for (const article of data.articles) {
       push(article.slug);
       push(article.title);
-      push(article.excerpt);
       push(article.category);
       article.tags?.forEach(push);
     }
@@ -1177,7 +1180,6 @@ export default function TerminalExperience() {
     for (const client of data.clients) {
       push(client.id);
       push(client.name);
-      push(client.bio);
       client.roles?.forEach(push);
       client.socialLinks?.forEach((link) => {
         push(link.platform);
@@ -1225,130 +1227,32 @@ export default function TerminalExperience() {
     return [...all].sort((a, b) => a.localeCompare(b));
   }, [cwd, data]);
 
-  // Ghost text autocomplete suggestion
-  const ghostSuffix = React.useMemo(() => {
-    if (!input) return "";
-
-    const val = input.trimStart();
-    if (!val) return "";
-
-    const commandMatch = val.match(/^\/?(\S+)(?:\s+(.*))?$/);
-    const command = commandMatch?.[1]?.toLowerCase() ?? "";
-    const arg = commandMatch?.[2] ?? "";
-
-    if (!val.includes(" ")) {
-      const isSlash = val.startsWith("/");
-      const lookup = isSlash ? val.slice(1) : val;
-      if (!lookup) return "";
-      const match = COMMANDS.find((c) => c.startsWith(lookup.toLowerCase()) && c !== lookup.toLowerCase());
-      return match ? `${match.slice(lookup.length)} ` : "";
-    }
-
-    if (command === "search") {
-      const query = arg.trimStart();
-      if (!query) return "";
-      const normalizedQuery = normalize(query);
-      const match = searchAutocomplete.find((candidate) => {
-        const normalizedCandidate = normalize(candidate);
-        return (
-          normalizedCandidate.startsWith(normalizedQuery) &&
-          normalizedCandidate !== normalizedQuery
-        );
-      });
-
-      return match ? match.slice(query.length) : "";
-    }
-
-    if (command === "open" || command === "nano") {
-      const query = arg.trimStart();
-      if (!query) return "";
-      const normalizedQuery = normalize(query);
-      const match = entityAutocomplete.find(
-        (candidate) =>
-          candidate.startsWith(normalizedQuery) && candidate !== normalizedQuery
-      );
-      return match ? `${match.slice(query.length)} ` : "";
-    }
-
-    if (command === "cd") {
-      const query = arg.trimStart();
-      if (!query) return "";
-      const normalizedQuery = normalize(query);
-      const match = cdContextCompletions.find(
-        (candidate) =>
-          candidate.toLowerCase().startsWith(normalizedQuery) &&
-          candidate.toLowerCase() !== normalizedQuery
-      );
-      return match ? `${match.slice(query.length)} ` : "";
-    }
-
-    if (command === "select") {
-      if (!results.length) return "";
-      const query = arg.trimStart();
-      const options = results.map((_, index) => String(index + 1));
-      if (!query) {
-        return `${options[0]} `;
-      }
-      const match = options.find(
-        (option) => option.startsWith(query) && option !== query
-      );
-      return match ? `${match.slice(query.length)} ` : "";
-    }
-
-    if (command === "contact" || command === "subscribe" || command === "unsubscribe") {
-      const slotOrder =
-        command === "contact"
-          ? ["name", "email", "subject", "message", "phone"]
-          : command === "subscribe"
-          ? ["name", "contact"]
-          : ["contact"];
-      const parsed = parseArguments(arg);
-      const currentIndex =
-        parsed.hasTrailingSpace && !parsed.activeQuote
-          ? parsed.values.length
-          : Math.max(0, parsed.values.length - 1);
-      const currentValue =
-        parsed.hasTrailingSpace && !parsed.activeQuote
-          ? ""
-          : parsed.values[parsed.values.length - 1] ?? "";
-
-      if (parsed.activeQuote) {
-        return `${parsed.activeQuote} `;
-      }
-
-      if (!currentValue && currentIndex < slotOrder.length) {
-        return '"" ';
-      }
-    }
-
-    return "";
-  }, [cdContextCompletions, entityAutocomplete, input, results, searchAutocomplete]);
-
-  const commandUsageHint = React.useMemo(() => {
-    const raw = input.trimStart();
-    if (!raw) return "";
-    const command = (raw.match(/^\/?(\S+)/)?.[1] ?? "").toLowerCase();
-
-    if (command === "contact") {
-      return 'contact <name> <email> <subject> <message> [phone]';
-    }
-    if (command === "subscribe") {
-      return "subscribe <name> <email-or-phone>";
-    }
-    if (command === "unsubscribe") {
-      return "unsubscribe <email-or-phone>";
-    }
-    if (command === "search") {
-      return 'search <query>';
-    }
-    if (command === "open" || command === "nano") {
-      return `${command} <slug>`;
-    }
-    if (command === "cd") {
-      return "cd <path>";
-    }
-    return "";
-  }, [input]);
+  const completionEnabled = mode === "shell" || input.trimStart().startsWith("/");
+  const completionCandidates = React.useMemo(() => {
+    if (!completionEnabled) return [];
+    const choices = terminalCompletions(input, {
+      directories: cdContextCompletions, entities: entityAutocomplete,
+      searches: searchAutocomplete, resultCount: results.length,
+      fields: formMode === "contact" ? ["name", "email", "subject", "message", "phone"]
+        : formMode === "subscribe" ? ["name", "email", "phone"] : formMode === "unsubscribe" ? ["identifier"] : undefined,
+    });
+    if (choices.length) return choices;
+    // Keep quoted draft-field completion without interpreting the draft's text as commands.
+    const match = input.trimStart().match(/^\/?(contact|subscribe|unsubscribe)\s+([\s\S]*)$/);
+    if (!match) return [];
+    const parsed = parseArguments(match[2]);
+    if (parsed.activeQuote) return [input + parsed.activeQuote + " "];
+    const slots = match[1] === "contact" ? 5 : match[1] === "subscribe" ? 2 : 1;
+    const index = parsed.hasTrailingSpace ? parsed.values.length : Math.max(0, parsed.values.length - 1);
+    if ((!parsed.values.length || parsed.hasTrailingSpace) && index < slots) return [input + '"" '];
+    return [];
+  }, [completionEnabled, input, cdContextCompletions, entityAutocomplete, searchAutocomplete, results.length, formMode]);
+  const activeCompletion = completionEnabled && completionCycle?.options[completionCycle.index] === input ? completionCycle : null;
+  const completionOptions = activeCompletion?.options ?? completionCandidates;
+  const completionIndex = activeCompletion?.index ?? -1;
+  const completionStart = Math.max(0, Math.min(completionIndex - 2, completionOptions.length - 5));
+  const showCompletions = completionEnabled && inputFocused && completionOptions.length > 0;
+  const commandUsageHint = terminalCommand(input.trimStart().split(/\s/)[0])?.usage ?? "";
 
   const activePreview = React.useMemo(
     () => (spotifyLive ? spotifyPreviewState(spotifyLive, spotifyClock) : preview),
@@ -1759,7 +1663,7 @@ export default function TerminalExperience() {
       logText("  MDCRAN CLI · YOUR PORTFOLIO WORKSPACE", "accent"),
       logText('  Type "help" for commands  |  Type "exit" to close', "muted"),
       logText("  resume · recruiter · search · tour · mode ai", "success"),
-      logText("  Start typing anywhere. Tab completes commands.", "muted"),
+      logText("  Start typing anywhere. Tab cycles matches; Shift+Tab goes back.", "muted"),
       logText(""),
     ]), TERMINAL_TEXT_DELAY_MS);
     return () => window.clearTimeout(timer);
@@ -1794,6 +1698,7 @@ export default function TerminalExperience() {
 
       e.preventDefault();
       e.stopPropagation();
+      if (document.activeElement === inputRef.current && commandControlKeyRef.current("EscapeCompletion")) return;
       if (tourStep !== null) {
         setTourStep(null);
         setPointerTarget(null);
@@ -1832,7 +1737,7 @@ export default function TerminalExperience() {
 
       if (ownInputFocused) return;
 
-      if (commandControlKeyRef.current(key)) {
+      if (commandControlKeyRef.current(key, e.shiftKey)) {
         e.preventDefault();
         focusCommandInput();
         return;
@@ -1980,6 +1885,7 @@ export default function TerminalExperience() {
   function execute(raw: string) {
     const trimmed = raw.trim();
     if (!trimmed) return;
+    setCompletionCycle(null);
 
     followOutputRef.current = true;
     requestEpochRef.current += 1;
@@ -1993,6 +1899,8 @@ export default function TerminalExperience() {
     // Normalize: strip leading slash so both "ls" and "/ls" work the same
     const cmd = rawCmd.startsWith("/") ? rawCmd.slice(1) : rawCmd;
     const rest = commandMatch?.[2] ?? "";
+    if (rest.trim() === "--help" || rest.trim() === "-h") { doHelp(cmd); return; }
+    if (cmd === "toggle") { doHelp("toggle"); return; }
     if (mode !== "shell" && !trimmed.startsWith("/") && !(COMMANDS as readonly string[]).includes(cmd) && !/^\d+$/.test(cmd)) { void doAsk(trimmed); return; }
     if (cmd === "agent") {
       setMode("ai");
@@ -2000,21 +1908,25 @@ export default function TerminalExperience() {
       else append([logText("  AI chat. Use agent <request> to open a project or show resume evidence. Switch to Shell for commands.", "success")]);
       return;
     }
-    if (cmd === "ai" && ["on","off"].includes(rest.trim())) { setMode(rest.trim()==="on"?"ai":"shell"); append([logText(`  Mode: ${rest.trim()==="on"?"AI chat":"Shell"}`,"success")]); return; }
+    if (cmd === "ai" && rest.trim().toLowerCase() === "stop") { stopAI(); return; }
+    if (cmd === "ai" && ["on","off"].includes(rest.trim().toLowerCase())) { setMode(rest.trim().toLowerCase()==="on"?"ai":"shell"); append([logText(`  Mode: ${rest.trim().toLowerCase()==="on"?"AI chat":"Shell"}`,"success")]); return; }
     if (cmd === "ask" || cmd === "ai") {
       if (!rest.trim()) { setMode("ai"); append([logText("  AI chat mode. Type your question naturally; /help for commands, mode shell to return.","success")]); }
       else void doAsk(rest.trim());
       return;
     }
-    const passiveCommand = ["stop", "togglemusic", "togglekeystrokeclicks", "window", "pet", "animations", "cursor", "highlight", "focus"].includes(cmd);
+    const passiveCommand = ["stop", "togglemusic", "togglekeystrokeclicks", "togglebackground", "window", "pet", "animations", "cursor", "highlight", "focus", "help", "?"].includes(cmd);
     if (!passiveCommand) stopAI(false);
     const parsed = parseArguments(rest);
     if (parsed.activeQuote) {
       append([logText("  Unclosed quote. Close the quotation mark and try again.", "error")]);
       return;
     }
-    const args = parsed.values;
+    const args = ["mode", "pet", "animations", "cursor", "resume", "tour", "window"].includes(cmd)
+      ? parsed.values.map(value => value.toLowerCase()) : parsed.values;
     const textArgument = args.join(" ");
+    const definition = terminalCommand(cmd);
+    if (args.length && definition && definition.usage === definition.name) { showCommandUsage(cmd); return; }
 
     // Numeric shortcut for selecting search results
     if (/^\d+$/.test(cmd) && results.length > 0) {
@@ -2035,8 +1947,8 @@ export default function TerminalExperience() {
 
     switch (cmd) {
       case "mode":
-        if (["shell","ai"].includes(textArgument)) { setMode(textArgument as TerminalMode); append([logText(`  ${textArgument === "shell" ? "Shell" : "AI chat"}. ${textArgument === "shell" ? "Enter commands; help lists them." : "Ask naturally. /help lists commands; switch to Shell to return."}`,"success")]); }
-        else append([logText("  Usage: mode shell | ai", "muted")]);
+        if (["shell","ai"].includes(textArgument)) { setMode(textArgument as TerminalMode); append([logText(`  Mode: ${textArgument === "shell" ? "Shell" : "AI chat"}`,"success")]); }
+        else showCommandUsage(cmd);
         break;
       case "tour": doTour(textArgument); break;
       case "next": doTour("next"); break;
@@ -2047,24 +1959,23 @@ export default function TerminalExperience() {
       case "education": doResume("education"); break;
       case "highlight": doHighlight(textArgument); break;
       case "cursor":
-        if (!["on","off"].includes(textArgument)) append([logText("  cursor on | off — toggle the assistant’s visual pointer", "muted")]);
-        else { setCursorEnabled(textArgument === "on"); if(textArgument==="off")setPointerTarget(null); append([logText(`  Assistant pointer ${textArgument}.`,"success")]); }
+        if (!["on","off"].includes(textArgument)) showCommandUsage(cmd);
+        else { setCursorEnabled(textArgument === "on"); if(textArgument==="off")setPointerTarget(null); append([logText(`  Assistant pointer: ${textArgument}`,"success")]); }
         break;
       case "pet":
         if (["cat","bot","crab","off"].includes(textArgument)) {setPet(textArgument as TerminalPet);savePreference("pet",textArgument);append([logText(`  Terminal pet: ${textArgument}`,"success")]);}
-        else append([logText("  pet cat | bot | crab | off — choose a companion", "muted")]);
+        else showCommandUsage(cmd);
         break;
       case "animations":
         if (["scan","type","off"].includes(textArgument)) {setAnimation(textArgument as TerminalAnimation);savePreference("animation",textArgument);append([logText(`  Text animations: ${textArgument}. Reduced-motion preferences are respected.`,"success")]);}
-        else append([logText("  animations scan | type | off", "muted")]);
+        else showCommandUsage(cmd);
         break;
       case "window": doWindow(args); break;
-      case "focus": focusCommandInput(); break;
+      case "focus": focusCommandInput(); append([logText("  Command line: focused", "success")]); break;
       case "togglemusic":
-        toggleAudio("music", args[0]);
-        break;
       case "togglekeystrokeclicks":
-        toggleAudio("clicks", args[0]);
+      case "togglebackground":
+        doToggle(cmd, args);
         break;
       case "stop":
         stopAI();
@@ -2081,7 +1992,7 @@ export default function TerminalExperience() {
         break;
       case "?":
       case "help":
-        doHelp();
+        doHelp(textArgument);
         break;
       case "clear":
       case "cls":
@@ -2149,9 +2060,6 @@ export default function TerminalExperience() {
       case "browser":
         doBrowse(textArgument);
         break;
-      case "togglebackground":
-        doToggleBackground();
-        break;
       case "terms":
         doTerms();
         break;
@@ -2191,19 +2099,25 @@ export default function TerminalExperience() {
     }
   }
 
-  function toggleAudio(kind: "music" | "clicks", value?: string) {
-    const ref = kind === "music" ? musicEnabledRef : keystrokesEnabledRef;
-    if (value && !["on", "off"].includes(value.toLowerCase())) { append([logText(`  Usage: toggle${kind === "music" ? "music" : "keystrokeclicks"} [on|off]`, "error")]); return; }
-    const next = value ? value.toLowerCase() === "on" : !ref.current;
-    ref.current = next;
-    try { localStorage.setItem(`mdcran_terminal_${kind}`, next ? "on" : "off"); } catch { /* Optional device preference. */ }
+  function doToggle(command: string, args: string[]) {
+    const kind = command === "togglemusic" ? "music" : command === "togglekeystrokeclicks" ? "clicks" : "background";
+    const label = kind === "music" ? "Music" : kind === "clicks" ? "Keystroke clicks" : "Background";
+    const current = kind === "music" ? musicEnabledRef.current : kind === "clicks" ? keystrokesEnabledRef.current : gifEnabled;
+    const result = resolveTerminalToggle(current, args);
+    if (!result) { showCommandUsage(command); return; }
+    const { enabled: next, statusOnly } = result;
+    if (statusOnly) { append([logText(`  ${label}: ${next ? "on" : "off"}`, "success")]); return; }
+    if (kind === "music") musicEnabledRef.current = next;
+    else if (kind === "clicks") keystrokesEnabledRef.current = next;
+    else setGifEnabled(next);
+    savePreference(kind, next ? "on" : "off");
     if (kind === "music") {
       const audio = getOrCreateCrtThemeAudio();
       audio.muted = !next;
       if (next) void audio.play().catch(() => append([logText("  Music could not play. Try togglemusic on again after interacting with the terminal.", "error")]));
       else audio.pause();
     }
-    append([logText(`  ${kind === "music" ? "Music" : "Keystroke clicks"}: ${next ? "on" : "off"}`, "success")]);
+    append([logText(`  ${label}: ${next ? "on" : "off"}`, "success")]);
   }
 
   function stopAI(announce = true) {
@@ -2299,14 +2213,6 @@ export default function TerminalExperience() {
     }
   }
 
-  // ── /togglebackground ─────────────────────────────────────────────────────
-
-  function doToggleBackground() {
-    const next = !gifEnabled;
-    setGifEnabled(next);
-    append([logText(`  Background: ${next ? "enabled" : "disabled"}`, "muted")]);
-  }
-
   // ── /browse ────────────────────────────────────────────────────────────────
 
   function doBrowse(rawUrl: string) {
@@ -2352,92 +2258,41 @@ export default function TerminalExperience() {
 
   // ── /help ──────────────────────────────────────────────────────────────────
 
-  function doHelp() {
-    const W = 52;
-    const bar = "─".repeat(W);
-    append([
-      logText(""),
-      ...boxHeader("MDCRAN CLI  ·  COMMAND REFERENCE"),
-      logText(""),
-      logText("  ▸ WORKSPACE", "muted"),
-      logText("    mode shell|ai         Switch between commands and AI chat"),
-      logText("    tour [next|back|stop] Interactive terminal walkthrough"),
-      logText("    recruiter            Resume, evidence, role matching & contact"),
-      logText("    resume <section>     summary / experience / education / skills"),
-      logText("    resume download      Published PDF and printable resume"),
-      logText("    highlight <phrase>   Highlight displayed text; clear to reset"),
-      logText("    cursor on|off        Assistant’s visible pointer"),
-      logText("    window float|max|crt Resize or restore the CRT window"),
-      logText("    window size 1000 700 Set floating window size"),
-      logText("    pet cat|bot|crab|off  Choose your terminal companion"),
-      logText("    animations scan|type|off  Text reveal style"),
-      logText("    focus                Focus the command line"),
-      logText(""),
-      logText("  ▸ FILESYSTEM", "muted"),
-      logText(`  ${"─".repeat(W)}`, "muted"),
-      logText("    ls                   List current directory contents"),
-      logText("    pwd                  Print working directory path"),
-      logText("    cd <path>            Change directory  (.. up · / root)"),
-      logText("    home                 Jump to root  /"),
-      logText("    open <slug>          Open project, article, or client"),
-      logText("    clear                Clear terminal screen"),
-      logText(""),
-      logText("  ▸ CONTENT", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    about                Portfolio introduction"),
-      logText("    clients              Browse all clients"),
-      logText("    featured             Featured portfolio work"),
-      logText("    projects             All projects"),
-      logText("    articles             All articles"),
-      logText("    resume               Full résumé & work history"),
-      logText("    spotify              Now playing on Spotify"),
-      logText("    terms  /  privacy    Legal documents"),
-      logText(""),
-      logText("  ▸ SEARCH", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    select <number>      Open a numbered result (or type its number)"),
-      logText("    search <query>       Search projects, articles, clients & videos"),
-      logText(""),
-      logText("  ▸ CONTACT", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    contact <name> <email> <subject> <message> [phone]"),
-      logText("    subscribe <name> <email-or-phone>"),
-      logText("    unsubscribe <email-or-phone>"),
-      logText("    With no arguments, contact/subscribe/unsubscribe start a draft"),
-      logText("    set <field> <value>   Edit a draft; quote values with spaces"),
-      logText("    send / cancel        Submit or discard the active draft"),
-      logText(""),
-      logText("  ▸ WEB", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    browse <url>         Embed a website in the terminal panel"),
-      logText("    browse               Close the embedded browser"),
-      logText(""),
-      logText("  ▸ DATA", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    visitors             View visitor traffic by country"),
-      logText(""),
-      logText("  ▸ GAMES", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    snake                Play Snake (arrows/WASD, P to pause, ESC to exit)"),
-      logText("    pacman               Play Pac-Man (arrows/WASD, P to pause, ESC to exit)"),
-      logText(""),
-      logText("  ▸ OTHER", "muted"),
-      logText(`  ${bar}`, "muted"),
-      logText("    reload               Retry or refresh portfolio data"),
-      logText("    Tab: autocomplete; Up/Down: history or results; Esc: exit"),
-      logText("    togglemusic [on|off]  Toggle the terminal soundtrack"),
-      logText("    togglekeystrokeclicks [on|off]  Toggle typing/output clicks"),
-      logText("    ask <question>       Talk to Michael’s AI portfolio assistant"),
-      logText("    ai clear / stop      Reset AI history / stop a response"),
-      logText("    togglebackground    Toggle retro GIF background on/off"),
-      logText('    exit                 Type "exit" to close'),
-      logText("    help                 Show this screen"),
-      logText(""),
-      logText(`  ${"─".repeat(W)}`, "muted"),
-      logText('  Type "exit" to close', "muted"),
-      logText(`  ${"─".repeat(W)}`, "muted"),
-      logText(""),
-    ]);
+  function showCommandUsage(name: string) {
+    const command = terminalCommand(name);
+    if (!command) return;
+    append([logText(`  Usage: ${command.usage}`, "error"), logText(`  Type help ${command.name} for details and an example.`, "muted")]);
+  }
+
+  function doHelp(topic = "") {
+    const help = terminalHelp(topic);
+    const lines: LogEntry[] = [logText(""), ...boxHeader("MDCRAN CLI · HELP"), logText("")];
+    if (help.overview) {
+      lines.push(logText("  Start here: projects · search React · resume · tour · mode ai", "success"),
+        logText("  Type a prefix, then Tab to cycle matches. Shift+Tab goes back."),
+        logText("  Enter runs your command. Escape cancels an active completion."),
+        logText("  ↑/↓: history (or empty-input results) · Ctrl+C: stop AI", "muted"), logText(""));
+      for (const group of COMMAND_GROUPS) {
+        lines.push(logText(`  ${group.title.toUpperCase()} · help ${group.id}`, "accent"),
+          logText(`    ${TERMINAL_COMMANDS.filter(command => command.group === group.id).map(command => command.name).join(" · ")}`), logText(""));
+      }
+      lines.push(logText("  help <command> or <command> --help: usage and examples", "success"),
+        logText("  help toggle: sound/background controls · help all: full reference", "muted"),
+        logText("  <value> is required; [value] is optional. Quote values with spaces.", "muted"),
+        logText("  Commands also accept a leading /. Escape exits when no completion or tour is open.", "muted"));
+    } else if (!help.commands.length) {
+      lines.push(logText(`  No help found for “${topic}”.`, "error"), logText("  Type help for categories or help all for every command.", "muted"));
+    } else {
+      for (const command of help.commands) {
+        lines.push(logText(`  Usage: ${command.usage}`, "accent"), logText(`    ${command.description}`));
+        if (command.options) lines.push(logText(`    Options: ${command.options.join(" · ")}`, "muted"));
+        if (command.example) lines.push(logText(`    Example: ${command.example}`, "success"));
+        if (command.aliases) lines.push(logText(`    Aliases: ${command.aliases.join(" · ")}`, "muted"));
+        lines.push(logText(""));
+      }
+      lines.push(logText("  Tab cycles matches; Shift+Tab goes back. Enter runs the command.", "muted"));
+    }
+    append(lines);
   }
 
   // ── /home ──────────────────────────────────────────────────────────────────
@@ -3168,7 +3023,7 @@ export default function TerminalExperience() {
     if (!data) { append([logText(dataError ? "  Data unavailable. Type reload to retry." : "  Resume is loading. Try again in a moment.","muted")]);return; }
     setResults([]);
     if (["download","pdf","print"].includes(section)) { append([logText("  Open the published resume or use the print view to save a PDF.","success"),logLinks(resumeLinks(data.resumeProfile))]);return; }
-    if (!(RESUME_SECTIONS as readonly string[]).includes(section)) { append([logText("  resume [all|summary|experience|education|skills|certifications|awards|download|print]","muted")]);return; }
+    if (!(RESUME_SECTIONS as readonly string[]).includes(section)) { showCommandUsage("resume");return; }
     append([logText(""),...resumeLines(data,section as ResumeSection).map(line=>logText(`  ${line.text}`,line.heading?"accent":"default")),logText(""),logLinks(resumeLinks(data.resumeProfile))]);
   }
 
@@ -3191,11 +3046,12 @@ export default function TerminalExperience() {
   }
 
   function doWindow(args:string[]) {
+    if (args[0] !== "size" && args.length !== 1) { showCommandUsage("window"); return; }
     if(args[0]==="crt")setFloating(window.innerWidth < 900);
     else if(args[0]==="float" || args[0]==="reset") {setFloating(true);setWindowSize(terminalWindowSize(1100,760,window.innerWidth,window.innerHeight));}
     else if(args[0]==="max") setFloating(true);
     else if(args[0]==="size" && args.length===3 && args.slice(1).every(value=>/^\d{3,4}$/.test(value))) {setFloating(true);setWindowSize(terminalWindowSize(Number(args[1]),Number(args[2]),window.innerWidth,window.innerHeight));}
-    else {append([logText("  window float | max | crt | reset | size <width> <height>","muted")]);return;}
+    else {showCommandUsage("window");return;}
     setMaximized(args[0] === "max");
     if (tourStep === TOUR_STEPS.length - 1) setTourTried(true);
     append([logText(args[0] === "max"
@@ -3243,7 +3099,7 @@ export default function TerminalExperience() {
       return;
     }
     const next = terminalTourStep(action,tourStep);
-    if (next === undefined) {append([logText("  tour [start|next|back|try|1-5|stop]","muted")]);return;}
+    if (next === undefined) {showCommandUsage("tour");return;}
     if (tourDraftRef.current && input === tourDraftRef.current) setInput("");
     tourDraftRef.current="";
     stopAI(false);setPointerTarget(null);setTourTried(false);setTourStep(next);
@@ -3257,7 +3113,7 @@ export default function TerminalExperience() {
 
   function doRecruiter(args:string[]) {
     if(!data) {append([logText("  Portfolio data is loading. Try again shortly, or reload after a failure.","muted")]);return;}
-    const action=args[0]||"summary",query=args.slice(1).join(" ");
+    const action=args[0]?.toLowerCase()||"summary",query=args.slice(1).join(" ");
     if(action==="resume") {doResume(query||"all");return;}
     if(action==="fit") {
       if(!query) {append([logText("  recruiter fit <role or job description> — compare against published evidence","muted")]);return;}
@@ -3277,7 +3133,7 @@ export default function TerminalExperience() {
       setSelectedResultIdx(0);setResultsLabel(query?`Evidence · ${query}`:"Engineering evidence");
       append([logText(`  ${matches.length} engineering project${matches.length===1?"":"s"}${query?` matching “${query}”`:""}`,"accent"),...matches.map((project,index)=>logText(`  [${index+1}] ${project.title} · ${(project.tags??[]).join(", ")}`)),logText(matches.length?"  Select a result below or type its number to inspect the project.":"  No published project matches every term. Try a specific technology or ask recruiter fit.","muted")]);return;
     }
-    append([logText("  recruiter [summary|projects|skills|fit|resume|contact]","muted")]);
+    showCommandUsage("recruiter");
   }
 
   // ── Forms ─────────────────────────────────────────────────────────────────
@@ -3536,8 +3392,26 @@ export default function TerminalExperience() {
 
   // ── Keyboard input ────────────────────────────────────────────────────────
 
-  function handleCommandControlKey(key: string) {
+  function handleCommandControlKey(key: string, backwards = false) {
     const hasNavigableResults = results.length > 0 && input.trim() === "";
+
+    if (key === "EscapeCompletion") {
+      if (!activeCompletion) return false;
+      setInput(activeCompletion.seed);
+      setCompletionCycle(null);
+      return true;
+    }
+
+    if (key === "Tab") {
+      if (!completionEnabled || (backwards && (!activeCompletion || activeCompletion.options.length < 2))) return false;
+      const next = cycleTerminalCompletion(input, completionCandidates, activeCompletion, backwards);
+      if (!next) return false;
+      setCompletionCycle(next.options.length > 1 ? next : null);
+      setInput(next.options[next.index]);
+      return true;
+    }
+
+    if (["Enter", "ArrowUp", "ArrowDown"].includes(key)) setCompletionCycle(null);
 
     if (key === "Escape") {
       if (tourStep !== null) doTour("stop");
@@ -3591,15 +3465,6 @@ export default function TerminalExperience() {
       return true;
     }
 
-    if (key === "Tab") {
-      if (!ghostSuffix) return false;
-      if (ghostSuffix) {
-        // Accept the ghost suggestion exactly as displayed
-        setInput((prev) => prev + ghostSuffix);
-      }
-      return true;
-    }
-
     return false;
   }
 
@@ -3607,9 +3472,9 @@ export default function TerminalExperience() {
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && aiRequestRef.current && e.currentTarget.selectionStart === e.currentTarget.selectionEnd) { e.preventDefault(); stopAI(); return; }
-    if (e.metaKey || e.ctrlKey || e.altKey || (e.shiftKey && e.key === "Tab")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.nativeEvent.isComposing || gameModeRef.current) return;
-    if (handleCommandControlKey(e.key)) {
+    if (handleCommandControlKey(e.key, e.shiftKey)) {
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -3620,6 +3485,7 @@ export default function TerminalExperience() {
     }
 
     if (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete") {
+      setCompletionCycle(null);
       dismissStartupInputHint();
       setCrtPulseTick((current) => current + 1);
       playTypeSfx();
@@ -3632,7 +3498,7 @@ export default function TerminalExperience() {
     if (e.target === inputRef.current) return;
     if (e.target instanceof Element && e.target.closest("button,a,input,select,textarea,[contenteditable=true]")) return;
 
-    if (handleCommandControlKey(e.key)) {
+    if (handleCommandControlKey(e.key, e.shiftKey)) {
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -4352,28 +4218,43 @@ export default function TerminalExperience() {
             </div>
           </div>
         )}
-        {commandUsageHint && (
+        {commandUsageHint && completionEnabled && (
           <div className="mb-2 rounded border border-[#4ade80]/15 bg-[#05160c]/85 px-3 py-2 text-[8px] text-[#86efac]/55">
-            / {commandUsageHint}
+            {commandUsageHint}
           </div>
         )}
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[#b1cbbb]">
           <span role="status">{aiBusy ? "Michael is responding · stop or Ctrl+C cancels" : formMode ? `Editing ${formMode} draft · send or cancel` : mode === "shell" ? "SHELL · help for commands" : `${mode.toUpperCase()} · ask naturally · mode shell to return`}</span>
           <TerminalCompanion pet={pet} busy={aiBusy||busy} mode={mode}/>
         </div>
-        {ghostSuffix && inputFocused && mode==="shell" && (
-          <div id="terminal-command-suggestion" className="mb-1.5 flex items-start gap-2 px-1 text-[10px] leading-4 text-[#86efac]/70">
-            <kbd className="shrink-0 rounded border border-[#86efac]/20 px-1 text-[9px]">Tab</kbd>
-            <span className="min-w-0 break-words">{input}<span className="text-[#dcfce7]">{ghostSuffix}</span></span>
+        {showCompletions && (
+          <div id="terminal-command-suggestion" className={workspaceStyles.completions}>
+            <div className={workspaceStyles.completionHint}>
+              <span><kbd>Tab</kbd> {completionOptions.length > 1 ? "cycle" : "complete"}{activeCompletion && completionOptions.length > 1 ? " · Shift+Tab back · Esc cancel" : ""}</span>
+              <span aria-live="polite">{completionIndex >= 0 ? `${completionIndex + 1} / ${completionOptions.length}` : `${completionOptions.length} match${completionOptions.length === 1 ? "" : "es"}`}</span>
+            </div>
+            <div className={workspaceStyles.completionChoices}>
+              {completionOptions.slice(completionStart, completionStart + 5).map((choice, index) => (
+                <button key={choice} type="button" tabIndex={-1}
+                  aria-label={`Complete ${choice.trim()}`} aria-pressed={completionIndex === completionStart + index}
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={() => {
+                    setCompletionCycle(completionOptions.length > 1 ? { seed:activeCompletion?.seed ?? input, options:completionOptions, index:completionStart + index } : null);
+                    setInput(choice); focusCommandInput();
+                  }}>
+                  {choice.trim()}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {showStartupInputHint && !inputFocused && <div className="mb-1.5 px-1 text-[9px] text-[#86efac]/65">Start typing to focus the command line.</div>}
         <div data-tour-target="command" className="flex items-center gap-2 rounded border border-[#86efac]/25 bg-[#031008] px-3 py-2 focus-within:border-[#86efac]/70">
           <label htmlFor="terminal-overlay-input" className="text-[#4ade80] text-[11px] shrink-0 select-none">{mode === "shell" ? promptLabel(cwd) : "michael >"}</label>
           <input ref={inputRef} id="terminal-overlay-input" name="terminal_command" type="text" aria-label="Terminal command input"
-            aria-describedby={ghostSuffix && inputFocused && mode==="shell" ? "terminal-command-suggestion" : undefined}
+            aria-describedby={showCompletions ? "terminal-command-suggestion" : undefined}
             autoFocus={powerState === "on"} value={input} disabled={busy || Boolean(gameMode) || powerState!=="on"}
-            onChange={event=>{dismissStartupInputHint();setInput(event.target.value);}} onKeyDown={handleKeyDown}
+            onChange={event=>{dismissStartupInputHint();setCompletionCycle(null);setInput(event.target.value);}} onKeyDown={handleKeyDown}
             onFocus={()=>setInputFocused(true)} onBlur={()=>setInputFocused(false)}
             spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off"
             placeholder={busy?"Processing…":mode==="shell"?"Type a command…":"Ask about Michael’s work…"}

@@ -3,6 +3,78 @@ import assert from "node:assert/strict";
 import { ROOTS, ROUTES, VALID_DIRS, parseArguments, resolveTerminalPath, isCodeProject, formatDate, submitTerminalForm, validateTerminalForm, validateTerminalSnapshot, sanitizeBrowseUrl, type TerminalForm } from "../src/lib/terminal-shell";
 import { randomFreeCell } from "../src/lib/terminal-games";
 import type { Project } from "../src/lib/types";
+import { COMMAND_GROUPS, COMMANDS, TERMINAL_COMMANDS, terminalCommand, terminalCompletions, cycleTerminalCompletion, terminalHelp, resolveTerminalToggle } from "../src/lib/terminal-commands";
+
+test("Tab cycles every toggle match, wraps, and Shift+Tab reverses without narrowing the original prefix", () => {
+  const matches = terminalCompletions("toggle");
+  assert.deepEqual(matches, ["togglemusic ", "togglekeystrokeclicks ", "togglebackground "]);
+  let cycle = cycleTerminalCompletion("toggle", matches, null)!;
+  assert.equal(cycle.options[cycle.index], "togglemusic ");
+  for (const expected of ["togglekeystrokeclicks ", "togglebackground ", "togglemusic "]) {
+    const input = cycle.options[cycle.index];
+    cycle = cycleTerminalCompletion(input, terminalCompletions(input), cycle)!;
+    assert.equal(cycle.options[cycle.index], expected);
+    assert.equal(cycle.seed, "toggle");
+  }
+  cycle = cycleTerminalCompletion(cycle.options[cycle.index], [], cycle, true)!;
+  assert.equal(cycle.options[cycle.index], "togglebackground ");
+});
+
+test("editing the completed value starts a fresh completion cycle, with slash and case support", () => {
+  const old = cycleTerminalCompletion("toggle", terminalCompletions("toggle"), null)!;
+  const input = "togglemusic o";
+  const next = cycleTerminalCompletion(input, terminalCompletions(input), old)!;
+  assert.equal(next.seed, input);
+  assert.deepEqual(next.options, ["togglemusic on ", "togglemusic off "]);
+  assert.equal(cycleTerminalCompletion("nonexistent", [], next), null);
+  assert.deepEqual(terminalCompletions("  /TOGGLE"), ["  /togglemusic ", "  /togglekeystrokeclicks ", "  /togglebackground "]);
+  assert.deepEqual(terminalCompletions("/togglebackground ST"), ["/togglebackground status "]);
+});
+
+test("completion works for command options, aliases, contextual paths, search phrases, and draft fields", () => {
+  assert.deepEqual(terminalCompletions("mode "), ["mode shell ", "mode ai "]);
+  assert.ok(terminalCompletions("resume d").includes("resume download "));
+  assert.ok(terminalCompletions("tour ").includes("tour stop "));
+  assert.deepEqual(terminalCompletions("cd e", {directories:["engineering","articles"]}), ["cd engineering "]);
+  assert.deepEqual(terminalCompletions("nano co", {entities:["coretex","health"]}), ["nano coretex "]);
+  assert.deepEqual(terminalCompletions("search machine l", {searches:["Machine learning","React"]}), ["search Machine learning"]);
+  assert.deepEqual(terminalCompletions("select ", {resultCount:2}), ["select 1 ","select 2 "]);
+  assert.deepEqual(terminalCompletions("set ", {fields:["identifier"]}), ["set identifier "]);
+  assert.deepEqual(terminalCompletions("set message Hello"), []);
+  assert.deepEqual(terminalCompletions(""), []);
+});
+
+test("all three toggle commands use the same options and idempotent on/off/status behavior", () => {
+  for (const name of ["togglemusic", "togglekeystrokeclicks", "togglebackground"]) {
+    assert.deepEqual(terminalCompletions(`${name} `), ["on","off","status"].map(value => `${name} ${value} `));
+    for (const current of [true,false]) {
+      assert.deepEqual(resolveTerminalToggle(current, []), {enabled:!current,statusOnly:false});
+      assert.deepEqual(resolveTerminalToggle(current, ["ON"]), {enabled:true,statusOnly:false});
+      assert.deepEqual(resolveTerminalToggle(current, ["off"]), {enabled:false,statusOnly:false});
+      assert.deepEqual(resolveTerminalToggle(current, ["status"]), {enabled:current,statusOnly:true});
+    }
+  }
+  for (const args of [["maybe"], ["on","off"], ["status","extra"]]) assert.equal(resolveTerminalToggle(true,args), null);
+});
+
+test("help covers every discoverable command and alias, and category names are unambiguous", () => {
+  assert.equal(new Set(COMMANDS).size, COMMANDS.length);
+  assert.equal(terminalHelp().overview, true);
+  assert.equal(terminalHelp("all").commands.length, TERMINAL_COMMANDS.length);
+  for (const name of COMMANDS) {
+    assert.equal(terminalHelp(name).commands[0], terminalCommand(name));
+    assert.ok(terminalHelp(name).commands[0].description.length > 0);
+    assert.ok(terminalCompletions(name).includes(`${name} `));
+  }
+  for (const group of COMMAND_GROUPS) {
+    assert.equal(terminalCommand(group.id), undefined);
+    assert.ok(terminalHelp(group.id).commands.length > 0);
+    assert.ok(terminalHelp(group.id).commands.every(command => command.group === group.id));
+  }
+  assert.equal(terminalHelp("toggle").commands.length, 3);
+  assert.equal(terminalHelp("missing").commands.length, 0);
+  assert.equal(terminalHelp("/NANO").commands[0].name, "open");
+});
 
 test("every root and route alias resolves to a real virtual directory", () => {
   for (const root of ROOTS) assert.ok(VALID_DIRS.has(`/${root}`), root);
