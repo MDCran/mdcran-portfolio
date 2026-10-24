@@ -4125,7 +4125,7 @@ export default function TerminalExperience() {
 
       {/* Input bar */}
       <div
-        className="crt-content-layer relative z-10 border-t border-[#8ea06f]/10 bg-[linear-gradient(180deg,rgba(8,17,10,0.9),rgba(22,28,17,0.82))] px-5 py-3 shrink-0"
+        className={`${workspaceStyles.commandArea} crt-content-layer relative z-10 border-t border-[#8ea06f]/10 bg-[linear-gradient(180deg,rgba(8,17,10,0.9),rgba(22,28,17,0.82))] shrink-0`}
         style={
           isThreeStage
             ? {
@@ -4136,8 +4136,8 @@ export default function TerminalExperience() {
         }
       >
         {results.length > 0 && (
-          <div data-terminal-target="results" className="mb-2 max-h-[min(28vh,200px)] overflow-y-auto rounded border border-[#4ade80]/15 bg-[#05160c]/90 px-2 py-2">
-            <div className="mb-1 px-1 text-[7px] tracking-wider text-[#86efac]/45 uppercase">
+          <div data-terminal-target="results" className={`${workspaceStyles.results} mb-2 max-h-[min(28vh,200px)] overflow-y-auto rounded border border-[#4ade80]/15 bg-[#05160c]/90`}>
+            <div className="mb-2 px-3 text-[7px] tracking-wider text-[#86efac]/45 uppercase">
               {resultsLabel} · Arrow keys to select · Enter to open
             </div>
             <div className="flex flex-col gap-1">
@@ -4166,6 +4166,8 @@ export default function TerminalExperience() {
                     ? "ART"
                     : result.kind === "client"
                     ? "CLI"
+                    : result.kind === "video"
+                    ? "VIDEO"
                     : "ROUTE";
                 return (
                   <button
@@ -4173,7 +4175,7 @@ export default function TerminalExperience() {
                     onClick={() => openResult(actualIndex)}
                     aria-label={`Open result ${actualIndex + 1}: ${result.label}`}
                     key={`${result.kind}-${"id" in result ? result.id : result.label}-${index}`}
-                    className={`w-full rounded px-2 py-1 text-left text-[0.525rem] leading-snug focus-visible:outline-2 focus-visible:outline-[#4ade80] ${
+                    className={`${workspaceStyles.resultOption} w-full rounded text-left text-[0.525rem] focus-visible:outline-2 focus-visible:outline-[#4ade80] ${
                       isActive
                         ? "bg-[#0d2e1a] text-[#dcfce7]"
                         : "text-[#86efac]/65"
@@ -4184,9 +4186,9 @@ export default function TerminalExperience() {
                         : undefined
                     }
                   >
-                    <span className="mr-2 text-[#86efac]/45">[{actualIndex + 1}]</span>
-                    <span className="mr-2 text-[#86efac]/45">{kind}</span>
-                    <span>{result.label}</span>
+                    <span className="text-[#86efac]/45">[{actualIndex + 1}]</span>
+                    <span className="text-[#86efac]/45">{kind}</span>
+                    <span className="min-w-0 break-words">{result.label}</span>
                   </button>
                 );
               })}
