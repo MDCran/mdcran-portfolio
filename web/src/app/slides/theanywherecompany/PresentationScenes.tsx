@@ -7,19 +7,22 @@ import { creators } from "./slides";
 import { AnimatedNumber, Clip, Photo, PhotoSequence, SequenceFrame } from "./PresentationMedia";
 import { BrandMark, type PresentationBrandName } from "./PresentationBrand";
 import { audienceChecked, creatorAudience } from "./creatorAudience";
+import { useManualSlideSteps, useManualStartIndex } from "./PresentationSteps";
 import styles from "./presentation.module.css";
 
 const allCreators = [...creators.slice(2), ...creators.slice(0, 2)];
 const creatorEase = [.22, 1, .36, 1] as const;
 
 export function CreatorSequence({ paused }: { paused: boolean }) {
-  const [{ phase, seenGroups }, setSequence] = useState({ phase: 0, seenGroups: [0] });
+  const initialPhase = useManualStartIndex(5);
+  const [{ phase, seenGroups }, setSequence] = useState({ phase: initialPhase, seenGroups: [initialPhase] });
   const finale = phase === 4;
   const select = (next: number) => {
     const selected = Math.max(0, Math.min(4, next));
     setSequence((current) => ({ phase: selected, seenGroups: current.seenGroups.includes(selected) ? current.seenGroups : [...current.seenGroups, selected] }));
   };
   const replay = () => setSequence({ phase: 0, seenGroups: [0] });
+  useManualSlideSteps({ index: phase, count: 5, select, nextLabel: phase === 3 ? "Next: reveal PopularMMOs and GamingWithJen" : "Next creator group", previousLabel: "Previous creator group" });
   return <div className={styles.creatorCinema} data-creator-phase={phase} data-creator-advance="manual">
     <header><p className={styles.label}>The people I got to create for</p><h2>{finale ? "A special part of the story." : "A few familiar faces."}</h2></header>
     <div className={`${styles.creatorStage} ${styles.morphVisual}`} aria-label={finale ? "PopularMMOs and GamingWithJen, with the other creator logos in the background" : `Creator group ${phase + 1} of 4`}>
@@ -152,7 +155,8 @@ const homeStack: { name: PresentationBrandName; label: string }[] = [
 ];
 
 export function TechnicalHome({ paused }: { paused: boolean }) {
-  const [active, setActive] = useState(0);
+  const initialIndex = useManualStartIndex(homeSystems.length);
+  const [active, setActive] = useState(initialIndex);
   const system = homeSystems[active];
   return <div className={styles.technicalHome}>
     <header><div><p className={styles.label}>My smart home</p><h2>Making everything smart.</h2></div><span className={styles.technicalBadge}>LOCAL-FIRST / PERSONAL HOMELAB</span></header>
@@ -185,8 +189,10 @@ const weekendMoments = [
 ] as const;
 
 export function WeekendCollage({ paused }: { paused: boolean }) {
-  const [active, setActive] = useState(0);
+  const initialIndex = useManualStartIndex(weekendMoments.length);
+  const [active, setActive] = useState(initialIndex);
   const select = (next: number) => setActive((next + weekendMoments.length) % weekendMoments.length);
+  useManualSlideSteps({ index: active, count: weekendMoments.length, select, nextLabel: "Next weekend image", previousLabel: "Previous weekend image" });
   const move = (direction: number) => select(active + direction);
   return <div className={styles.weekendCinema} data-weekend-active={weekendMoments[active].id} data-advance="manual">
     <header><div><p className={styles.label}>Everyday life / outside of work</p><h2>My kind of weekend.</h2></div><p>Cooking. Drones. Nature. Biking.<br />Frisbee. Soccer. Pickleball.</p></header>

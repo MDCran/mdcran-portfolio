@@ -107,7 +107,7 @@ export const slides: Slide[] = [
     id: "photo-album", title: "A few favorites from above", chapter: "Outside", seconds: 35,
     notes: [
       "Here are a few more favorites: the mangroves, a view over UCF, a boat towing a tube, boats passing through an inlet, and a building and its courtyard seen from above.",
-      "The photographs advance only by click, with a slow optical dissolve and a subtle 20-second zoom-out on each image. Use the image arrows or selection bars to choose a photo. Leave a little space for people to look; this slide is a visual pause.",
+      "The photographs advance manually, with a slow optical dissolve and a subtle 20-second zoom-out on each image. Next, Previous, or the slide clicker steps through the photos; after the last photo, Next continues to the following slide. The image arrows and selection bars also work. Leave a little space for people to look; this slide is a visual pause.",
     ],
   },
   {
@@ -158,7 +158,7 @@ export const slides: Slide[] = [
       "I use Ubiquiti networking and divide the network into five sections so smart gadgets, guest devices, and personal devices don’t all have free access to one another. The simple idea is that a problem with a smart gadget should stay separate from my personal devices.",
       "A Raspberry Pi keeps the home services running. Home Assistant handles the automations, Ubiquiti provides the network, and Pi-hole filters DNS. Immich is my photo library, and Nextcloud gives me files and sync in my own home setup. Tailscale connects me back securely, and UNAS provides storage.",
       "The stack strip keeps Home Assistant, Ubiquiti, Pi-hole, Immich, Nextcloud, and Raspberry Pi visible throughout the slide. The technical explanation on the left updates with the selected panel. The first five images are from my smart-home article; the Immich photo-library panel uses my own photographs, and the Nextcloud panel is a service diagram rather than a screenshot of the app.",
-      "Click the gallery tabs or arrows to choose each system. These panels and this slide always wait for a click, including when automatic playback is enabled elsewhere.",
+      "Next, Previous, or the slide clicker steps through each system before changing slides. The gallery tabs and image arrows also work. These panels always wait for manual advancement, including when automatic playback is enabled elsewhere.",
       "Choose one automation you actually use and describe the little everyday moment it makes better. Once the devices worked together, I started thinking about how the interface could feel more personal.",
     ], sources: [homeSource],
   },
@@ -194,7 +194,7 @@ export const slides: Slide[] = [
     notes: [
       "A good weekend might include cooking or baking, flying my drone, getting out in nature, a bike ride, throwing a frisbee, or playing soccer or pickleball with friends.",
       "The collage slowly expands each moment in turn: my cheesecake, one of my drone photographs, nature, a coastal ride, and a game with friends. The cooking, drone, and nature photographs are mine. The bicycle and sports-equipment scenes are generated illustrations, rather than photographs of a particular outing.",
-      "The collage advances only by click. Select an image panel, selection bar or arrow to smoothly expand a moment and hold it while talking. This slide also waits for a click before moving on.",
+      "Next, Previous, or the slide clicker steps through the collage before changing slides. Image panels, selection bars and image arrows also work. Each moment smoothly expands and holds while talking; this slide always waits for manual advancement.",
       "Share how you’d spend an ideal free afternoon. This is a chance to bring the talk back to everyday life and the people you enjoy spending time with.",
     ],
   },

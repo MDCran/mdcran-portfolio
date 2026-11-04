@@ -8,6 +8,7 @@ import { ASSET_ROOT } from "./slides";
 import { useSequenceTimer } from "./useSequenceTimer";
 import { usePresentationPlayback } from "./PresentationPlayback";
 import { preloadPresentationImages } from "./slideMedia";
+import { useManualSlideSteps, useManualStartIndex } from "./PresentationSteps";
 import styles from "./presentation.module.css";
 
 export const PresentationPreviewContext = createContext(false);
@@ -50,7 +51,8 @@ export function PhotoSequence({ images, paused, label, className = "", activeInd
   const preview = useContext(PresentationPreviewContext);
   const { automaticMedia } = usePresentationPlayback();
   const automatic = !preview && (advancement ? advancement === "automatic" : automaticMedia);
-  const [internalActive, setInternalActive] = useState(0);
+  const initialIndex = useManualStartIndex(images.length, !automatic);
+  const [internalActive, setInternalActive] = useState(initialIndex);
   const [localPaused, setLocalPaused] = useState(false);
   const [cycle, setCycle] = useState(0);
   const selectionVersion = useRef(0);
@@ -69,6 +71,7 @@ export function PhotoSequence({ images, paused, label, className = "", activeInd
     // Keep the current picture visible until the next picture or video poster is ready.
     void preloadPresentationImages([`${target.name}${target.video ? "-poster" : ""}`]).then(commit).catch(() => { /* Retain the current picture on a failed load. */ });
   }, [images, activeIndex, onActiveChange]);
+  useManualSlideSteps({ index: active, count: images.length, select, enabled: !preview && (!automatic || localPaused), nextLabel: `Next image in ${label}`, previousLabel: `Previous image in ${label}` });
   useEffect(() => () => { selectionVersion.current += 1; }, []);
   const { clockRef } = useSequenceTimer({ seconds, cycleKey: `${images[active].name}:${cycle}`, paused: paused || localPaused, enabled: automatic && images.length > 1, onAdvance: () => select(active + 1) });
   useEffect(() => {

@@ -8,6 +8,7 @@ import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { ArrowLeft, ArrowRight, Expand, Grid2X2, HelpCircle, Minimize, NotebookPen, Pause, Play, Settings2, X } from "lucide-react";
 import { formatTime, slideIndexFromHash, slides } from "./slides";
 import { preloadPresentationImages, preloadSlideImages } from "./slideMedia";
+import { SlideStepProvider, useSlideStepController } from "./PresentationSteps";
 import { AnimatedNumber, Clip, Photo, PhotoSequence, PresentationPreviewContext, RoomInterfaceImage } from "./PresentationMedia";
 import { CreatorSequence, CurrentComputer, FutureEvents, MakerWorkshop, SplitFlapProject, TechnicalHome, WeekendCollage } from "./PresentationScenes";
 import { BrandMark } from "./PresentationBrand";
@@ -141,6 +142,7 @@ function SlideContent({ id, paused, airFavoritesRevealed, makerProjectRevealed, 
 
 export default function PersonalPresentation() {
   const [index, setIndex] = useState(0);
+  const { controller: stepController, steps: manualSteps } = useSlideStepController();
   const [direction, setDirection] = useState(1);
   const [nativeMorph, setNativeMorph] = useState(false);
   const activeTransition = useRef<ViewTransition | null>(null);
@@ -168,13 +170,16 @@ export default function PersonalPresentation() {
   const slide = slides[index];
   const runtime = slides.reduce((total, item) => total + item.seconds, 0);
   const motionPaused = paused || overview || help || notes || settingsOpen;
+  const manualStep = manualSteps.find((step) => step.slideId === slide.id);
+  const hasNextImage = Boolean(manualStep && manualStep.index < manualStep.count - 1);
+  const hasPreviousImage = Boolean(manualStep && manualStep.index > 0);
   const revealCount = slide.id === "air-shows" || slide.id === "making" ? 1 : slide.id === "after-dark" ? 2 : 0;
   const currentReveal = slide.id === "air-shows" ? Number(airFavoritesRevealed) : slide.id === "making" ? Number(makerProjectRevealed) : slide.id === "after-dark" ? afterDarkStep : 0;
   const pendingReveal = currentReveal < revealCount;
-  const timedSlideAdvance = !["creators", "photo-album", "smart-home", "making", "weekend"].includes(slide.id) && (index < slides.length - 1 || pendingReveal);
+  const timedSlideAdvance = !manualStep && !["creators", "photo-album", "smart-home", "making", "weekend"].includes(slide.id) && (index < slides.length - 1 || pendingReveal);
   const stepSeconds = pendingReveal ? (slide.id === "after-dark" ? afterDarkStep === 0 ? 10 : 12 : 8) : slide.seconds - (slide.id === "after-dark" ? 22 : revealCount * 8);
-  const nextLabel = slide.id === "air-shows" && !airFavoritesRevealed ? "Next: reveal favorite performers" : slide.id === "making" && !makerProjectRevealed ? "Next: reveal 3D printing and the split-flap board" : slide.id === "after-dark" && afterDarkStep === 0 ? "Next: reveal AI usage and automation" : slide.id === "after-dark" && afterDarkStep === 1 ? "Next: reveal the n8n workflow" : "Next slide";
-  const backLabel = slide.id === "air-shows" && airFavoritesRevealed ? "Previous: hide favorite performers" : slide.id === "making" && makerProjectRevealed ? "Previous: return to laser engraving" : slide.id === "after-dark" && afterDarkStep > 0 ? "Previous: earlier after-hours reveal" : "Previous slide";
+  const nextLabel = hasNextImage ? manualStep!.nextLabel : slide.id === "air-shows" && !airFavoritesRevealed ? "Next: reveal favorite performers" : slide.id === "making" && !makerProjectRevealed ? "Next: reveal 3D printing and the split-flap board" : slide.id === "after-dark" && afterDarkStep === 0 ? "Next: reveal AI usage and automation" : slide.id === "after-dark" && afterDarkStep === 1 ? "Next: reveal the n8n workflow" : "Next slide";
+  const backLabel = hasPreviousImage ? manualStep!.previousLabel : slide.id === "air-shows" && airFavoritesRevealed ? "Previous: hide favorite performers" : slide.id === "making" && makerProjectRevealed ? "Previous: return to laser engraving" : slide.id === "after-dark" && afterDarkStep > 0 ? "Previous: earlier after-hours reveal" : "Previous slide";
 
   const go = useCallback((next: number) => {
     const bounded = Math.max(0, Math.min(slides.length - 1, next));
@@ -232,6 +237,9 @@ export default function PersonalPresentation() {
   }, [index, nativeMorph, paused, overview, help, notes, settingsOpen]);
 
   const advance = useCallback(() => {
+    navigationVersion.current += 1;
+    if (deckRef.current) delete deckRef.current.dataset.slideLoading;
+    if (stepController.move(slides[index].id, 1)) return;
     if (slides[index].id === "air-shows" && !airFavoritesRevealed) setAirFavoritesRevealed(true);
     else if (slides[index].id === "making" && !makerProjectRevealed) {
       const version = ++makerRevealVersion.current;
@@ -244,14 +252,17 @@ export default function PersonalPresentation() {
     }
     else if (slides[index].id === "after-dark" && afterDarkStep < 2) setAfterDarkStep((value) => value + 1);
     else go(index + 1);
-  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go]);
+  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go, stepController]);
 
   const back = useCallback(() => {
+    navigationVersion.current += 1;
+    if (deckRef.current) delete deckRef.current.dataset.slideLoading;
+    if (stepController.move(slides[index].id, -1)) return;
     if (slides[index].id === "air-shows" && airFavoritesRevealed) setAirFavoritesRevealed(false);
     else if (slides[index].id === "making" && makerProjectRevealed) setMakerProjectRevealed(false);
     else if (slides[index].id === "after-dark" && afterDarkStep > 0) setAfterDarkStep((value) => value - 1);
     else go(index - 1);
-  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go]);
+  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go, stepController]);
 
   const { clockRef: slideClockRef, remainingRef: slideRemainingRef } = useSequenceTimer({
     seconds: stepSeconds,
@@ -281,6 +292,7 @@ export default function PersonalPresentation() {
         if (navigationVersion.current !== version) return;
         if (deckRef.current) delete deckRef.current.dataset.slideLoading;
         setIndex(requested);
+        setDirection(1);
         setAirFavoritesRevealed(false);
         setMakerProjectRevealed(false);
         setAfterDarkStep(0);
@@ -347,12 +359,12 @@ export default function PersonalPresentation() {
     <main className={styles.stage} aria-label="Personal presentation" aria-roledescription="carousel">
       <div className={styles.canvas}>
         {nativeMorph ? <section key={slide.id} className={styles.slide} data-slide-id={slide.id} aria-roledescription="slide" aria-label={`${index + 1} of ${slides.length}: ${slide.title}`}>
-          <SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} />
+          <SlideStepProvider controller={stepController} slideId={slide.id} fromEnd={direction < 0}><SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} /></SlideStepProvider>
         </section> : <AnimatePresence initial={false} custom={direction}>
           <motion.section key={slide.id} custom={direction} className={styles.slide} data-slide-id={slide.id} aria-roledescription="slide" aria-label={`${index + 1} of ${slides.length}: ${slide.title}`}
             variants={{ enter: { opacity: 0 }, visible: { opacity: 1 }, leave: { opacity: 0, transition: { delay: paused ? 0 : .55, duration: paused ? 0 : .45 } } }}
             initial="enter" animate="visible" exit="leave" transition={{ duration: paused ? 0 : 1.1, ease: "easeInOut" }}>
-            <SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} />
+            <SlideStepProvider controller={stepController} slideId={slide.id} fromEnd={direction < 0}><SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} /></SlideStepProvider>
           </motion.section>
         </AnimatePresence>}
         <div className={styles.slideNumber} aria-hidden="true">{String(index + 1).padStart(2, "0")}<span> / {slides.length}</span></div>
@@ -368,10 +380,10 @@ export default function PersonalPresentation() {
         <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "Exit full screen" : "Enter full screen"} title="Full screen (F)">{fullscreen ? <Minimize /> : <Expand />}</button>
         <button ref={settingsButton} type="button" onClick={() => { setOverview(false); setHelp(false); setNotes(false); setSettingsOpen(true); }} aria-label="Presentation settings" aria-haspopup="dialog" aria-expanded={settingsOpen} title="Playback settings"><Settings2 /></button>
         <span className={styles.controlDivider} />
-        <button type="button" onClick={back} disabled={index === 0} aria-label={backLabel}><ArrowLeft /></button>
+        <button type="button" onClick={back} disabled={index === 0 && !hasPreviousImage} aria-label={backLabel}><ArrowLeft /></button>
         <span className={styles.counter} aria-live="polite" aria-atomic="true">{index + 1} / {slides.length}<span className={styles.srOnly}> · {slide.title}</span></span>
         {automaticSlides && timedSlideAdvance && <div ref={slideClockRef} className={styles.slideAutoTimer} role="timer" aria-live="off" title={pendingReveal ? "Time until the next reveal" : "Time until the next slide"}><span>{pendingReveal ? "Reveal" : "Next"} <span ref={slideRemainingRef}>{stepSeconds}s</span></span><i aria-hidden="true" /></div>}
-        <button type="button" onClick={advance} disabled={index === slides.length - 1 && !pendingReveal} aria-label={nextLabel}><ArrowRight /></button>
+        <button type="button" onClick={advance} disabled={index === slides.length - 1 && !pendingReveal && !hasNextImage} aria-label={nextLabel}><ArrowRight /></button>
       </div>
     </footer>
     <div className={styles.progress} aria-hidden="true"><div style={{ width: `${((index + 1) / slides.length) * 100}%` }} /></div>
@@ -401,7 +413,7 @@ export default function PersonalPresentation() {
       <Label>Presentation</Label><h2>Playback settings</h2>
       <div className={styles.playbackSetting}><h3>Images & galleries</h3><p>Photos and collages.</p><div role="group" aria-label="Image advancement"><button type="button" aria-pressed={!preferences.automaticMedia} onClick={() => setAutomaticMedia(false)}>Manual</button><button type="button" aria-pressed={preferences.automaticMedia} onClick={() => setAutomaticMedia(true)}>Automatic</button></div></div>
       <div className={styles.playbackSetting}><h3>Slides & reveals</h3><p>Change slides and reveal details with Next, or follow the slide timings.</p><div role="group" aria-label="Slide and reveal advancement"><button type="button" aria-pressed={!automaticSlides} onClick={() => setAutomaticSlides(false)}>Manual</button><button type="button" aria-pressed={automaticSlides} onClick={() => setAutomaticSlides(true)}>Automatic</button></div></div>
-      <p className={styles.settingsFootnote}>Creator groups, drone photographs, smart-home systems, workshop reveals and weekend images always advance by click. Settings are saved; timers pause while this panel is open.</p>
+      <p className={styles.settingsFootnote}>Next and Previous step through manual images before changing slides. Settings are saved; timers pause while this panel is open.</p>
     </DeckDialog>}
     {help && <DeckDialog label="Keyboard shortcuts" className={styles.helpDialog} onClose={() => { setHelp(false); helpButton.current?.focus(); }}>
       <h2 className={styles.helpTitle}>Keyboard shortcuts</h2>
