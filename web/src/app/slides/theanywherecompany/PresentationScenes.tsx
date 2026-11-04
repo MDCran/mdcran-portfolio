@@ -58,7 +58,7 @@ export function CreatorSequence({ paused }: { paused: boolean }) {
 
 function CreatorAudienceStat({ id, name, featured, paused }: { id: string; name: string; featured: boolean; paused: boolean }) {
   const audience = creatorAudience[id];
-  if (!audience?.subscribers || !audience.display) return <span className={styles.creatorNoCount}>{audience?.note ?? "Subscriber count not verified"}</span>;
+  if (!audience?.subscribers || !audience.display) return audience?.note ? <span className={styles.creatorNoCount}>{audience.note}</span> : null;
   const suffix = /[MK]$/.exec(audience.display)?.[0] ?? "";
   const number = audience.display.replace(/[MK]$/, "");
   const decimals = number.split(".")[1]?.length ?? 0;
