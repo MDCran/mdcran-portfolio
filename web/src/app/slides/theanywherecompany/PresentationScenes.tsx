@@ -90,7 +90,7 @@ export function MakerWorkshop({ paused, projectRevealed }: { paused: boolean; pr
     ? { name: "desktop-3d-printer-generated", alt: "Generated illustration of a desktop 3D printer making an enclosure component", caption: "3D printing · ideas into form" }
     : { name: "compact-laser-engraver-generated", alt: "Generated illustration of a compact desktop laser engraver in a home workshop", caption: "Laser engraving · detail in metal" };
   const example = projectRevealed
-    ? { name: "airport-split-flap-board-generated", alt: "Airport-style split-flap board concept with three rows of mechanical letter flaps in a charcoal enclosure", caption: "My next project: an airport-style split-flap board" }
+    ? { name: "airport-split-flap-board-generated", alt: "Airport-style split-flap board concept with three rows of mechanical letter flaps in a charcoal enclosure", caption: "My next project" }
     : { name: "engraved-card", alt: "My own laser-engraved metal MDCran card, with my portrait and design", caption: "My custom laser engraved business card." };
   const step = projectRevealed ? 1 : 0;
   return <div className={styles.makerWorkshop} data-maker-stage={projectRevealed ? "project" : "engraving"}>
@@ -102,7 +102,7 @@ export function MakerWorkshop({ paused, projectRevealed }: { paused: boolean; pr
     </div>
     <figure className={`${styles.engravedExample} ${styles.morphVisual}`}>
       <div className={styles.makerForeground}><AnimatePresence initial={false}><SequenceFrame key={example.name} item={example} index={step} paused={paused} /></AnimatePresence></div>
-      {!projectRevealed && <figcaption>My custom laser engraved business card.</figcaption>}
+      <figcaption>{example.caption}</figcaption>
     </figure>
   </div>;
 }
