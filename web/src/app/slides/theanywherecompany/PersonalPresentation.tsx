@@ -145,7 +145,8 @@ export default function PersonalPresentation() {
   const { controller: stepController, steps: manualSteps } = useSlideStepController();
   const [direction, setDirection] = useState(1);
   const [nativeMorph, setNativeMorph] = useState(false);
-  const activeTransition = useRef<ViewTransition | null>(null);
+  const activeTransition = useRef<Pick<ViewTransition, "finished"> | null>(null);
+  const latestInput = useRef<{ advance: () => void; back: () => void } | null>(null);
   const navigationVersion = useRef(0);
   const [overview, setOverview] = useState(false);
   const [notes, setNotes] = useState(false);
@@ -224,7 +225,19 @@ export default function PersonalPresentation() {
           if (deckRef.current) delete deckRef.current.dataset.transitionStyle;
           update();
         }
-      } else update();
+      } else {
+        update();
+        if (!paused) {
+          const fade = { finished: new Promise<void>((resolve) => window.setTimeout(resolve, slideFadeSeconds * 1000)) };
+          activeTransition.current = fade;
+          if (deckRef.current) deckRef.current.dataset.transitionStatus = "running";
+          void fade.finished.then(() => {
+            if (activeTransition.current !== fade) return;
+            activeTransition.current = null;
+            if (deckRef.current) deckRef.current.dataset.transitionStatus = "complete";
+          });
+        }
+      }
     };
     // Keep the current composition intact until images, fonts and any prior fade are ready.
     setStatus("");
@@ -239,7 +252,18 @@ export default function PersonalPresentation() {
   const latestGo = useRef(go);
   useEffect(() => { latestGo.current = go; }, [go]);
 
+  const deferInput = useCallback((action: "advance" | "back") => {
+    const transition = activeTransition.current;
+    if (!transition) return false;
+    const version = ++navigationVersion.current;
+    void transition.finished.catch(() => {}).then(() => {
+      if (navigationVersion.current === version) latestInput.current?.[action]();
+    });
+    return true;
+  }, []);
+
   const advance = useCallback(() => {
+    if (deferInput("advance")) return;
     navigationVersion.current += 1;
     if (deckRef.current) delete deckRef.current.dataset.slideLoading;
     if (stepController.move(slides[index].id, 1)) return;
@@ -255,9 +279,10 @@ export default function PersonalPresentation() {
     }
     else if (slides[index].id === "after-dark" && afterDarkStep < 2) setAfterDarkStep((value) => value + 1);
     else go(index + 1);
-  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go, stepController]);
+  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go, stepController, deferInput]);
 
   const back = useCallback(() => {
+    if (deferInput("back")) return;
     navigationVersion.current += 1;
     if (deckRef.current) delete deckRef.current.dataset.slideLoading;
     if (stepController.move(slides[index].id, -1)) return;
@@ -265,7 +290,9 @@ export default function PersonalPresentation() {
     else if (slides[index].id === "making" && makerProjectRevealed) setMakerProjectRevealed(false);
     else if (slides[index].id === "after-dark" && afterDarkStep > 0) setAfterDarkStep((value) => value - 1);
     else go(index - 1);
-  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go, stepController]);
+  }, [index, airFavoritesRevealed, makerProjectRevealed, afterDarkStep, go, stepController, deferInput]);
+
+  useEffect(() => { latestInput.current = { advance, back }; }, [advance, back]);
 
   const { clockRef: slideClockRef, remainingRef: slideRemainingRef } = useSequenceTimer({
     seconds: stepSeconds,
