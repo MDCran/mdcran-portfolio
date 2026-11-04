@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, Pause, Play } from "lucide-react";
 import { ASSET_ROOT } from "./slides";
 import { useSequenceTimer } from "./useSequenceTimer";
 import { usePresentationPlayback } from "./PresentationPlayback";
+import { preloadPresentationImages } from "./slideMedia";
 import styles from "./presentation.module.css";
 
 export const PresentationPreviewContext = createContext(false);
@@ -66,9 +67,7 @@ export function PhotoSequence({ images, paused, label, className = "", activeInd
     const target = images[bounded];
     if (target.content) { commit(); return; }
     // Keep the current picture visible until the next picture or video poster is ready.
-    const image = new Image();
-    image.src = `${ASSET_ROOT}${target.name}${target.video ? "-poster" : ""}.webp`;
-    void image.decode().then(commit).catch(() => { /* Retain the current picture on a failed load. */ });
+    void preloadPresentationImages([`${target.name}${target.video ? "-poster" : ""}`]).then(commit).catch(() => { /* Retain the current picture on a failed load. */ });
   }, [images, activeIndex, onActiveChange]);
   useEffect(() => () => { selectionVersion.current += 1; }, []);
   const { clockRef } = useSequenceTimer({ seconds, cycleKey: `${images[active].name}:${cycle}`, paused: paused || localPaused, enabled: automatic && images.length > 1, onAdvance: () => select(active + 1) });
@@ -76,9 +75,7 @@ export function PhotoSequence({ images, paused, label, className = "", activeInd
     if (preview) return;
     const next = images[(active + 1) % images.length];
     if (next.content) return;
-    const image = new Image();
-    image.src = `${ASSET_ROOT}${next.name}${next.video ? "-poster" : ""}.webp`;
-    void image.decode().catch(() => {});
+    void preloadPresentationImages([`${next.name}${next.video ? "-poster" : ""}`]).catch(() => {});
   }, [active, images, preview]);
   return <div ref={clockRef} className={`${styles.gallery} ${className}`} role="group" aria-roledescription="image carousel" aria-label={label} data-motion={paused || localPaused ? "paused" : "playing"} data-advance={automatic ? "automatic" : "manual"}>
     <div className={`${styles.galleryViewport} ${styles.morphVisual}`}><AnimatePresence initial={false}>
@@ -113,7 +110,7 @@ export function AnimatedNumber({ value, decimals = 0, suffix = "", paused }: { v
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { node.textContent = value.toFixed(decimals) + suffix; return; }
+    if (paused) { node.textContent = value.toFixed(decimals) + suffix; return; }
     let frame = 0;
     let started: number | undefined;
     const tick = (now: number) => {

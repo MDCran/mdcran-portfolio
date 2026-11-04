@@ -95,11 +95,3 @@ html:active-view-transition-type(anywhere-dissolve)::view-transition-new(root) {
   animation: tac-soft-in 1800ms cubic-bezier(.22,.61,.36,1) both;
   mix-blend-mode: normal;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(tac-canvas), ::view-transition-group(tac-visual),
-  ::view-transition-group(tac-shade), ::view-transition-group(tac-copy),
-  ::view-transition-group(tac-caption), ::view-transition-group(tac-title),
-  ::view-transition-group(tac-kicker) { animation-duration: 0s; }
-  ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
-}

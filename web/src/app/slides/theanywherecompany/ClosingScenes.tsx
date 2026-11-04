@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { BriefcaseBusiness, Code2, House, MessagesSquare } from "lucide-react";
 import { BrandMark, type PresentationBrandName } from "./PresentationBrand";
 import { AnimatedNumber, Clip, Photo } from "./PresentationMedia";
@@ -73,7 +73,6 @@ function WorkdayClock({ paused }: { paused: boolean }) {
   const arc = useRef<SVGPathElement>(null);
   const readout = useRef<HTMLSpanElement>(null);
   const elapsed = useRef(0);
-  const reduced = useReducedMotion();
   useEffect(() => {
     let frame = 0;
     let previous: number | null = null;
@@ -86,7 +85,6 @@ function WorkdayClock({ paused }: { paused: boolean }) {
       const hours = Math.floor(minutes / 60);
       if (readout.current) readout.current.textContent = `${String(hours % 12 || 12).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
     };
-    if (reduced) { paint(1); return; }
     paint(elapsed.current / workdayDuration);
     if (paused) return;
     const tick = (now: number) => {
@@ -104,7 +102,7 @@ function WorkdayClock({ paused }: { paused: boolean }) {
     if (!document.hidden) frame = requestAnimationFrame(tick);
     document.addEventListener("visibilitychange", visibilityChange);
     return () => { cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", visibilityChange); };
-  }, [paused, reduced]);
+  }, [paused]);
   return <div ref={face} className={styles.workdayClock} data-clock-state="workday" role="img" aria-label="An accelerated clock keeps spinning past 5 PM and through the night.">
     <svg viewBox="0 0 120 120" aria-hidden="true">
       <circle cx="60" cy="60" r="58" className={styles.clockOuterRing} />

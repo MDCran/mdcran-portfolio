@@ -114,7 +114,3 @@
 .workflowTargets strong { font-size: 1cqw; font-weight: 500; }
 .workflowTargets small { font-size: .6cqw; color: #a8bac7; }
 .workflowPurpose { position: absolute; left: 0; top: 79%; font-size: .85cqw; line-height: 1.8; color: #b8c8d2; }
-@media (prefers-reduced-motion: reduce) {
-  .wireGlow,.wireGlint { display: none; animation: none; }
-  .workflowModels,.workflowHub,.clockContinuation { animation: none; }
-}

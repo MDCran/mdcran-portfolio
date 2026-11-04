@@ -481,9 +481,10 @@ body::after {
 /* ─── Accessibility preferences (driven by the a11y menu) ─── */
 html { font-size: calc(100% * var(--a11y-text-scale, 1)); }
 
-html[data-motion="reduce"] *,
-html[data-motion="reduce"] *::before,
-html[data-motion="reduce"] *::after {
+/* The presentation uses its own explicit pause/play control. */
+html[data-motion="reduce"]:not(:has([data-presentation="personal"])) *,
+html[data-motion="reduce"]:not(:has([data-presentation="personal"])) *::before,
+html[data-motion="reduce"]:not(:has([data-presentation="personal"])) *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;

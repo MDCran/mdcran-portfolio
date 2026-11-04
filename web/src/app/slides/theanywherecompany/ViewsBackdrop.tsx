@@ -36,9 +36,8 @@ export function ViewsBackdrop({ paused }: { paused: boolean }) {
     const delay = 1200, duration = 5200, end = delay + duration;
     const state = clock.current;
     const length = line.getTotalLength();
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // A paused first view still shows the complete chart. Later pauses hold its position.
-    if (reducedMotion || (paused && !state.painted)) state.elapsed = end;
+    if (paused && !state.painted) state.elapsed = end;
     let frame = 0;
     let started: number | null = null;
     let segmentElapsed = state.elapsed;

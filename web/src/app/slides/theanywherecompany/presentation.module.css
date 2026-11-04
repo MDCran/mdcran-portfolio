@@ -349,10 +349,6 @@
 }
 @media (max-width: 560px) { .deckName { display: none; } .toolbar { justify-content: center; } }
 @media (max-width: 420px) { .controls button { width: 26px; } .controls .controlDivider { margin: 0 4px; } .slideAutoTimer { width: 44px; font-size: 8px; } .counter { min-width: 32px; font-size: 9px; } .toolbar { padding: 0 6px; } .settingsDialog { right: 12px; } }
-@media (prefers-reduced-motion: reduce) {
-  .presentation *, .presentation *::before, .presentation *::after { animation: none !important; transition: none !important; }
-  .galleryFrame[data-active="true"] { opacity: 1; }
-}
 @media print {
   .presentation { position: static; }
   .toolbar,.progress,.notes,.dialog { display: none !important; }
@@ -434,9 +430,6 @@
 @keyframes viewsHaloBreathe { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
 .viewsBackdrop[data-paused="true"] .viewsArea,
 .viewsBackdrop[data-paused="true"] .viewsHalo { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) {
-  .viewsArea,.viewsHalo { animation: none; }
-}
 .chicago { background: #f0f0f1; }
 .chicago h2 { font-size: 6.45cqw; letter-spacing: -.035em; line-height: 1.04; }
 .chicago h2 em { color: #656e7a; }

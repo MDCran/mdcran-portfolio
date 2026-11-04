@@ -4,9 +4,10 @@
    image service request and makes the presentation usable on a slow connection. */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { ArrowLeft, ArrowRight, Expand, Grid2X2, HelpCircle, Minimize, NotebookPen, Pause, Play, Settings2, X } from "lucide-react";
-import { ASSET_ROOT, creators, formatTime, slideIndexFromHash, slides } from "./slides";
+import { formatTime, slideIndexFromHash, slides } from "./slides";
+import { preloadPresentationImages, preloadSlideImages } from "./slideMedia";
 import { AnimatedNumber, Clip, Photo, PhotoSequence, PresentationPreviewContext, RoomInterfaceImage } from "./PresentationMedia";
 import { CreatorSequence, CurrentComputer, FutureEvents, MakerWorkshop, SplitFlapProject, TechnicalHome, WeekendCollage } from "./PresentationScenes";
 import { BrandMark } from "./PresentationBrand";
@@ -19,13 +20,6 @@ import styles from "./presentation.module.css";
 import "./transitions.css";
 
 const dissolvePairs = [["minecraft", "creators"], ["hilton-head", "biking"], ["drones", "photo-album"], ["cars", "air-shows"], ["weekend", "thanks"]];
-const dissolveImages: Record<string, string[]> = {
-  minecraft: ["minecraft-monopoly"], creators: creators.map(([id]) => `creator-${id}`),
-  "hilton-head": ["salty-dog-marina-official", "hilton-childhood-deer", "hilton-childhood-dock"], biking: [],
-  drones: ["causeway", "dji-logo"], "photo-album": ["mangroves", "ucf", "watercraft", "inlet", "drone-building"],
-  cars: ["car-meet", "classic-car"], "air-shows": ["air-show-poster", "blue-angels", "air-pass-poster"],
-  weekend: ["cheesecake", "mangroves", "garden-lake", "coastal-bike-generated", "weekend-sports-generated"], thanks: [],
-};
 const keyboardShortcuts = [
   { action: "Next", keys: ["→", "Space"] },
   { action: "Previous", keys: ["←"] },
@@ -151,7 +145,6 @@ export default function PersonalPresentation() {
   const [nativeMorph, setNativeMorph] = useState(false);
   const activeTransition = useRef<ViewTransition | null>(null);
   const navigationVersion = useRef(0);
-  const reduceMotion = useReducedMotion();
   const [overview, setOverview] = useState(false);
   const [notes, setNotes] = useState(false);
   const [help, setHelp] = useState(false);
@@ -174,7 +167,7 @@ export default function PersonalPresentation() {
   const settingsButton = useRef<HTMLButtonElement>(null);
   const slide = slides[index];
   const runtime = slides.reduce((total, item) => total + item.seconds, 0);
-  const motionPaused = paused || Boolean(reduceMotion) || overview || help || notes || settingsOpen;
+  const motionPaused = paused || overview || help || notes || settingsOpen;
   const revealCount = slide.id === "air-shows" || slide.id === "making" ? 1 : slide.id === "after-dark" ? 2 : 0;
   const currentReveal = slide.id === "air-shows" ? Number(airFavoritesRevealed) : slide.id === "making" ? Number(makerProjectRevealed) : slide.id === "after-dark" ? afterDarkStep : 0;
   const pendingReveal = currentReveal < revealCount;
@@ -202,8 +195,9 @@ export default function PersonalPresentation() {
     };
     const start = () => {
       if (navigationVersion.current !== requestVersion) return;
+      if (deckRef.current) delete deckRef.current.dataset.slideLoading;
       activeTransition.current?.skipTransition();
-      if (nativeMorph && !reduceMotion && !paused && !overview && !help && !notes && !settingsOpen) {
+      if (nativeMorph && !paused && !overview && !help && !notes && !settingsOpen) {
         try {
           if (deckRef.current) deckRef.current.dataset.transitionStyle = dissolve ? "soft-dissolve" : "standard";
           const transition = document.startViewTransition({ types: dissolve ? ["anywhere-slide", "anywhere-dissolve"] : ["anywhere-slide"], update: () => flushSync(update) });
@@ -228,25 +222,21 @@ export default function PersonalPresentation() {
       } else update();
     };
     // Keep the current composition intact until all destination images are ready.
-    if (dissolve) {
-      void Promise.allSettled((dissolveImages[slides[bounded].id] ?? []).map((name) => {
-        const image = new Image();
-        image.src = `${ASSET_ROOT}${name}.webp`;
-        return image.decode();
-      })).then(start);
-    } else start();
-  }, [index, nativeMorph, reduceMotion, paused, overview, help, notes, settingsOpen]);
+    setStatus("");
+    if (deckRef.current) deckRef.current.dataset.slideLoading = slides[bounded].id;
+    void preloadSlideImages(slides[bounded].id).then(start).catch(() => {
+      if (navigationVersion.current !== requestVersion) return;
+      if (deckRef.current) delete deckRef.current.dataset.slideLoading;
+      setStatus("The next images couldn’t load. Try again to continue.");
+    });
+  }, [index, nativeMorph, paused, overview, help, notes, settingsOpen]);
 
   const advance = useCallback(() => {
     if (slides[index].id === "air-shows" && !airFavoritesRevealed) setAirFavoritesRevealed(true);
     else if (slides[index].id === "making" && !makerProjectRevealed) {
       const version = ++makerRevealVersion.current;
       setStatus("");
-      void Promise.all(["desktop-3d-printer-generated", "airport-split-flap-board-generated"].map((name) => {
-        const image = new Image();
-        image.src = `${ASSET_ROOT}${name}.webp`;
-        return image.decode();
-      })).then(() => {
+      void preloadPresentationImages(["desktop-3d-printer-generated", "airport-split-flap-board-generated"]).then(() => {
         if (version === makerRevealVersion.current) setMakerProjectRevealed(true);
       }).catch(() => {
         if (version === makerRevealVersion.current) setStatus("The next images couldn’t load. Press Next to try again.");
@@ -281,16 +271,30 @@ export default function PersonalPresentation() {
 
   useEffect(() => {
     setNativeMorph(typeof document.startViewTransition === "function");
-    const readHash = () => { navigationVersion.current += 1; makerRevealVersion.current += 1; setIndex(slideIndexFromHash(window.location.hash)); setAirFavoritesRevealed(false); setMakerProjectRevealed(false); setAfterDarkStep(0); };
+    const readHash = () => {
+      const requested = slideIndexFromHash(window.location.hash);
+      const version = ++navigationVersion.current;
+      makerRevealVersion.current += 1;
+      setStatus("");
+      if (deckRef.current) deckRef.current.dataset.slideLoading = slides[requested].id;
+      void preloadSlideImages(slides[requested].id).then(() => {
+        if (navigationVersion.current !== version) return;
+        if (deckRef.current) delete deckRef.current.dataset.slideLoading;
+        setIndex(requested);
+        setAirFavoritesRevealed(false);
+        setMakerProjectRevealed(false);
+        setAfterDarkStep(0);
+      }).catch(() => {
+        if (navigationVersion.current !== version) return;
+        if (deckRef.current) delete deckRef.current.dataset.slideLoading;
+        setStatus("The slide images couldn’t load. Try again to continue.");
+      });
+    };
     readHash();
     window.addEventListener("hashchange", readHash);
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (motion.matches) setPaused(true);
-    const motionChange = () => { if (motion.matches) setPaused(true); };
-    motion.addEventListener("change", motionChange);
     const fullscreenChange = () => setFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", fullscreenChange);
-    return () => { navigationVersion.current += 1; makerRevealVersion.current += 1; window.removeEventListener("hashchange", readHash); motion.removeEventListener("change", motionChange); document.removeEventListener("fullscreenchange", fullscreenChange); };
+    return () => { navigationVersion.current += 1; makerRevealVersion.current += 1; window.removeEventListener("hashchange", readHash); document.removeEventListener("fullscreenchange", fullscreenChange); };
   }, []);
 
   useEffect(() => {
@@ -326,25 +330,15 @@ export default function PersonalPresentation() {
     return () => window.removeEventListener("keydown", keydown);
   }, [advance, back, go, toggleFullscreen, overview, help, settingsOpen]);
 
-  // Preload only the next slide's images, never every video in the deck.
+  // Warm the current and upcoming slide, including gallery frames and posters.
+  // The same cached decode promises are awaited by every navigation path.
   useEffect(() => {
-    const upcoming: Record<string, string[]> = {
-      "soccer-field": ["soccer-childhood-2011", "soccer-team-2011", "soccer-ipad-generated"], "miami-heat": ["heat-udonis-2013"], minecraft: ["minecraft-monopoly", "minecraft-mario"],
-      creators: creators.map(([id]) => `creator-${id}`), shared: ["minecraft-monopoly", "project-event", "project-artwork", "project-software", "playlist-thumbnails"],
-      chicago: ["chicago-skyline", "chicago-alley", "chicago-house", "chicago-aerial"], "hilton-head": ["salty-dog-marina-official", "hilton-childhood-deer", "hilton-childhood-dock"],
-      drones: ["causeway", "dji-logo"], "photo-album": ["mangroves", "ucf", "watercraft", "inlet", "drone-building"], cars: ["car-meet", "classic-car"],
-      "air-shows": ["air-show-poster", "blue-angels", "air-pass-poster"], "tech-events": ["tech-event"], collection: ["retro-tech"],
-      pc: ["pc-finished", "pc-night-poster", "pc-orbit-poster", "pc-colors-poster", "pc-desk", "pc-detail", "pc-tubing", "pc-building-poster"],
-      "smart-home": ["home-assistant", "home-unifi", "home-pihole", "home-tailscale", "home-portainer", "mangroves", "chicago-skyline", "garden-lake"], "room-idea": ["room-model"], making: ["engraved-card", "compact-laser-engraver-generated", "desktop-3d-printer-generated", "airport-split-flap-board-generated"], "split-flap": ["airport-split-flap-board-generated"], weekend: ["cheesecake", "mangroves", "garden-lake", "coastal-bike-generated", "weekend-sports-generated"], "after-dark": ["after-dark-poster", "core-logo-white"], "thank-you": ["michael-cran-signature", "anywhere-company-logo"],
-    };
-    for (const name of upcoming[slides[index + 1]?.id] ?? []) {
-      const image = new Image();
-      image.src = `${ASSET_ROOT}${name}.webp`;
-      void image.decode().catch(() => {});
-    }
+    void preloadSlideImages(slides[index].id).catch(() => {});
+    const next = slides[index + 1];
+    if (next) void preloadSlideImages(next.id).catch(() => {});
   }, [index]);
 
-  return <PresentationPlaybackContext.Provider value={preferences}><div ref={deckRef} className={styles.presentation} data-presentation="personal" data-native-morph={nativeMorph ? "enabled" : "fallback"} data-motion={motionPaused ? "paused" : "playing"} data-slide-advance={automaticSlides ? "automatic" : "manual"} onTouchStart={(event) => { touchStart.current = event.target instanceof Element && event.target.closest("button, a, aside, dialog") ? null : event.touches[0].clientX; }} onTouchEnd={(event) => {
+  return <MotionConfig reducedMotion="never"><PresentationPlaybackContext.Provider value={preferences}><div ref={deckRef} className={styles.presentation} data-presentation="personal" data-native-morph={nativeMorph ? "enabled" : "fallback"} data-motion={motionPaused ? "paused" : "playing"} data-slide-advance={automaticSlides ? "automatic" : "manual"} onTouchStart={(event) => { touchStart.current = event.target instanceof Element && event.target.closest("button, a, aside, dialog") ? null : event.touches[0].clientX; }} onTouchEnd={(event) => {
     if (overview || notes || help || settingsOpen || touchStart.current === null) return;
     const delta = event.changedTouches[0].clientX - touchStart.current;
     touchStart.current = null;
@@ -356,8 +350,8 @@ export default function PersonalPresentation() {
           <SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} />
         </section> : <AnimatePresence initial={false} custom={direction}>
           <motion.section key={slide.id} custom={direction} className={styles.slide} data-slide-id={slide.id} aria-roledescription="slide" aria-label={`${index + 1} of ${slides.length}: ${slide.title}`}
-            variants={{ enter: { opacity: 0 }, visible: { opacity: 1 }, leave: { opacity: 0, transition: { delay: paused || reduceMotion ? 0 : .55, duration: paused || reduceMotion ? 0 : .45 } } }}
-            initial="enter" animate="visible" exit="leave" transition={{ duration: paused || reduceMotion ? 0 : 1.1, ease: "easeInOut" }}>
+            variants={{ enter: { opacity: 0 }, visible: { opacity: 1 }, leave: { opacity: 0, transition: { delay: paused ? 0 : .55, duration: paused ? 0 : .45 } } }}
+            initial="enter" animate="visible" exit="leave" transition={{ duration: paused ? 0 : 1.1, ease: "easeInOut" }}>
             <SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} />
           </motion.section>
         </AnimatePresence>}
@@ -414,7 +408,7 @@ export default function PersonalPresentation() {
       <dl className={styles.shortcuts}>{keyboardShortcuts.map(({ action, keys }) => <div key={action}><dt>{action}</dt><dd>{keys.map((key, index) => <Fragment key={key}>{index > 0 && <span>/</span>}<kbd>{key}</kbd></Fragment>)}</dd></div>)}</dl>
       <p className={styles.helpTouch}>Touchscreen: swipe left or right.</p>
     </DeckDialog>}
-  </div></PresentationPlaybackContext.Provider>;
+  </div></PresentationPlaybackContext.Provider></MotionConfig>;
 }
 
 function DeckDialog({ label, onClose, children, className = "" }: { label: string; onClose: () => void; children: React.ReactNode; className?: string }) {
