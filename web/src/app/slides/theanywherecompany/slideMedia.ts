@@ -63,3 +63,27 @@ export async function preloadPresentationImages(names: readonly string[]): Promi
 export function preloadSlideImages(id: string): Promise<void> {
   return preloadPresentationImages(slideImages[id] ?? []);
 }
+
+const presentationFonts = [
+  '500 16px "Presentation Display"',
+  '400 16px "Presentation Inter"',
+  '400 16px "Presentation Mono"',
+  'italic 400 16px "Presentation Quote"',
+];
+
+export function createPresentationFontPreloader(load: (font: string) => Promise<unknown>) {
+  let ready: Promise<void> | undefined;
+  return () => {
+    ready ??= Promise.all(presentationFonts.map(load)).then(() => {}).catch((error) => { ready = undefined; throw error; });
+    return ready;
+  };
+}
+
+const preloadFonts = createPresentationFontPreloader((font) => document.fonts.load(font));
+
+export async function preloadSlideMedia(id: string): Promise<void> {
+  await Promise.all([
+    preloadSlideImages(id),
+    typeof document !== "undefined" && document.fonts ? preloadFonts() : Promise.resolve(),
+  ]);
+}

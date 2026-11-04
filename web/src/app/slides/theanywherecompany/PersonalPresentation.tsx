@@ -7,7 +7,7 @@ import { flushSync } from "react-dom";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { ArrowLeft, ArrowRight, Expand, Grid2X2, HelpCircle, Minimize, NotebookPen, Pause, Play, Settings2, X } from "lucide-react";
 import { formatTime, slideIndexFromHash, slides } from "./slides";
-import { preloadPresentationImages, preloadSlideImages } from "./slideMedia";
+import { preloadPresentationImages, preloadSlideMedia } from "./slideMedia";
 import { SlideStepProvider, useSlideStepController } from "./PresentationSteps";
 import { AnimatedNumber, Clip, Photo, PhotoSequence, PresentationPreviewContext, RoomInterfaceImage } from "./PresentationMedia";
 import { CreatorSequence, CurrentComputer, FutureEvents, MakerWorkshop, SplitFlapProject, TechnicalHome, WeekendCollage } from "./PresentationScenes";
@@ -20,7 +20,7 @@ import { AfterDark, EverydayAI, ThankYou } from "./ClosingScenes";
 import styles from "./presentation.module.css";
 import "./transitions.css";
 
-const dissolvePairs = [["minecraft", "creators"], ["hilton-head", "biking"], ["drones", "photo-album"], ["cars", "air-shows"], ["weekend", "thanks"]];
+const slideFadeSeconds = 1.6;
 const keyboardShortcuts = [
   { action: "Next", keys: ["→", "Space"] },
   { action: "Previous", keys: ["←"] },
@@ -186,7 +186,6 @@ export default function PersonalPresentation() {
     if (bounded === index) return;
     const requestVersion = ++navigationVersion.current;
     makerRevealVersion.current += 1;
-    const dissolve = dissolvePairs.some(([from, to]) => (slides[index].id === from && slides[bounded].id === to) || (slides[index].id === to && slides[bounded].id === from));
     const update = () => {
       setDirection(bounded >= index ? 1 : -1);
       setIndex(bounded);
@@ -201,11 +200,12 @@ export default function PersonalPresentation() {
     const start = () => {
       if (navigationVersion.current !== requestVersion) return;
       if (deckRef.current) delete deckRef.current.dataset.slideLoading;
-      activeTransition.current?.skipTransition();
-      if (nativeMorph && !paused && !overview && !help && !notes && !settingsOpen) {
+      // Remove a selector/settings panel before taking the outgoing slide snapshot.
+      if (overview || settingsOpen) flushSync(() => { setOverview(false); setSettingsOpen(false); });
+      if (nativeMorph && !paused) {
         try {
-          if (deckRef.current) deckRef.current.dataset.transitionStyle = dissolve ? "soft-dissolve" : "standard";
-          const transition = document.startViewTransition({ types: dissolve ? ["anywhere-slide", "anywhere-dissolve"] : ["anywhere-slide"], update: () => flushSync(update) });
+          if (deckRef.current) deckRef.current.dataset.transitionStyle = "soft-dissolve";
+          const transition = document.startViewTransition(() => flushSync(update));
           activeTransition.current = transition;
           if (deckRef.current) deckRef.current.dataset.transitionStatus = "preparing";
           void transition.ready.then(() => {
@@ -226,15 +226,18 @@ export default function PersonalPresentation() {
         }
       } else update();
     };
-    // Keep the current composition intact until all destination images are ready.
+    // Keep the current composition intact until images, fonts and any prior fade are ready.
     setStatus("");
     if (deckRef.current) deckRef.current.dataset.slideLoading = slides[bounded].id;
-    void preloadSlideImages(slides[bounded].id).then(start).catch(() => {
+    void Promise.all([preloadSlideMedia(slides[bounded].id), activeTransition.current?.finished.catch(() => {})]).then(start).catch(() => {
       if (navigationVersion.current !== requestVersion) return;
       if (deckRef.current) delete deckRef.current.dataset.slideLoading;
       setStatus("The next images couldn’t load. Try again to continue.");
     });
-  }, [index, nativeMorph, paused, overview, help, notes, settingsOpen]);
+  }, [index, nativeMorph, paused, overview, settingsOpen]);
+
+  const latestGo = useRef(go);
+  useEffect(() => { latestGo.current = go; }, [go]);
 
   const advance = useCallback(() => {
     navigationVersion.current += 1;
@@ -288,7 +291,7 @@ export default function PersonalPresentation() {
       makerRevealVersion.current += 1;
       setStatus("");
       if (deckRef.current) deckRef.current.dataset.slideLoading = slides[requested].id;
-      void preloadSlideImages(slides[requested].id).then(() => {
+      void preloadSlideMedia(slides[requested].id).then(() => {
         if (navigationVersion.current !== version) return;
         if (deckRef.current) delete deckRef.current.dataset.slideLoading;
         setIndex(requested);
@@ -303,10 +306,11 @@ export default function PersonalPresentation() {
       });
     };
     readHash();
-    window.addEventListener("hashchange", readHash);
+    const hashChange = () => latestGo.current(slideIndexFromHash(window.location.hash));
+    window.addEventListener("hashchange", hashChange);
     const fullscreenChange = () => setFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", fullscreenChange);
-    return () => { navigationVersion.current += 1; makerRevealVersion.current += 1; window.removeEventListener("hashchange", readHash); document.removeEventListener("fullscreenchange", fullscreenChange); };
+    return () => { navigationVersion.current += 1; makerRevealVersion.current += 1; window.removeEventListener("hashchange", hashChange); document.removeEventListener("fullscreenchange", fullscreenChange); };
   }, []);
 
   useEffect(() => {
@@ -345,9 +349,9 @@ export default function PersonalPresentation() {
   // Warm the current and upcoming slide, including gallery frames and posters.
   // The same cached decode promises are awaited by every navigation path.
   useEffect(() => {
-    void preloadSlideImages(slides[index].id).catch(() => {});
+    void preloadSlideMedia(slides[index].id).catch(() => {});
     const next = slides[index + 1];
-    if (next) void preloadSlideImages(next.id).catch(() => {});
+    if (next) void preloadSlideMedia(next.id).catch(() => {});
   }, [index]);
 
   return <MotionConfig reducedMotion="never"><PresentationPlaybackContext.Provider value={preferences}><div ref={deckRef} className={styles.presentation} data-presentation="personal" data-native-morph={nativeMorph ? "enabled" : "fallback"} data-motion={motionPaused ? "paused" : "playing"} data-slide-advance={automaticSlides ? "automatic" : "manual"} onTouchStart={(event) => { touchStart.current = event.target instanceof Element && event.target.closest("button, a, aside, dialog") ? null : event.touches[0].clientX; }} onTouchEnd={(event) => {
@@ -362,8 +366,8 @@ export default function PersonalPresentation() {
           <SlideStepProvider controller={stepController} slideId={slide.id} fromEnd={direction < 0}><SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} /></SlideStepProvider>
         </section> : <AnimatePresence initial={false} custom={direction}>
           <motion.section key={slide.id} custom={direction} className={styles.slide} data-slide-id={slide.id} aria-roledescription="slide" aria-label={`${index + 1} of ${slides.length}: ${slide.title}`}
-            variants={{ enter: { opacity: 0 }, visible: { opacity: 1 }, leave: { opacity: 0, transition: { delay: paused ? 0 : .55, duration: paused ? 0 : .45 } } }}
-            initial="enter" animate="visible" exit="leave" transition={{ duration: paused ? 0 : 1.1, ease: "easeInOut" }}>
+            variants={{ enter: { opacity: 0 }, visible: { opacity: 1 }, leave: { opacity: 0, transition: { delay: paused ? 0 : slideFadeSeconds, duration: 0 } } }}
+            initial="enter" animate="visible" exit="leave" transition={{ duration: paused ? 0 : slideFadeSeconds, ease: [.22, .61, .36, 1] }}>
             <SlideStepProvider controller={stepController} slideId={slide.id} fromEnd={direction < 0}><SlideContent id={slide.id} paused={motionPaused} airFavoritesRevealed={airFavoritesRevealed} makerProjectRevealed={makerProjectRevealed} afterDarkStep={afterDarkStep} /></SlideStepProvider>
           </motion.section>
         </AnimatePresence>}

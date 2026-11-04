@@ -356,12 +356,9 @@
   .canvas { width: 100%; }
 }
 
-/* Shared geometry is captured by native view transitions, rather than sliding whole pages. */
+/* A complete canvas snapshot keeps image crops, typography and color washes together. */
 .canvas { view-transition-name: tac-canvas; }
-.slide :is(h1,h2) { view-transition-name: tac-title; }
-.slide .label { view-transition-name: tac-kicker; }
-.morphVisual { view-transition-name: tac-visual; }
-/* Different image layouts dissolve intact instead of stretching into each other. */
+.morphVisual { view-transition-name: none; }
 .presentation[data-transition-style="soft-dissolve"] .canvas * { view-transition-name: none !important; }
 .label { font-family: "Presentation Mono", monospace; font-weight: 400; letter-spacing: .13em; }
 .galleryControls { height: 2.6cqw; }

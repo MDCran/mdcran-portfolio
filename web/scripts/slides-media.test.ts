@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import test from "node:test";
 import { slides } from "../src/app/slides/theanywherecompany/slides";
-import { createImagePreloader, slideImages } from "../src/app/slides/theanywherecompany/slideMedia";
+import { createImagePreloader, createPresentationFontPreloader, slideImages } from "../src/app/slides/theanywherecompany/slideMedia";
 
 test("every slide has a media manifest and every declared image exists", async () => {
   assert.deepEqual(Object.keys(slideImages).sort(), slides.map(({ id }) => id).sort());
@@ -78,4 +78,28 @@ test("the decoded-image cache is bounded and retains recently used images", asyn
   assert.equal(requests, 3);
   await preload("second.webp");
   assert.equal(requests, 4);
+});
+
+test("slide typography stays pending until every presentation font is ready", async () => {
+  const fonts = [deferred(), deferred(), deferred(), deferred()];
+  let loaded = 0, ready = false;
+  const preload = createPresentationFontPreloader(() => fonts[loaded++].promise);
+  const first = preload();
+  assert.equal(preload(), first);
+  const completion = first.then(() => { ready = true; });
+  fonts.slice(0, 3).forEach((font) => font.resolve());
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(ready, false);
+  fonts[3].resolve();
+  await completion;
+  assert.equal(ready, true);
+  assert.equal(loaded, 4);
+});
+
+test("a failed font load can recover on the next navigation attempt", async () => {
+  let calls = 0;
+  const preload = createPresentationFontPreloader(() => ++calls === 1 ? Promise.reject(new Error("offline")) : Promise.resolve());
+  await assert.rejects(preload(), /offline/);
+  await preload();
+  assert.equal(calls, 8);
 });
