@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyAdminToken } from "@/lib/auth";
+import { isSlidesImageRequest, isSlidesMediaPath, normalizedSlidesPath, SLIDES_COOKIE, SLIDES_PATH, verifySlidesSession } from "@/lib/slides-access";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -32,7 +33,13 @@ export function proxy(req: NextRequest) {
     }
   }
 
+  const slideMedia = isSlidesMediaPath(pathname) || (pathname === "/_next/image" && isSlidesImageRequest(req.nextUrl.searchParams.get("url") ?? "", req.url));
+  if (slideMedia && !verifySlidesSession(req.cookies.get(SLIDES_COOKIE)?.value)) {
+    return new NextResponse("Presentation locked.", { status: 401, headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+  }
+
   const res = NextResponse.next();
+  if (normalizedSlidesPath(pathname) === SLIDES_PATH || slideMedia) res.headers.set("Cache-Control", "private, no-store");
 
   // SEO & security headers
   res.headers.set("X-Content-Type-Options", "nosniff");
@@ -50,6 +57,7 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/_next/image",
     // Match all paths except static files and Next.js internals
     "/((?!_next/static|_next/image|favicon\\.ico|icon\\.png|cdn/).*)",
   ],

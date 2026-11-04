@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIdentity } from "@/context/IdentityContext";
+import { usePathname } from "next/navigation";
 
 export default function WelcomeBack() {
+  const pathname = usePathname();
   const { identity } = useIdentity();
   const [expiredIdentity, setExpiredIdentity] = useState<string | null>(null);
   const returningIdentity = identity && !identity.isNew && identity.name && identity.name !== "Guest" ? `${identity.id}:${identity.name}` : null;
@@ -18,7 +20,7 @@ export default function WelcomeBack() {
 
   return (
     <AnimatePresence>
-      {visible && (
+      {visible && !pathname.startsWith("/slides/") && (
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}

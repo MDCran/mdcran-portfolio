@@ -2,11 +2,13 @@
 
 import { useCallback, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { SkillIcon } from "@/lib/skill-icons";
 import type { SiteContentBanner } from "@/lib/types";
 
 export default function AnnouncementBanner({ banner }: { banner?: SiteContentBanner | null }) {
+  const pathname = usePathname();
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
   // Dismissal is keyed to the message so a new announcement re-appears.
@@ -34,7 +36,7 @@ export default function AnnouncementBanner({ banner }: { banner?: SiteContentBan
   }, [dismissKey, startsAt, endsAt]);
   const available = useSyncExternalStore(subscribe, snapshot, () => false);
 
-  if (!banner?.enabled || !banner.message.trim() || dismissedKey === dismissKey || !available) return null;
+  if (pathname.startsWith("/slides/") || !banner?.enabled || !banner.message.trim() || dismissedKey === dismissKey || !available) return null;
   const justify = banner.align === "left" ? "justify-start" : banner.align === "right" ? "justify-end" : "justify-center";
 
   return (

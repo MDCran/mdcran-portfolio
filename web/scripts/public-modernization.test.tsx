@@ -57,7 +57,7 @@ test("restored hero uses saved branding and canonical location with all personal
   assert.match(markup, /Verse of the Day/);
   assert.match(markup, /View area on map/);
   assert.match(markup, /<div class="relative z-10 w-full content-container pt-32 sm:pt-36 pb-20">/);
-  assert.match(markup, /<div data-highlight-id="personal-widgets" class="grid grid-cols-1 sm:grid-cols-3 gap-4">/);
+  assert.match(markup, /<div data-highlight-id="personal-widgets" class="grid grid-cols-1 gap-4 lg:grid-cols-3">/);
   assert.match(markup, /spotify/i);
   assert.match(markup, /href="\/engineering"/);
   assert.doesNotMatch(markup, /Old location|Orlando|href="\/code|Show music/);

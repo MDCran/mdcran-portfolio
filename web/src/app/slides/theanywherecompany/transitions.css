@@ -1,0 +1,105 @@
+/* Keep each color wash above its picture for the entire slide morph. */
+html:active-view-transition-type(anywhere-slide)::view-transition { pointer-events: none; }
+
+::view-transition-group(tac-canvas),
+::view-transition-group(tac-visual),
+::view-transition-group(tac-shade),
+::view-transition-group(tac-copy),
+::view-transition-group(tac-caption),
+::view-transition-group(tac-title),
+::view-transition-group(tac-kicker) {
+  animation-duration: 1300ms;
+  animation-timing-function: cubic-bezier(.4, 0, .2, 1);
+}
+
+::view-transition-group(tac-canvas),
+::view-transition-group(tac-visual),
+::view-transition-group(tac-shade) {
+  overflow: hidden;
+  border-radius: clamp(10px, .75vw, 20px);
+}
+
+::view-transition-group(tac-canvas) { z-index: 1; }
+::view-transition-group(tac-visual) { z-index: 2; }
+::view-transition-group(tac-shade) { z-index: 3; }
+::view-transition-group(tac-copy), ::view-transition-group(tac-caption) { z-index: 4; }
+::view-transition-group(tac-title) { z-index: 5; }
+::view-transition-group(tac-kicker) { z-index: 6; }
+
+::view-transition-image-pair(tac-visual),
+::view-transition-image-pair(tac-shade),
+::view-transition-image-pair(tac-copy),
+::view-transition-image-pair(tac-caption),
+::view-transition-image-pair(tac-title),
+::view-transition-image-pair(tac-kicker) { isolation: isolate; }
+
+::view-transition-old(tac-visual), ::view-transition-new(tac-visual),
+::view-transition-old(tac-shade), ::view-transition-new(tac-shade) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* An opaque old picture remains underneath, so the background never flashes through. */
+::view-transition-old(tac-canvas), ::view-transition-old(tac-visual) {
+  animation: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+::view-transition-new(tac-canvas), ::view-transition-new(tac-visual) {
+  animation: tac-soft-in 1300ms cubic-bezier(.4, 0, .2, 1) both;
+  mix-blend-mode: normal;
+}
+
+/* Complementary, isolated fades preserve the opacity of a translucent color wash. */
+::view-transition-old(tac-shade) {
+  animation: tac-soft-out 1300ms cubic-bezier(.4, 0, .2, 1) both;
+  mix-blend-mode: plus-lighter;
+}
+::view-transition-new(tac-shade) {
+  animation: tac-soft-in 1300ms cubic-bezier(.4, 0, .2, 1) both;
+  mix-blend-mode: plus-lighter;
+}
+
+::view-transition-old(tac-copy), ::view-transition-old(tac-caption),
+::view-transition-old(tac-title), ::view-transition-old(tac-kicker) {
+  animation: tac-soft-out 450ms ease-in-out both;
+  mix-blend-mode: normal;
+}
+::view-transition-new(tac-copy), ::view-transition-new(tac-caption),
+::view-transition-new(tac-title), ::view-transition-new(tac-kicker) {
+  animation: tac-soft-in 700ms 120ms ease-in-out both;
+  mix-blend-mode: normal;
+}
+
+html:active-view-transition-type(anywhere-slide)::view-transition-old(root) {
+  animation: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+html:active-view-transition-type(anywhere-slide)::view-transition-new(root) {
+  animation: tac-soft-in 1300ms ease-in-out both;
+  mix-blend-mode: normal;
+}
+
+@keyframes tac-soft-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tac-soft-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* Preserve the old photograph and color wash beneath a slow, complete dissolve. */
+html:active-view-transition-type(anywhere-dissolve)::view-transition-group(tac-canvas) {
+  animation-duration: 1800ms;
+  animation-timing-function: cubic-bezier(.22,.61,.36,1);
+}
+html:active-view-transition-type(anywhere-dissolve)::view-transition-new(tac-canvas),
+html:active-view-transition-type(anywhere-dissolve)::view-transition-new(root) {
+  animation: tac-soft-in 1800ms cubic-bezier(.22,.61,.36,1) both;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(tac-canvas), ::view-transition-group(tac-visual),
+  ::view-transition-group(tac-shade), ::view-transition-group(tac-copy),
+  ::view-transition-group(tac-caption), ::view-transition-group(tac-title),
+  ::view-transition-group(tac-kicker) { animation-duration: 0s; }
+  ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

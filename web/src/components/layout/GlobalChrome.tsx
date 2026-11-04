@@ -100,7 +100,7 @@ function LanguageWarning() {
   );
 }
 
-const CHROMELESS_PREFIXES = ["/resume/print","/admin", "/githubprofile", "/2d-pong"];
+const CHROMELESS_PREFIXES = ["/resume/print","/admin", "/githubprofile", "/2d-pong", "/slides/"];
 const MINIMAL_CHROME_PREFIXES = ["/visitor-map"];
 
 function applyHighlight(el: HTMLElement) {

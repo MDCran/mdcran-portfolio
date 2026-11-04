@@ -1,0 +1,120 @@
+.everydayAI { display: grid; grid-template-rows: minmax(0,1fr) auto; gap: 2.5cqw; padding: 4.8cqw 5cqw 3.7cqw; background: #0e141b; }
+.everydayTop { display: grid; grid-template-columns: minmax(0,56fr) minmax(0,44fr); gap: 4cqw; align-items: center; }
+.eyebrow { font-family: "Presentation Mono",monospace; font-size: .72cqw; letter-spacing: .13em; text-transform: uppercase; color: #a2b7c5; view-transition-name: tac-kicker; }
+.everydayAI .everydayCopy h2 { font-size: 6.2cqw; line-height: 1.04; margin: 1.8cqw 0 2cqw; letter-spacing: -.045em; }
+.everydayAI .everydayCopy h2 em { color: #b6c8d4; }
+.everydayAI .everydayCopy > p { font-size: 1.5cqw; color: #b6c1c9; line-height: 1.8; }
+.modelCredits { padding: 1cqw 0 1cqw 3cqw; border-left: 1px solid #adbfcb30; }
+.modelCredits > span { display: block; margin-bottom: 2.5cqw; font-family: "Presentation Mono",monospace; font-size: .65cqw; text-transform: uppercase; letter-spacing: .11em; color: #91a5b5; }
+.modelCredits > div { display: flex; align-items: center; gap: 1.3cqw; }
+.modelCredits > div + div { margin-top: 2.8cqw; }
+.modelCredits svg { width: 3cqw; height: 3cqw; flex-shrink: 0; }
+.modelCredits p { display: flex; flex-direction: column; gap: .3cqw; }
+.modelCredits small { font-size: .9cqw; color: #97aab8; }
+.modelCredits strong { font-family: "Presentation Display",sans-serif; font-size: 2cqw; font-weight: 500; letter-spacing: -.02em; }
+.aiToolkit { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); list-style: none; padding: 2.2cqw 0 0; margin: 0; border-top: 1px solid #adbfcb26; gap: 1cqw; }
+.aiToolkit li { display: flex; flex-direction: column; align-items: center; gap: .8cqw; color: #d4dee5; }
+.aiToolkit svg { width: 2.6cqw; height: 2.6cqw; }
+.aiToolkit span { font-size: .73cqw; white-space: nowrap; }
+.aiToolkit li:last-child svg { color: #fff; }
+.farewell { position: relative; isolation: isolate; overflow: hidden; background: radial-gradient(ellipse at 50% 44%,#19324166,transparent 58%),#0a141d; color: #f1f4f5; }
+.farewellGrid { position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(#8cb4c20c 1px,transparent 1px),linear-gradient(90deg,#8cb4c20c 1px,transparent 1px); background-size: 4cqw 4cqw; mask-image: radial-gradient(ellipse,#0008,transparent 75%); }
+.farewellCircuits { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; }
+.farewellTrace { stroke: #87b0c12b; stroke-width: .65; stroke-linejoin: round; }
+.farewellGlint { stroke: #b5d9e6; stroke-width: .9; stroke-linecap: round; stroke-dasharray: .035 .965; opacity: .2; animation: farewellSignal 16s linear infinite; }
+.farewellNode { fill: #0a141d; stroke: #a1c5d34d; stroke-width: .7; }
+.farewell[data-paused="true"] .farewellGlint { animation-play-state: paused; }
+@keyframes farewellSignal { to { stroke-dashoffset: -1; } }
+.farewellMessage { position: absolute; top: 12cqw; left: 12cqw; right: 12cqw; text-align: center; }
+.farewell .farewellMessage h2 { font-family: "Presentation Display",sans-serif; font-size: 12cqw; font-weight: 500; line-height: 1; letter-spacing: -.06em; }
+.farewellMessage h2 > span { color: #a4c8d7; }
+.farewell .farewellMessage p { margin-top: 2.2cqw; font-size: 1.65cqw; line-height: 1.6; letter-spacing: -.02em; color: #bdcbd4; }
+.farewellSignature { width: 36cqw; height: 3.35cqw; margin: 3.2cqw auto 0; }
+.farewellSignature > img { filter: invert(1); opacity: .85; }
+.farewellPrepared { position: absolute; bottom: 4cqw; left: 50%; transform: translateX(-50%); text-align: center; }
+.farewellPrepared > span { display: block; margin-bottom: .8cqw; font-family: "Presentation Mono",monospace; font-size: .65cqw; letter-spacing: .14em; text-transform: uppercase; color: #a0b5c1; }
+.farewellPrepared > div { width: 24cqw; height: 4.2cqw; padding: .65cqw 1cqw; border-radius: .55cqw; background: #fff; box-shadow: 0 .4cqw 1.5cqw #0002; }
+.afterDark { position: relative; isolation: isolate; overflow: hidden; background: #0a141c; }
+.afterVideo { position: absolute; inset: 0; z-index: -2; }
+.afterVideo > video,.afterVideo > img { width: 100%; height: 100%; object-fit: cover; }
+.afterShade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg,#07111af5,#07111ac7 50%,#07111a8f),linear-gradient(transparent 55%,#07111acc); }
+.afterCoreLogo { position: absolute; top: 2.5cqw; right: 4.5cqw; z-index: 4; width: 10.5cqw; height: 3.7cqw; opacity: .9; pointer-events: none; }
+.afterHeader { position: absolute; left: 5cqw; z-index: 3; view-transition-name: tac-copy; }
+.afterDark .afterHeader h2 { line-height: 1.04; letter-spacing: -.045em; margin-top: 1.3cqw; }
+.compactBreak { display: none; }
+.afterBody { position: absolute; inset: 0; z-index: 1; }
+.afterIntro { position: absolute; top: 26.5cqw; left: 5cqw; width: 47cqw; }
+.afterDark .afterIntro > p { font-size: 1.85cqw; line-height: 1.5; letter-spacing: -.025em; color: #e1e8ec; }
+.afterDomains { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1.2cqw; list-style: none; padding: 0; margin: 1.8cqw 0 2cqw; }
+.afterDomains > li { border-top: 1px solid #b0c7d538; padding-top: 1.1cqw; }
+.afterDomains > li > div { display: flex; align-items: center; gap: .55cqw; }
+.afterDomains svg { width: 1.15cqw; height: 1.15cqw; color: #d9aaa1; stroke-width: 1.4; flex-shrink: 0; }
+.afterDomains strong { font-size: 1.05cqw; font-weight: 500; color: #d7e2e9; }
+.afterDomains li > span { display: block; margin-top: .65cqw; font-size: .86cqw; line-height: 1.65; color: #a7bdca; }
+.afterDark .afterIntro .afterDrive { font-size: 1.1cqw; line-height: 1.7; color: #b1c1cb; }
+.afterUsage { position: absolute; top: 25.2cqw; left: 5cqw; display: flex; flex-direction: column; }
+.afterUsage > strong { font-family: "Presentation Display",sans-serif; font-size: 8.2cqw; font-weight: 500; line-height: 1; letter-spacing: -.05em; }
+.afterUsage > span { margin-top: .7cqw; font-size: 1.45cqw; color: #c5d1da; }
+.afterDark .afterUsage p { font-size: 1.1cqw; line-height: 1.7; color: #a7bac7; margin-top: 1.8cqw; }
+.afterUsage > small { font-family: "Presentation Mono",monospace; font-size: .65cqw; color: #b8c7d0; margin-top: 1.7cqw; }
+.afterHub { position: absolute; z-index: 2; transform: translate(-50%,-50%); border: 1px solid #bed4e033; border-radius: 50%; background: #0a1720d9; box-shadow: 0 1cqw 3cqw #0002; }
+.hubFace { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+.hubFace > svg { width: 50%; height: 40%; color: #e8a398; }
+.hubFace > strong { font-size: 1.6cqw; font-weight: 500; margin-top: .35cqw; }
+.hubFace > small { font-size: .8cqw; color: #afc1ce; margin-top: 1cqw; }
+.workdayClock { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 50% 40%,#b0d2e00b,transparent 68%); }
+.workdayClock > svg { display: block; width: 100%; height: 100%; }
+.clockRing { stroke: #bbced52b; stroke-width: .35; fill: none; }
+.clockOuterRing { stroke: #b8d2df0d; stroke-width: .35; fill: none; }
+.clockWorkdayArc { stroke: #bed6e0; stroke-width: .6; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; fill: none; opacity: .7; }
+.clockContinuation { fill: none; stroke: #e3b0a2; stroke-width: .7; stroke-linecap: round; stroke-dasharray: .045 .955; opacity: 0; filter: drop-shadow(0 0 1.2px #e3b0a2b3); animation: clockSignal 12s linear infinite; transition: opacity 1.4s ease; }
+.workdayClock[data-clock-state="after-hours"] .clockContinuation { opacity: .95; }
+.afterDark[data-paused="true"] .clockContinuation { animation-play-state: paused; }
+@keyframes clockSignal { to { stroke-dashoffset: -1; } }
+.clockNumerals { fill: #aec4cf; font-family: "Presentation Mono",monospace; font-size: 4.5px; text-anchor: middle; opacity: .8; }
+.clockTick { stroke: #b8cbd3; stroke-width: .75; stroke-linecap: round; opacity: .65; }
+.hourHand { stroke: #ebede5; stroke-width: 2; stroke-linecap: round; }
+.minuteHand { stroke: #a9becd; stroke-width: 1; stroke-linecap: round; }
+.clockReadout { position: absolute; top: 104%; left: 0; right: 0; text-align: center; font-family: "Presentation Mono",monospace; font-size: 1.5cqw; color: #e0e7eb; font-variant-numeric: tabular-nums; }
+.afterFooter { position: absolute; left: 5cqw; right: 5cqw; bottom: 3.1cqw; display: flex; justify-content: space-between; font-family: "Presentation Mono",monospace; font-size: .64cqw; color: #a9bdc9; z-index: 3; }
+.afterFooter > span:last-child { margin-left: auto; }
+.workflow { position: absolute; left: 4.5cqw; top: 15cqw; width: 91cqw; height: 32cqw; }
+.workflowLines { position: absolute; inset: 0; width: 100%; height: 100%; color: #9bb5c6; overflow: visible; }
+.workflowWire { color: #9bbdce; }
+.workflowWire[data-kind="input"] { color: #c0d9e6; }
+.workflowWire[data-kind="feedback"] { color: #e4afa4; }
+.workflowWire > path { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.wireBase { stroke-width: 1.15; opacity: .6; }
+.wireGlow,.wireGlint { stroke-dasharray: .065 1.4; stroke-dashoffset: .12; animation: workflowGlint 6.4s linear infinite both; }
+.wireGlow { stroke-width: 6; opacity: .28; filter: blur(2px); }
+.workflowWire .wireGlint { stroke: #e2f6ff; stroke-width: 1.7; opacity: .95; }
+.workflowWire[data-kind="feedback"] .wireGlint { stroke: #ffe2d8; }
+.workflowFeedbackLabel { position: absolute; left: 40%; top: -9%; font-family: "Presentation Mono",monospace; font-size: .6cqw; letter-spacing: .025em; color: #e4b6aa; }
+.workflowConversationLabel { position: absolute; left: 46%; top: 107%; padding: .3cqw .6cqw; border: 1px solid #e4afa429; border-radius: .35cqw; background: #0b1720ed; font-family: "Presentation Mono",monospace; font-size: .6cqw; letter-spacing: .025em; color: #e4b6aa; }
+@keyframes workflowGlint { from { stroke-dashoffset: .12; } to { stroke-dashoffset: -1.12; } }
+@keyframes workflowNodeGlow { 0%,100% { box-shadow: 0 0 1.4cqw #9fcfdf08; } 50% { box-shadow: 0 0 2.4cqw #9fcfdf22; } }
+.workflow[data-motion="paused"] :is(.wireGlow,.wireGlint,.workflowModels),.afterDark[data-paused="true"] .workflowHub { animation-play-state: paused; }
+.workflowIntake { position: absolute; left: 0; top: 29%; width: 22%; height: 42%; border: 1px solid #b0c7d52e; background: #0b1720e8; border-radius: .8cqw; padding: 1.5cqw; display: flex; flex-direction: column; }
+.workflowIntake > svg { width: 1.8cqw; height: 1.8cqw; color: #dba29c; margin-bottom: .8cqw; }
+.workflowIntake > span { font-family: "Presentation Mono",monospace; font-size: .58cqw; text-transform: uppercase; letter-spacing: .03em; color: #a6bccb; }
+.workflowIntake > strong { font-family: "Presentation Display",sans-serif; font-size: 1.5cqw; font-weight: 500; line-height: 1.3; margin-top: .8cqw; }
+.workflowIntake > small { font-size: .65cqw; color: #a3b8c6; margin-top: auto; }
+.workflowModels { position: absolute; left: 29%; top: 28%; width: 13%; height: 44%; border: 1px solid #b0c7d526; border-radius: .8cqw; background: #0b1720e8; padding: 1.1cqw .5cqw; display: flex; flex-direction: column; align-items: center; justify-content: space-between; animation: workflowNodeGlow 6.4s ease-in-out infinite; }
+.workflowModels > span { font-family: "Presentation Mono",monospace; font-size: .53cqw; color: #9eb6c5; text-transform: uppercase; }
+.workflowModels > div { display: flex; flex-direction: column; align-items: center; gap: .4cqw; }
+.workflowModels svg { width: 1.9cqw; height: 1.9cqw; }
+.workflowModels small { font-size: .66cqw; }
+.workflowModels .workflowModelAction { font-size: .6cqw; color: #e5b4a9; }
+.workflowHub { animation: workflowNodeGlow 6.4s ease-in-out infinite; }
+.workflowBridge { position: absolute; left: 29%; top: 78%; font-family: "Presentation Mono",monospace; font-size: .55cqw; color: #a7bdca; }
+.workflowTargets { position: absolute; inset: 0; }
+.workflowTargets > a { position: absolute; left: 75%; width: 23%; height: 12%; transform: translateY(-50%); border: 1px solid #b0c7d52e; border-radius: .65cqw; background: #0b1720f0; color: #e4ebee; display: flex; align-items: center; gap: .95cqw; padding: .5cqw 1.1cqw; text-decoration: none; }
+.workflowTargets svg { width: 1.65cqw; height: 1.65cqw; flex-shrink: 0; }
+.workflowTargets > a > span { display: flex; flex-direction: column; gap: .2cqw; }
+.workflowTargets strong { font-size: 1cqw; font-weight: 500; }
+.workflowTargets small { font-size: .6cqw; color: #a8bac7; }
+.workflowPurpose { position: absolute; left: 0; top: 79%; font-size: .85cqw; line-height: 1.8; color: #b8c8d2; }
+@media (prefers-reduced-motion: reduce) {
+  .wireGlow,.wireGlint { display: none; animation: none; }
+  .workflowModels,.workflowHub,.clockContinuation { animation: none; }
+}

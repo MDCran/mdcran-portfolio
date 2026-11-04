@@ -1,0 +1,14 @@
+.gate { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 40%,#19324166,transparent 60%),#0a141d; color: #e9eff3; font-family: Arial,sans-serif; }
+.panel { width: min(100%,380px); padding: 34px; border: 1px solid #b6c9d52e; border-radius: 14px; background: #111a22; box-shadow: 0 24px 80px #0004; }
+.icon { width: 26px; height: 26px; margin-bottom: 24px; color: #a9c7d7; stroke-width: 1.4; }
+.eyebrow { margin: 0 0 9px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #90a8b9; }
+.panel h1 { margin: 0; font-family: Arial,sans-serif; font-size: 25px; line-height: 1.2; font-weight: 500; letter-spacing: -.035em; text-transform: none; text-shadow: none; }
+.intro { margin: 13px 0 27px; font-size: 13px; line-height: 1.5; color: #a3b6c3; }
+.panel label { display: block; margin-bottom: 9px; font-size: 12px; color: #b9cbd6; }
+.panel input { width: 100%; height: 52px; padding: 10px 14px; border: 1px solid #b6c9d538; border-radius: 7px; background: #0a131b; color: #edf3f7; font-family: monospace; font-size: 25px; letter-spacing: .6em; outline: none; }
+.panel input:focus-visible { border-color: #b9d9eb; box-shadow: 0 0 0 3px #8ac4e01a; }
+.panel button { width: 100%; margin-top: 14px; padding: 13px 12px; border: 1px solid #c2d9e6; border-radius: 7px; background: #d5e5ee; color: #11212c; font-size: 13px; font-weight: 600; cursor: pointer; }
+.panel button:focus-visible { outline: 2px solid #b9d9eb; outline-offset: 3px; }
+.panel button:disabled { opacity: .45; cursor: default; }
+.panel input:disabled { opacity: .65; }
+.error { margin: 16px 0 0; font-size: 12px; line-height: 1.5; color: #f1b7aa; }
